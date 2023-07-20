@@ -15,6 +15,7 @@
 package nilaway
 
 import (
+	"os"
 	"testing"
 
 	"go.uber.org/nilaway/config"
@@ -209,4 +210,5 @@ func TestGenerics(t *testing.T) {
 
 func TestMain(m *testing.M) {
 	config.IsTestEnvironment = true
+	os.Exit(m.Run())
 }
