@@ -20,3 +20,6 @@ go.work
 # IntelliJ files
 .idea/
 
+# Coverage files
+cover.out cover.html
+
