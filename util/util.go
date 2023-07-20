@@ -459,12 +459,10 @@ func PrettyPrintErrorMessage(msg string) string {
 	codeStr := fmt.Sprintf("\u001B[%dm%s\u001B[0m", 95, "`${1}`")    // magenta
 	pathStr := fmt.Sprintf("\u001B[%dm%s\u001B[0m", 36, "${1}")      // cyan
 	nilabilityStr := fmt.Sprintf("\u001B[%dm%s\u001B[0m", 1, "${1}") // bold
-	supportStr := " (reach us at #nilaway-support)"
 
 	msg = nilabilityPattern.ReplaceAllString(msg, nilabilityStr)
 	msg = codeReferencePattern.ReplaceAllString(msg, codeStr)
 	msg = pathPattern.ReplaceAllString(msg, pathStr)
 	msg = errorStr + msg
-	msg = msg + supportStr
 	return msg
 }
