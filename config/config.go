@@ -26,12 +26,14 @@ import (
 // to disable the pretty printing used in error reporting.
 var IsTestEnvironment = false
 
-// LoopTolerance is an extra padding on the number of rounds that we request the FullTriggers
-// from Assertion Tree backpropagation to be stable for before declaring that we've reached a fixed
-// point. If this is set to n - then loops of length n CFG blocks are guaranteed to be fully stabilized
-// by the time we terminate but loops of length n+1 are not. In practice, this does not seem to be a major
-// issue - but we can investigate more.
-const LoopTolerance = 5
+// StableRoundLimit is the number of rounds in backpropagation algorithm after which, if there is no change
+// in the collected triggers, the algorithm halts. It is possible to carefully craft known false negative for any value
+// of StableRoundLimit (check test loopflow.go/longRotNilLoop). Setting this value too low may result in false negatives
+// going undetected, while setting it too high may lead to longer analysis times without significant precision gains.
+// In practice, a value of StableRoundLimit >= 2 has shown to provide sound analysis, capturing most false negatives.
+// After experimentation, we observed that using StableRoundLimit = 5 with NilAway yields similar analysis time compared
+// to lower values, making it a good compromise for precise results.
+const StableRoundLimit = 5
 
 // BackpropTimeout is the timeout set for analysis of each function. This ensures build time SLAs.
 // NilAway should report an error if this timeout is ever hit, in order not to silently ignore any

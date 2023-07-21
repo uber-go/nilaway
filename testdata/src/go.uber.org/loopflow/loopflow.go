@@ -79,3 +79,34 @@ func infiniteAssertion() {
 		a = a.f //want "nilable value passed to a field access"
 	}
 }
+
+// This is a known false negative. The analysis can be sound in this case if config.StableRoundLimit >= 9. However, that
+// would result in degradation of NilAway performance. In practice, we haven't observed a case similar to this, and
+// config.StableRoundLimit >= 2 is mostly sufficient for soundness.
+// Similar large test that is a false negative can be constructed for any value of config.StableRoundLimit, is currently
+// a known limitation of NilAway.
+func longRotNilLoop(i int) struct{} {
+	var j0 *struct{} = nil
+	j1 := new(struct{})
+	j2 := new(struct{})
+	j3 := new(struct{})
+	j4 := new(struct{})
+	j5 := new(struct{})
+	j6 := new(struct{})
+	j7 := new(struct{})
+	j8 := new(struct{})
+	j9 := new(struct{})
+	for dummyBool() {
+		j9 = j8
+		j8 = j7
+		j7 = j6
+		j6 = j5
+		j5 = j4
+		j4 = j3
+		j3 = j2
+		j2 = j1
+		j1 = j0
+	}
+	// j9 is nilable and thus this is a false negative
+	return *j9
+}

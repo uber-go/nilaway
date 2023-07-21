@@ -725,6 +725,31 @@ func backpropAcrossManyToOneAssignment(rootNode *RootAssertionNode, lhs, rhs []a
 	return nil
 }
 
+// computePostOrder computes the postorder of depth first search tree (DFST) of the live blocks of the CFG.
+// The backpropagation algorithm converges faster if the CFG blocks are traversed in postorder, compared to the random
+// order (Check [Kam, Ullman 76']).
+func computePostOrder(blocks []*cfg.Block) []int {
+	numBlocks := len(blocks)
+	visited := make([]bool, numBlocks)
+	postOrder := make([]int, 0, numBlocks)
+	var visit func(curBlock int)
+	visit = func(curBlock int) {
+		visited[curBlock] = true
+		for _, suc := range blocks[curBlock].Succs {
+			sucIdx := int(suc.Index)
+			if !visited[sucIdx] {
+				visit(sucIdx)
+			}
+		}
+		postOrder = append(postOrder, curBlock)
+	}
+
+	// Start traversal from entry block (index 0): https://pkg.go.dev/golang.org/x/tools/go/cfg#CFG
+	visit(0)
+
+	return postOrder
+}
+
 // BackpropAcrossFunc is the main driver of the backpropagation, it takes a function declaration
 // with accompanying CFG, and back-propagates a tree of assertions across it to generate, at entry
 // to the function, the set of assertions that must hold to avoid possible nil flow errors.
@@ -746,7 +771,7 @@ func BackpropAcrossFunc(ctx context.Context, pass *analysis.Pass, decl *ast.Func
 	// We consider the backpropagation stable if # of stable rounds > # of live blocks + tolerance.
 	var currRootAssertionNode, nextRootAssertionNode *RootAssertionNode
 	roundCount, stableRoundCount := 0, 0
-	numLiveBlocks := countLiveBlocks(graph)
+	postOrder := computePostOrder(blocks)
 
 	// Initialize the process by creating the assertion nodes for the return block.
 	retBlock := len(blocks) - 1
@@ -762,7 +787,9 @@ func BackpropAcrossFunc(ctx context.Context, pass *analysis.Pass, decl *ast.Func
 		default:
 		}
 
-		for i, block := range blocks {
+		for _, i := range postOrder {
+			block := blocks[i]
+
 			// There is no need to process non-live blocks; their assertions will simply be nil.
 			if !block.Live {
 				continue
@@ -773,8 +800,10 @@ func BackpropAcrossFunc(ctx context.Context, pass *analysis.Pass, decl *ast.Func
 			}
 
 			// No need to re-process the assertion node for the current block if it does not have
-			// successors, or they were not updated in the last round.
-			hasUpdated := slices.ContainsFunc(block.Succs, func(succ *cfg.Block) bool { return updatedLastRound[succ.Index] })
+			// successors, or they were not updated in current or last round.
+			hasUpdated := slices.ContainsFunc(block.Succs, func(succ *cfg.Block) bool {
+				return updatedThisRound[succ.Index] || updatedLastRound[succ.Index]
+			})
 			if len(block.Succs) == 0 || !hasUpdated {
 				// Normally we should copy the assertion node, but here it is ok to simply pass it
 				// to the next round since we are not modifying it.
@@ -789,13 +818,19 @@ func BackpropAcrossFunc(ctx context.Context, pass *analysis.Pass, decl *ast.Func
 			// are no assertion nodes associated with it.
 			succs := make([]*RootAssertionNode, 0, len(block.Succs))
 			for branchIndex, succ := range block.Succs {
-				// No need to preprocess if there is no assertion node for the successor.
-				if currAssertions[succ.Index] == nil {
+				var succNode *RootAssertionNode
+				if nextAssertions[succ.Index] == nil && currAssertions[succ.Index] == nil {
+					// No need to preprocess if there is no assertion node for the successor.
 					continue
+				} else if nextAssertions[succ.Index] != nil {
+					// If the successor was updated this round
+					// deep copy the node for modifications.
+					succNode = CopyNode(nextAssertions[succ.Index]).(*RootAssertionNode)
+				} else {
+					// If the successor was updated last round
+					// deep copy the node for modifications.
+					succNode = CopyNode(currAssertions[succ.Index]).(*RootAssertionNode)
 				}
-
-				// We need to deep copy the node for modifications.
-				succNode := CopyNode(currAssertions[succ.Index]).(*RootAssertionNode)
 
 				// Apply preprocessor (for branches) if there is any.
 				if preprocessing[i] != nil {
@@ -810,7 +845,7 @@ func BackpropAcrossFunc(ctx context.Context, pass *analysis.Pass, decl *ast.Func
 			}
 
 			// No assertion nodes attached with any successors, this should never happen since we
-			// will only reach here if any of the successors were updated in the last round.
+			// will only reach here if any of the successors were updated in the current or last round.
 			if len(succs) == 0 {
 				return nil, fmt.Errorf("no assertion nodes for successors of block %d", block.Index)
 			}
@@ -838,12 +873,10 @@ func BackpropAcrossFunc(ctx context.Context, pass *analysis.Pass, decl *ast.Func
 			}
 		}
 
-		// Idea for future speedup:
 		// ProcessEntry is expensive, and ideally we would only call it once after the fixed point
 		// of the backprop has terminated. We call it every time because waiting for all of the assertion
-		// trees (i.e. the assertion tree for each block) to stabilize sometimes never occurs due to
-		// strange, insufficiently investigated loop semantics. As an alternative, we wait for only
-		// the entry to stabilize because that's the one we care about anyways, provided its been
+		// trees (i.e. the assertion tree for each block) to stabilize sometimes never occurs. As an alternative,
+		// we wait for only the entry to stabilize because that's the one we care about anyways, provided its been
 		// stable for at least as many rounds as there are blocks because that means the information
 		// from each block has had a chance to reach entry. But waiting for the entire tree at entry block
 		// to stabilize because sometimes consume triggers generated in a loop that generates them
@@ -851,10 +884,7 @@ func BackpropAcrossFunc(ctx context.Context, pass *analysis.Pass, decl *ast.Func
 		// similarly generated in a loop, (see infiniteAssertions test in loopflow.go), so the assertion
 		// tree will continue to grow unboundedly even though this growth produced no new full triggers
 		// i.e. no new errors. To get around this, we generate the full triggers every round and
-		// track stabilization of those not stabilization of the root node. Since this case of infinite
-		// assertions seems to be very rare, a heuristic that would speed up backprop is to wait until
-		// after a certain multiple of the number of rounds in block have passed without stabilization
-		// of the assertion tree to start tracking stabilization of the triggers.
+		// track stabilization of those not stabilization of the root node.
 		// TODO: implement that
 		if nextAssertions[0] != nil {
 			nextRootAssertionNode = CopyNode(nextAssertions[0]).(*RootAssertionNode)
@@ -869,7 +899,7 @@ func BackpropAcrossFunc(ctx context.Context, pass *analysis.Pass, decl *ast.Func
 			stableRoundCount = 0
 		}
 
-		if stableRoundCount >= numLiveBlocks+config.LoopTolerance {
+		if stableRoundCount >= config.StableRoundLimit {
 			break
 		}
 
