@@ -74,7 +74,7 @@ func (f *fldAssertionNode) DefaultTrigger() annotation.ProducingAnnotationTrigge
 }
 
 // BuildExpr for a field node adds that field access to the expression `expr`
-func (f *fldAssertionNode) BuildExpr(pass *analysis.Pass, expr ast.Expr) ast.Expr {
+func (f *fldAssertionNode) BuildExpr(_ *analysis.Pass, expr ast.Expr) ast.Expr {
 	if f.Root() == nil {
 		panic("f.BuildExpr should only be called on nodes present in a valid assertion tree")
 	}

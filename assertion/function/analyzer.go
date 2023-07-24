@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package function implements a sub-analyzer to create full triggers for each function declaration.
 package function
 
 import (

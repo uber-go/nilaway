@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package inference implements the inference algorithm in NilAway to automatically infer the
+// nilability of the annotation sites.
 package inference
 
 import (
@@ -184,9 +186,7 @@ func (e *Engine) ObservePackage(pkgFullTriggers []annotation.FullTrigger) {
 
 	// remove deleted triggers from nonErrRetTriggers
 	for _, t := range delTriggers {
-		if _, ok := nonErrRetTriggers[t]; ok {
-			delete(nonErrRetTriggers, t)
-		}
+		delete(nonErrRetTriggers, t)
 	}
 
 	// Step 3: run the inference building process for only the remaining UseAsNonErrorRetDependentOnErrorRetNilability triggers, and collect assertions
@@ -391,7 +391,7 @@ func (e *Engine) observeImplication(
 // The called function RegisterName maintains an internal mapping to ensure that the
 // association between names and structs is bijective
 func GobRegister() {
-	var curr rune = 0
+	var curr rune
 	nextStr := func() string {
 		out := string(curr)
 		curr++

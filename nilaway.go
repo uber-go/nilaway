@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package nilaway implements the top-level analyzer that simply retrieves the diagnostics from
+// the accumulation analyzer and reports them.
 package nilaway
 
 import (

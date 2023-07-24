@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package affiliation implements the affliation analyzer that tries to find the concrete
+// implementation of an interface and create full triggers for them.
 package affiliation
 
 import (
@@ -60,7 +62,7 @@ func (a *Affiliation) extractAffiliations(pass *analysis.Pass) {
 
 	// populate upstreamCache by importing entries passed from upstream packages
 	facts := pass.AllPackageFacts()
-	if facts != nil && len(facts) > 0 {
+	if len(facts) > 0 {
 		for _, f := range facts {
 			switch c := f.Fact.(type) {
 			case *AffliliationCache:
@@ -195,7 +197,7 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysis.Pass, upstre
 
 					// If the composite is used for initializing an array or a slice, then check for possible
 					// pseudo-assignments through the initialized values of the elements in arrays/slice
-					var elemType types.Type = nil
+					var elemType types.Type
 
 					if slcType, ok := nodeType.(*types.Slice); ok {
 						elemType = slcType.Elem()

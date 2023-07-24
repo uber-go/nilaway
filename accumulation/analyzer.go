@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package accumulation coordinates the entire workflow and collects the annotations, full triggers,
+// and then runs inference to generate and return all potential diagnostics for upper-level
+// analyzers to report.
 package accumulation
 
 import (

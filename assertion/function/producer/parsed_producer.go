@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package producer contains definitions for parsed producers, which are the result of ParseExprAsProducer.
 package producer
 
 import "go.uber.org/nilaway/annotation"

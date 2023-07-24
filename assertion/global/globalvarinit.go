@@ -95,12 +95,12 @@ func getGlobalProducer(pass *analysis.Pass, valspec *ast.ValueSpec, lid int, rid
 			if _, ok := pass.TypesInfo.ObjectOf(ident).(*types.Builtin); ok {
 				return nil
 			}
-			prod = getProducerForFuncCall(pass, ident, lid, rid, prod, rhs)
+			prod = getProducerForFuncCall(pass, ident, lid, rid, rhs)
 		}
 		// Method call
 		if methCall, ok := rhs.Fun.(*ast.SelectorExpr); ok {
 			methName := methCall.Sel
-			prod = getProducerForMethodCall(pass, methName, lid, rid, prod, rhs)
+			prod = getProducerForMethodCall(pass, methName, lid, rid, rhs)
 		}
 	case *ast.Ident:
 		// if rhs is literal nil
@@ -115,7 +115,7 @@ func getGlobalProducer(pass *analysis.Pass, valspec *ast.ValueSpec, lid int, rid
 		}
 	case *ast.SelectorExpr:
 		// Struct field access
-		prod = getProducerForField(pass, rhs.Sel, prod)
+		prod = getProducerForField(pass, rhs.Sel)
 	}
 	return prod
 }
@@ -135,9 +135,9 @@ func getProducerForVar(pass *analysis.Pass, rhs *ast.Ident, prod *annotation.Pro
 	return prod
 }
 
-func getProducerForField(pass *analysis.Pass, rhs *ast.Ident, prod *annotation.ProduceTrigger) *annotation.ProduceTrigger {
+func getProducerForField(pass *analysis.Pass, rhs *ast.Ident) *annotation.ProduceTrigger {
 	rhsVar := pass.TypesInfo.ObjectOf(rhs).(*types.Var)
-	prod = &annotation.ProduceTrigger{
+	prod := &annotation.ProduceTrigger{
 		Annotation: annotation.FldRead{
 			TriggerIfNilable: annotation.TriggerIfNilable{
 				Ann: annotation.FieldAnnotationKey{
@@ -148,7 +148,7 @@ func getProducerForField(pass *analysis.Pass, rhs *ast.Ident, prod *annotation.P
 	return prod
 }
 
-func getProducerForFuncCall(pass *analysis.Pass, methName *ast.Ident, lid int, rid int, prod *annotation.ProduceTrigger, rhs ast.Expr) *annotation.ProduceTrigger {
+func getProducerForFuncCall(pass *analysis.Pass, methName *ast.Ident, lid int, rid int, rhs ast.Expr) *annotation.ProduceTrigger {
 	fdecl, ok := pass.TypesInfo.ObjectOf(methName).(*types.Func)
 
 	// We ignore if the method is anonymous
@@ -160,7 +160,7 @@ func getProducerForFuncCall(pass *analysis.Pass, methName *ast.Ident, lid int, r
 	// In single return function this is `0` and in multiple return function it is `lid`
 	retKey := annotation.RetKeyFromRetNum(fdecl, lid-rid)
 
-	prod = &annotation.ProduceTrigger{
+	prod := &annotation.ProduceTrigger{
 		Annotation: annotation.FuncReturn{
 			TriggerIfNilable: annotation.TriggerIfNilable{Ann: retKey},
 			Guarded:          false,
@@ -170,7 +170,7 @@ func getProducerForFuncCall(pass *analysis.Pass, methName *ast.Ident, lid int, r
 	return prod
 }
 
-func getProducerForMethodCall(pass *analysis.Pass, methName *ast.Ident, lid int, rid int, prod *annotation.ProduceTrigger, rhs ast.Expr) *annotation.ProduceTrigger {
+func getProducerForMethodCall(pass *analysis.Pass, methName *ast.Ident, lid int, rid int, rhs ast.Expr) *annotation.ProduceTrigger {
 	mdecl, ok := pass.TypesInfo.ObjectOf(methName).(*types.Func)
 
 	// We ignore if the method is anonymous
@@ -182,7 +182,7 @@ func getProducerForMethodCall(pass *analysis.Pass, methName *ast.Ident, lid int,
 	// In single return function this is `0` and in multiple return function it is `lid`
 	retKey := annotation.RetKeyFromRetNum(mdecl, lid-rid)
 
-	prod = &annotation.ProduceTrigger{
+	prod := &annotation.ProduceTrigger{
 		Annotation: annotation.MethodReturn{
 			TriggerIfNilable: annotation.TriggerIfNilable{Ann: retKey},
 		},

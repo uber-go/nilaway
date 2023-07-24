@@ -249,8 +249,9 @@ func RichCheckFromNode(rootNode *RootAssertionNode, nonceGenerator *util.GuardNo
 //     analysis pass before we call ParseExprAsProducer below)
 func parseExpr(rootNode *RootAssertionNode, expr ast.Expr) TrackableExpr {
 	defer func() {
-		// this handles unexpected panics during parsing
-		recover()
+		// This handles unexpected panics during parsing.
+		// TODO: consider removing this hack.
+		_ = recover()
 	}()
 	// this handles being passed the empty expression
 	if util.IsEmptyExpr(expr) {

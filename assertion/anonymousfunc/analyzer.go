@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package anonymousfunc implements a sub-analyzer to analyze anonymous functions in a package.
 package anonymousfunc
 
 import (
@@ -148,7 +149,7 @@ func createFakeFuncDecl(pass *analysis.Pass, funcLit *ast.FuncLit, fakeParams []
 		},
 	}
 	// The list of formal AST parameter nodes (*ast.Field nodes) is extended.
-	fakeFields := make([]*ast.Field, len(fakeParams), len(fakeParams))
+	fakeFields := make([]*ast.Field, len(fakeParams))
 	for i, p := range fakeParams {
 		fakeFields[i] = &ast.Field{
 			// Note that there is no easy way to retrieve the AST nodes for the type of the
@@ -183,7 +184,7 @@ func createFakeFuncDecl(pass *analysis.Pass, funcLit *ast.FuncLit, fakeParams []
 	}
 
 	// Extend the parameter list for the types as well.
-	paramTypes := make([]*types.Var, sig.Params().Len()+len(fakeParams), sig.Params().Len()+len(fakeParams))
+	paramTypes := make([]*types.Var, sig.Params().Len()+len(fakeParams))
 	for i := 0; i < sig.Params().Len(); i++ {
 		paramTypes[i] = sig.Params().At(i)
 	}

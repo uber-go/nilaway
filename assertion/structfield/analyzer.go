@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package structfield implements a sub-analyzer that collects struct fields accessed within a
+// function to aid the analysis of the main function analyzer.
 package structfield
 
 import (

@@ -1249,12 +1249,3 @@ rchildloop:
 		left.SetChildren(append(left.Children(), freshrchild))
 	}
 }
-
-// returns a fresh node that's the merge of the two passed nodes
-func (r *RootAssertionNode) mergeNodes(left, right *RootAssertionNode) *RootAssertionNode {
-	fresh := CopyNode(left)
-	r.mergeInto(fresh, right)
-	freshRootAssertionNode := fresh.(*RootAssertionNode)
-
-	return freshRootAssertionNode
-}
