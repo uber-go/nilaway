@@ -49,6 +49,12 @@ type RootAssertionNode struct {
 	functionContext FunctionContext
 }
 
+// HasContract returns if the given function has any contracts.
+func (r *RootAssertionNode) HasContract(funcObj *types.Func) bool {
+	_, ok := r.functionContext.funcContracts[funcObj]
+	return ok
+}
+
 // MinimalString for a RootAssertionNode returns a minimal string representation of that root node
 func (r *RootAssertionNode) MinimalString() string {
 	return fmt.Sprintf("root<func: %s>", r.functionContext.funcDecl.Name)

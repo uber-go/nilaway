@@ -19,7 +19,7 @@ import (
 	"go/types"
 
 	"go.uber.org/nilaway/assertion/anonymousfunc"
-
+	"go.uber.org/nilaway/assertion/function/functioncontracts"
 	"go.uber.org/nilaway/config"
 	"golang.org/x/tools/go/analysis"
 )
@@ -61,6 +61,9 @@ type FunctionContext struct {
 
 	// functionConfig contains the user set configuration for analyzing a function
 	functionConfig FunctionConfig
+
+	// funcContracts stores the function contracts of all the functions.
+	funcContracts functioncontracts.Map
 }
 
 // FunctionConfig is meant to hold all the user set configuration for analyzing a function
@@ -79,6 +82,7 @@ func NewFunctionContext(
 	functionConfig FunctionConfig,
 	funcLitMap map[*ast.FuncLit]*anonymousfunc.FuncLitInfo,
 	pkgFakeIdentMap map[*ast.Ident]types.Object,
+	funcContracts functioncontracts.Map,
 ) FunctionContext {
 	return FunctionContext{
 		pass:                    pass,
@@ -89,6 +93,7 @@ func NewFunctionContext(
 		functionConfig:          functionConfig,
 		funcLitMap:              funcLitMap,
 		pkgFakeIdentMap:         pkgFakeIdentMap,
+		funcContracts:           funcContracts,
 	}
 }
 
