@@ -19,7 +19,7 @@ optimizations to further reduce its footprint.
 nil panics we have observed in production, allowing NilAway to maintain a good balance between usefulness and build-time 
 overhead.
 
-# Installation
+## Installation
 
 NilAway is implemented using the standard [go/analysis](https://pkg.go.dev/golang.org/x/tools/go/analysis) framework, 
 making it easy to integrate with existing analyzer drivers (e.g., [golangci-lint](https://github.com/golangci/golangci-lint),
@@ -34,12 +34,12 @@ Install the binary from source by running:
 go install go.uber.org/nilaway/cmd/nilaway@latest
 ```
 
-Then, run the linter with `go vet`:
+Then, run the linter by:
 ```shell
-go vet -vettool=$(which requiredfield) ./...
+nilaway ./...
 ```
 
-# Code Examples
+## Code Examples
 
 Let's look at a few examples to see how NilAway can help prevent nil panics.
 
@@ -89,16 +89,16 @@ Note that in the above example, `foo` does not necessarily have to reside in the
 to track nil flows across packages as well. Moreover, NilAway handles Go-specific language constructs such as receivers,
 interfaces, type assertions, type switches, and more. For more detailed discussion, please check our paper.
 
-# Support 
+## Support 
 
 Please feel free to [open a GitHub issue](https://github.com/uber-go/nilaway/issues) if you have any questions, bug 
 reports, and feature requests.
 
-# Contributions
+## Contributions
 
 We'd love for you to contribute to NilAway! Please note that once you create a pull request, you will be asked to sign 
 our [Uber Contributor License Agreement](https://cla-assistant.io/uber-go/nilaway).
 
-# License
+## License
 
 This project is copyright 2023 Uber Technologies, Inc., and licensed under Apache 2.0.
