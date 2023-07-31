@@ -28,6 +28,7 @@ import (
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/assertion/anonymousfunc"
 	"go.uber.org/nilaway/assertion/function/assertiontree"
+	"go.uber.org/nilaway/assertion/function/functioncontracts"
 	"go.uber.org/nilaway/assertion/structfield"
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
@@ -57,7 +58,12 @@ var Analyzer = &analysis.Analyzer{
 	Doc:        _doc,
 	Run:        run,
 	ResultType: reflect.TypeOf((*Result)(nil)).Elem(),
-	Requires:   []*analysis.Analyzer{ctrlflow.Analyzer, structfield.Analyzer, anonymousfunc.Analyzer},
+	Requires: []*analysis.Analyzer{
+		ctrlflow.Analyzer,
+		structfield.Analyzer,
+		anonymousfunc.Analyzer,
+		functioncontracts.Analyzer,
+	},
 }
 
 // This limit is in place to prevent the expensive assertions analyzer from being run on
@@ -103,6 +109,7 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 
 	ctrlflowResult := pass.ResultOf[ctrlflow.Analyzer].(*ctrlflow.CFGs)
 	funcLitMap := pass.ResultOf[anonymousfunc.Analyzer].(anonymousfunc.Result).FuncLitMap
+	funcContracts := pass.ResultOf[functioncontracts.Analyzer].(functioncontracts.Result).FunctionContracts
 
 	// Create a fake ident map for the fake func decl nodes to be shared for all function contexts.
 	pkgFakeIdentMap := make(map[*ast.Ident]types.Object)
@@ -191,7 +198,8 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 
 			// Now, analyze the function declarations concurrently.
 			wg.Add(1)
-			funcContext := assertiontree.NewFunctionContext(pass, funcDecl, funcLit, functionConfig, funcLitMap, pkgFakeIdentMap)
+			funcContext := assertiontree.NewFunctionContext(
+				pass, funcDecl, funcLit, functionConfig, funcLitMap, pkgFakeIdentMap, funcContracts)
 			go analyzeFunc(ctx, pass, funcDecl, funcContext, graph, funcIndex, funcChan, &wg)
 			funcIndex++
 		}

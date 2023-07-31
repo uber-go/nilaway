@@ -742,7 +742,8 @@ func computePostOrder(blocks []*cfg.Block) []int {
 // BackpropAcrossFunc is the main driver of the backpropagation, it takes a function declaration
 // with accompanying CFG, and back-propagates a tree of assertions across it to generate, at entry
 // to the function, the set of assertions that must hold to avoid possible nil flow errors.
-func BackpropAcrossFunc(ctx context.Context, pass *analysis.Pass, decl *ast.FuncDecl, functionContext FunctionContext, graph *cfg.CFG) ([]annotation.FullTrigger, error) {
+func BackpropAcrossFunc(ctx context.Context, pass *analysis.Pass, decl *ast.FuncDecl,
+	functionContext FunctionContext, graph *cfg.CFG) ([]annotation.FullTrigger, error) {
 	// We transform the CFG to have it reflect the implicit control flow that happens
 	// inside short-circuiting boolean expressions.
 	graph, richCheckBlocks, exprNonceMap := preprocess(graph, functionContext)

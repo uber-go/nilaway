@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/nilaway/assertion/anonymousfunc"
 	"go.uber.org/nilaway/assertion/function/assertiontree"
+	"go.uber.org/nilaway/assertion/function/functioncontracts"
 	"go.uber.org/nilaway/config"
 	"golang.org/x/tools/go/analysis/analysistest"
 	"golang.org/x/tools/go/analysis/passes/ctrlflow"
@@ -64,7 +65,9 @@ func TestTimeout(t *testing.T) {
 	// effect.
 	emptyFuncLitMap := make(map[*ast.FuncLit]*anonymousfunc.FuncLitInfo)
 	emptyPkgFakeIdentMap := make(map[*ast.Ident]types.Object)
-	funcContext := assertiontree.NewFunctionContext(pass, funcDecl, nil /* funcLit */, funcConfig, emptyFuncLitMap, emptyPkgFakeIdentMap)
+	emptyFuncContracts := make(functioncontracts.Map)
+	funcContext := assertiontree.NewFunctionContext(pass, funcDecl, nil, /* funcLit */
+		funcConfig, emptyFuncLitMap, emptyPkgFakeIdentMap, emptyFuncContracts)
 	// (3) Set up synchronization and communication for the goroutine we are going to spawn.
 	resultChan := make(chan functionResult)
 	wg := new(sync.WaitGroup)
