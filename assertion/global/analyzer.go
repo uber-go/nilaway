@@ -46,6 +46,7 @@ var Analyzer = &analysis.Analyzer{
 	Doc:        _doc,
 	Run:        run,
 	ResultType: reflect.TypeOf((*Result)(nil)).Elem(),
+	Requires:   []*analysis.Analyzer{config.Analyzer},
 }
 
 func run(pass *analysis.Pass) (result interface{}, _ error) {
@@ -64,13 +65,15 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 		}
 	}()
 
-	if !config.PackageIsInScope(pass.Pkg) {
+	conf := pass.ResultOf[config.Analyzer].(*config.Config)
+
+	if !conf.IsPkgInScope(pass.Pkg) {
 		return Result{}, nil
 	}
 
 	var fullTriggers []annotation.FullTrigger
 	for _, file := range pass.Files {
-		if util.DocContainsIgnore(file.Doc) || !config.FileIsInScope(file) {
+		if util.DocContainsIgnore(file.Doc) || !conf.IsFileInScope(file) {
 			continue
 		}
 

@@ -31,6 +31,7 @@ import (
 // where the key is a function where the affiliation was witnessed and value is an array of full triggers computed for
 // the affiliation key
 type Affiliation struct {
+	conf     *config.Config
 	triggers []annotation.FullTrigger
 }
 
@@ -91,7 +92,7 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysis.Pass, upstre
 	}
 
 	for _, file := range pass.Files {
-		if !config.FileIsInScope(file) {
+		if !a.conf.IsFileInScope(file) {
 			continue
 		}
 
@@ -261,7 +262,7 @@ func (a *Affiliation) computeTriggersForTypes(lhsType types.Type, rhsType types.
 	for _, dm := range declaredMethods {
 		for _, im := range implementedMethods {
 			// early return if the interface and its implementation is out of scope
-			if (dm.Pkg() != nil && !config.PackageIsInScope(dm.Pkg())) && (im.Pkg() != nil && !config.PackageIsInScope(im.Pkg())) {
+			if (dm.Pkg() != nil && !a.conf.IsPkgInScope(dm.Pkg())) && (im.Pkg() != nil && !a.conf.IsPkgInScope(im.Pkg())) {
 				return triggers
 			}
 

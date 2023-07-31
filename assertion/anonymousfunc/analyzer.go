@@ -37,6 +37,7 @@ var Analyzer = &analysis.Analyzer{
 	Doc:        _doc,
 	Run:        run,
 	ResultType: reflect.TypeOf((*Result)(nil)).Elem(),
+	Requires:   []*analysis.Analyzer{config.Analyzer},
 }
 
 // Result is the result struct for the Analyzer.
@@ -96,14 +97,16 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 		}
 	}()
 
-	if !config.PackageIsInScope(pass.Pkg) {
+	conf := pass.ResultOf[config.Analyzer].(*config.Config)
+
+	if !conf.IsPkgInScope(pass.Pkg) {
 		return Result{}, nil
 	}
 
 	funcLitMap := make(map[*ast.FuncLit]*FuncLitInfo)
 
 	for _, file := range pass.Files {
-		if util.DocContainsIgnore(file.Doc) || !config.FileIsInScope(file) ||
+		if util.DocContainsIgnore(file.Doc) || !conf.IsFileInScope(file) ||
 			!util.DocContainsAnonymousFuncCheck(file.Doc) {
 			continue
 		}

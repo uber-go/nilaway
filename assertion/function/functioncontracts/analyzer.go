@@ -44,6 +44,7 @@ var Analyzer = &analysis.Analyzer{
 	Doc:        _doc,
 	Run:        run,
 	ResultType: reflect.TypeOf((*Result)(nil)).Elem(),
+	Requires:   []*analysis.Analyzer{config.Analyzer},
 }
 
 func run(pass *analysis.Pass) (result interface{}, _ error) {
@@ -63,7 +64,9 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 		}
 	}()
 
-	if !config.PackageIsInScope(pass.Pkg) {
+	conf := pass.ResultOf[config.Analyzer].(*config.Config)
+
+	if !conf.IsPkgInScope(pass.Pkg) {
 		return Result{FunctionContracts: Map{}}, nil
 	}
 

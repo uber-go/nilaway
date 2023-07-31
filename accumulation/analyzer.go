@@ -25,6 +25,7 @@ import (
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/assertion"
 	"go.uber.org/nilaway/assertion/function/assertiontree"
+	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/inference"
 	"golang.org/x/tools/go/analysis"
 )
@@ -43,7 +44,7 @@ var Analyzer = &analysis.Analyzer{
 	FactTypes: []analysis.Fact{
 		new(inference.InferredMap),
 	},
-	Requires:   []*analysis.Analyzer{assertion.Analyzer, annotation.Analyzer},
+	Requires:   []*analysis.Analyzer{config.Analyzer, assertion.Analyzer, annotation.Analyzer},
 	ResultType: reflect.TypeOf(([]analysis.Diagnostic)(nil)),
 }
 
@@ -88,6 +89,12 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 			}
 		}
 	}()
+
+	conf := pass.ResultOf[config.Analyzer].(*config.Config)
+	if !conf.IsPkgInScope(pass.Pkg) {
+		// Must return a typed nil since the driver is using reflection to retrieve the result.
+		return ([]analysis.Diagnostic)(nil), nil
+	}
 
 	assertionsResult := pass.ResultOf[assertion.Analyzer].(assertion.Result)
 	annotationsResult := pass.ResultOf[annotation.Analyzer].(annotation.Result)

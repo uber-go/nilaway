@@ -387,6 +387,7 @@ func (set nilabilitySet) checkNilability(name string, t types.Type) Val {
 }
 
 func newObservedMap(pass *analysis.Pass, files []*ast.File) *ObservedMap {
+	conf := pass.ResultOf[config.Analyzer].(*config.Config)
 	// TODO - only store annotations for fields/vars/parameters of types that do not bar nilness
 
 	fieldAnnMap := make(map[*types.Var]Val)
@@ -459,7 +460,7 @@ func newObservedMap(pass *analysis.Pass, files []*ast.File) *ObservedMap {
 	}
 
 	for _, file := range files {
-		if config.FileIsInScope(file) {
+		if conf.IsFileInScope(file) {
 			for _, decl := range file.Decls {
 				switch decl := decl.(type) {
 				case *ast.FuncDecl:
