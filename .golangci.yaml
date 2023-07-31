@@ -1,0 +1,16 @@
+issues:
+  # Print all issues reported by all linters.
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+  # Don't ignore some of the issues that golangci-lint considers okay.
+  exclude-use-default: false
+
+linters:
+  enable:
+    - gofmt
+    - goimports
+    - nolintlint
+    - paralleltest
+    - revive
+    - staticcheck

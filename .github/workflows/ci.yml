@@ -7,14 +7,33 @@ on:
     branches: [ main ]
 
 jobs:
-  build:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        name: Check out repository
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.20.x
+          cache: false
+
+      - uses: golangci/golangci-lint-action@v3
+        name: Install golangci-lint
+        with:
+          version: latest
+          args: --version
+
+      - run: make lint
+        name: Lint
+
+  test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         go: [ "1.19.x", "1.20.x" ]
-        include:
-          - go: 1.20.x
-            latest: true
     steps:
       - uses: actions/checkout@v3
 
@@ -22,6 +41,7 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: ${{ matrix.go }}
+          cache: true
 
       - name: Load cached dependencies
         uses: actions/cache@v3

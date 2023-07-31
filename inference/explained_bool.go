@@ -16,7 +16,6 @@ package inference
 
 import (
 	"fmt"
-	"go/types"
 )
 
 // An ExplainedBool is a boolean value, wrapped by a "reason" that we came to the conclusion it should
@@ -154,16 +153,4 @@ type FalseBecauseMyopia struct {
 
 func (f FalseBecauseMyopia) String() string {
 	return fmt.Sprintf("NONNIL because myopic annotation inference for package %s decided so", f.PkgName)
-}
-
-func boolAsMyopia(b bool, pkg *types.Package) ExplainedBool {
-	pkgName := pkg.Name()
-	if b {
-		return TrueBecauseMyopia{
-			PkgName: pkgName,
-		}
-	}
-	return FalseBecauseMyopia{
-		PkgName: pkgName,
-	}
 }

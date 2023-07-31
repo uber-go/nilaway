@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package assertion implements a sub-analyzer that collects full triggers from the sub-analyzers
+// and combine them into a list of full triggers for the entire package.
 package assertion
 
 import (

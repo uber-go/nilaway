@@ -78,7 +78,7 @@ func (v *varAssertionNode) DefaultTrigger() annotation.ProducingAnnotationTrigge
 }
 
 // BuildExpr for a varAssertionNode returns the underlying variable's AST node
-func (v *varAssertionNode) BuildExpr(pass *analysis.Pass, expr ast.Expr) ast.Expr {
+func (v *varAssertionNode) BuildExpr(_ *analysis.Pass, _ ast.Expr) ast.Expr {
 	if v.Root() == nil {
 		panic("v.BuildExpr should only be called on nodes present in a valid assertion tree")
 	}

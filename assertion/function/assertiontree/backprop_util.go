@@ -745,13 +745,3 @@ func CheckGuardOnFullTrigger(trigger annotation.FullTrigger) annotation.FullTrig
 	}
 	return trigger
 }
-
-func countLiveBlocks(graph *cfg.CFG) int {
-	i := 0
-	for _, block := range graph.Blocks {
-		if block.Live {
-			i++
-		}
-	}
-	return i
-}

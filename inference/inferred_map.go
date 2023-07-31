@@ -90,7 +90,6 @@ func (i *InferredMap) Load(site primitiveSite) (value InferredVal, ok bool) {
 // StoreDetermined sets the inferred value for an annotation site.
 func (i *InferredMap) StoreDetermined(site primitiveSite, value ExplainedBool) {
 	i.mapping[site] = &DeterminedVal{Bool: value}
-	return
 }
 
 // StoreImplication stores an implication edge between the `from` and `to` annotation sites in the
@@ -179,11 +178,8 @@ func (i *InferredMap) GobDecode(input []byte) error {
 	dec := gob.NewDecoder(buf)
 
 	i.mapping, i.upstreamMapping = make(map[primitiveSite]InferredVal), make(map[primitiveSite]InferredVal)
-	if err := dec.Decode(&i.mapping); err != nil {
-		return err
-	}
 
-	return nil
+	return dec.Decode(&i.mapping)
 }
 
 // chooseSitesToExport returns the set of AnnotationSites mapped by this InferredMap that are both

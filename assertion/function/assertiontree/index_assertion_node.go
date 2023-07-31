@@ -15,7 +15,6 @@
 package assertiontree
 
 import (
-	"fmt"
 	"go/ast"
 	"go/types"
 
@@ -37,7 +36,7 @@ type indexAssertionNode struct {
 }
 
 func (i *indexAssertionNode) MinimalString() string {
-	return fmt.Sprintf("index")
+	return "index"
 }
 
 // DefaultTrigger for an index node is the deep nilability annotation of its parent type
@@ -46,7 +45,7 @@ func (i *indexAssertionNode) DefaultTrigger() annotation.ProducingAnnotationTrig
 }
 
 // BuildExpr for an index node adds that index to `expr`
-func (i *indexAssertionNode) BuildExpr(pass *analysis.Pass, expr ast.Expr) ast.Expr {
+func (i *indexAssertionNode) BuildExpr(_ *analysis.Pass, expr ast.Expr) ast.Expr {
 	return &ast.IndexExpr{
 		X:      expr,
 		Lbrack: 0,

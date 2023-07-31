@@ -147,7 +147,7 @@ func (pk ParamAnnotationKey) MinimalString() string {
 // ParamNameString returns the name of theis parameter, if named, or a placeholder string otherwise
 func (pk ParamAnnotationKey) ParamNameString() string {
 	if pk.ParamName() != nil {
-		return fmt.Sprintf("%s", pk.ParamName().Name())
+		return pk.ParamName().Name()
 	}
 	return fmt.Sprintf("<unnamed param %d>", pk.ParamNum)
 }
@@ -242,8 +242,8 @@ type RetFieldAnnotationKey struct {
 	FieldDecl *types.Var
 }
 
-// Lookup looks this key up in the passed map, returning a Val
-func (rf RetFieldAnnotationKey) Lookup(annMap Map) (Val, bool) {
+// Lookup looks this key up in the passed map, returning a Val.
+func (rf RetFieldAnnotationKey) Lookup(_ Map) (Val, bool) {
 	return nonAnnotatedDefault, false
 }
 
@@ -286,7 +286,7 @@ type EscapeFieldAnnotationKey struct {
 // Lookup looks this key up in the passed map, returning a Val
 // Currently, the annotation key is used only with inference
 // TODO: This should be updated on supporting no-infer with struct initialization
-func (ek EscapeFieldAnnotationKey) Lookup(annMap Map) (Val, bool) {
+func (ek EscapeFieldAnnotationKey) Lookup(_ Map) (Val, bool) {
 	return nonAnnotatedDefault, false
 }
 
@@ -338,7 +338,7 @@ func (pf ParamFieldAnnotationKey) ParamName() *types.Var {
 // Lookup looks this key up in the passed map, returning a Val
 // Currently, the annotation key is used only with inference
 // TODO: This should be updated on supporting no-infer with struct initialization
-func (pf ParamFieldAnnotationKey) Lookup(annMap Map) (Val, bool) {
+func (pf ParamFieldAnnotationKey) Lookup(_ Map) (Val, bool) {
 	return nonAnnotatedDefault, false
 }
 

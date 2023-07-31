@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package assertiontree contains the node definitions for the assertion tree, as well as the main
+// backpropagation algorithm.
 package assertiontree
 
 import (
@@ -58,8 +60,6 @@ func backpropAcrossBlock(rootNode *RootAssertionNode, block *cfg.Block) error {
 func backpropAcrossNode(rootNode *RootAssertionNode, node ast.Node) error {
 	switch n := util.StripParens(node).(type) {
 
-	// For the following hard cases, we delegate the handling to specific functions for better
-	// code clarity.
 	case *ast.ReturnStmt:
 		return backpropAcrossReturn(rootNode, n)
 	case *ast.AssignStmt:
@@ -75,22 +75,20 @@ func backpropAcrossNode(rootNode *RootAssertionNode, node ast.Node) error {
 	case *ast.SendStmt:
 		return backpropAcrossSend(rootNode, n)
 	case *ast.ExprStmt:
-		backpropAcrossExprStmt(rootNode, n)
+		rootNode.AddComputation(n.X)
+	case *ast.GoStmt:
+		rootNode.AddComputation(n.Call)
+	case *ast.IncDecStmt:
 		rootNode.AddComputation(n.X)
 
-	// For the following simple cases, we simply add computations for them.
 	case *ast.SelectorExpr:
 		rootNode.AddComputation(n)
 	case *ast.BinaryExpr:
 		rootNode.AddComputation(n)
 	case *ast.CallExpr:
 		rootNode.AddComputation(n)
-	case *ast.GoStmt:
-		rootNode.AddComputation(n.Call)
 	case *ast.UnaryExpr:
 		rootNode.AddComputation(n)
-	case *ast.IncDecStmt:
-		rootNode.AddComputation(n.X)
 	case *ast.StarExpr:
 		rootNode.AddComputation(n)
 	case *ast.IndexExpr:
@@ -113,12 +111,6 @@ func backpropAcrossNode(rootNode *RootAssertionNode, node ast.Node) error {
 	}
 
 	return nil
-}
-
-// backpropAcrossExprStmt handles the effects of expressions showing up at the top level as statements
-func backpropAcrossExprStmt(rootNode *RootAssertionNode, node *ast.ExprStmt) {
-	// For now, no-op, though leave this skeleton here as a reminder of where to implement
-	// the semantics of top level expressions such as function calls showing up as statements
 }
 
 // backpropAcrossSend handles backpropagation for send statements. It is designed to be called from
@@ -431,11 +423,8 @@ func backpropAcrossRange(rootNode *RootAssertionNode, lhs []ast.Expr, rhs ast.Ex
 // without being able to compare the identity of `types.Var` instances as we usually do.
 // nonnil(lhs, rhs)
 func backpropAcrossTypeSwitch(rootNode *RootAssertionNode, lhs *ast.Ident, rhs ast.Expr) error {
-	// First, make a copy of the children array to iterate over, as we will mutate it
-	children := make([]AssertionNode, len(rootNode.Children()))
-	for _, child := range rootNode.Children() {
-		children = append(children, child)
-	}
+	// First, make a copy of the children array to iterate over, as we will mutate it.
+	children := slices.Clone(rootNode.Children())
 
 	// For each variable in the assertion tree, check if it's equal to the symbolic variable
 	// being instantiated by this type switch, and, if so, assign to it.
@@ -910,16 +899,15 @@ func BackpropAcrossFunc(ctx context.Context, pass *analysis.Pass, decl *ast.Func
 		// Move variables from this round to last round and create new ones for next round.
 		// For best performance, we reuse the slices by simply swapping them and clearing the
 		// slices for next rounds.
-		currAssertions, nextAssertions = nextAssertions, currAssertions
-		updatedLastRound, updatedThisRound = updatedThisRound, updatedLastRound
-		currRootAssertionNode, nextRootAssertionNode = nextRootAssertionNode, nil
 		// We do not actually need to allocate a new slice for nextAssertions. However, currently
 		// NilAway thinks nextAssertions is a deeply-nonnil slice, and we cannot assign nil to it.
-		// TODO: investigate and further optimize this after  is done.
-		nextAssertions = make([]*RootAssertionNode, len(blocks))
+		// TODO: investigate and further optimize this.
+		currAssertions, nextAssertions = nextAssertions, make([]*RootAssertionNode, len(blocks))
+		updatedLastRound, updatedThisRound = updatedThisRound, updatedLastRound
 		for i := range blocks {
 			updatedThisRound[i] = false
 		}
+		currRootAssertionNode, nextRootAssertionNode = nextRootAssertionNode, nil
 	}
 
 	// Return the generated full triggers at the entry block; we're done!

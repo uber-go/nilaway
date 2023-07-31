@@ -115,9 +115,9 @@ func (e *UndeterminedVal) isInferredVal() {}
 // Summarizing output behavior: if `new` does not supersede `old`, the function panics
 // if `new` strictly supersedes `old`, (diff, true) is returned
 // if `new` offers the same information as `old`, (garbage, false) is returned.
-func inferredValDiff(new, old InferredVal) (InferredVal, bool) {
+func inferredValDiff(newVal, oldVal InferredVal) (InferredVal, bool) {
 	noSupersede := func() {
-		panic(fmt.Sprintf("ERROR: new value %s does not supersede old value %s", new, old))
+		panic(fmt.Sprintf("ERROR: new value %s does not supersede old value %s", newVal, oldVal))
 	}
 
 	sitesWithAssertionsDiff := func(new, old SitesWithAssertions) (SitesWithAssertions, bool) {
@@ -132,29 +132,29 @@ func inferredValDiff(new, old InferredVal) (InferredVal, bool) {
 		return diff, diffNonempty
 	}
 
-	switch new := new.(type) {
+	switch val := newVal.(type) {
 	case *DeterminedVal:
-		switch old := old.(type) {
+		switch old := oldVal.(type) {
 		case *DeterminedVal:
-			if new.Bool.Val() != old.Bool.Val() {
+			if val.Bool.Val() != old.Bool.Val() {
 				noSupersede()
 			}
 			return nil, false
 		case *UndeterminedVal:
-			return new, true
+			return val, true
 		}
 	case *UndeterminedVal:
-		switch old := old.(type) {
+		switch old := oldVal.(type) {
 		case *DeterminedVal:
 			noSupersede()
 		case *UndeterminedVal:
-			implicants, implicantsDiffs := sitesWithAssertionsDiff(new.Implicants, old.Implicants)
-			implicates, implicatesDiffs := sitesWithAssertionsDiff(new.Implicates, old.Implicates)
+			implicants, implicantsDiffs := sitesWithAssertionsDiff(val.Implicants, old.Implicants)
+			implicates, implicatesDiffs := sitesWithAssertionsDiff(val.Implicates, old.Implicates)
 			return &UndeterminedVal{
 				Implicants: implicants,
 				Implicates: implicates,
 			}, implicantsDiffs || implicatesDiffs
 		}
 	}
-	panic(fmt.Sprintf("ERROR: unrecognized InferredAnnotationVals: %T, %T", new, old))
+	panic(fmt.Sprintf("ERROR: unrecognized InferredAnnotationVals: %T, %T", newVal, oldVal))
 }

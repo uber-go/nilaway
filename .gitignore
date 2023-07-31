@@ -21,5 +21,8 @@ go.work
 .idea/
 
 # Coverage files
-cover.out cover.html
+cover.out
+cover.html
 
+# Local binary folder
+bin/

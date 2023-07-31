@@ -125,48 +125,6 @@ func (a Val) makeDeepNonNil(isFinalVal bool) Val {
 	}
 }
 
-// setNilablity inspects a Val to see if its nilability has already been set.
-// If it has, then setNilablity is a noop, otherwise, it returns a copy of the passed
-// Val with the nilability set to `val`
-func (a Val) setNilablity(val bool) Val {
-	if a.IsNilableSet {
-		return a
-	}
-	return Val{
-		IsNilable:        val,
-		IsDeepNilable:    a.IsDeepNilable,
-		IsNilableSet:     true,
-		IsDeepNilableSet: a.IsDeepNilableSet,
-	}
-}
-
-// setDeepNilability inspects a Val to see if its deep nilability has already been set.
-// If it has, then setDeepNilability is a noop, otherwise, it returns a copy of the passed
-// Val with the deep nilability set to `val`
-func (a Val) setDeepNilability(val bool) Val {
-	if a.IsDeepNilableSet {
-		return a
-	}
-	return Val{
-		IsNilable:        a.IsNilable,
-		IsDeepNilable:    val,
-		IsNilableSet:     a.IsNilableSet,
-		IsDeepNilableSet: true,
-	}
-}
-
-// shiftDeep takes a Val, and returns a new Val describing a nilable collection
-// of elements whose deep nilability is determined by the passed Val's shallow nilability -
-// in other words, it shifts the passed Val into the deep position
-func (a Val) shiftDeep() Val {
-	return Val{
-		IsNilable:        true,
-		IsDeepNilable:    a.IsNilable,
-		IsNilableSet:     false,
-		IsDeepNilableSet: a.IsNilableSet,
-	}
-}
-
 // A ObservedMap represents a completed set of annotations read from a file or set of files,
 // it can be checked against an assertionTree using RootAssertionNode.ReportErrors
 //
@@ -313,17 +271,14 @@ func nilabilityFromCommentGroup(group *ast.CommentGroup) nilabilitySet {
 			set[s] = EmptyVal.makeDeepNonNil(true)
 		}
 	}
-	noop := func(string) {}
 
 	if group != nil {
 		for _, comment := range group.List {
 			for _, seqMatch := range seqRegex.FindAllStringSubmatch(comment.Text, -1) {
 
-				deepFunc, shallowFunc := noop, noop
+				deepFunc, shallowFunc := markDeepNonNil, markNonNil
 				if seqMatch[1] == nilableKeyword {
 					deepFunc, shallowFunc = markDeepNilable, markNilable
-				} else {
-					deepFunc, shallowFunc = markDeepNonNil, markNonNil
 				}
 
 				for _, match := range strings.Split(seqMatch[2], sep) {
