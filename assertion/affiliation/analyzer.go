@@ -47,6 +47,7 @@ var Analyzer = &analysis.Analyzer{
 	Run:        run,
 	FactTypes:  []analysis.Fact{new(AffliliationCache)},
 	ResultType: reflect.TypeOf((*Result)(nil)).Elem(),
+	Requires:   []*analysis.Analyzer{config.Analyzer},
 }
 
 func run(pass *analysis.Pass) (result interface{}, _ error) {
@@ -65,11 +66,13 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 		}
 	}()
 
-	if !config.PackageIsInScope(pass.Pkg) {
+	conf := pass.ResultOf[config.Analyzer].(*config.Config)
+
+	if !conf.IsPkgInScope(pass.Pkg) {
 		return Result{}, nil
 	}
 
-	a := new(Affiliation)
+	a := &Affiliation{conf: conf}
 	// get all affiliations
 	a.extractAffiliations(pass)
 

@@ -70,9 +70,11 @@ type Map map[*types.Func][]*FunctionContract
 // collectFunctionContracts collects all the function contracts and returns a map that associates
 // every function with its contracts if it has any. One function can have multiple contracts.
 func collectFunctionContracts(pass *analysis.Pass) Map {
+	conf := pass.ResultOf[config.Analyzer].(*config.Config)
+
 	m := Map{}
 	for _, file := range pass.Files {
-		if !config.FileIsInScope(file) {
+		if !conf.IsFileInScope(file) {
 			continue
 		}
 		for _, decl := range file.Decls {

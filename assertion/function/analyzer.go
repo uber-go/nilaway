@@ -59,6 +59,7 @@ var Analyzer = &analysis.Analyzer{
 	Run:        run,
 	ResultType: reflect.TypeOf((*Result)(nil)).Elem(),
 	Requires: []*analysis.Analyzer{
+		config.Analyzer,
 		ctrlflow.Analyzer,
 		structfield.Analyzer,
 		anonymousfunc.Analyzer,
@@ -103,7 +104,9 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 		}
 	}()
 
-	if !config.PackageIsInScope(pass.Pkg) {
+	conf := pass.ResultOf[config.Analyzer].(*config.Config)
+
+	if !conf.IsPkgInScope(pass.Pkg) {
 		return Result{}, nil
 	}
 
@@ -127,7 +130,7 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 	var funcIndex int
 	for _, file := range pass.Files {
 		// Skip if a file is marked to be ignored, or it is not in scope of our analysis.
-		if util.DocContainsIgnore(file.Doc) || !config.FileIsInScope(file) {
+		if util.DocContainsIgnore(file.Doc) || !conf.IsFileInScope(file) {
 			continue
 		}
 

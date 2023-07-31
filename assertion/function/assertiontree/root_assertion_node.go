@@ -729,7 +729,8 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 
 		allowNilable := false
 		if funcObj, ok := r.ObjectOf(expr.Sel).(*types.Func); ok { // Check 1:  selector expression is a method invocation
-			if config.PackageIsInScope(funcObj.Pkg()) { // Check 2: invoked method is in scope
+			conf := r.Pass().ResultOf[config.Analyzer].(*config.Config)
+			if conf.IsPkgInScope(funcObj.Pkg()) { // Check 2: invoked method is in scope
 				t := util.TypeOf(r.Pass(), expr.X)
 				// Here, `t` can only be of type struct or interface, of which we only support for structs (see .
 				if util.TypeAsDeeplyStruct(t) != nil { // Check 3: invoking expression (caller) is of struct type
