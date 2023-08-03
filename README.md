@@ -1,10 +1,14 @@
 # NilAway
 
+> [!WARNING]  
+> NilAway is currently under active development: false positives and breaking changes can happen. 
+> We highly appreciate any feedback and contributions!
+
 NilAway is a static analysis tool that seeks to help developers avoid nil panics in production by catching them at 
 compile time rather than runtime. NilAway is similar to the standard
 [nilness analyzer](https://pkg.go.dev/golang.org/x/tools/go/analysis/passes/nilness), however, it employs much more 
 sophisticated and powerful static analysis techniques to track nil flows within a package as well _across_ packages, and
-report errors providing users with the nilness flows for easier debugging. 
+report errors providing users with the nilness flows for easier debugging.
 
 NilAway enjoys three key properties that make it stand out:
 
