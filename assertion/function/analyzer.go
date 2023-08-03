@@ -137,9 +137,9 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 		// Construct config for analyzing the functions in this file. By default, enable all checks
 		// on NilAway itself.
 		functionConfig := assertiontree.FunctionConfig{}
-		if strings.HasPrefix(pass.Pkg.Path(), config.NilAwayPkgPathPrefix) {
-			functionConfig.StructInitCheckType = config.DepthOneFieldCheck
-			// TODO: enable anonymous function flag here when  is done
+		if strings.HasPrefix(pass.Pkg.Path(), config.NilAwayPkgPathPrefix) { //nolint:revive
+			// TODO: enable struct initialization flag.
+			// TODO: enable anonymous function flag.
 		} else {
 			functionConfig.StructInitCheckType = util.DocContainsStructInitCheck(file.Doc)
 			functionConfig.EnableAnonymousFunc = util.DocContainsAnonymousFuncCheck(file.Doc)
