@@ -403,11 +403,6 @@ func GetSelectorExprHeadIdent(selExpr *ast.SelectorExpr) *ast.Ident {
 	return nil
 }
 
-// DocContainsIgnore is used by analyzers to check if the file should be ignored by the analyzer.
-func DocContainsIgnore(group *ast.CommentGroup) bool {
-	return docContainsString(config.NilAwayIgnoreString)(group)
-}
-
 // DocContainsStructInitCheck is used by analyzers to check if the struct initialization check enabling string is present
 // in the comments.
 func DocContainsStructInitCheck(group *ast.CommentGroup) config.StructInitCheckType {

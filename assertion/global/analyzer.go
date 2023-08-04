@@ -24,7 +24,6 @@ import (
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/config"
-	"go.uber.org/nilaway/util"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -73,7 +72,7 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 
 	var fullTriggers []annotation.FullTrigger
 	for _, file := range pass.Files {
-		if util.DocContainsIgnore(file.Doc) || !conf.IsFileInScope(file) {
+		if !conf.IsFileInScope(file) {
 			continue
 		}
 
