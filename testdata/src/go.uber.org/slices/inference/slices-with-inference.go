@@ -32,7 +32,7 @@ func testInterProcedural() {
 		helperSliceParamForNonNilParam(nonNilA[0:])
 
 		// non-zero slicing triggering non-nil producer all the time, e.g, [1:3]
-		helperSliceParamForNonNilParam(nilA[1:3]) //want "Value literal nil \\(definitely nilable\\) and is sliced into"
+		helperSliceParamForNonNilParam(nilA[1:3]) //want "Value literal nil at \"(.*)\" \\(definitely nilable\\) and is sliced into"
 		helperSliceParamForNonNilParam(nonNilA[1:3])
 	case 2:
 		// use slicing as return result

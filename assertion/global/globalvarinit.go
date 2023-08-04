@@ -29,8 +29,8 @@ func analyzeValueSpec(pass *analysis.Pass, spec *ast.ValueSpec) []annotation.Ful
 
 	consumers := getGlobalConsumers(pass, spec)
 
-	for lid := range spec.Names {
-		if consumers[lid] == nil {
+	for i, ident := range spec.Names {
+		if consumers[i] == nil {
 			continue
 		}
 
@@ -40,21 +40,21 @@ func analyzeValueSpec(pass *analysis.Pass, spec *ast.ValueSpec) []annotation.Ful
 		if len(spec.Values) == 0 {
 			prod = &annotation.ProduceTrigger{
 				Annotation: annotation.ProduceTriggerTautology{},
-				Expr:       nil,
+				Expr:       ident,
 			}
 		} else if len(spec.Names) == len(spec.Values) {
 			// Case: variables are initialized and the assignment is 1-1
-			prod = getGlobalProducer(pass, spec, lid, lid)
+			prod = getGlobalProducer(pass, spec, i, i)
 		} else {
 			// Case: variables are initialized using a multiple return function
-			prod = getGlobalProducer(pass, spec, lid, 0)
+			prod = getGlobalProducer(pass, spec, i, 0)
 		}
 
 		if prod != nil {
 			fullTriggers = append(fullTriggers,
 				annotation.FullTrigger{
 					Producer: prod,
-					Consumer: consumers[lid],
+					Consumer: consumers[i],
 				})
 		}
 	}

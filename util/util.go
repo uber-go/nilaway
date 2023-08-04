@@ -213,8 +213,8 @@ func PortionAfterSep(input, sep string, occ int) string {
 // Right now, this is used only to decide whether to print the location of the producer expression
 // in a full trigger.
 func ExprIsAuthentic(pass *analysis.Pass, expr ast.Expr) bool {
-	_, ok := pass.TypesInfo.Types[expr]
-	return ok
+	t := pass.TypesInfo.TypeOf(expr)
+	return t != nil
 }
 
 // StripParens takes an ast node and strips it of any outmost parentheses
