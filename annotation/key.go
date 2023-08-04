@@ -113,7 +113,7 @@ func (ak ArgAnnotationKey) MinimalString() string {
 // ParamNameString returns the name of this parameter, if named, or a placeholder string otherwise
 func (ak ArgAnnotationKey) ParamNameString() string {
 	if ak.ParamName() != nil {
-		return fmt.Sprintf("%s", ak.ParamName().Name())
+		return ak.ParamName().Name()
 	}
 	return fmt.Sprintf("<unnamed param %d>", ak.ParamNum)
 }
