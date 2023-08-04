@@ -21,7 +21,7 @@ cover:
 	go tool cover -html=cover.out -o cover.html
 
 .PHONY: lint
-lint: golangci-lint tidy-lint
+lint: golangci-lint nilaway-lint tidy-lint
 
 .PHONY: golangci-lint
 golangci-lint:
@@ -39,3 +39,8 @@ tidy-lint:
 	@go mod tidy && \
 		git diff --exit-code -- go.mod go.sum || \
 		(echo "'go mod tidy' changed files" && false)
+
+.PHONY: nilaway-lint
+nilaway-lint: build
+	@echo "[lint] nilaway linting itself"
+	@$(GOBIN)/nilaway -include-pkgs="go.uber.org/nilaway" ./...

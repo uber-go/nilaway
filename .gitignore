@@ -27,5 +27,8 @@ cover.html
 # Local binary folder
 bin/
 
+# Local build folder for storing build artifacts
+build/
+
 # Mac OS files
 **/.DS_Store
