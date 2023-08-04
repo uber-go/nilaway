@@ -93,6 +93,12 @@ Note that in the above example, `foo` does not necessarily have to reside in the
 to track nil flows across packages as well. Moreover, NilAway handles Go-specific language constructs such as receivers,
 interfaces, type assertions, type switches, and more. For more detailed discussion, please check our paper.
 
+## Configurations
+
+We expose a set of flags via the standard flag passing mechanism in [go/analysis](https://pkg.go.dev/golang.org/x/tools/go/analysis).
+Please check [wiki/Configuration](https://github.com/uber-go/nilaway/wiki/Configuration) to see the available flags and
+how to pass them using different linter drivers.
+
 ## Support 
 
 Please feel free to [open a GitHub issue](https://github.com/uber-go/nilaway/issues) if you have any questions, bug 
