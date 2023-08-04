@@ -10,6 +10,6 @@ coverage:
         target: auto           # specify the target coverage for each commit status
                                #   option: "auto" (compare against parent commit or pull request base)
                                #   option: "X%" a static target percentage to hit
-        threshold: 5%          # allow the coverage drop by 5% before marking as failure
+        threshold: 1%          # allow the coverage drop by 1% before marking as failure (to allow some flakiness)
         if_not_found: success  # if parent is not found report status as success, error, or failure
         if_ci_failed: error    # if ci fails report status as success, error, or failure
