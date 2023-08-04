@@ -220,10 +220,8 @@ func TestGenerics(t *testing.T) {
 func TestFunctionContracts(t *testing.T) {
 	t.Parallel()
 
-	config.EnableFunctionContracts = true
 	testdata := analysistest.TestData()
 	analysistest.Run(t, testdata, Analyzer, "go.uber.org/functioncontracts/inference")
-	config.EnableFunctionContracts = false
 }
 
 func TestPrettyPrint(t *testing.T) { //nolint:paralleltest

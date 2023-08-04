@@ -1,3 +1,4 @@
+// <nilaway contract enable>
 package inference
 
 import "math/rand"

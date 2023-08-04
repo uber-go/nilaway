@@ -7,9 +7,6 @@ import (
 
 // This file hosts non-user-configurable parameters --- these are for development and testing purposes only.
 
-// EnableFunctionContracts turns on the feature of function contracts.
-var EnableFunctionContracts = false
-
 // StableRoundLimit is the number of rounds in backpropagation algorithm after which, if there is no change
 // in the collected triggers, the algorithm halts. It is possible to carefully craft known false negative for any value
 // of StableRoundLimit (check test loopflow.go/longRotNilLoop). Setting this value too low may result in false negatives
@@ -65,6 +62,10 @@ const NilAwayStructInitCheckString = "<nilaway struct enable>"
 // NilAwayAnonymousFuncCheckString is the string that may be inserted into the docstring for a package to
 // force NilAway to enable anonymous func checking
 const NilAwayAnonymousFuncCheckString = "<nilaway anonymous function enable>"
+
+// NilAwayFunctionContractsCheckString is the string that may be inserted into the docstring for a
+// package to force NilAway to enable function contracts.
+const NilAwayFunctionContractsCheckString = "<nilaway contract enable>"
 
 func maxRoundsFromBlocks(numBlocks int) int {
 	return numBlocks * numBlocks * 2

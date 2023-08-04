@@ -662,7 +662,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 					})
 				} else {
 					var paramOrArgKey annotation.Key
-					if config.EnableFunctionContracts && r.HasContract(fdecl) {
+					if r.HasContract(fdecl) {
 						// Creates a new argument site with location information at every calling
 						// of the function with contracts. The return site is unique at every call
 						// site, even with the same function called.

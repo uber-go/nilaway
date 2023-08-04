@@ -1,6 +1,8 @@
 /*
 Test functionality of parsing function contracts.
 */
+
+// <nilaway contract enable>
 package functioncontracts
 
 // contract(nonnil -> nonnil)

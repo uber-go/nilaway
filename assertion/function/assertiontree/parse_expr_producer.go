@@ -21,7 +21,6 @@ import (
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/assertion/function/producer"
-	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
 )
 
@@ -416,7 +415,7 @@ func (r *RootAssertionNode) getFuncReturnProducers(ident *ast.Ident, expr *ast.C
 
 	for i := 0; i < numResults; i++ {
 		var retOrResKey annotation.Key
-		if config.EnableFunctionContracts && r.HasContract(funcObj) {
+		if r.HasContract(funcObj) {
 			// Creates a new result site with location information at every calling of the function
 			// with contracts. The return site is unique at every call site, even with the same
 			// function called.

@@ -243,7 +243,7 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 	}
 
 	// Duplicate triggers in contracted functions in the callers of the function
-	if config.EnableFunctionContracts {
+	if len(funcContracts) != 0 {
 		duplicateFullTriggersFromContractedFunctionsToCallers(pass, funcContracts, funcTriggers,
 			funcResults)
 	}
