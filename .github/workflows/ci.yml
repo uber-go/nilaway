@@ -57,3 +57,6 @@ jobs:
 
       - name: Test and generate coverage report
         run: make cover
+
+      - name: Upload coverage to codecov.io
+        uses: codecov/codecov-action@v3
