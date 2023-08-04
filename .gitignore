@@ -26,3 +26,6 @@ cover.html
 
 # Local binary folder
 bin/
+
+# Mac OS files
+**/.DS_Store
