@@ -1009,15 +1009,20 @@ func (r *RootAssertionNode) shallowEqNodes(left, right AssertionNode) bool {
 		if left.decl != right.decl {
 			return false
 		}
-		if len(left.args) != len(right.args) {
+
+		leftCallExpr, okLeft := left.originalExpr.(*ast.CallExpr)
+		rightCallExpr, okRight := right.originalExpr.(*ast.CallExpr)
+
+		if !okLeft || !okRight || len(leftCallExpr.Args) != len(rightCallExpr.Args) {
 			return false
 		}
-		for i := range left.args {
-			if right.args == nil {
+
+		for i := range leftCallExpr.Args {
+			if rightCallExpr.Args == nil {
 				// TODO: remove this when  is implemented and we can replace it with a real suppression
 				return false
 			}
-			if !r.eqStable(left.args[i], right.args[i]) {
+			if !r.eqStable(leftCallExpr.Args[i], rightCallExpr.Args[i]) {
 				return false
 			}
 		}
@@ -1026,7 +1031,15 @@ func (r *RootAssertionNode) shallowEqNodes(left, right AssertionNode) bool {
 		if !ok {
 			return false
 		}
-		if !r.eqStable(left.index, right.index) {
+
+		leftIndexExpr, okLeft := left.originalExpr.(*ast.IndexExpr)
+		rightIndexExpr, okRight := right.originalExpr.(*ast.IndexExpr)
+
+		if !okLeft || !okRight {
+			return false
+		}
+
+		if !r.eqStable(leftIndexExpr.Index, rightIndexExpr.Index) {
 			return false
 		}
 	default:
