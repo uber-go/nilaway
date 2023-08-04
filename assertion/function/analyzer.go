@@ -130,7 +130,7 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 	var funcIndex int
 	for _, file := range pass.Files {
 		// Skip if a file is marked to be ignored, or it is not in scope of our analysis.
-		if util.DocContainsIgnore(file.Doc) || !conf.IsFileInScope(file) {
+		if !conf.IsFileInScope(file) {
 			continue
 		}
 
@@ -189,8 +189,8 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 				panic(fmt.Sprintf("unrecognized function type %T", f))
 			}
 
-			// Skip if function declaration has an empty body, or it is marked to be ignored.
-			if funcDecl.Body == nil || util.DocContainsIgnore(funcDecl.Doc) {
+			// Skip if function declaration has an empty body.
+			if funcDecl.Body == nil {
 				continue
 			}
 			// Skip if the function is too large.

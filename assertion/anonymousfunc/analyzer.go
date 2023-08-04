@@ -106,8 +106,7 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 	funcLitMap := make(map[*ast.FuncLit]*FuncLitInfo)
 
 	for _, file := range pass.Files {
-		if util.DocContainsIgnore(file.Doc) || !conf.IsFileInScope(file) ||
-			!util.DocContainsAnonymousFuncCheck(file.Doc) {
+		if !conf.IsFileInScope(file) || !util.DocContainsAnonymousFuncCheck(file.Doc) {
 			continue
 		}
 
