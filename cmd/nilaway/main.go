@@ -58,25 +58,14 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	// here we add extra logic to filter the errors.
 
 	// Properly parse the error suppression flags.
-	var files [2][]string
-	for i, flagVal := range [...]string{_includeErrorsInFiles, _excludeErrorsInFiles} {
-		if flagVal == "" {
-			files[i] = nil
-			continue
-		}
-
-		// Convert the file paths to absolute paths.
-		list := strings.Split(flagVal, ",")
-		for i := range list {
-			p, err := filepath.Abs(list[i])
-			if err != nil {
-				return nil, fmt.Errorf("incorrect file path: %s", list[i])
-			}
-			list[i] = p
-		}
-		files[i] = list
+	includes, err := parseFilePrefixes(_includeErrorsInFiles)
+	if err != nil {
+		return nil, fmt.Errorf("parse file prefixes for error inclusion: %w", err)
 	}
-	includes, excludes := files[0], files[1]
+	excludes, err := parseFilePrefixes(_excludeErrorsInFiles)
+	if err != nil {
+		return nil, fmt.Errorf("parse file prefixes for error exclusion: %w", err)
+	}
 
 	// Override the report function to add error filtering logic.
 	report := pass.Report
@@ -100,9 +89,39 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	return nilaway.Analyzer.Run(pass)
 }
 
+// parseFilePrefixes parses the comma-separated list of file prefixes, converts them to absolute
+// file paths, and returns them as a slice.
+func parseFilePrefixes(s string) ([]string, error) {
+	if s == "" {
+		return nil, nil
+	}
+
+	// Convert the file paths to absolute paths.
+	list := strings.Split(s, ",")
+	for i := range list {
+		p, err := filepath.Abs(list[i])
+		if err != nil {
+			return nil, fmt.Errorf("convert %q to absolute path: %w", list[i], err)
+		}
+		list[i] = p
+	}
+	return list, nil
+}
+
 func main() {
 	// For better UX, we lift the flags from config.Analyzer to the top level so that users can
 	// specify them without having to specify the analyzer name ("nilaway_config").
+	// For example, without lifting the flags, we will have to use `multichecker` to run the
+	// top-level NilAway analyzer _and_ the config analyzer. Users will have to specify flags as
+	// the following (directed to the "nilaway_config" analyzer):
+	//
+	// `nilaway -nilaway_config.flag1 <VALUE1> -nilaway_config.flag2 <VALUE> ./...`
+	//
+	// With this, the flags will be exposed at the top level, making "nilaway_config" analyzer
+	// transparent to the users:
+	//
+	// `nilaway -flag1 <VALUE1> -flag2 <VALUE> ./...`
+	//
 	config.Analyzer.Flags.VisitAll(func(f *flag.Flag) {
 		flag.Func(f.Name, f.Usage, func(s string) error {
 			return f.Value.Set(s)
