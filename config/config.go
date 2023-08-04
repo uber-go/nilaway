@@ -27,6 +27,8 @@ import (
 
 // Config is the struct that stores the user-configurable options for NilAway.
 type Config struct {
+	// PrettyPrint indicates whether the error messages should be pretty printed.
+	PrettyPrint bool
 	// includePkgs is the list of packages to analyze.
 	includePkgs []string
 	// excludePkgs is the list of packages to exclude from analysis. Exclude list takes
@@ -111,6 +113,8 @@ var Analyzer = &analysis.Analyzer{
 }
 
 const (
+	// PrettyPrintFlag is the flag for pretty printing the error messages.
+	PrettyPrintFlag = "pretty-print"
 	// IncludePkgsFlag is the flag name for include package prefixes.
 	IncludePkgsFlag = "include-pkgs"
 	// ExcludePkgsFlag is the flag name for exclude package prefixes.
@@ -125,6 +129,7 @@ func newFlagSet() flag.FlagSet {
 
 	// We do not keep the returned pointer to the flags because we will not use them directly here.
 	// Instead, we will use the flags through the analyzer's Flags field later.
+	_ = fs.Bool(PrettyPrintFlag, true, "Pretty print the error messages")
 	_ = fs.String(IncludePkgsFlag, "", "Comma-separated list of packages to analyze")
 	_ = fs.String(ExcludePkgsFlag, "", "Comma-separated list of packages to exclude from analysis")
 	_ = fs.String(ExcludeFileDocStringsFlag, "", "Comma-separated list of docstrings to exclude from analysis")
@@ -135,12 +140,16 @@ func newFlagSet() flag.FlagSet {
 func run(pass *analysis.Pass) (any, error) {
 	// Set up default values for the config.
 	conf := &Config{
+		PrettyPrint: true,
 		// If the user does not provide an include list, we give an empty package prefix to catch
 		// all packages.
 		includePkgs: []string{""},
 	}
 
 	// Override default values if the user provides flags.
+	if prettyPrint, ok := pass.Analyzer.Flags.Lookup(PrettyPrintFlag).Value.(flag.Getter).Get().(bool); ok {
+		conf.PrettyPrint = prettyPrint
+	}
 	if include, ok := pass.Analyzer.Flags.Lookup(IncludePkgsFlag).Value.(flag.Getter).Get().(string); ok && include != "" {
 		conf.includePkgs = strings.Split(include, ",")
 	}
