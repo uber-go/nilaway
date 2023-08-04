@@ -26,10 +26,6 @@ const BackpropTimeout = 10 * time.Second
 // considered undesirable behavior and worth catching in the future.
 const ErrorOnNilableMapRead = false
 
-// NilAwayIgnoreString is the string that may be inserted into the docstring for a file (resp. function)
-// to prevent NilAway from generating assertions from that file (resp. function)
-const NilAwayIgnoreString = "nolint:nilaway"
-
 // NilAwayNoInferString is the string that may be inserted into the docstring for a package to prevent
 // NilAway from inferring the annotations for that package - this is useful for unit tests
 const NilAwayNoInferString = "<nilaway no inference>"
