@@ -33,15 +33,15 @@ var Analyzer = &analysis.Analyzer{
 	Doc:       _doc,
 	Run:       run,
 	FactTypes: []analysis.Fact{},
-	Requires:  []*analysis.Analyzer{accumulation.Analyzer},
+	Requires:  []*analysis.Analyzer{config.Analyzer, accumulation.Analyzer},
 }
 
 // nilable(result 0)
 func run(pass *analysis.Pass) (interface{}, error) {
+	conf := pass.ResultOf[config.Analyzer].(*config.Config)
 	deferredErrors := pass.ResultOf[accumulation.Analyzer].([]analysis.Diagnostic)
 	for _, e := range deferredErrors {
-		// Pretty print the error messages in console when not in test environments.
-		if !config.IsTestEnvironment {
+		if conf.PrettyPrint {
 			e.Message = util.PrettyPrintErrorMessage(e.Message)
 		}
 		pass.Report(e)
