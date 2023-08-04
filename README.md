@@ -1,5 +1,7 @@
 # NilAway
 
+[![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov]
+
 > [!WARNING]  
 > NilAway is currently under active development: false positives and breaking changes can happen. 
 > We highly appreciate any feedback and contributions!
@@ -112,3 +114,10 @@ our [Uber Contributor License Agreement](https://cla-assistant.io/uber-go/nilawa
 ## License
 
 This project is copyright 2023 Uber Technologies, Inc., and licensed under Apache 2.0.
+
+[doc-img]: https://pkg.go.dev/badge/go.uber.org/nilaway.svg
+[doc]: https://pkg.go.dev/go.uber.org/nilaway
+[ci-img]: https://github.com/uber-go/nilaway/actions/workflows/ci.yml/badge.svg
+[ci]: https://github.com/uber-go/nilaway/actions/workflows/ci.yml
+[cov-img]: https://codecov.io/gh/uber-go/nilaway/branch/main/graph/badge.svg
+[cov]: https://codecov.io/gh/uber-go/nilaway
