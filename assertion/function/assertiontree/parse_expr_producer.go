@@ -21,6 +21,7 @@ import (
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/assertion/function/producer"
+	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
 )
 
@@ -414,7 +415,15 @@ func (r *RootAssertionNode) getFuncReturnProducers(ident *ast.Ident, expr *ast.C
 	producers := make([]producer.ParsedProducer, numResults)
 
 	for i := 0; i < numResults; i++ {
-		retKey := annotation.RetKeyFromRetNum(funcObj, i)
+		var retOrResKey annotation.Key
+		if config.EnableFunctionContracts && r.HasContract(funcObj) {
+			// Creates a new result site with location information at every calling of the function
+			// with contracts. The return site is unique at every call site, even with the same
+			// function called.
+			retOrResKey = annotation.NewResKey(funcObj, i, r.LocationOf(expr))
+		} else {
+			retOrResKey = annotation.RetKeyFromRetNum(funcObj, i)
+		}
 
 		var fieldProducers []*annotation.ProduceTrigger
 
@@ -426,7 +435,7 @@ func (r *RootAssertionNode) getFuncReturnProducers(ident *ast.Ident, expr *ast.C
 			ShallowProducer: &annotation.ProduceTrigger{
 				Annotation: annotation.FuncReturn{
 					TriggerIfNilable: annotation.TriggerIfNilable{
-						Ann: retKey,
+						Ann: retOrResKey,
 					},
 					// for an error-returning function, all but the last result are guarded
 					// TODO: add an annotation that allows more results to escape from guarding
@@ -441,7 +450,6 @@ func (r *RootAssertionNode) getFuncReturnProducers(ident *ast.Ident, expr *ast.C
 			},
 			FieldProducers: fieldProducers,
 		}
-
 	}
 	return producers
 }

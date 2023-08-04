@@ -19,7 +19,6 @@ import (
 	"go/ast"
 	"go/token"
 
-	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
 	"golang.org/x/tools/go/analysis"
 )
@@ -33,6 +32,18 @@ import (
 type FullTrigger struct {
 	Producer *ProduceTrigger
 	Consumer *ConsumeTrigger
+	// Controller is the site that controls if this trigger will be activated or not.
+	// If the controller site is assigned to nilable, then this full trigger is activated;
+	// otherwise the full trigger is deactivated in the inference engine.
+	// If this field is nil, it means the trigger is not a controlled trigger and the trigger will
+	// be activated all the time.
+	Controller *ArgAnnotationKey
+}
+
+// Controlled returns true if this full trigger is controlled by a controller site; otherwise
+// returns false.
+func (t *FullTrigger) Controlled() bool {
+	return t.Controller != nil
 }
 
 // Pos returns the position for logging the error specified by the ConsumeTrigger
@@ -41,8 +52,12 @@ func (t *FullTrigger) Pos() token.Pos {
 }
 
 func (t *FullTrigger) String() string {
-	return fmt.Sprintf("[%T -> (%T@%d %s)]",
+	str := fmt.Sprintf("%T -> (%T@%d %s)",
 		t.Producer.Annotation, t.Consumer.Expr, t.Pos(), t.Consumer.Annotation.String())
+	if t.Controller != nil {
+		str += " if " + t.Controller.String() + " is nilable"
+	}
+	return "[" + str + "]"
 }
 
 // TriggerSlicesString returns a string representation of a slice of `FullTrigger`s
@@ -60,15 +75,8 @@ func (t *FullTrigger) Check(annMap Map) bool {
 		t.Consumer.Annotation.CheckConsume(annMap)
 }
 
-func truncatePosition(position token.Position) token.Position {
-	position.Filename = util.PortionAfterSep(
-		position.Filename, "/",
-		config.DirLevelsToPrintForTriggers)
-	return position
-}
-
 func (t *FullTrigger) truncatedConsumerPos(pass *analysis.Pass) token.Position {
-	return truncatePosition(pass.Fset.Position(t.Consumer.Pos()))
+	return util.PosToLocation(t.Consumer.Pos(), pass)
 }
 
 func (t *FullTrigger) truncatedProducerPos(pass *analysis.Pass) token.Position {
@@ -81,7 +89,7 @@ func (t *FullTrigger) truncatedProducerPos(pass *analysis.Pass) token.Position {
 	if t.Producer.Expr == nil {
 		panic(fmt.Sprintf("nil Expr for producer %q", t.Producer))
 	}
-	return truncatePosition(pass.Fset.Position(t.Producer.Expr.Pos()))
+	return util.PosToLocation(t.Producer.Expr.Pos(), pass)
 }
 
 // BuildStringRepr returns a string representation of a `FullTrigger` given an `analysis.Pass` to help Lookup its objects

@@ -86,6 +86,8 @@ type functionResult struct {
 	// declarations can be parallelized.
 	// TODO: remove this.
 	index int
+	// funcDecl is the function declaration in the package.
+	funcDecl *ast.FuncDecl
 }
 
 func run(pass *analysis.Pass) (result interface{}, _ error) {
@@ -223,13 +225,27 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 	var errs []error
 	funcTriggers := make([][]annotation.FullTrigger, funcIndex)
 	triggerCount := 0
+	funcResults := map[*types.Func]*functionResult{}
 	for r := range funcChan {
 		if r.err != nil {
 			errs = append(errs, r.err)
 		} else {
 			funcTriggers[r.index] = r.triggers
 			triggerCount += len(r.triggers)
+
+			funcObj, ok := pass.TypesInfo.ObjectOf(r.funcDecl.Name).(*types.Func)
+			if !ok {
+				continue
+			}
+			funcRes := r
+			funcResults[funcObj] = &funcRes
 		}
+	}
+
+	// Duplicate triggers in contracted functions in the callers of the function
+	if config.EnableFunctionContracts {
+		duplicateFullTriggersFromContractedFunctionsToCallers(pass, funcContracts, funcTriggers,
+			funcResults)
 	}
 
 	// Flatten the triggers
@@ -239,6 +255,175 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 	}
 
 	return Result{FullTriggers: triggers, Errors: errs}, nil
+}
+
+// duplicateFullTriggersFromContractedFunctionsToCallers duplicates all the full triggers that have
+// FuncParam producer or UseAsReturn consumer or both, from the contracted functions to the callers
+// of all the contracted functions. This is necessary because we have created new
+// producers/consumers for argument pass or result return at every call site of the contracted
+// function. In order to connect such producers/consumers back to the contracted functions, we
+// create new full triggers that duplicates the original full triggers of the contracted functions
+// but uses the new producers/consumers instead.
+func duplicateFullTriggersFromContractedFunctionsToCallers(
+	pass *analysis.Pass,
+	funcContracts functioncontracts.Map,
+	funcTriggers [][]annotation.FullTrigger,
+	funcResults map[*types.Func]*functionResult,
+) {
+
+	// Find all the calls to contracted functions
+	// callsByCtrtFunc is a mapping contracted function -> caller -> call expression
+	callsByCtrtFunc := map[*types.Func]map[*types.Func]*ast.CallExpr{}
+	for funcObj, r := range funcResults {
+		for ctrFunc, calls := range findCallsToContractedFunctions(r.funcDecl, pass, funcContracts) {
+			for _, call := range calls {
+				// TODO: have to introduce v to make NilAway happy. Remove v when NilAway can
+				//  tolerate this.
+				v, ok := callsByCtrtFunc[ctrFunc]
+				if !ok {
+					v = map[*types.Func]*ast.CallExpr{}
+					callsByCtrtFunc[ctrFunc] = v
+				}
+				v[funcObj] = call
+			}
+		}
+	}
+
+	// For every contracted function, duplicate some of its full triggers (that involves param or
+	// return) into all the callers
+	dupTriggers := map[*types.Func][]annotation.FullTrigger{}
+	for ctrtFunc, calls := range callsByCtrtFunc {
+		// TODO: have to introduce r to make NilAway happy. Remove r when NilAway can tolerate
+		//  this.
+		r := funcResults[ctrtFunc]
+		if r == nil {
+			continue
+		}
+		for _, trigger := range r.triggers {
+			// If the full trigger has a FuncParam producer or a UseAsReturn consumer, then create
+			// a duplicated (possibly controlled) full trigger from it and add the created full
+			// trigger to every caller.
+			_, isParamProducer := trigger.Producer.Annotation.(annotation.FuncParam)
+			_, isReturnConsumer := trigger.Consumer.Annotation.(annotation.UseAsReturn)
+			if !isParamProducer && !isReturnConsumer {
+				// No need to duplicate the full trigger
+				continue
+			}
+			// Duplicate the full trigger in every caller
+			for caller, callExpr := range calls {
+				dupTrigger := duplicateFullTrigger(trigger, ctrtFunc, callExpr, pass,
+					isParamProducer, isReturnConsumer)
+
+				// Store the duplicated full trigger
+				dupTriggers[caller] = append(dupTriggers[caller], dupTrigger)
+			}
+		}
+	}
+
+	// Update funcTriggers with duplicated triggers
+	for funcObj, triggers := range dupTriggers {
+		// TODO: have to introduce r to make NilAway happy. Remove r when NilAway can tolerate
+		//  this.
+		r := funcResults[funcObj]
+		if r == nil {
+			continue
+		}
+		funcTriggers[r.index] = append(r.triggers, triggers...)
+	}
+}
+
+// duplicateFullTrigger creates a (possibly controlled) full trigger from the given full trigger
+// with FuncParam producer or UseAsReturn consumer or both.
+// Precondition: isParamProducer or isReturnConsumer is true; also they can be both true.
+func duplicateFullTrigger(
+	trigger annotation.FullTrigger,
+	callee *types.Func,
+	callExpr *ast.CallExpr,
+	pass *analysis.Pass,
+	isParamProducer bool,
+	isReturnConsumer bool,
+) annotation.FullTrigger {
+	// TODO: what if we have more than one parameter, planned in future revisions
+	argExpr := callExpr.Args[0]
+	argLoc := util.PosToLocation(argExpr.Pos(), pass)
+
+	// Create the duplicated full trigger
+	// TODO: we just copy the pointer for producer and consumer because I don't see a problem when
+	//  two full triggers share a producer or consumer. We do deep duplication for the param or
+	//  return related producer/consumer, i.e., FuncParam, FuncReturn, ArgPass, UseAsReturn, and I
+	//  don't see other conditional producer/consumer that can be shared between two call sites.
+	//  If we did see such cases in the future, we would want to add a deep copy function for every
+	//  ProduceTrigger or ConsumeTrigger type and make the deep copy here. In this case, we would
+	//  also want to see if it is OK to share the underlying site of the producer/consumer in
+	//  inference engine because we would not want to see a conflict at this site due to different
+	//  call sites.
+	dupTrigger := annotation.FullTrigger{
+		Producer:   trigger.Producer,
+		Consumer:   trigger.Consumer,
+		Controller: nil,
+	}
+	if isParamProducer {
+		dupTrigger.Producer = annotation.DuplicateParamProducer(trigger.Producer, argLoc)
+	}
+	if isReturnConsumer {
+		retLoc := util.PosToLocation(callExpr.Pos(), pass)
+		dupTrigger.Consumer = annotation.DuplicateReturnConsumer(trigger.Consumer, retLoc)
+		// Set up the site that controls the controlled full trigger to be created
+		c := annotation.NewArgKey(callee, 0, argLoc)
+		dupTrigger.Controller = &c
+	}
+
+	return dupTrigger
+}
+
+// findCallsToContractedFunctions finds all the calls to the contracted functions in the given
+// function, and returns a map from every called contracted function to the call expressions that
+// call it.
+func findCallsToContractedFunctions(
+	funcNode *ast.FuncDecl,
+	pass *analysis.Pass,
+	functionContracts functioncontracts.Map,
+) map[*types.Func][]*ast.CallExpr {
+	calls := map[*types.Func][]*ast.CallExpr{}
+	ast.Inspect(funcNode, func(n ast.Node) bool {
+		callExpr, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+
+		ident := util.FuncIdentFromCallExpr(callExpr)
+		if ident == nil {
+			return true
+		}
+
+		funcObj, ok := pass.TypesInfo.ObjectOf(ident).(*types.Func)
+		if !ok {
+			return true
+		}
+
+		// TODO: for now we find the functions with only a single contract nonnil -> nonnil. If we
+		//  want to support multiple contracts or contracts with multiple/other values not only we
+		//  should update here, but we should also make changes to other parts of duplicating
+		//  triggers.
+		if !hasOnlyNonNilToNonNilContract(functionContracts, funcObj) {
+			return true
+		}
+		calls[funcObj] = append(calls[funcObj], callExpr)
+		return true
+	})
+	return calls
+}
+
+// hasOnlyNonNilToNonNilContract returns whether the given function has only one contract that is
+// nonnil->nonnil.
+func hasOnlyNonNilToNonNilContract(funcContracts functioncontracts.Map, funcObj *types.Func) bool {
+	contracts, ok := funcContracts[funcObj]
+	if !ok || len(contracts) != 1 {
+		return false
+	}
+	ctr := contracts[0]
+	return len(ctr.Ins) == 1 && ctr.Ins[0] == functioncontracts.NonNil &&
+		len(ctr.Outs) == 1 && ctr.Outs[0] == functioncontracts.NonNil
 }
 
 // analyzeFunc analyzes a given function declaration and emit generated triggers, or an error if
@@ -259,7 +444,7 @@ func analyzeFunc(
 	defer func() {
 		if r := recover(); r != nil {
 			e := fmt.Errorf("INTERNAL PANIC: %s\n%s", r, string(debug.Stack()))
-			funcChan <- functionResult{err: e, index: index}
+			funcChan <- functionResult{err: e, index: index, funcDecl: funcDecl}
 		}
 	}()
 	defer wg.Done()
@@ -277,5 +462,6 @@ func analyzeFunc(
 		triggers: funcTriggers,
 		err:      err,
 		index:    index,
+		funcDecl: funcDecl,
 	}
 }

@@ -39,6 +39,10 @@ type Engine struct {
 	// converted to diagnostics and returned along with the current inferred map whenever users
 	// request it.
 	conflicts *conflictGrouping
+	// controlledTriggersBySite stores the set of controlled triggers for each site if the site is
+	// controls any triggers. This field is for internal use in the struct only and should not be
+	// accessed elsewhere.
+	controlledTriggersBySite map[primitiveSite]map[annotation.FullTrigger]bool
 }
 
 // NewEngine constructs an inference engine that is ready to run inference.
@@ -194,55 +198,82 @@ func (e *Engine) ObservePackage(pkgFullTriggers []annotation.FullTrigger) {
 }
 
 func (e *Engine) buildPkgInferenceMap(triggers []annotation.FullTrigger) {
+	// Map each site to all the triggers controlled by the site
+	controlledTgsBySite := map[primitiveSite]map[annotation.FullTrigger]bool{}
 	for _, trigger := range triggers {
-		primitiveAssertion := fullTriggerAsPrimitive(e.pass, trigger)
-
-		pKind, cKind := trigger.Producer.Annotation.Kind(), trigger.Consumer.Annotation.Kind()
-		pSite, cSite := trigger.Producer.Annotation.UnderlyingSite(), trigger.Consumer.Annotation.UnderlyingSite()
-		// NilAway does not know that (kind == Conditional || DeepConditional) => (site != nil),
-		// so we have to add some redundant checks in the corresponding cases to give some hints.
-		// TODO: remove this redundant check .
-		switch {
-		case pKind == annotation.Always && cKind == annotation.Always:
-			// Producer always produces nilable value -> consumer always consumes nonnil value.
-			// We simply generate a failure for this case.
-			e.conflicts.addConflict(newSingleAssertionConflict(e.pass, trigger))
-
-		case pKind == annotation.Always && (cKind == annotation.Conditional || cKind == annotation.DeepConditional):
-			// Producer always produces nilable value -> consumer unknown.
-			// We propagate nilable to this consumer site.
-			if cSite == nil {
-				panic("trigger is conditional but the underlying site is nil")
-			}
-			site := newPrimitiveSite(cSite, cKind == annotation.DeepConditional)
-			e.observeSiteExplanation(site, TrueBecauseShallowConstraint{
-				ExternalAssertion: primitiveAssertion,
-			})
-
-		case (pKind == annotation.Conditional || pKind == annotation.DeepConditional) && (cKind == annotation.Always):
-			// Producer unknown -> consumer always consumes nonnil value.
-			// We propagate nonnil to the producer site.
-			if pSite == nil {
-				panic("trigger is conditional but the underlying site is nil")
-			}
-			site := newPrimitiveSite(pSite, pKind == annotation.DeepConditional)
-			e.observeSiteExplanation(site, FalseBecauseShallowConstraint{
-				ExternalAssertion: primitiveAssertion,
-			})
-
-		case (pKind == annotation.Conditional || pKind == annotation.DeepConditional) &&
-			(cKind == annotation.Conditional || cKind == annotation.DeepConditional):
-			// Producer unknown -> consumer unknown.
-			// We store this implication in our map as UndeterminedBool.
-			if pSite == nil || cSite == nil {
-				panic("trigger is conditional but the underlying site is nil")
-			}
-			producer := newPrimitiveSite(pSite, pKind == annotation.DeepConditional)
-			consumer := newPrimitiveSite(cSite, cKind == annotation.DeepConditional)
-
-			e.observeImplication(producer, consumer, primitiveAssertion)
+		if !trigger.Controlled() {
+			continue
 		}
+		// controller is an ArgAnnotationKey, which must be enclosed in a ArgPass consumer, which
+		// Kind() method returns Conditional which is not deep. Thus, we pass false here.
+		site := newPrimitiveSite(*trigger.Controller, false)
+		ts, ok := controlledTgsBySite[site]
+		if !ok {
+			ts = map[annotation.FullTrigger]bool{}
+			controlledTgsBySite[site] = ts
+		}
+		ts[trigger] = true
+	}
+	e.controlledTriggersBySite = controlledTgsBySite
 
+	for _, trigger := range triggers {
+		// As the initial status, the controlled triggers are skipped and NilAway just pretends not
+		// to see them. Those controlled triggers will be activated and encoded into the inference
+		// map when the sites controlling them are assigned to proper values.
+		if trigger.Controlled() {
+			continue
+		}
+		e.buildFromSingleFullTrigger(trigger)
+	}
+}
+
+func (e *Engine) buildFromSingleFullTrigger(trigger annotation.FullTrigger) {
+	primitiveAssertion := fullTriggerAsPrimitive(e.pass, trigger)
+
+	pKind, cKind := trigger.Producer.Annotation.Kind(), trigger.Consumer.Annotation.Kind()
+	pSite, cSite := trigger.Producer.Annotation.UnderlyingSite(), trigger.Consumer.Annotation.UnderlyingSite()
+	// NilAway does not know that (kind == Conditional || DeepConditional) => (site != nil),
+	// so we have to add some redundant checks in the corresponding cases to give some hints.
+	// TODO: remove this redundant check.
+	switch {
+	case pKind == annotation.Always && cKind == annotation.Always:
+		// Producer always produces nilable value -> consumer always consumes nonnil value.
+		// We simply generate a failure for this case.
+		e.conflicts.addConflict(newSingleAssertionConflict(e.pass, trigger))
+
+	case pKind == annotation.Always && (cKind == annotation.Conditional || cKind == annotation.DeepConditional):
+		// Producer always produces nilable value -> consumer unknown.
+		// We propagate nilable to this consumer site.
+		if cSite == nil {
+			panic("trigger is conditional but the underlying site is nil")
+		}
+		site := newPrimitiveSite(cSite, cKind == annotation.DeepConditional)
+		e.observeSiteExplanation(site, TrueBecauseShallowConstraint{
+			ExternalAssertion: primitiveAssertion,
+		})
+
+	case (pKind == annotation.Conditional || pKind == annotation.DeepConditional) && (cKind == annotation.Always):
+		// Producer unknown -> consumer always consumes nonnil value.
+		// We propagate nonnil to the producer site.
+		if pSite == nil {
+			panic("trigger is conditional but the underlying site is nil")
+		}
+		site := newPrimitiveSite(pSite, pKind == annotation.DeepConditional)
+		e.observeSiteExplanation(site, FalseBecauseShallowConstraint{
+			ExternalAssertion: primitiveAssertion,
+		})
+
+	case (pKind == annotation.Conditional || pKind == annotation.DeepConditional) &&
+		(cKind == annotation.Conditional || cKind == annotation.DeepConditional):
+		// Producer unknown -> consumer unknown.
+		// We store this implication in our map as UndeterminedBool.
+		if pSite == nil || cSite == nil {
+			panic("trigger is conditional but the underlying site is nil")
+		}
+		producer := newPrimitiveSite(pSite, pKind == annotation.DeepConditional)
+		consumer := newPrimitiveSite(cSite, cKind == annotation.DeepConditional)
+
+		e.observeImplication(producer, consumer, primitiveAssertion)
 	}
 }
 
@@ -265,7 +296,7 @@ func (e *Engine) buildPkgInferenceMap(triggers []annotation.FullTrigger) {
 func (e *Engine) observeSiteExplanation(site primitiveSite, siteExplained ExplainedBool) {
 	val, ok := e.inferredMap.Load(site)
 	if !ok {
-		e.inferredMap.StoreDetermined(site, siteExplained)
+		e.storeDeterminedAndActivateControlledTriggers(site, siteExplained)
 		return
 	}
 	if val == nil {
@@ -294,7 +325,7 @@ func (e *Engine) observeSiteExplanation(site primitiveSite, siteExplained Explai
 		e.conflicts.addConflict(newOverconstrainedConflict(site, trueExplanation, falseExplanation))
 
 	case *UndeterminedVal:
-		e.inferredMap.StoreDetermined(site, siteExplained)
+		e.storeDeterminedAndActivateControlledTriggers(site, siteExplained)
 
 		// Propagate the nilability of this site to its downstream constraints (for nilable value)
 		// or its upstream constraints (for nonnil value).
@@ -312,6 +343,19 @@ func (e *Engine) observeSiteExplanation(site primitiveSite, siteExplained Explai
 					DeeperExplanation: siteExplained,
 				})
 			}
+		}
+
+	}
+}
+
+// storeDeterminedAndActivateControlledTriggers stores the determined value for a site in the
+// inference map and if the site has proper value, then all the triggers controlled by this site
+// are also activated and will be used to build the inference map.
+func (e *Engine) storeDeterminedAndActivateControlledTriggers(site primitiveSite, siteExplained ExplainedBool) {
+	e.inferredMap.StoreDetermined(site, siteExplained)
+	if controlledTgs, ok := e.controlledTriggersBySite[site]; ok && siteExplained.Val() {
+		for tg := range controlledTgs {
+			e.buildFromSingleFullTrigger(tg)
 		}
 	}
 }

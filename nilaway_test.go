@@ -217,6 +217,15 @@ func TestGenerics(t *testing.T) {
 	analysistest.Run(t, testdata, Analyzer, "go.uber.org/generics")
 }
 
+func TestFunctionContracts(t *testing.T) {
+	t.Parallel()
+
+	config.EnableFunctionContracts = true
+	testdata := analysistest.TestData()
+	analysistest.Run(t, testdata, Analyzer, "go.uber.org/functioncontracts/inference")
+	config.EnableFunctionContracts = false
+}
+
 func TestPrettyPrint(t *testing.T) { //nolint:paralleltest
 	// We specifically do not set this test to be parallel such that this test is run separately
 	// from the parallel tests. This makes it possible to set the pretty-print flag to true for

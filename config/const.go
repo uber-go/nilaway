@@ -7,6 +7,9 @@ import (
 
 // This file hosts non-user-configurable parameters --- these are for development and testing purposes only.
 
+// EnableFunctionContracts turns on the feature of function contracts.
+var EnableFunctionContracts = false
+
 // StableRoundLimit is the number of rounds in backpropagation algorithm after which, if there is no change
 // in the collected triggers, the algorithm halts. It is possible to carefully craft known false negative for any value
 // of StableRoundLimit (check test loopflow.go/longRotNilLoop). Setting this value too low may result in false negatives
