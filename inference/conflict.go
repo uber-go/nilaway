@@ -27,6 +27,7 @@ import (
 type conflict struct {
 	pos  token.Pos // stores position where the error should be reported (note that this field is used only within the current, and should NOT be exported)
 	flow nilFlow   // stores nil flow from source to dereference point
+	similarConflicts []conflict // stores other conflicts that are similar to this one
 }
 
 type nilFlow struct {
@@ -99,7 +100,15 @@ func (n *nilFlow) addNonNilPathNode(p annotation.Prestring, c annotation.Prestri
 	n.nonnilPath = append(n.nonnilPath, nodeObj)
 }
 
-// String converts a flow to a string representation, where each entry is the flow of the form: `<pos>: <reason>`
+func pathString(nodes []node) string {
+	path := ""
+	for _, n := range nodes {
+		path += n.String()
+	}
+	return path
+}
+
+// String converts a nilFlow to a string representation, where each entry is the flow of the form: `<pos>: <reason>`
 func (n *nilFlow) String() string {
 	var flow []string
 	for _, nodes := range [...][]node{n.nilPath, n.nonnilPath} {
@@ -112,6 +121,27 @@ func (n *nilFlow) String() string {
 
 func (c *conflict) String() string {
 	consumerPos := c.flow.nonnilPath[len(c.flow.nonnilPath)-1].position
+	producerPos := c.flow.nilPath[0].position
+
+	// build string for similar conflicts (i.e., conflicts with the same nil path)
+	similarConflictsString := ""
+	if len(c.similarConflicts) > 0 {
+		similarPos := ""
+		for _, s := range c.similarConflicts {
+			similarPos += fmt.Sprintf("\"%s\", ", s.flow.nonnilPath[len(s.nilFlow.nonnilPath)-1].position.String())
+		}
+		// remove trailing comma and space
+		similarPos = strings.TrimSuffix(similarPos, ", ")
+
+		// replace last comma with "and"
+		lastComma := strings.LastIndex(similarPos, ",")
+		if lastComma != -1 {
+			similarPos = similarPos[:lastComma] + " and" + similarPos[lastComma+1:]
+		}
+
+		similarConflictsString = fmt.Sprintf("\n\n(Nilable source at \"%s\" is also causing similar nil problem(s) at %d other place(s): %s.)", producerPos.String(), len(c.similarConflicts), similarPos)
+	}
+
 	return fmt.Sprintf(" Potential nil panic at \"%s\". Observed nil flow from "+
 		"source to dereference: %s", consumerPos.String(), c.flow.String())
 }
@@ -200,11 +230,38 @@ func (l *conflictList) addOverconstraintConflict(nilExplanation ExplainedBool, n
 
 func (l *conflictList) diagnostics() []analysis.Diagnostic {
 	var diagnostics []analysis.Diagnostic
-	for _, c := range l.conflicts {
+
+	// group conflicts with the same nil path together for concise reporting
+	groupedConflicts := groupConflicts(l.conflicts)
+
+	// build diagnostics from grouped conflicts
+	for _, c := range groupedConflicts {
 		diagnostics = append(diagnostics, analysis.Diagnostic{
 			Pos:     c.pos,
 			Message: c.String(),
 		})
 	}
 	return diagnostics
+}
+
+// groupConflicts groups conflicts with the same nil path together and update conflicts list.
+func groupConflicts(allConflicts []conflict) []conflict {
+	conflictsMap := make(map[string]conflict)
+	for _, c := range allConflicts {
+		s := pathString(c.nilFlow.nilPath)
+		if existingConflict, ok := conflictsMap[s]; ok {
+			// Grouping condition satisfied. Add new conflict to `similarConflicts` in `existingConflict`, and update groupedConflicts map
+			existingConflict.addSimilarConflict(c)
+			conflictsMap[s] = existingConflict
+		} else {
+			conflictsMap[s] = c
+		}
+	}
+
+	// update groupedConflicts list with grouped groupedConflicts
+	var groupedConflicts []conflict
+	for _, c := range conflictsMap {
+		groupedConflicts = append(groupedConflicts, c)
+	}
+	return groupedConflicts
 }
