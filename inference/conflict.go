@@ -17,6 +17,7 @@ package inference
 import (
 	"fmt"
 	"go/token"
+	"strings"
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/util"
@@ -24,9 +25,10 @@ import (
 )
 
 type conflict struct {
-	position token.Pos // stores position where the error should be reported
-	expr     string    // stores expression that is overcontrained (i.e., expected to be nonnil, but found nilable)
-	nilFlow  nilFlow   // stores nil flow from source to dereference point
+	position         token.Pos  // stores position where the error should be reported
+	expr             string     // stores expression that is overcontrained (i.e., expected to be nonnil, but found nilable)
+	nilFlow          nilFlow    // stores nil flow from source to dereference point
+	similarConflicts []conflict // stores other conflicts that are similar to this one
 }
 
 type nilFlow struct {
@@ -81,6 +83,14 @@ func (n *nilFlow) addNonNilPathNode(p annotation.Prestring) {
 	n.nonnilPath = append(n.nonnilPath, nodeObj)
 }
 
+func pathString(nodes []node) string {
+	path := ""
+	for _, n := range nodes {
+		path += n.String()
+	}
+	return path
+}
+
 // String converts a nilFlow to a string representation, where each entry is the flow of the form: `<pos>: <reason>`
 func (n *nilFlow) String() string {
 	// Augment reason for the first and last node in the flow with nilable and nonnil information, respectively.
@@ -90,20 +100,38 @@ func (n *nilFlow) String() string {
 	lastNonnilNodeIndex := len(n.nonnilPath) - 1
 	n.nonnilPath[lastNonnilNodeIndex].reason = fmt.Sprintf("%s (must be NONNIL)", n.nonnilPath[lastNonnilNodeIndex].reason)
 
-	flow := ""
-	for _, nodes := range [...][]node{n.nilPath, n.nonnilPath} {
-		for _, nodeObj := range nodes {
-			flow += nodeObj.String()
-		}
-	}
-	return flow
+	return pathString(n.nilPath) + pathString(n.nonnilPath)
 }
 
 func (c *conflict) String() string {
 	consumerPos := c.nilFlow.nonnilPath[len(c.nilFlow.nonnilPath)-1].position
 	producerPos := c.nilFlow.nilPath[0].position
+
+	// build string for similar conflicts (i.e., conflicts with the same nil path)
+	similarConflictsString := ""
+	if len(c.similarConflicts) > 0 {
+		similarPos := ""
+		for _, s := range c.similarConflicts {
+			similarPos += fmt.Sprintf("\"%s\", ", s.nilFlow.nonnilPath[len(s.nilFlow.nonnilPath)-1].position.String())
+		}
+		// remove trailing comma and space
+		similarPos = strings.TrimSuffix(similarPos, ", ")
+
+		// replace last comma with "and"
+		lastComma := strings.LastIndex(similarPos, ",")
+		if lastComma != -1 {
+			similarPos = similarPos[:lastComma] + " and" + similarPos[lastComma+1:]
+		}
+
+		similarConflictsString = fmt.Sprintf("\n\n(Nilable source at \"%s\" is also causing similar nil problem(s) at %d other place(s): %s.)", producerPos.String(), len(c.similarConflicts), similarPos)
+	}
+
 	return fmt.Sprintf(" Nonnil `%s` expected at \"%s\", but produced as nilable at \"%s\". Observed nil flow from "+
-		"source to dereference: %s", c.expr, consumerPos.String(), producerPos.String(), c.nilFlow.String())
+		"source to dereference: %s%s", c.expr, consumerPos.String(), producerPos.String(), c.nilFlow.String(), similarConflictsString)
+}
+
+func (c *conflict) addSimilarConflict(conflict conflict) {
+	c.similarConflicts = append(c.similarConflicts, conflict)
 }
 
 type conflictList struct {
@@ -197,11 +225,38 @@ func (l *conflictList) addOverconstraintConflict(nilExplanation ExplainedBool, n
 
 func (l *conflictList) diagnostics() []analysis.Diagnostic {
 	var diagnostics []analysis.Diagnostic
-	for _, c := range l.conflicts {
+
+	// group conflicts with the same nil path together for concise reporting
+	groupedConflicts := groupConflicts(l.conflicts)
+
+	// build diagnostics from grouped conflicts
+	for _, c := range groupedConflicts {
 		diagnostics = append(diagnostics, analysis.Diagnostic{
 			Pos:     c.position,
 			Message: c.String(),
 		})
 	}
 	return diagnostics
+}
+
+// groupConflicts groups conflicts with the same nil path together and update conflicts list.
+func groupConflicts(allConflicts []conflict) []conflict {
+	conflictsMap := make(map[string]conflict)
+	for _, c := range allConflicts {
+		s := pathString(c.nilFlow.nilPath)
+		if existingConflict, ok := conflictsMap[s]; ok {
+			// Grouping condition satisfied. Add new conflict to `similarConflicts` in `existingConflict`, and update groupedConflicts map
+			existingConflict.addSimilarConflict(c)
+			conflictsMap[s] = existingConflict
+		} else {
+			conflictsMap[s] = c
+		}
+	}
+
+	// update groupedConflicts list with grouped groupedConflicts
+	var groupedConflicts []conflict
+	for _, c := range conflictsMap {
+		groupedConflicts = append(groupedConflicts, c)
+	}
+	return groupedConflicts
 }

@@ -28,12 +28,15 @@ type A struct {
 
 func m() {
 	var b = &A{}
+	// TODO: all errors because of "aptr" unassigned at struct initialization are grouped and reported on the line below,
+	// which is not correct. This should be fixed after https://github.com/uber-go/nilaway/issues/29 is implemented,
+	// and struct initi producer expressions are updated accordingly with the original AST expressions.
 	print(b.aptr.ptr) //want "unassigned at struct initialization"
 }
 
 func m2() {
 	var b = A{}
-	print(b.aptr.ptr) //want "unassigned at struct initialization"
+	print(b.aptr.ptr)
 }
 
 func m3() {
@@ -59,7 +62,7 @@ func m6() {
 
 func m7() {
 	b := &A{}
-	print(b.aptr.ptr) //want "unassigned at struct initialization"
+	print(b.aptr.ptr)
 }
 
 func m8() {
@@ -70,7 +73,7 @@ func m8() {
 func m9() {
 	var b *A
 	b = &A{}
-	print(b.aptr.ptr) //want "unassigned at struct initialization"
+	print(b.aptr.ptr)
 }
 
 func m10() {
@@ -81,12 +84,12 @@ func m10() {
 
 func m14() {
 	b := new(A)
-	print(b.aptr.ptr) //want "unassigned at struct initialization"
+	print(b.aptr.ptr)
 }
 
 func m15() {
 	var b A
-	print(b.aptr.ptr) //want "unassigned at struct initialization"
+	print(b.aptr.ptr)
 }
 
 // this test checks that we only get error for `b` being nil, and not for its uninitialized fields
@@ -115,7 +118,7 @@ type A11 struct {
 
 func m11() {
 	var b = &A11{}
-	print(b.A11.ptr) //want "unassigned at struct initialization"
+	print(b.A11.ptr)
 }
 
 // Tests use of promoted fields
