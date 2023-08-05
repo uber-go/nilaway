@@ -38,7 +38,7 @@ func testNilFlowFromClosure() {
 
 	func() {
 		print(*t) // (error here grouped with the error on the next line)
-		print(*t) // want "literal nil"
+		print(*t) //want "literal nil"
 	}()
 
 	t = &i
@@ -46,7 +46,7 @@ func testNilFlowFromClosure() {
 	func() {
 		print(*t)
 		t = nil
-		print(*t) // want "literal nil"
+		print(*t) //want "literal nil"
 	}()
 
 	// TODO we will report an error here after updating the return type of function literals to include variables from closure
