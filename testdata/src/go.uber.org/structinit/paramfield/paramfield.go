@@ -138,7 +138,7 @@ func f18(c *A, d *A) {
 	print(c.aptr.ptr, d.aptr.ptr)
 }
 
-// TODO: Handle this case
+// TODO: Handle this case (PROGSYS-570)
 // Positive example with multiple return function as a parameter
 func giveA19() (*A, *A) {
 	return &A{aptr: new(A)}, &A{}
