@@ -18,7 +18,6 @@ import (
 	"go/ast"
 
 	"go.uber.org/nilaway/annotation"
-	"golang.org/x/tools/go/analysis"
 )
 
 // An AssertionNode is the root of a tree of assertions, so it contains parent and child pointers, as well as a set
@@ -50,7 +49,7 @@ type AssertionNode interface {
 	// BuildExpr takes an expression, and builds a new one by wrapping it in a new AST expression
 	// corresponding to this node
 	// nilable(param 1)
-	BuildExpr(*analysis.Pass, ast.Expr) ast.Expr
+	BuildExpr() ast.Expr
 
 	// Root returns the RootAssertionNode at the root of the tree this assertion node is part of,
 	// if it is part of such a tree - otherwise returns nil
@@ -109,6 +108,6 @@ func (n *assertionNodeCommon) Size() int {
 	return size
 }
 
-func (n *assertionNodeCommon) BuildExpr(pass *analysis.Pass, expr ast.Expr) ast.Expr {
+func (n *assertionNodeCommon) BuildExpr() ast.Expr {
 	return n.originalExpr
 }
