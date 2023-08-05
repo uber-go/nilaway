@@ -47,7 +47,7 @@ type A22 struct {
 	aptr *A22
 }
 
-func (pool *Pool) giveEmptyA() *A22 { //want "Annotation on Field aptr of Result 0 of Function giveEmptyA with receiver pool overconstrained"
+func (pool *Pool) giveEmptyA() *A22 {
 	t := &A22{}
 	return t
 }
@@ -55,5 +55,5 @@ func (pool *Pool) giveEmptyA() *A22 { //want "Annotation on Field aptr of Result
 func m22() *int {
 	pool := new(Pool)
 	var b = pool.giveEmptyA()
-	return b.aptr.ptr
+	return b.aptr.ptr //want "field `aptr` of return of the function `giveEmptyA`"
 }

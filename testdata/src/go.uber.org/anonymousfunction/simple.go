@@ -27,14 +27,13 @@ package anonymousfunction
 // nonnil(c)
 // nonnil(d)
 type A struct {
-	// ERROR_GROUP: two nilable flows in the program, so NilAway will be reporting a grouped error message with two consumption sites for the following line
-	a *int //want "value read from the field `a`"
+	a *int
 	b *A
 	c *A
 	d *int
 }
 
-func retNilable() *int { // want "returned from the function `retNilable` in position 0"
+func retNilable() *int {
 	return nil
 }
 
@@ -42,33 +41,33 @@ func simple() {
 	// Here we test nilability analysis _inside_ the anonymous functions, where no interactions
 	// happen between the anonymous functions and the outside world.
 	aNonnilPtr := &A{}
-	print(*(aNonnilPtr.a)) // ERROR_GROUP: consumption site 1: reported at A.a declaration
+	print(*(aNonnilPtr.a)) //want "it is annotated"
 
 	func() {
 		var t *int
-		print(*t) // want "Value read from a variable that was never assigned"
+		print(*t) // want "read from a variable that was never assigned"
 		t2 := 1
 		ptr := &t2
 		print(*ptr)
 		t3 := retNilable()
-		print(*t3) // (this deref is reported at retNilable declaration)
+		print(*t3) //want "returned as result 0 from the method `retNilable`"
 		var aPtr *A
-		print(*aPtr) // want "Value read from a variable that was never assigned"
+		print(*aPtr) // want "read from a variable that was never assigned"
 		aNonnilPtr := &A{}
-		print(*(aNonnilPtr.a)) // ERROR_GROUP: consumption site 2: reported at A.a declaration
+		print(*(aNonnilPtr.a)) //want "it is annotated"
 		// A.c is marked as nonnil, so it is ok to dereference.
 		print(aNonnilPtr.c.a)
 	}()
 
 	a := func() {
 		var t *int
-		print(*t) // want "Value read from a variable that was never assigned"
+		print(*t) // want "read from a variable that was never assigned"
 	}
 	print(a)
 
 	var f func() = func() {
 		var t *int
-		print(*t) // want "Value read from a variable that was never assigned"
+		print(*t) // want "read from a variable that was never assigned"
 	}
 
 	f()
@@ -79,11 +78,11 @@ func nestedFunc() {
 	func() {
 		func() {
 			var t *int
-			print(*t) // want "Value read from a variable that was never assigned"
+			print(*t) // want "read from a variable that was never assigned"
 		}()
 		a := func() {
 			var t *int
-			print(*t) // want "Value read from a variable that was never assigned"
+			print(*t) // want "read from a variable that was never assigned"
 		}
 		print(a)
 	}()
@@ -92,7 +91,7 @@ func nestedFunc() {
 		func() {
 			func() {
 				var t *int
-				print(*t) // want "Value read from a variable that was never assigned"
+				print(*t) // want "read from a variable that was never assigned"
 			}()
 		}()
 	}()
@@ -100,5 +99,5 @@ func nestedFunc() {
 
 var a = func() {
 	var t *int
-	print(*t) // want "Value read from a variable that was never assigned"
+	print(*t) // want "read from a variable that was never assigned"
 }
