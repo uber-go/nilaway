@@ -68,7 +68,7 @@ func testInScope() {
 // -----------------------------------
 // the below test checks affiliation (interface-struct) case. Currently, this is out of scope. We don't analyze affiliations
 // for tracking nilable receivers, hence an error should be thrown at the call site itself following the default behavior.
-// This may result in false positives, but this decision was made owing to the challenges discussed in PROGSYS-936.
+// This may result in false positives, but this decision was made owing to the several challenges encountered in its implementation.
 
 type I interface {
 	foo()
