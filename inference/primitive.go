@@ -18,6 +18,7 @@ import (
 	"go/token"
 
 	"go.uber.org/nilaway/annotation"
+	"go.uber.org/nilaway/util"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -36,6 +37,7 @@ type primitiveFullTrigger struct {
 	ProducerRepr annotation.Prestring
 	ConsumerRepr annotation.Prestring
 	Pos          token.Pos
+	ExprRepr     string
 }
 
 func fullTriggerAsPrimitive(pass *analysis.Pass, trigger annotation.FullTrigger) primitiveFullTrigger {
@@ -44,6 +46,7 @@ func fullTriggerAsPrimitive(pass *analysis.Pass, trigger annotation.FullTrigger)
 		ProducerRepr: producer,
 		ConsumerRepr: consumer,
 		Pos:          trigger.Consumer.Expr.Pos(),
+		ExprRepr:     util.ExprToString(trigger.Consumer.Expr, pass),
 	}
 }
 

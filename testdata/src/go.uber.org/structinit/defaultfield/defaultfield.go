@@ -24,7 +24,7 @@ package defaultfield
 // This gives an error since field aptr escapes
 
 type A10 struct {
-	aptr *A10 //want "Annotation on escaped Field aptr overconstrained"
+	aptr *A10
 	ptr  *int
 }
 
@@ -35,18 +35,18 @@ func m() *A10 {
 
 func m3(a *A10) {
 	// relies on default annotation of field aptr since we don't track field at depth >=2
-	print(a.aptr.aptr.ptr)
+	print(a.aptr.aptr.ptr) //want "read from the field `aptr`"
 }
 
 // This should give an error since aptr escapes
 
 type A11 struct {
 	ptr  *int
-	aptr *A11 //want "Annotation on escaped Field aptr overconstrained"
+	aptr *A11
 }
 
 func m11(c *A11) {
-	print(c.aptr.aptr.ptr)
+	print(c.aptr.aptr.ptr) //want "escaped field `aptr`"
 }
 
 func callEscape() {
@@ -54,7 +54,7 @@ func callEscape() {
 	escape11(&A11{})
 }
 
-// TODO: We should only call param fields escaping if the callee function is not analyzed by NilAway
+// TODO: We should only call param fields escaping if the callee function is not analyzed by NilAway (PROGSYS-587)
 func escape11(a *A11) {
 	// no-op
 }
@@ -74,11 +74,11 @@ func m12(c *A12) {
 
 type A13 struct {
 	ptr  *int
-	aptr *A13 //want "Annotation on escaped Field aptr overconstrained"
+	aptr *A13
 }
 
 func m13(c *A13) {
-	print(c.aptr.aptr.ptr)
+	print(c.aptr.aptr.ptr) //want "escaped field `aptr`"
 }
 
 func escape13() *A13 {
@@ -94,7 +94,7 @@ type A14 struct {
 }
 
 type B14 struct {
-	cptr *C14 //want "Annotation on escaped Field cptr overconstrained"
+	cptr *C14
 }
 
 type C14 struct {
@@ -103,7 +103,7 @@ type C14 struct {
 
 func m21(c *A14) {
 	// relies on default annotation of field cptr
-	print(c.bptr.cptr.ptr)
+	print(c.bptr.cptr.ptr) //want "escaped field `cptr`"
 }
 
 func escape14(a *B14) {

@@ -39,11 +39,11 @@ func callF12() {
 	f12(t)
 }
 
-func f12(c *A) { //want "Annotation on Field aptr of Param 0: 'c' at input of Function f12 overconstrained:"
-	print(c.aptr.ptr)
+func f12(c *A) {
+	print(c.aptr.ptr) //want "field `aptr` of param 0 of `f12`"
 }
 
-//Negative test
+// Negative test
 
 func callF31() {
 	t1 := &A{}
@@ -57,11 +57,11 @@ func f31(c *A, d *A) {
 }
 
 func g31(c *A, d *A) {
-	//Both (param 0).aptr and (param 1).aptr are initialized in all calls to g31
+	// Both (param 0).aptr and (param 1).aptr are initialized in all calls to g31
 	print(c.aptr.ptr, d.aptr.ptr)
 }
 
-//Another negative test
+// Another negative test
 
 func m31(c *A) {
 	// c.aptr is initialized in all calls to m31
@@ -79,14 +79,14 @@ func m33() {
 	m31(d)
 }
 
-//Positive example with direct composite as parameter
+// Positive example with direct composite as parameter
 
 func callF14() {
 	f14(&A{})
 }
 
-func f14(c *A) { //want "Annotation on Field aptr of Param 0: 'c' at input of Function f14 overconstrained:"
-	print(c.aptr.ptr)
+func f14(c *A) {
+	print(c.aptr.ptr) //want "field `aptr` of param 0 of `f14`"
 }
 
 // Positive example with direct composite as parameter
@@ -98,11 +98,11 @@ func callF15() {
 	f15(giveA15())
 }
 
-func f15(c *A) { //want "Annotation on Field aptr of Param 0: 'c' at input of Function f15 overconstrained:"
-	print(c.aptr.ptr)
+func f15(c *A) {
+	print(c.aptr.ptr) //want "field `aptr` of argument 0 to call to function `f15`"
 }
 
-//Negative example with direct composite as parameter
+// Negative example with direct composite as parameter
 
 func callF16() {
 	f16(&A{aptr: &A{}})
@@ -138,7 +138,7 @@ func f18(c *A, d *A) {
 	print(c.aptr.ptr, d.aptr.ptr)
 }
 
-// TODO: Handle this case
+// TODO: Handle this case (PROGSYS-570)
 // Positive example with multiple return function as a parameter
 func giveA19() (*A, *A) {
 	return &A{aptr: new(A)}, &A{}
@@ -149,6 +149,6 @@ func callF19() {
 }
 
 func f19(c *A, d *A) {
-	//This should give a Nilaway error
+	// This should give a Nilaway error
 	print(c.aptr.ptr, d.aptr.ptr)
 }
