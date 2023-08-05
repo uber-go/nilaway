@@ -54,7 +54,7 @@ func callEscape() {
 	escape11(&A11{})
 }
 
-// TODO: We should only call param fields escaping if the callee function is not analyzed by NilAway (PROGSYS-587)
+// TODO: We should only call param fields escaping if the callee function is not analyzed by NilAway
 func escape11(a *A11) {
 	// no-op
 }
