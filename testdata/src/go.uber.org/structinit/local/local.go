@@ -105,7 +105,7 @@ func m12() {
 	print(x.a.ptr)
 
 	y := new(struct{ a *A })
-	// TODO: unnamed struct initialization is not supported. Following line should give a warning
+	// TODO: unnamed struct initialization is not supported. Following line should give a warning (PROGSYS-557)
 	print(y.a.aptr)
 }
 
@@ -125,7 +125,7 @@ func m11() {
 // Tests use of promoted fields
 // similar to the previous test
 
-// TODO: Add support for promoted fields
+// TODO: Add support for promoted fields (PROGSYS-575)
 // This test should give an error
 
 type B13 struct {
