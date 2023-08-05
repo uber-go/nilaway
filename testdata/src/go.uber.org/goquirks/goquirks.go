@@ -30,8 +30,8 @@ func (a A) add(b1, b2, b3 B) {}
 func foo(a A, b1, b2 B) {
 	a.add(b1, b2, b1)
 	A.add(a, b1, b2, b1)
-	a.add(b2, b1, b2)    //want "nilable value passed"
-	A.add(a, b2, b1, b2) //want "nilable value passed"
+	a.add(b2, b1, b2)    //want "passed"
+	A.add(a, b2, b1, b2) //want "passed"
 }
 
 // nilable(b1, b3)
@@ -42,8 +42,8 @@ func (a *A) add2(b1, b2, b3 B) {}
 func foo2(a *A, b1, b2 B) {
 	a.add2(b1, b2, b1)
 	(*A).add2(a, b1, b2, b1)
-	a.add2(b2, b1, b2)       //want "nilable value passed"
-	(*A).add2(a, b2, b1, b2) //want "nilable value passed"
+	a.add2(b2, b1, b2)       //want "passed"
+	(*A).add2(a, b2, b1, b2) //want "passed"
 }
 
 // this tests the common paradigm in go of a nilable return of error type
@@ -62,11 +62,11 @@ func fooThatConsumesErrs() interface{} {
 	b, c, d := fooThatErrs2()
 	switch 0 {
 	case 1:
-		return a //want "nilable value returned"
+		return a //want "returned"
 	case 2:
 		return b
 	case 3:
-		return c //want "nilable value returned"
+		return c //want "returned"
 	default:
 		return d
 	}

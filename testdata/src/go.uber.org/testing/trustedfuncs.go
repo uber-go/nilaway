@@ -41,7 +41,7 @@ var dummy bool
 func testRequire(t *testing.T, x any, z any, m map[any]any) interface{} {
 	switch 0.0 {
 	case 1.0:
-		return x //want "nilable value returned"
+		return x //want "returned"
 	case 1.1:
 		return z
 	case 2.0:
@@ -52,7 +52,7 @@ func testRequire(t *testing.T, x any, z any, m map[any]any) interface{} {
 		return z
 	case 2.2:
 		require.Nil(t, x)
-		return x //want "nilable value returned"
+		return x //want "returned"
 	case 2.3:
 		require.Nil(t, z)
 		// this is unreachable, so no diagnostics should be reported
@@ -65,7 +65,7 @@ func testRequire(t *testing.T, x any, z any, m map[any]any) interface{} {
 		return z
 	case 2.6:
 		require.Nilf(t, x, "mymsg: %s", "arg")
-		return x //want "nilable value returned"
+		return x //want "returned"
 	case 2.7:
 		require.Nilf(t, z, "mymsg: %s", "arg")
 		// this is unreachable, so no diagnostics should be reported
@@ -73,7 +73,7 @@ func testRequire(t *testing.T, x any, z any, m map[any]any) interface{} {
 	case 3:
 		y, err := errs()
 		consume(err)
-		return y //want "nilable value returned"
+		return y //want "returned"
 	case 4.0:
 		y, err := errs()
 		require.NoError(t, err)
@@ -81,7 +81,7 @@ func testRequire(t *testing.T, x any, z any, m map[any]any) interface{} {
 	case 4.1:
 		y, err := errs()
 		require.Error(t, err)
-		return y //want "nilable value returned"
+		return y //want "returned"
 	case 4.2:
 		y, err := errs()
 		require.NoErrorf(t, err, "mymsg: %s", "arg")
@@ -89,7 +89,7 @@ func testRequire(t *testing.T, x any, z any, m map[any]any) interface{} {
 	case 4.3:
 		y, err := errs()
 		require.Errorf(t, err, "mymsg: %s", "arg")
-		return y //want "nilable value returned"
+		return y //want "returned"
 	case 5:
 		require.True(t, x != nil)
 		return x
@@ -98,34 +98,34 @@ func testRequire(t *testing.T, x any, z any, m map[any]any) interface{} {
 		return x
 	case 7:
 		require.True(t, x == nil)
-		return x //want "nilable value returned"
+		return x //want "returned"
 	case 8:
 		require.True(t, nil == x)
-		return x //want "nilable value returned"
+		return x //want "returned"
 	case 9:
 		require.True(t, x != nil && dummy)
 		return x
 	case 10:
 		require.True(t, x != nil || dummy)
-		return x //want "nilable value returned"
+		return x //want "returned"
 	case 11:
 		require.True(t, dummy && x != nil)
 		return x
 	case 12:
 		require.True(t, dummy || x != nil)
-		return x //want "nilable value returned"
+		return x //want "returned"
 	case 11.1:
 		require.Truef(t, dummy && x != nil, "mymsg: %s", "arg")
 		return x
 	case 12.1:
 		require.Truef(t, dummy || x != nil, "mymsg: %s", "arg")
-		return x //want "nilable value returned"
+		return x //want "returned"
 	case 13:
 		require.False(t, x != nil)
-		return x //want "nilable value returned"
+		return x //want "returned"
 	case 14:
 		require.False(t, nil != x)
-		return x //want "nilable value returned"
+		return x //want "returned"
 	case 15:
 		require.False(t, x == nil)
 		return x
@@ -134,19 +134,19 @@ func testRequire(t *testing.T, x any, z any, m map[any]any) interface{} {
 		return x
 	case 17:
 		require.False(t, x == nil && dummy)
-		return x //want "nilable value returned"
+		return x //want "returned"
 	case 16.1:
 		require.Falsef(t, nil == x, "mymsg: %s", "arg")
 		return x
 	case 17.1:
 		require.Falsef(t, x == nil && dummy, "mymsg: %s", "arg")
-		return x //want "nilable value returned"
+		return x //want "returned"
 	case 18:
 		require.False(t, x == nil || dummy)
 		return x
 	case 19:
 		require.False(t, dummy && x == nil)
-		return x //want "nilable value returned"
+		return x //want "returned"
 	case 20:
 		require.False(t, dummy || x == nil)
 		return x
@@ -157,7 +157,7 @@ func testRequire(t *testing.T, x any, z any, m map[any]any) interface{} {
 	case 22:
 		v, ok := m[0]
 		require.False(t, ok)
-		return v //want "nilable value returned"
+		return v //want "returned"
 	}
 	return 0
 }
@@ -165,13 +165,13 @@ func testRequire(t *testing.T, x any, z any, m map[any]any) interface{} {
 // nilable(a, b, c)
 func testMultipleRequires(t *testing.T, a, b, c any) any {
 	if dummy {
-		return a //want "nilable value returned"
+		return a //want "returned"
 	}
 	if dummy {
-		return b //want "nilable value returned"
+		return b //want "returned"
 	}
 	if dummy {
-		return c //want "nilable value returned"
+		return c //want "returned"
 	}
 
 	require.NotNil(t, a)
@@ -180,10 +180,10 @@ func testMultipleRequires(t *testing.T, a, b, c any) any {
 		return a
 	}
 	if dummy {
-		return b //want "nilable value returned"
+		return b //want "returned"
 	}
 	if dummy {
-		return c //want "nilable value returned"
+		return c //want "returned"
 	}
 
 	require.NotNil(t, b)
@@ -195,7 +195,7 @@ func testMultipleRequires(t *testing.T, a, b, c any) any {
 		return b
 	}
 	if dummy {
-		return c //want "nilable value returned"
+		return c //want "returned"
 	}
 
 	require.NotNil(t, c)
@@ -287,9 +287,9 @@ func (u *testSetupEmbeddedDepth1) testAmbiguity(t *testing.T, x *int) *int {
 	// NilAway should not be confused and assert that `x` is nonnil.
 
 	// The first error is for passing nilable x to the `msgAndArgs` argument.
-	u.NotNil(t, x) //want "nilable value passed"
+	u.NotNil(t, x) //want "passed"
 	// The second error is that x is still nilable (u.NotNil does not really do anything).
-	return x //want "nilable value returned"
+	return x //want "returned"
 }
 
 // test for embedded testify package `suite` at depth 4
@@ -311,7 +311,7 @@ func (u *testSetupEmbeddedDepth4) testSuiteDepth4() any {
 	response, err := errs()
 	u.NotNil(err)
 	u.Nil(response)
-	return response //want "nilable value returned"
+	return response //want "returned"
 }
 
 // test for field of type testify package `suite` at depth 2
@@ -443,16 +443,16 @@ func (u *testEmbeddedAssertionStruct) testEmbeddedAssertion(x *int, a []int, i i
 		print(a[0])
 	case 1:
 		u.GreaterOrEqual(len(a), 0)
-		print(a[0]) //want "nilable value sliced into"
+		print(a[0]) //want "sliced into"
 	case 2:
 		u.Len(a, 1)
 		print(a[0])
 	case 3:
 		u.Lenf(a, 0, "mymsg: %s", "arg")
-		print(a[0]) //want "nilable value sliced into"
+		print(a[0]) //want "sliced into"
 	case 4:
 		u.Less(len(a), 1)
-		print(a[0]) //want "nilable value sliced into"
+		print(a[0]) //want "sliced into"
 	case 5:
 		u.Less(1, len(a))
 		print(a[0])
@@ -474,16 +474,16 @@ func testHelper(a *assert.Assertions, x *int, s []int, i int) *int {
 		print(s[0])
 	case 1:
 		a.GreaterOrEqual(len(s), 0)
-		print(s[0]) //want "nilable value sliced into"
+		print(s[0]) //want "sliced into"
 	case 2:
 		a.Len(s, 1)
 		print(s[0])
 	case 3:
 		a.Len(s, 0)
-		print(s[0]) //want "nilable value sliced into"
+		print(s[0]) //want "sliced into"
 	case 4:
 		a.Less(len(s), 1)
-		print(s[0]) //want "nilable value sliced into"
+		print(s[0]) //want "sliced into"
 	case 5:
 		a.Less(1, len(s))
 		print(s[0])
@@ -505,16 +505,16 @@ func testShadow(assert *assert.Assertions, x *int, s []int, i int) *int {
 		print(s[0])
 	case 1:
 		assert.GreaterOrEqual(len(s), 0)
-		print(s[0]) //want "nilable value sliced into"
+		print(s[0]) //want "sliced into"
 	case 2:
 		assert.Len(s, 1)
 		print(s[0])
 	case 3:
 		assert.Len(s, 0)
-		print(s[0]) //want "nilable value sliced into"
+		print(s[0]) //want "sliced into"
 	case 4:
 		assert.Less(len(s), 1)
-		print(s[0]) //want "nilable value sliced into"
+		print(s[0]) //want "sliced into"
 	case 5:
 		assert.Less(1, len(s))
 		print(s[0])
@@ -540,10 +540,10 @@ func (s *testSetupEmbeddedDepth1) testCallChain(i int) interface{} {
 		return v
 	case 2:
 		s.Require().Error(err)
-		return v //want "nilable value returned"
+		return v //want "returned"
 	case 3:
 		s.Require().Nil(v)
-		return v //want "nilable value returned"
+		return v //want "returned"
 	case 4:
 		s.Assert().NoError(err)
 		return v
@@ -552,10 +552,10 @@ func (s *testSetupEmbeddedDepth1) testCallChain(i int) interface{} {
 		return v
 	case 6:
 		s.Assert().Error(err)
-		return v //want "nilable value returned"
+		return v //want "returned"
 	case 7:
 		s.Assert().Nil(v)
-		return v //want "nilable value returned"
+		return v //want "returned"
 	case 8:
 		var a []int
 		s.Require().Greater(len(a), 0)
@@ -563,11 +563,11 @@ func (s *testSetupEmbeddedDepth1) testCallChain(i int) interface{} {
 	case 9:
 		var a []int
 		s.Require().GreaterOrEqual(len(a), 0)
-		print(a[0]) //want "nilable value sliced into"
+		print(a[0]) //want "sliced into"
 	case 10:
 		var a []int
 		s.Assert().Less(len(a), 1)
-		print(a[0]) //want "nilable value sliced into"
+		print(a[0]) //want "sliced into"
 	case 11:
 		var a []int
 		s.Assert().Less(1, len(a))
@@ -612,7 +612,7 @@ func testEqual(t *testing.T, i int, a []int) {
 		print(a[0])
 	case 1:
 		require.Equal(t, len(a), 0)
-		print(a[0]) //want "nilable value sliced into"
+		print(a[0]) //want "sliced into"
 
 	// Swapping the positions of args should not affect the analysis.
 	case 2:
@@ -620,19 +620,19 @@ func testEqual(t *testing.T, i int, a []int) {
 		print(a[0])
 	case 3:
 		require.Equal(t, 0, len(a))
-		print(a[0]) //want "nilable value sliced into"
+		print(a[0]) //want "sliced into"
 
 	// Using a constant is also OK.
 	case 4:
 		const zero = 0
 		require.Equal(t, zero, len(a))
-		print(a[0]) //want "nilable value sliced into"
+		print(a[0]) //want "sliced into"
 
 	// We can reason constant value without problems (thanks to constant folding in Go's type checker).
 	case 5:
 		const zero = 0
 		require.Equal(t, zero+1-1, len(a))
-		print(a[0]) //want "nilable value sliced into"
+		print(a[0]) //want "sliced into"
 	case 6:
 		const one = 1
 		require.Equal(t, one-1+1, len(a))
@@ -655,12 +655,12 @@ func testGreater(t *testing.T, i int, a []int) {
 	// Swapping the position of args is _not_ OK: `1 > len(a)` does not imply `a != nil`.
 	case 1:
 		require.Greater(t, 1, len(a))
-		print(a[0]) //want "nilable value sliced into"
+		print(a[0]) //want "sliced into"
 
 	// Admittedly weird, but you can assert `len(a) > -1`, and that will not imply the nilability of `a`.
 	case 2:
 		require.Greater(t, len(a), -1)
-		print(a[0]) //want "nilable value sliced into"
+		print(a[0]) //want "sliced into"
 
 	// The f variant should be supported.
 	case 3:
@@ -671,7 +671,7 @@ func testGreater(t *testing.T, i int, a []int) {
 	case 4:
 		// len(a) could be 0, so this does not imply the nilability of `a`.
 		require.GreaterOrEqual(t, len(a), 0)
-		print(a[0]) //want "nilable value sliced into"
+		print(a[0]) //want "sliced into"
 	case 5:
 		// len(a) >= 1 => len(a) > 0, so it is OK.
 		require.GreaterOrEqual(t, len(a), 1)
@@ -680,13 +680,13 @@ func testGreater(t *testing.T, i int, a []int) {
 	// Again, swapping the positions of args is _not_ OK.
 	case 6:
 		require.GreaterOrEqual(t, 1, len(a))
-		print(a[0]) //want "nilable value sliced into"
+		print(a[0]) //want "sliced into"
 
 	// The f variants should also be supported.
 	case 7:
 		// len(a) could be 0, so this does not imply the nilability of `a`.
 		require.GreaterOrEqualf(t, len(a), 0, "mymsg: %s", "arg")
-		print(a[0]) //want "nilable value sliced into"
+		print(a[0]) //want "sliced into"
 	case 8:
 		// len(a) >= 1 => len(a) > 0, so it is OK.
 		require.GreaterOrEqualf(t, len(a), 1, "mymsg: %s", "arg")
@@ -709,7 +709,7 @@ func testLess(t *testing.T, i int, a []int) {
 	// Swapping the position of args is _not_ OK: `len(a) < 1` does not imply the nilability of `a`.
 	case 1:
 		require.Less(t, len(a), 1)
-		print(a[0]) //want "nilable value sliced into"
+		print(a[0]) //want "sliced into"
 
 	// The f variant should be supported.
 	case 2:
@@ -720,7 +720,7 @@ func testLess(t *testing.T, i int, a []int) {
 	case 3:
 		// len(a) could be 0, so this does not imply the nilability of `a`.
 		require.LessOrEqual(t, 0, len(a))
-		print(a[0]) //want "nilable value sliced into"
+		print(a[0]) //want "sliced into"
 	case 4:
 		// 1 <= len(a) => len(a) > 0, so it is OK.
 		require.LessOrEqual(t, 1, len(a))
@@ -729,13 +729,13 @@ func testLess(t *testing.T, i int, a []int) {
 	// Again, swapping the positions of args is _not_ OK.
 	case 5:
 		require.LessOrEqual(t, len(a), 1)
-		print(a[0]) //want "nilable value sliced into"
+		print(a[0]) //want "sliced into"
 
 	// The f variants should also be supported.
 	case 6:
 		// len(a) could be 0, so this does not imply the nilability of `a`.
 		require.LessOrEqualf(t, 0, len(a), "mymsg: %s", "arg")
-		print(a[0]) //want "nilable value sliced into"
+		print(a[0]) //want "sliced into"
 	case 7:
 		// len(a) >= 1 => len(a) > 0, so it is OK.
 		require.LessOrEqualf(t, 1, len(a), "mymsg: %s", "arg")
@@ -756,7 +756,7 @@ func testLen(t *testing.T, i int, a []int) {
 		print(a[0])
 	case 1:
 		require.Len(t, a, 0)
-		print(a[0]) //want "nilable value sliced into"
+		print(a[0]) //want "sliced into"
 	case 2:
 		const zero = 0
 		const one = 1
@@ -772,6 +772,6 @@ func testLen(t *testing.T, i int, a []int) {
 	case 4:
 		const zero = 0
 		require.Lenf(t, a, 1+zero-1, "mymsg: %s", "arg")
-		print(a[0]) //want "nilable value sliced into"
+		print(a[0]) //want "sliced into"
 	}
 }

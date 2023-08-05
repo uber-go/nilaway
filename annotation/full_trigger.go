@@ -76,22 +76,6 @@ func (t *FullTrigger) truncatedProducerPos(pass *analysis.Pass) token.Position {
 	return util.TruncatePosition(pass.Fset.Position(t.Producer.Expr.Pos()))
 }
 
-// BuildStringRepr returns a string representation of a `FullTrigger` given an `analysis.Pass` to help Lookup its objects
-func (t *FullTrigger) BuildStringRepr(pass *analysis.Pass) string {
-	if t.Producer.Expr == nil {
-		return fmt.Sprintf("Possible nil flow to %s: nilable value %s",
-			t.truncatedConsumerPos(pass),
-			t.Consumer.Annotation.String())
-	}
-	// TODO: switch the order here to "value <produced> and <consumed>" instead of "nilable value <consumed>, earlier <produced>"
-	// only delaying because all of the tests' expectations will have to be modified
-	return fmt.Sprintf("Possible nil flow from %s to %s: nilable value %s, earlier %s",
-		t.truncatedProducerPos(pass),
-		t.truncatedConsumerPos(pass),
-		t.Consumer.Annotation.String(),
-		t.Producer.Annotation.String())
-}
-
 // A LocatedPrestring wraps another Prestring with a `token.Position` - for formatting with that position
 type LocatedPrestring struct {
 	Contained Prestring

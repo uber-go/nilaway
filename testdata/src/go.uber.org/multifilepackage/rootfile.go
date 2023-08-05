@@ -41,8 +41,8 @@ func safeBoxManipulations() {
 func unsafeBoxManipulations() *secondpackage.C {
 	c := secondpackage.CBox{}
 	if true {
-		return c.Unbox() //want "nilable value returned"
+		return c.Unbox() //want "returned"
 	} else {
-		return c.Ptr //want "nilable value returned"
+		return c.Ptr //want "returned"
 	}
 }

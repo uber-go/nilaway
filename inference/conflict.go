@@ -134,11 +134,14 @@ func (c *conflict) addSimilarConflict(conflict conflict) {
 	c.similarConflicts = append(c.similarConflicts, conflict)
 }
 
-type conflictList struct {
-	conflicts []conflict
+// ConflictList stores a list of conflicts.
+type ConflictList struct {
+	conflicts  []conflict
+	NoGrouping bool // if set true, conflicts are not grouped by nil path. (Example use case: no-infer unit tests)
 }
 
-func (l *conflictList) addSingleAssertionConflict(pass *analysis.Pass, trigger annotation.FullTrigger) {
+// AddSingleAssertionConflict adds a new single assertion conflict to the list of conflicts.
+func (l *ConflictList) AddSingleAssertionConflict(pass *analysis.Pass, trigger annotation.FullTrigger) {
 	t := fullTriggerAsPrimitive(pass, trigger)
 	c := conflict{
 		position: t.Pos,
@@ -152,7 +155,8 @@ func (l *conflictList) addSingleAssertionConflict(pass *analysis.Pass, trigger a
 	l.conflicts = append(l.conflicts, c)
 }
 
-func (l *conflictList) addOverconstraintConflict(nilExplanation ExplainedBool, nonnilExplanation ExplainedBool, pass *analysis.Pass) {
+// AddOverconstraintConflict adds a new overconstraint conflict to the list of conflicts.
+func (l *ConflictList) AddOverconstraintConflict(nilExplanation ExplainedBool, nonnilExplanation ExplainedBool, pass *analysis.Pass) {
 	c := conflict{}
 
 	// Build nil path by traversing the inference graph from `nilExplanation` part of the overconstraint failure.
@@ -223,14 +227,20 @@ func (l *conflictList) addOverconstraintConflict(nilExplanation ExplainedBool, n
 	l.conflicts = append(l.conflicts, c)
 }
 
-func (l *conflictList) diagnostics() []analysis.Diagnostic {
+// Diagnostics returns a list of diagnostics for the conflicts in the list.
+func (l *ConflictList) Diagnostics() []analysis.Diagnostic {
 	var diagnostics []analysis.Diagnostic
 
-	// group conflicts with the same nil path together for concise reporting
-	groupedConflicts := groupConflicts(l.conflicts)
+	var conflicts []conflict
+	if l.NoGrouping {
+		conflicts = l.conflicts
+	} else {
+		// group conflicts with the same nil path together for concise reporting
+		conflicts = groupConflicts(l.conflicts)
+	}
 
-	// build diagnostics from grouped conflicts
-	for _, c := range groupedConflicts {
+	// build diagnostics from conflicts
+	for _, c := range conflicts {
 		diagnostics = append(diagnostics, analysis.Diagnostic{
 			Pos:     c.position,
 			Message: c.String(),

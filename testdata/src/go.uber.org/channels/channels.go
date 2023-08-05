@@ -33,16 +33,16 @@ var dummyBool = true
 func testChans(nilableChanArg, nonNilChanArg chan *int, nilableArg, nonNilArg *int) *int {
 	switch 0 {
 	case 1:
-		return <-nilableChanArg //want "nilable value returned"
+		return <-nilableChanArg //want "returned"
 	case 2:
 		return <-nonNilChanArg
 	case 3:
-		return <-nilableChan //want "nilable value returned"
+		return <-nilableChan //want "returned"
 	case 4:
 		return <-nonNilChan
 	case 5:
 		for i := range nilableChanArg {
-			return i //want "nilable value returned"
+			return i //want "returned"
 		}
 	case 6:
 		for i := range nonNilChanArg {
@@ -50,7 +50,7 @@ func testChans(nilableChanArg, nonNilChanArg chan *int, nilableArg, nonNilArg *i
 		}
 	case 7:
 		for i := range nilableChan {
-			return i //want "nilable value returned"
+			return i //want "returned"
 		}
 	case 8:
 		for i := range nonNilChan {
@@ -59,32 +59,32 @@ func testChans(nilableChanArg, nonNilChanArg chan *int, nilableArg, nonNilArg *i
 	case 9:
 		nilableChanArg <- nilableArg
 		nilableChanArg <- nonNilArg
-		nonNilChanArg <- nilableArg //want "nilable value assigned"
+		nonNilChanArg <- nilableArg //want "assigned"
 		nonNilChanArg <- nonNilArg
 
 		nilableChan <- nilableArg
 		nilableChan <- nonNilArg
-		nonNilChan <- nilableArg //want "nilable value assigned"
+		nonNilChan <- nilableArg //want "assigned"
 		nonNilChan <- nonNilArg
 	case 10:
 		nilableChan <- <-nilableChan
 		nilableChan <- <-nonNilChan
-		nonNilChan <- <-nilableChan //want "nilable value assigned"
+		nonNilChan <- <-nilableChan //want "assigned"
 		nonNilChan <- <-nonNilChan
 
 		nilableChanArg <- <-nilableChan
 		nilableChanArg <- <-nonNilChan
-		nonNilChanArg <- <-nilableChan //want "nilable value assigned"
+		nonNilChanArg <- <-nilableChan //want "assigned"
 		nonNilChanArg <- <-nonNilChan
 
 		nilableChan <- <-nilableChanArg
 		nilableChan <- <-nonNilChanArg
-		nonNilChan <- <-nilableChanArg //want "nilable value assigned"
+		nonNilChan <- <-nilableChanArg //want "assigned"
 		nonNilChan <- <-nonNilChanArg
 
 		nilableChan <- <-nilableChanArg
 		nilableChan <- <-nonNilChanArg
-		nonNilChan <- <-nilableChanArg //want "nilable value assigned"
+		nonNilChan <- <-nilableChanArg //want "assigned"
 		nonNilChan <- <-nonNilChanArg
 	}
 
@@ -103,7 +103,7 @@ type T struct {
 }
 
 func testRestrictedChans(t T) {
-	t.sendOnly <- t.nilable //want "nilable value assigned"
+	t.sendOnly <- t.nilable //want "assigned"
 	t.sendOnlyNilable <- t.nilable
 	t.sendOnly <- t.nonnil
 	t.sendOnlyNilable <- t.nonnil
@@ -111,7 +111,7 @@ func testRestrictedChans(t T) {
 	t.nilable = <-t.recvOnly
 	t.nilable = <-t.recvOnlyNilable
 	t.nonnil = <-t.recvOnly
-	t.nonnil = <-t.recvOnlyNilable //want "nilable value assigned"
+	t.nonnil = <-t.recvOnlyNilable //want "assigned"
 }
 
 type I interface {
@@ -136,7 +136,7 @@ type I interface {
 }
 
 func testRets(t T, i I) {
-	i.retsSendOnly() <- t.nilable //want "nilable value assigned"
+	i.retsSendOnly() <- t.nilable //want "assigned"
 	i.retsSendOnlyNilable() <- t.nilable
 	i.retsSendOnly() <- t.nonnil
 	i.retsSendOnlyNilable() <- t.nonnil
@@ -144,22 +144,22 @@ func testRets(t T, i I) {
 	t.nilable = <-i.retsRecvOnly()
 	t.nilable = <-i.retsRecvOnlyNilable()
 	t.nonnil = <-i.retsRecvOnly()
-	t.nonnil = <-i.retsRecvOnlyNilable() //want "nilable value assigned"
+	t.nonnil = <-i.retsRecvOnlyNilable() //want "assigned"
 }
 
 func testIndirectRets(t T, i I) {
 	sendOnly, recvOnly, sendOnlyNilable, recvOnlyNilable := i.retsChans()
 
-	sendOnly <- t.nilable //want "nilable value assigned"
+	sendOnly <- t.nilable //want "assigned"
 	// TODO: remove the diagnostic on next line, blocked on
-	sendOnlyNilable <- t.nilable //want "nilable value assigned"
+	sendOnlyNilable <- t.nilable //want "assigned"
 	sendOnly <- t.nonnil
 	sendOnlyNilable <- t.nonnil
 
 	t.nilable = <-recvOnly
 	t.nilable = <-recvOnlyNilable
 	t.nonnil = <-recvOnly
-	t.nonnil = <-recvOnlyNilable // TODO: want "nilable value assigned", blocked on
+	t.nonnil = <-recvOnlyNilable // TODO: want "assigned", blocked on
 }
 
 var dummy bool
@@ -171,10 +171,10 @@ func testOkChecksForParams(nilableChan chan *int, nonnilChan chan *int) *int {
 	vNilable, okNilable := <-nilableChan
 
 	if dummy {
-		return vNonnil //want "nilable value returned"
+		return vNonnil //want "returned"
 	}
 	if dummy {
-		return vNilable //want "nilable value returned"
+		return vNilable //want "returned"
 	}
 
 	if okNonnil {
@@ -182,24 +182,24 @@ func testOkChecksForParams(nilableChan chan *int, nonnilChan chan *int) *int {
 			return vNonnil
 		}
 		if dummy {
-			return vNilable //want "nilable value returned"
+			return vNilable //want "returned"
 		}
 	}
 
 	if okNilable {
 		if dummy {
-			return vNonnil //want "nilable value returned"
+			return vNonnil //want "returned"
 		}
 		if dummy {
-			return vNilable //want "nilable value returned"
+			return vNilable //want "returned"
 		}
 	}
 
 	if dummy {
-		return vNonnil //want "nilable value returned"
+		return vNonnil //want "returned"
 	}
 	if dummy {
-		return vNilable //want "nilable value returned"
+		return vNilable //want "returned"
 	}
 
 	switch 0 {
@@ -208,7 +208,7 @@ func testOkChecksForParams(nilableChan chan *int, nonnilChan chan *int) *int {
 
 		if okNonnil {
 			// this case tests that assignments to the rich bool invalidate the check properly
-			return vNonnil //want "nilable value returned"
+			return vNonnil //want "returned"
 		}
 	case 2:
 		switch 0 {
@@ -221,7 +221,7 @@ func testOkChecksForParams(nilableChan chan *int, nonnilChan chan *int) *int {
 		if okNonnil {
 			// this case is similar to above, but tests that assignments in branching of degree
 			// greater than 2 is still handled properly
-			return vNonnil //want "nilable value returned"
+			return vNonnil //want "returned"
 		}
 	case 3:
 		switch 0 {
@@ -248,7 +248,7 @@ func testOkChecksForParams(nilableChan chan *int, nonnilChan chan *int) *int {
 		if okNonnil {
 			// this case is similar to above, but tests a non-identical re-assignment
 			// of vNonNil to make sure the check is invalidated
-			return vNonnil //want "nilable value returned"
+			return vNonnil //want "returned"
 		}
 
 		if ok2Nonnil {
@@ -288,10 +288,10 @@ func testOkChecksForResults() *int {
 	vNilable, okNilable := <-retsNilableChans()
 
 	if dummy {
-		return vNonnil //want "nilable value returned"
+		return vNonnil //want "returned"
 	}
 	if dummy {
-		return vNilable //want "nilable value returned"
+		return vNilable //want "returned"
 	}
 
 	if okNonnil {
@@ -299,24 +299,24 @@ func testOkChecksForResults() *int {
 			return vNonnil
 		}
 		if dummy {
-			return vNilable //want "nilable value returned"
+			return vNilable //want "returned"
 		}
 	}
 
 	if okNilable {
 		if dummy {
-			return vNonnil //want "nilable value returned"
+			return vNonnil //want "returned"
 		}
 		if dummy {
-			return vNilable //want "nilable value returned"
+			return vNilable //want "returned"
 		}
 	}
 
 	if dummy {
-		return vNonnil //want "nilable value returned"
+		return vNonnil //want "returned"
 	}
 	if dummy {
-		return vNilable //want "nilable value returned"
+		return vNilable //want "returned"
 	}
 
 	switch 0 {
@@ -325,7 +325,7 @@ func testOkChecksForResults() *int {
 
 		if okNonnil {
 			// this case tests that assignments to the rich bool invalidate the check properly
-			return vNonnil //want "nilable value returned"
+			return vNonnil //want "returned"
 		}
 	case 2:
 		switch 0 {
@@ -338,7 +338,7 @@ func testOkChecksForResults() *int {
 		if okNonnil {
 			// this case is similar to above, but tests that assignments in branching of degree
 			// greater than 2 is still handled properly
-			return vNonnil //want "nilable value returned"
+			return vNonnil //want "returned"
 		}
 	case 3:
 		switch 0 {
@@ -365,7 +365,7 @@ func testOkChecksForResults() *int {
 		if okNonnil {
 			// this case is similar to above, but tests a non-identical re-assignment
 			// of vNonNil to make sure the check is invalidated
-			return vNonnil //want "nilable value returned"
+			return vNonnil //want "returned"
 		}
 
 		if ok2Nonnil {
@@ -394,10 +394,10 @@ func testOkChecksForGlobals() *int {
 	vNilable, okNilable := <-nilableChan
 
 	if dummy {
-		return vNonnil //want "nilable value returned"
+		return vNonnil //want "returned"
 	}
 	if dummy {
-		return vNilable //want "nilable value returned"
+		return vNilable //want "returned"
 	}
 
 	if okNonnil {
@@ -405,24 +405,24 @@ func testOkChecksForGlobals() *int {
 			return vNonnil
 		}
 		if dummy {
-			return vNilable //want "nilable value returned"
+			return vNilable //want "returned"
 		}
 	}
 
 	if okNilable {
 		if dummy {
-			return vNonnil //want "nilable value returned"
+			return vNonnil //want "returned"
 		}
 		if dummy {
-			return vNilable //want "nilable value returned"
+			return vNilable //want "returned"
 		}
 	}
 
 	if dummy {
-		return vNonnil //want "nilable value returned"
+		return vNonnil //want "returned"
 	}
 	if dummy {
-		return vNilable //want "nilable value returned"
+		return vNilable //want "returned"
 	}
 
 	switch 0 {
@@ -431,7 +431,7 @@ func testOkChecksForGlobals() *int {
 
 		if okNonnil {
 			// this case tests that assignments to the rich bool invalidate the check properly
-			return vNonnil //want "nilable value returned"
+			return vNonnil //want "returned"
 		}
 	case 2:
 		switch 0 {
@@ -444,7 +444,7 @@ func testOkChecksForGlobals() *int {
 		if okNonnil {
 			// this case is similar to above, but tests that assignments in branching of degree
 			// greater than 2 is still handled properly
-			return vNonnil //want "nilable value returned"
+			return vNonnil //want "returned"
 		}
 	case 3:
 		switch 0 {
@@ -471,7 +471,7 @@ func testOkChecksForGlobals() *int {
 		if okNonnil {
 			// this case is similar to above, but tests a non-identical re-assignment
 			// of vNonNil to make sure the check is invalidated
-			return vNonnil //want "nilable value returned"
+			return vNonnil //want "returned"
 		}
 
 		if ok2Nonnil {
@@ -504,7 +504,7 @@ func testRangeOverChans(a, b, c, d chan *int) *int {
 		}
 	case 2:
 		for b_elem := range b {
-			return b_elem //want "nilable value returned"
+			return b_elem //want "returned"
 		}
 	case 3:
 		for c_elem := range c {
@@ -512,7 +512,7 @@ func testRangeOverChans(a, b, c, d chan *int) *int {
 		}
 	case 4:
 		for d_elem := range d {
-			return d_elem //want "nilable value returned"
+			return d_elem //want "returned"
 		}
 	}
 	i := 0
@@ -522,11 +522,11 @@ func testRangeOverChans(a, b, c, d chan *int) *int {
 func takesNonnil(interface{}) {}
 
 func singleKeysEstablishNonnil(ch chan *int) {
-	v, ok := <-ch //want "nilable value of uninitialized channel"
+	v, ok := <-ch //want "of uninitialized channel"
 
 	// here, ch and v should be nilable
-	takesNonnil(v)  //want "nilable value passed"
-	takesNonnil(ch) //want "nilable value passed"
+	takesNonnil(v)  //want "passed"
+	takesNonnil(ch) //want "passed"
 
 	switch 0 {
 	case 1:
@@ -545,8 +545,8 @@ func singleKeysEstablishNonnil(ch chan *int) {
 		}
 
 		// here, neither v nor ch should be nonnil
-		takesNonnil(v)  //want "nilable value passed"
-		takesNonnil(ch) //want "nilable value passed"
+		takesNonnil(v)  //want "passed"
+		takesNonnil(ch) //want "passed"
 	case 5:
 		v = nil
 
@@ -555,7 +555,7 @@ func singleKeysEstablishNonnil(ch chan *int) {
 		}
 
 		// here, JUST ch should be nonnil
-		takesNonnil(v) //want "nilable value passed"
+		takesNonnil(v) //want "passed"
 		takesNonnil(ch)
 	case 6:
 		ch = nil
@@ -566,22 +566,22 @@ func singleKeysEstablishNonnil(ch chan *int) {
 
 		// here, JUST v should be nonnil
 		takesNonnil(v)
-		takesNonnil(ch) //want "nilable value passed"
+		takesNonnil(ch) //want "passed"
 	}
 }
 
 func plainReflCheck(ch chan any) any {
 	if dummy {
-		return ch //want "nilable value returned"
+		return ch //want "returned"
 	}
 
-	_, ok := <-ch //want "nilable value of uninitialized channel"
+	_, ok := <-ch //want "of uninitialized channel"
 
 	if ok {
 		return ch
 	}
 
-	return ch //want "nilable value returned"
+	return ch //want "returned"
 }
 
 // BELOW TESTS CHECK SHALLOW NILABILITY OF CHANNELS :: SEND AND RECEIVE ON NIL CHANNELS
@@ -589,39 +589,39 @@ var nilChanGlobal chan string
 var nonnilChanGlobal = make(chan string)
 
 func testSendToGlobalChan() {
-	nilChanGlobal <- "xyz" //want "nilable value of uninitialized channel"
+	nilChanGlobal <- "xyz" //want "of uninitialized channel"
 	nonnilChanGlobal <- "xyz"
 }
 
 // nonnil(nonnilChanParam)
 func testSendToParamChan(nilChanParam chan string, nonnilChanParam chan string) {
-	nilChanParam <- "xyz" //want "nilable value of uninitialized channel"
+	nilChanParam <- "xyz" //want "of uninitialized channel"
 	nonnilChanParam <- "xyz"
 }
 
 func testSendToLocalChan() {
 	var nilChanLocal chan string
-	nilChanLocal <- "xyz" //want "nilable value of uninitialized channel"
+	nilChanLocal <- "xyz" //want "of uninitialized channel"
 
 	var nonnilChanLocal = make(chan string)
 	nonnilChanLocal <- "xyz"
 }
 
 func testRecvFromGlobalChan() (string, string) {
-	return <-nilChanGlobal, <-nonnilChanGlobal //want "nilable value of uninitialized channel"
+	return <-nilChanGlobal, <-nonnilChanGlobal //want "of uninitialized channel"
 }
 
 // nonnil(nonnilChanParam)
 func testRecvFromParamChan(nilChanParam chan string, nonnilChanParam chan string) {
-	v1 := <-nilChanParam //want "nilable value of uninitialized channel"
+	v1 := <-nilChanParam //want "of uninitialized channel"
 	v2 := <-nonnilChanParam
 	func(...any) {}(v1, v2)
 }
 
 func testRecvFromLocalChan() {
 	var nilChanLocal chan string
-	nilChanLocal <- "xyz" //want "nilable value of uninitialized channel"
-	v1 := <-nilChanLocal  //want "nilable value of uninitialized channel"
+	nilChanLocal <- "xyz" //want "of uninitialized channel"
+	v1 := <-nilChanLocal  //want "of uninitialized channel"
 
 	var nonnilChanLocal = make(chan string)
 	nonnilChanLocal <- "xyz"
@@ -642,14 +642,14 @@ func retNonNilChan() chan string {
 
 func testSendRecvFuncRet() {
 	nilChanLocal := retNilChan()
-	nilChanLocal <- "xyz" //want "nilable value of uninitialized channel"
-	v1 := <-nilChanLocal  //want "nilable value of uninitialized channel"
+	nilChanLocal <- "xyz" //want "of uninitialized channel"
+	v1 := <-nilChanLocal  //want "of uninitialized channel"
 
 	nonnilChanLocal := retNonNilChan()
 	nonnilChanLocal <- "xyz"
 	v2 := <-nonnilChanLocal
 
-	nilChanLocal <- <-nonnilChanGlobal //want "nilable value of uninitialized channel"
+	nilChanLocal <- <-nonnilChanGlobal //want "of uninitialized channel"
 	nonnilChanLocal <- <-nonnilChanGlobal
 
 	func(...any) {}(v1, v2)

@@ -16,7 +16,7 @@
 package packageB
 
 type I2 interface {
-	Bar() *string //want "nilable value could be returned as result"
+	Bar() *string //want "could be returned as result"
 }
 
 type S2 struct{}

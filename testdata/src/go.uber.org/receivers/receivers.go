@@ -27,7 +27,7 @@ type S struct {
 func (s *S) nilableRecv(i int) string {
 	switch i {
 	case 0:
-		return s.f //want "nilable value passed to a field access"
+		return s.f //want "passed to a field access"
 
 	case 1:
 		if s == nil {
@@ -51,7 +51,7 @@ func testCaller(dummy bool, i int) {
 	var s *S // DECL_1: s is uninitialized
 	switch i {
 	case 0:
-		s.nonnilRecv() //want "nilable value used as a receiver to call method `nonnilRecv`"
+		s.nonnilRecv() //want "used as a receiver to call method `nonnilRecv`"
 	case 1:
 		s = &S{}
 		s.nonnilRecv()
@@ -59,7 +59,7 @@ func testCaller(dummy bool, i int) {
 		if dummy {
 			s = &S{}
 		}
-		s.nonnilRecv() //want "nilable value used as a receiver to call method `nonnilRecv`"
+		s.nonnilRecv() //want "used as a receiver to call method `nonnilRecv`"
 	case 3:
 		if s != nil {
 			if dummy {
@@ -69,11 +69,11 @@ func testCaller(dummy bool, i int) {
 				if dummy {
 					s = nil // DECL_2: s is assigned nil
 					if dummy {
-						s.nonnilRecv() //want "nilable value used as a receiver to call method `nonnilRecv`"
+						s.nonnilRecv() //want "used as a receiver to call method `nonnilRecv`"
 					}
 				}
 				if dummy {
-					s.nonnilRecv() //want "nilable value used as a receiver to call method `nonnilRecv`"
+					s.nonnilRecv() //want "used as a receiver to call method `nonnilRecv`"
 				}
 			} else {
 				if dummy {
@@ -87,11 +87,11 @@ func testCaller(dummy bool, i int) {
 				}
 			}
 			if dummy {
-				s.nonnilRecv() //want "nilable value used as a receiver to call method `nonnilRecv`"
+				s.nonnilRecv() //want "used as a receiver to call method `nonnilRecv`"
 			}
 		}
 		// here - two different flows result in a nilable (DECL_1 and DECL_2)
-		s.nonnilRecv() //want "nilable value used as a receiver to call method `nonnilRecv`" "nilable value used as a receiver to call method `nonnilRecv`"
+		s.nonnilRecv() //want "used as a receiver to call method `nonnilRecv`" "used as a receiver to call method `nonnilRecv`"
 	}
 }
 
@@ -112,11 +112,11 @@ type myString []*string
 // nilable(s[])
 func (s *myString) testDeepTypeRecv() {
 	x := *s
-	_ = *x[0] //want "nilable value sliced into"
+	_ = *x[0] //want "sliced into"
 }
 
 // nilable(s, s[])
 func (s *myString) testShallowAndDeepTypeRecv(i int) {
-	x := *s   //want "nilable value dereferenced"
-	_ = *x[0] //want "nilable value sliced into"
+	x := *s   //want "dereferenced"
+	_ = *x[0] //want "sliced into"
 }
