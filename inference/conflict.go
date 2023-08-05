@@ -98,7 +98,7 @@ func (n *nilFlow) String() string {
 
 func (c *conflict) String() string {
 	consumerPos := c.nilFlow.nonnilPath[len(c.nilFlow.nonnilPath)-1].position
-	producerPos := c.nilFlow.nilPath[len(c.nilFlow.nilPath)-1].position
+	producerPos := c.nilFlow.nilPath[0].position
 	return fmt.Sprintf(" Nonnil `%s` expected at \"%s\", but produced as nilable at \"%s\". Observed nil flow from "+
 		"source to dereference: %s", c.expr, consumerPos.String(), producerPos.String(), c.nilFlow.String())
 }
