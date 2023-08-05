@@ -18,15 +18,15 @@ package anonymousfunction
 
 func testSimpleAssignment() {
 	var t1 *int
-	a := func() { // want "value is read from a variable that was never assigned to"
-		print(*t1)
+	a := func() {
+		print(*t1) //want "read from a variable that was never assigned to"
 	}
 	a() // at this call t1 is nil
 
 	var t2 *int
-	b := func() { // want "Annotation on Param 1: 't2'"
+	b := func() {
 		print(*t1)
-		print(*t2)
+		print(*t2) //want "read from the function parameter `t2`"
 	}
 
 	i := 1
@@ -38,10 +38,10 @@ func testSimpleAssignment() {
 
 func testAssignOneToOneAssingments() {
 	var t1 *int
-	a, b := func(t *int) { // want "value is read from a variable that was never assigned to"
-		print(*t)
-	}, func(t2 *int) { // want "value is read from a variable that was never assigned to"
-		print(*t2)
+	a, b := func(t *int) {
+		print(*t) //want "read from a variable that was never assigned to"
+	}, func(t2 *int) {
+		print(*t2) //want "read from a variable that was never assigned to"
 	}
 	a(t1)
 	b(t1)
@@ -51,13 +51,13 @@ func testAssignOneToOneAssingments() {
 func testNestedAnonymousFuncAssignment() {
 	var t1 *int
 	var t2 *int
-	a := func() { // want "Annotation on Param 0: 't1'"
-		print(*t1)
+	a := func() {
+		print(*t1) //want "read from a variable that was never assigned to"
 		var t2 *int
-		print(*t2)    // want "Value read from a variable that was never assigned to "
-		b := func() { // want "Annotation on Param 0: 't1'" "Annotation on Param 1: 't2'"
-			print(*t1) // this is not ok
-			print(*t2) // this is not ok
+		print(*t2) //want "read from a variable that was never assigned to"
+		b := func() {
+			print(*t1) //want "read from a variable that was never assigned to"
+			print(*t2) //want "read from a variable that was never assigned to"
 			if t2 != nil {
 				print(*t2) // this is ok
 			}
@@ -73,13 +73,13 @@ func testNestedAnonymousFuncAssignment() {
 func testImplicitAndExplicitArguments() {
 	var t1 *int
 	var t2 *int
-	f := func(t *int) { // want "Annotation on Param 0: 't' "
-		print(*t) // this is not ok
+	f := func(t *int) {
+		print(*t) //want "read from a variable that was never assigned to"
 		// the following erros are for t3 and p2
-		g := func(p *int) { // want "Annotation on Param 0: 'p'" "Annotation on Param 2: 't2'"
+		g := func(p *int) {
 			print(*t)
-			print(*p)
-			print(*t2)
+			print(*p)  //want "read from a variable that was never assigned to"
+			print(*t2) //want "read from a variable that was never assigned to"
 		}
 		i := 1
 		t = &i
@@ -94,8 +94,8 @@ func testShadowedClosureVariable() {
 	i := 1
 	b := &i
 
-	func() { // want "Annotation on Param 0: 'a'"
-		print(*a)
+	func() {
+		print(*a) //want "read from a variable that was never assigned to"
 		func(a *int) {
 			print(*a) // this is actually ok since `a` is shadowed and we are passing a nonnil argument at the call site.
 		}(b)

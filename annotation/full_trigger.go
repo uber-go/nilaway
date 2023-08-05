@@ -19,7 +19,6 @@ import (
 	"go/ast"
 	"go/token"
 
-	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
 	"golang.org/x/tools/go/analysis"
 )
@@ -60,15 +59,8 @@ func (t *FullTrigger) Check(annMap Map) bool {
 		t.Consumer.Annotation.CheckConsume(annMap)
 }
 
-func truncatePosition(position token.Position) token.Position {
-	position.Filename = util.PortionAfterSep(
-		position.Filename, "/",
-		config.DirLevelsToPrintForTriggers)
-	return position
-}
-
 func (t *FullTrigger) truncatedConsumerPos(pass *analysis.Pass) token.Position {
-	return truncatePosition(pass.Fset.Position(t.Consumer.Pos()))
+	return util.TruncatePosition(pass.Fset.Position(t.Consumer.Pos()))
 }
 
 func (t *FullTrigger) truncatedProducerPos(pass *analysis.Pass) token.Position {
@@ -81,7 +73,7 @@ func (t *FullTrigger) truncatedProducerPos(pass *analysis.Pass) token.Position {
 	if t.Producer.Expr == nil {
 		panic(fmt.Sprintf("nil Expr for producer %q", t.Producer))
 	}
-	return truncatePosition(pass.Fset.Position(t.Producer.Expr.Pos()))
+	return util.TruncatePosition(pass.Fset.Position(t.Producer.Expr.Pos()))
 }
 
 // BuildStringRepr returns a string representation of a `FullTrigger` given an `analysis.Pass` to help Lookup its objects

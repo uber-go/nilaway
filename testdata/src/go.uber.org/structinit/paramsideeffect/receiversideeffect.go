@@ -34,7 +34,7 @@ func m21() *int {
 
 // Positive test
 
-func (x *A) populateMethod2() { //want "Annotation on Field newPtr of Receiver: 'x' at output of Method populateMethod2 overconstrained"
+func (x *A) populateMethod2() {
 	x.newPtr = nil
 }
 
@@ -42,6 +42,6 @@ func m22() *int {
 	b := &A{}
 	b.aptr = &A{}
 	b.populateMethod2()
-	print(b.newPtr.ptr)
+	print(b.newPtr.ptr) //want "field `newPtr` of receiver of call to function `populateMethod2`"
 	return b.aptr.ptr
 }
