@@ -60,7 +60,7 @@ func (b B) foo(x *A) (*A, string) {
 
 // nilable(y, result 0)
 func (b *B) bar(x *A, y *B) *string { //want "could be passed as param"
-	if b.i+y.i > 5 { // want "passed to a field access"
+	if b.i+y.i > 5 { //want "passed to a field access"
 		return nil
 	}
 	return &x.s
