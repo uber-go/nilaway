@@ -133,7 +133,7 @@ func m15() *int {
 }
 
 // Following cases of false positives and false negatives are due to limitations of our current technique under these special cases
-// TODO: Find a better to way to handle these (PROGSYS-579)
+// TODO: Find a better to way to handle these.
 // Another case of identical arguments to function call: False positive
 
 func initializeSecond(a1 *A, a2 *A) {
