@@ -65,7 +65,7 @@ func swapField2(x *T) *T {
 
 func unsafeRedundantSwap(x *T) *T {
 	x, x = x, nil
-	return x //want "nilable value returned"
+	return x //want "returned"
 }
 
 func safeRedundantSwap(x *T) *T {
@@ -83,7 +83,7 @@ func slightlyDeeperSwap(x *T) *T {
 	case 2:
 		return x.f
 	default:
-		return x.f.f //want "nilable value returned"
+		return x.f.f //want "returned"
 	}
 }
 
@@ -95,7 +95,7 @@ func slightlyDeeperSwap2(x *T) *T {
 	case 1:
 		return x
 	default:
-		return x.f //want "nilable value returned"
+		return x.f //want "returned"
 	}
 }
 
@@ -122,13 +122,13 @@ func rightNonNil() (a *T, b *T, c *T) {
 func testThreeRets() (a *T, b *T, c *T) {
 	switch 0 {
 	case 1:
-		return leftNonNil() //want "nilable value returned from the function `testThreeRets` in position 2"
+		return leftNonNil() //want "returned from the function `testThreeRets` in position 2"
 	case 2:
-		return centerNonNil() //want "nilable value returned from the function `testThreeRets` in position 2" "nilable value returned from the function `testThreeRets` in position 0"
+		return centerNonNil() //want "returned from the function `testThreeRets` in position 2" "returned from the function `testThreeRets` in position 0"
 	case 3:
-		return rightNonNil() //want "nilable value returned from the function `testThreeRets` in position 0"
+		return rightNonNil() //want "returned from the function `testThreeRets` in position 0"
 	case 4:
-		return nil, nil, nil //want "nilable value returned from the function `testThreeRets` in position 2" "nilable value returned from the function `testThreeRets` in position 0"
+		return nil, nil, nil //want "returned from the function `testThreeRets` in position 2" "returned from the function `testThreeRets` in position 0"
 	default:
 		return &T{}, &T{}, &T{}
 	}
@@ -146,13 +146,13 @@ func takesRightNonNil(a *T, b *T, c *T) {}
 // multiple returners can be passed directly to multiple param funcs - test that here
 func testMultiToMultiCalls() {
 	takesLeftNonNil(leftNonNil())
-	takesLeftNonNil(centerNonNil()) //want "nilable value passed as arg `a`"
-	takesLeftNonNil(rightNonNil())  //want "nilable value passed as arg `a`"
-	takesCenterNonNil(leftNonNil()) //want "nilable value passed as arg `b`"
+	takesLeftNonNil(centerNonNil()) //want "passed as arg `a`"
+	takesLeftNonNil(rightNonNil())  //want "passed as arg `a`"
+	takesCenterNonNil(leftNonNil()) //want "passed as arg `b`"
 	takesCenterNonNil(centerNonNil())
-	takesCenterNonNil(rightNonNil()) //want "nilable value passed as arg `b`"
-	takesRightNonNil(leftNonNil())   //want "nilable value passed as arg `c`"
-	takesRightNonNil(centerNonNil()) //want "nilable value passed as arg `c`"
+	takesCenterNonNil(rightNonNil()) //want "passed as arg `b`"
+	takesRightNonNil(leftNonNil())   //want "passed as arg `c`"
+	takesRightNonNil(centerNonNil()) //want "passed as arg `c`"
 	takesRightNonNil(rightNonNil())
 }
 
@@ -172,9 +172,9 @@ func returnTwoNonNil() *T {
 }
 
 func assignThreeNonNil(tt *twoTs) {
-	tt.second, tt.second, tt.second = rightNonNil()  //want "nilable value assigned into the field" "nilable value assigned into the field"
-	tt.second, tt.second, tt.second = centerNonNil() //want "nilable value assigned into the field" "nilable value assigned into the field"
-	tt.second, tt.second, tt.second = leftNonNil()   //want "nilable value assigned into the field" "nilable value assigned into the field"
+	tt.second, tt.second, tt.second = rightNonNil()  //want "assigned into the field" "assigned into the field"
+	tt.second, tt.second, tt.second = centerNonNil() //want "assigned into the field" "assigned into the field"
+	tt.second, tt.second, tt.second = leftNonNil()   //want "assigned into the field" "assigned into the field"
 	tt.first, tt.first, tt.second = rightNonNil()
 	tt.first, tt.second, tt.first = centerNonNil()
 	tt.second, tt.first, tt.first = leftNonNil()
@@ -192,9 +192,9 @@ func oneTrueNonNil() *T {
 	}
 	switch 0 {
 	case 1:
-		return a //want "nilable value returned" "nilable value returned" "nilable value returned"
+		return a //want "returned" "returned" "returned"
 	case 2:
-		return b //want "nilable value returned" "nilable value returned" "nilable value returned"
+		return b //want "returned" "returned" "returned"
 	default:
 		return c
 	}

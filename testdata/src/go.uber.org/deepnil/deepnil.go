@@ -33,22 +33,22 @@ type B []*int
 func takesTwoTypedArrs(a A, b B) *int {
 	i := 0
 	a[1] = nil
-	b[1] = nil //want "nilable value assigned"
+	b[1] = nil //want "assigned"
 
 	a[2] = &i
 	b[2] = &i
 
 	switch 0 {
 	case 1:
-		return a[0] //want "nilable value returned"
+		return a[0] //want "returned"
 	case 2:
-		return a[1] //want "nilable value returned"
+		return a[1] //want "returned"
 	case 3:
 		return a[2]
 	case 4:
 		return b[0]
 	case 5:
-		return b[1] //want "nilable value returned"
+		return b[1] //want "returned"
 	case 6:
 		return b[2]
 	}
@@ -60,7 +60,7 @@ func deferredArrPass(a A, b B) *int {
 	a2 := a[0]
 	b2 := b[0]
 	if true {
-		return a2 //want "nilable value returned"
+		return a2 //want "returned"
 	} else {
 		return b2
 	}
@@ -69,14 +69,14 @@ func deferredArrPass(a A, b B) *int {
 func rangeTest(a A, b B) *int {
 	if true {
 		for _, a2 := range a {
-			return a2 //want "nilable value returned"
+			return a2 //want "returned"
 		}
 	} else {
 		for _, b2 := range b {
 			return b2
 		}
 	}
-	return nil //want "nilable value returned"
+	return nil //want "returned"
 }
 
 func retsNonnilNonnil() (*int, *int) {
@@ -113,18 +113,18 @@ func testsManyToOneDeep(a A, b B) {
 	case "first nilable":
 		a[0], a[1] = retsNilableNonnil()
 		a[2], b[3] = retsNilableNonnil()
-		b[4], a[5] = retsNilableNonnil() //want "nilable value assigned"
-		b[6], b[7] = retsNilableNonnil() //want "nilable value assigned"
+		b[4], a[5] = retsNilableNonnil() //want "assigned"
+		b[6], b[7] = retsNilableNonnil() //want "assigned"
 	case "second nilable":
 		a[10], a[11] = retsNonnilNilable()
-		a[12], b[13] = retsNonnilNilable() //want "nilable value assigned"
+		a[12], b[13] = retsNonnilNilable() //want "assigned"
 		b[14], a[15] = retsNonnilNilable()
-		b[16], b[17] = retsNonnilNilable() //want "nilable value assigned"
+		b[16], b[17] = retsNonnilNilable() //want "assigned"
 	case "both nilable":
 		a[0], a[1] = retsNilableNilable()
-		a[2], b[3] = retsNilableNilable() //want "nilable value assigned"
-		b[4], a[5] = retsNilableNilable() //want "nilable value assigned"
-		b[6], b[7] = retsNilableNilable() //want "nilable value assigned" "nilable value assigned"
+		a[2], b[3] = retsNilableNilable() //want "assigned"
+		b[4], a[5] = retsNilableNilable() //want "assigned"
+		b[6], b[7] = retsNilableNilable() //want "assigned" "assigned"
 	}
 }
 
@@ -133,22 +133,22 @@ func testsManyToOneDeep(a A, b B) {
 func takesTwoAnnotatedArrs(a []*int, b []*int) *int {
 	i := 0
 	a[1] = nil
-	b[1] = nil //want "nilable value assigned"
+	b[1] = nil //want "assigned"
 
 	a[2] = &i
 	b[2] = &i
 
 	switch 0 {
 	case 1:
-		return a[0] //want "nilable value returned"
+		return a[0] //want "returned"
 	case 2:
-		return a[1] //want "nilable value returned"
+		return a[1] //want "returned"
 	case 3:
 		return a[2]
 	case 4:
 		return b[0]
 	case 5:
-		return b[1] //want "nilable value returned"
+		return b[1] //want "returned"
 	case 6:
 		return b[2]
 	}
@@ -177,67 +177,67 @@ var i = 0
 func testsArrRets() *int {
 	switch 0 {
 	case 1:
-		return retsNilableArr(0)[0] //want "nilable value returned"
+		return retsNilableArr(0)[0] //want "returned"
 	case 2:
 		return retsNonNilArr(0)[0]
 	case 3:
-		return retsNilableArr(i)[0] //want "nilable value returned"
+		return retsNilableArr(i)[0] //want "returned"
 	case 4:
 		return retsNonNilArr(i)[0]
 	case 5:
-		return retsNilableArr(0)[i] //want "nilable value returned"
+		return retsNilableArr(0)[i] //want "returned"
 	case 6:
 		return retsNonNilArr(0)[i]
 	case 7:
-		return retsNilableArr(i)[i] //want "nilable value returned"
+		return retsNilableArr(i)[i] //want "returned"
 	case 8:
 		return retsNonNilArr(i)[i]
 	case 9:
 		a := retsNilableArr(0)
-		return a[0] //want "nilable value returned"
+		return a[0] //want "returned"
 	case 10:
 		a := retsNonNilArr(0)
 		return a[0]
 	case 11:
 		a := retsNilableArr(i)
-		return a[0] //want "nilable value returned"
+		return a[0] //want "returned"
 	case 12:
 		a := retsNonNilArr(i)
 		return a[0]
 	case 13:
 		a := retsNilableArr(0)
 		// unfortunately, the type system here gives `a` the type []*int, which is not deeply nilable
-		return a[i] // TODO:  want "nilable value returned"
+		return a[i] // TODO:  want "returned"
 	case 14:
 		a := retsNonNilArr(0)
 		return a[i]
 	case 15:
 		a := retsNilableArr(i)
 		// same flow error as case 13 above
-		return a[i] // TODO:  want "nilable value returned"
+		return a[i] // TODO:  want "returned"
 	case 16:
 		a := retsNonNilArr(i)
 		return a[i]
 	case 17:
 		for _, a := range retsNilableArr(0) {
-			return a //want "nilable value returned"
+			return a //want "returned"
 		}
-		return nil //want "nilable value returned"
+		return nil //want "returned"
 	case 18:
 		for _, a := range retsNonNilArr(0) {
 			return a
 		}
-		return nil //want "nilable value returned"
+		return nil //want "returned"
 	case 19:
 		for _, a := range retsNilableArr(0) {
-			takesNonNilIntStar(a) //want "nilable value passed"
+			takesNonNilIntStar(a) //want "passed"
 		}
-		return nil //want "nilable value returned"
+		return nil //want "returned"
 	default:
 		for _, a := range retsNonNilArr(0) {
 			takesNonNilIntStar(a)
 		}
-		return nil //want "nilable value returned"
+		return nil //want "returned"
 	}
 }
 
@@ -251,22 +251,22 @@ type S struct {
 // same as takesTwoTypedArrs but uses annotated fields of a struct
 func takesStruct(s *S) *S {
 	s.f[1] = nil
-	s.g[1] = nil //want "nilable value assigned"
+	s.g[1] = nil //want "assigned"
 
 	s.f[2] = &S{}
 	s.g[2] = &S{}
 
 	switch 0 {
 	case 1:
-		return s.f[0] //want "nilable value returned"
+		return s.f[0] //want "returned"
 	case 2:
-		return s.f[1] //want "nilable value returned"
+		return s.f[1] //want "returned"
 	case 3:
 		return s.f[2]
 	case 4:
 		return s.g[0]
 	case 5:
-		return s.g[1] //want "nilable value returned"
+		return s.g[1] //want "returned"
 	case 6:
 		return s.g[2]
 	}
@@ -276,23 +276,23 @@ func takesStruct(s *S) *S {
 func testDeepNilStruct(s *S) *S {
 	switch 0 {
 	case 1:
-		return s.f[0] //want "nilable value returned"
+		return s.f[0] //want "returned"
 	case 2:
 		return s.g[0]
 	case 3:
 		s2 := s.f[0]
-		return s2 //want "nilable value returned"
+		return s2 //want "returned"
 	case 4:
 		s2 := s.g[0]
 		return s2
 	case 5:
-		return s.g[0].f[0] //want "nilable value returned"
+		return s.g[0].f[0] //want "returned"
 	case 6:
 		return s.g[0].g[0]
 	case 7:
-		return s.f[0].f[0] //want "nilable value passed to a field access" "nilable value returned"
+		return s.f[0].f[0] //want "passed to a field access" "returned"
 	default:
-		return s.f[0].g[0] //want "nilable value passed to a field access"
+		return s.f[0].g[0] //want "passed to a field access"
 	}
 }
 
@@ -314,37 +314,37 @@ type YX []X
 func testSliceTypes(xy XY, xx XX, yy YY, yx YX) *int {
 	switch 0 {
 	case 1:
-		return xy[0][0] //want "nilable value sliced into"
+		return xy[0][0] //want "sliced into"
 	case 2:
-		return xx[0][0] //want "nilable value returned" "nilable value sliced into"
+		return xx[0][0] //want "returned" "sliced into"
 	case 3:
 		return yy[0][0]
 	case 4:
-		return yx[0][0] //want "nilable value returned"
+		return yx[0][0] //want "returned"
 	case 5:
-		return xy[i][i] //want "nilable value sliced into"
+		return xy[i][i] //want "sliced into"
 	case 6:
-		return xx[i][i] //want "nilable value returned" "nilable value sliced into"
+		return xx[i][i] //want "returned" "sliced into"
 	case 7:
 		return yy[i][i]
 	case 8:
-		return yx[i][i] //want "nilable value returned"
+		return yx[i][i] //want "returned"
 	case 9:
-		return xy[i][0] //want "nilable value sliced into"
+		return xy[i][0] //want "sliced into"
 	case 10:
-		return xx[i][0] //want "nilable value returned" "nilable value sliced into"
+		return xx[i][0] //want "returned" "sliced into"
 	case 11:
 		return yy[i][0]
 	case 12:
-		return yx[i][0] //want "nilable value returned"
+		return yx[i][0] //want "returned"
 	case 13:
-		return xy[i][0] //want "nilable value sliced into"
+		return xy[i][0] //want "sliced into"
 	case 14:
-		return xx[i][0] //want "nilable value returned" "nilable value sliced into"
+		return xx[i][0] //want "returned" "sliced into"
 	case 15:
 		return yy[i][0]
 	case 16:
-		return yx[i][0] //want "nilable value returned"
+		return yx[i][0] //want "returned"
 	}
-	return nil //want "nilable value returned"
+	return nil //want "returned"
 }

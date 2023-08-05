@@ -97,7 +97,7 @@ func overridesNotOk1(m map[any]any) any {
 		panic(0)
 	}
 
-	return v //want "nilable value returned"
+	return v //want "returned"
 }
 
 func overridesNotOk2(m map[any]any) any {
@@ -111,7 +111,7 @@ func overridesNotOk2(m map[any]any) any {
 		panic(0)
 	}
 
-	return v //want "nilable value returned"
+	return v //want "returned"
 }
 
 func threeWayOneConcrete(m map[any]any) any {
@@ -151,14 +151,14 @@ func badMerge(m map[any]any) any {
 
 	switch getInt() {
 	case getInt():
-		return v //want "nilable value returned"
+		return v //want "returned"
 	case getInt():
 		if ok1 {
-			return v //want "nilable value returned"
+			return v //want "returned"
 		}
 	case getInt():
 		if ok2 {
-			return v //want "nilable value returned"
+			return v //want "returned"
 		}
 	case getInt():
 		if ok1 && ok2 {
@@ -166,7 +166,7 @@ func badMerge(m map[any]any) any {
 		}
 	case getInt():
 		if ok1 || ok2 {
-			return v //want "nilable value returned"
+			return v //want "returned"
 		}
 	}
 	return 0
@@ -181,7 +181,7 @@ func testCheckInNeitherThenNeitherParallel(m map[any]any) any {
 		v, ok2 = m[0]
 	}
 	func(any, any) {}(ok1, ok2)
-	return v //want "nilable value returned"
+	return v //want "returned"
 }
 
 func testCheckInNeitherThenLeftParallel(m map[any]any) any {
@@ -196,7 +196,7 @@ func testCheckInNeitherThenLeftParallel(m map[any]any) any {
 		return 0
 	}
 	func(any, any) {}(ok1, ok2)
-	return v //want "nilable value returned"
+	return v //want "returned"
 }
 
 func testCheckInNeitherThenRightParallel(m map[any]any) any {
@@ -211,7 +211,7 @@ func testCheckInNeitherThenRightParallel(m map[any]any) any {
 		return 0
 	}
 	func(any, any) {}(ok1, ok2)
-	return v //want "nilable value returned"
+	return v //want "returned"
 }
 
 func testCheckInNeitherThenBothParallel(m map[any]any) any {
@@ -241,7 +241,7 @@ func testCheckOnlyInLeftThenNeitherParallel(m map[any]any) any {
 		v, ok2 = m[0]
 	}
 	func(any) {}(ok2)
-	return v //want "nilable value returned"
+	return v //want "returned"
 }
 
 func testCheckOnlyInLeftThenLeftParallel(m map[any]any) any {
@@ -259,7 +259,7 @@ func testCheckOnlyInLeftThenLeftParallel(m map[any]any) any {
 		return 0
 	}
 	func(any) {}(ok2)
-	return v //want "nilable value returned"
+	return v //want "returned"
 }
 
 func testCheckOnlyInLeftThenRightParallel(m map[any]any) any {
@@ -308,7 +308,7 @@ func testCheckOnlyInRightThenNeitherParallel(m map[any]any) any {
 		}
 	}
 	func(any) {}(ok1)
-	return v //want "nilable value returned"
+	return v //want "returned"
 }
 
 func testCheckOnlyInRightThenLeftParallel(m map[any]any) any {
@@ -343,7 +343,7 @@ func testCheckOnlyInRightThenRightParallel(m map[any]any) any {
 		return 0
 	}
 	func(any) {}(ok1)
-	return v //want "nilable value returned"
+	return v //want "returned"
 }
 
 func testCheckOnlyInRightThenBothParallel(m map[any]any) any {
@@ -390,7 +390,7 @@ func testCheckInNeitherThenNeitherSeries(m map[any]any) any {
 		v, ok2 = m[0]
 	}
 	func(any, any) {}(ok1, ok2)
-	return v //want "nilable value returned"
+	return v //want "returned"
 }
 
 func testCheckInNeitherThenLeftSeries(m map[any]any) any {
@@ -406,7 +406,7 @@ func testCheckInNeitherThenLeftSeries(m map[any]any) any {
 		return 0
 	}
 	func(any, any) {}(ok1, ok2)
-	return v //want "nilable value returned"
+	return v //want "returned"
 }
 
 func testCheckInNeitherThenRightSeries(m map[any]any) any {
@@ -422,7 +422,7 @@ func testCheckInNeitherThenRightSeries(m map[any]any) any {
 		return 0
 	}
 	func(any, any) {}(ok1, ok2)
-	return v //want "nilable value returned"
+	return v //want "returned"
 }
 
 func testCheckInNeitherThenBothSeries(m map[any]any) any {
@@ -454,7 +454,7 @@ func testCheckOnlyInLeftThenNeitherSeries(m map[any]any) any {
 		v, ok2 = m[0]
 	}
 	func(any) {}(ok2)
-	return v //want "nilable value returned"
+	return v //want "returned"
 }
 
 func testCheckOnlyInLeftThenLeftSeries(m map[any]any) any {
@@ -473,7 +473,7 @@ func testCheckOnlyInLeftThenLeftSeries(m map[any]any) any {
 		return 0
 	}
 	func(any) {}(ok2)
-	return v //want "nilable value returned"
+	return v //want "returned"
 }
 
 func testCheckOnlyInLeftThenRightSeries(m map[any]any) any {
@@ -525,7 +525,7 @@ func testCheckOnlyInRightThenNeitherSeries(m map[any]any) any {
 		}
 	}
 	func(any) {}(ok1)
-	return v //want "nilable value returned"
+	return v //want "returned"
 }
 
 func testCheckOnlyInRightThenLeftSeries(m map[any]any) any {
@@ -562,7 +562,7 @@ func testCheckOnlyInRightThenRightSeries(m map[any]any) any {
 		return 0
 	}
 	func(any) {}(ok1)
-	return v //want "nilable value returned"
+	return v //want "returned"
 }
 
 func testCheckOnlyInRightThenBothSeries(m map[any]any) any {
@@ -617,6 +617,6 @@ func implyCall() {
 	var s *int = nil // this is nilable
 	if c := imply(s); c != nil {
 		// "c != nil" implies "s != nil", but NilAway does not know this and reports the next line
-		print(*s) // want "nil .* dereferenced"
+		print(*s) // want "(?s)literal nil .* dereferenced"
 	}
 }

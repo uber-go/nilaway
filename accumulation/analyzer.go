@@ -170,14 +170,11 @@ func errorsToDiagnostics(errs []error) []analysis.Diagnostic {
 // buildDiagnostics takes a list of FullTriggers, which are assumed to already have been checked
 // and are known to fail, and returns a slice of the appropriate diagnostics for all the triggers.
 func buildDiagnostics(pass *analysis.Pass, triggers []annotation.FullTrigger) []analysis.Diagnostic {
-	var errors []analysis.Diagnostic
+	conflicts := inference.ConflictList{NoGrouping: true}
 	for _, trigger := range triggers {
-		errors = append(errors, analysis.Diagnostic{
-			Pos:     trigger.Consumer.Pos(),
-			Message: trigger.BuildStringRepr(pass),
-		})
+		conflicts.AddSingleAssertionConflict(pass, trigger)
 	}
-	return errors
+	return conflicts.Diagnostics()
 }
 
 // checkErrors iterates over a set of full triggers, checking each one against a given annotation

@@ -22,16 +22,16 @@ package globalvars
 var x = 3
 
 // This should throw an error since it is not initialized
-var noInit *int //want "nilable value assigned into the global variable"
+var noInit *int //want "assigned into the global variable"
 
 // nilable(nilableVar)
 var nilableVar *int
-var assignedNilable = nilableVar //want "nilable value assigned"
+var assignedNilable = nilableVar //want "assigned"
 
-var initMult, noInitMult *int = &x, nil //want "nilable value assigned"
+var initMult, noInitMult *int = &x, nil //want "assigned"
 
 // Use of 1-1 assignment and a function call
-var initNew, noInitAgain = new(*int), nilableFun() //want "nilable value assigned"
+var initNew, noInitAgain = new(*int), nilableFun() //want "assigned"
 
 // nilable(result 0)
 func nilableFun() *string {
@@ -64,7 +64,7 @@ type structA struct {
 }
 
 var stA = &structA{}
-var nilableField = stA.A //want "nilable value assigned"
+var nilableField = stA.A //want "assigned"
 
 // nilable(result 0)
 func (structA) methA() *int {
@@ -75,7 +75,7 @@ func (structA) methB() *int {
 	return new(int)
 }
 
-var nilableMethod, nonnilMethod = stA.methA(), stA.methB() //want "nilable value assigned"
+var nilableMethod, nonnilMethod = stA.methA(), stA.methB() //want "assigned"
 
 // Function with multiple returns
 
@@ -84,7 +84,7 @@ func funMulti() (int, *int) {
 	return 2, new(int)
 }
 
-var multiNonNil, multiNil = funMulti() //want "nilable value assigned"
+var multiNonNil, multiNil = funMulti() //want "assigned"
 
 // nilable(result 0)
 func foo() *int {
