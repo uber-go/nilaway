@@ -86,7 +86,7 @@ type functionResult struct {
 	// declarations can be parallelized.
 	// TODO: remove this.
 	index int
-	// funcDecl is the function declaration in the package.
+	// funcDecl is the function declaration itself.
 	funcDecl *ast.FuncDecl
 }
 
@@ -328,7 +328,7 @@ func duplicateFullTriggersFromContractedFunctionsToCallers(
 		if r == nil {
 			continue
 		}
-		funcTriggers[r.index] = append(r.triggers, triggers...)
+		funcTriggers[r.index] = append(funcTriggers[r.index], triggers...)
 	}
 }
 

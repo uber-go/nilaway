@@ -366,7 +366,7 @@ func (BlankVarReturn) String() string {
 	return "read from a blank variable that can never be assigned to"
 }
 
-// DuplicateParamProducer duplicates a given consumer trigger, assuming the given produce trigger
+// DuplicateParamProducer duplicates a given produce trigger, assuming the given produce trigger
 // is of FuncParam.
 func DuplicateParamProducer(t *ProduceTrigger, location token.Position) *ProduceTrigger {
 	key := t.Annotation.(FuncParam).TriggerIfNilable.Ann.(ParamAnnotationKey)

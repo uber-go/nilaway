@@ -39,7 +39,7 @@ type Engine struct {
 	// converted to diagnostics and returned along with the current inferred map whenever users
 	// request it.
 	conflicts *conflictGrouping
-	// controlledTriggersBySite stores the set of controlled triggers for each site if the site is
+	// controlledTriggersBySite stores the set of controlled triggers for each site if the site
 	// controls any triggers. This field is for internal use in the struct only and should not be
 	// accessed elsewhere.
 	controlledTriggersBySite map[primitiveSite]map[annotation.FullTrigger]bool

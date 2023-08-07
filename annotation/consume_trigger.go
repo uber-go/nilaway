@@ -500,8 +500,8 @@ func (m MethodParamFromInterfacePrestring) String() string {
 		m.ParamName, m.ImplName, m.IntName)
 }
 
-// DuplicateReturnConsumer duplicates a given consumer trigger, assuming the given consumer trigger
-// is of UseAsReturn.
+// DuplicateReturnConsumer duplicates a given consume trigger, assuming the given consumer trigger
+// is for a UseAsReturn annotation.
 func DuplicateReturnConsumer(t *ConsumeTrigger, location token.Position) *ConsumeTrigger {
 	ann := t.Annotation.(UseAsReturn)
 	key := ann.TriggerIfNonNil.Ann.(RetAnnotationKey)

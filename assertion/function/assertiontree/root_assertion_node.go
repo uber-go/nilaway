@@ -661,19 +661,19 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 						},
 					})
 				} else {
-					var paramOrArgKey annotation.Key
+					var paramKey annotation.Key
 					if r.HasContract(fdecl) {
-						// Creates a new argument site with location information at every calling
-						// of the function with contracts. The return site is unique at every call
+						// Creates a new param site with location information at every call site
+						// for a function with contracts. The param site is unique at every call
 						// site, even with the same function called.
-						paramOrArgKey = annotation.NewCallSiteParamKey(fdecl, i, r.LocationOf(arg))
+						paramKey = annotation.NewCallSiteParamKey(fdecl, i, r.LocationOf(arg))
 					} else {
-						paramOrArgKey = annotation.ParamKeyFromArgNum(fdecl, i)
+						paramKey = annotation.ParamKeyFromArgNum(fdecl, i)
 					}
 					consumer := annotation.ConsumeTrigger{
 						Annotation: annotation.ArgPass{
 							TriggerIfNonNil: annotation.TriggerIfNonNil{
-								Ann: paramOrArgKey,
+								Ann: paramKey,
 							}},
 						Expr:   arg,
 						Guards: util.NoGuards(),
