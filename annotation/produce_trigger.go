@@ -373,16 +373,17 @@ func DuplicateParamProducer(t *ProduceTrigger, location token.Position) *Produce
 	return &ProduceTrigger{
 		Annotation: FuncParam{
 			TriggerIfNilable: TriggerIfNilable{
-				Ann: NewArgKey(key.FuncDecl, key.ParamNum, location)}},
+				Ann: NewCallSiteParamKey(key.FuncDecl, key.ParamNum, location)}},
 		Expr: t.Expr,
 	}
 }
 
-// FuncParam is used when a value is determined to flow from a function parameter.
-// This consumer trigger can be used on top of two different sites: ParamAnnotationKey &
-// ArgAnnotationKey. ParamAnnotationKey is the parameter site in the function declaration;
-// ArgAnnotationKey is the argument site in the call expression. ArgAnnotationKey is specifically
-// used for functions with contracts since we need to duplicate the sites for context sensitivity.
+// FuncParam is used when a value is determined to flow from a function parameter. This consumer
+// trigger can be used on top of two different sites: ParamAnnotationKey &
+// CallSiteParamAnnotationKey. ParamAnnotationKey is the parameter site in the function
+// declaration; CallSiteParamAnnotationKey is the argument site in the call expression.
+// CallSiteParamAnnotationKey is specifically used for functions with contracts since we need to
+// duplicate the sites for context sensitivity.
 type FuncParam struct {
 	TriggerIfNilable
 }
@@ -396,10 +397,10 @@ func (f FuncParam) Prestring() Prestring {
 	switch key := f.Ann.(type) {
 	case ParamAnnotationKey:
 		return FuncParamPrestring{key.ParamNameString(), key.FuncDecl.Name(), ""}
-	case ArgAnnotationKey:
+	case CallSiteParamAnnotationKey:
 		return FuncParamPrestring{key.ParamNameString(), key.FuncDecl.Name(), key.Location.String()}
 	default:
-		panic(fmt.Sprintf("Expected ParamAnnotationKey or ArgAnnotationKey but see: %T", key))
+		panic(fmt.Sprintf("Expected ParamAnnotationKey or CallSiteParamAnnotationKey but got: %T", key))
 	}
 }
 
@@ -408,7 +409,7 @@ type FuncParamPrestring struct {
 	ParamName string
 	FuncName  string
 	// Location is empty for a FuncParam enclosing ParamAnnotationKey. Location points to the
-	// location of the argument pass at the call site for a FuncParam enclosing ArgAnnotationKey.
+	// location of the argument pass at the call site for a FuncParam enclosing CallSiteParamAnnotationKey.
 	Location string
 }
 
@@ -602,11 +603,12 @@ func (f ParamFldReadPrestring) String() string {
 	return fmt.Sprintf("of the field `%s` of param %d of `%s`", f.FieldName, f.ParamNum, f.FuncName)
 }
 
-// FuncReturn is used when a value is determined to flow from the return of a function.
-// This consumer trigger can be used on top of two different sites: RetAnnotationKey &
-// ResAnnotationKey. RetAnnotationKey is the parameter site in the function declaration;
-// ResAnnotationKey is the argument site in the call expression. ResAnnotationKey is specifically
-// used for functions with contracts since we need to duplicate the sites for context sensitivity.
+// FuncReturn is used when a value is determined to flow from the return of a function. This
+// consumer trigger can be used on top of two different sites: RetAnnotationKey &
+// CallSiteRetAnnotationKey. RetAnnotationKey is the parameter site in the function declaration;
+// CallSiteRetAnnotationKey is the argument site in the call expression. CallSiteRetAnnotationKey
+// is specifically used for functions with contracts since we need to duplicate the sites for
+// context sensitivity.
 type FuncReturn struct {
 	TriggerIfNilable
 	Guarded bool
@@ -621,10 +623,10 @@ func (f FuncReturn) Prestring() Prestring {
 	switch key := f.Ann.(type) {
 	case RetAnnotationKey:
 		return FuncReturnPrestring{key.RetNum, key.FuncDecl.Name(), ""}
-	case ResAnnotationKey:
+	case CallSiteRetAnnotationKey:
 		return FuncReturnPrestring{key.RetNum, key.FuncDecl.Name(), key.Location.String()}
 	default:
-		panic(fmt.Sprintf("Expected RetAnnotationKey or ResAnnotationKey but see: %T", key))
+		panic(fmt.Sprintf("Expected RetAnnotationKey or CallSiteRetAnnotationKey but got: %T", key))
 	}
 }
 
@@ -633,7 +635,7 @@ type FuncReturnPrestring struct {
 	RetNum   int
 	FuncName string
 	// Location is empty for a FuncReturn enclosing RetAnnotationKey. Location points to the
-	// location of the result return at the call site for a FuncReturn enclosing ResAnnotationKey.
+	// location of the result return at the call site for a FuncReturn enclosing CallSiteRetAnnotationKey.
 	Location string
 }
 

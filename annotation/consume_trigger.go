@@ -356,11 +356,12 @@ func (g GlobalVarAssignPrestring) String() string {
 	return fmt.Sprintf("assigned into the global variable `%s`", g.VarName)
 }
 
-// ArgPass is when a value flows to a point where it is passed as an argument to a function.
-// This consumer trigger can be used on top of two different sites: ParamAnnotationKey &
-// ArgAnnotationKey. ParamAnnotationKey is the parameter site in the function declaration;
-// ArgAnnotationKey is the argument site in the call expression. ArgAnnotationKey is specifically
-// used for functions with contracts since we need to duplicate the sites for context sensitivity.
+// ArgPass is when a value flows to a point where it is passed as an argument to a function. This
+// consumer trigger can be used on top of two different sites: ParamAnnotationKey &
+// CallSiteParamAnnotationKey. ParamAnnotationKey is the parameter site in the function
+// declaration; CallSiteParamAnnotationKey is the argument site in the call expression.
+// CallSiteParamAnnotationKey is specifically used for functions with contracts since we need to
+// duplicate the sites for context sensitivity.
 type ArgPass struct {
 	TriggerIfNonNil
 }
@@ -378,14 +379,15 @@ func (a ArgPass) Prestring() Prestring {
 			FuncName:  key.FuncDecl.Name(),
 			Location:  "",
 		}
-	case ArgAnnotationKey:
+	case CallSiteParamAnnotationKey:
 		return ArgPassPrestring{
 			ParamName: key.MinimalString(),
 			FuncName:  key.FuncDecl.Name(),
 			Location:  key.Location.String(),
 		}
 	default:
-		panic(fmt.Sprintf("Expected ParamAnnotationKey or ArgAnnotationKey but see: %T", key))
+		panic(fmt.Sprintf(
+			"Expected ParamAnnotationKey or CallSiteParamAnnotationKey but got: %T", key))
 	}
 }
 
@@ -394,7 +396,7 @@ type ArgPassPrestring struct {
 	ParamName string
 	FuncName  string
 	// Location points to the code location of the argument pass at the call site for a ArgPass
-	// enclosing ArgAnnotationKey; Location is empty for a ArgPass enclosing ParamAnnotationKey.
+	// enclosing CallSiteParamAnnotationKey; Location is empty for a ArgPass enclosing ParamAnnotationKey.
 	Location string
 }
 
@@ -506,7 +508,7 @@ func DuplicateReturnConsumer(t *ConsumeTrigger, location token.Position) *Consum
 	return &ConsumeTrigger{
 		Annotation: UseAsReturn{
 			TriggerIfNonNil: TriggerIfNonNil{
-				Ann: NewResKey(key.FuncDecl, key.RetNum, location)},
+				Ann: NewCallSiteRetKey(key.FuncDecl, key.RetNum, location)},
 			IsNamedReturn: ann.IsNamedReturn,
 			RetStmt:       ann.RetStmt,
 		},
@@ -518,8 +520,8 @@ func DuplicateReturnConsumer(t *ConsumeTrigger, location token.Position) *Consum
 
 // UseAsReturn is when a value flows to a point where it is returned from a function.
 // This consumer trigger can be used on top of two different sites: RetAnnotationKey &
-// ResAnnotationKey. RetAnnotationKey is the parameter site in the function declaration;
-// ResAnnotationKey is the argument site in the call expression. ResAnnotationKey is specifically
+// CallSiteRetAnnotationKey. RetAnnotationKey is the parameter site in the function declaration;
+// CallSiteRetAnnotationKey is the argument site in the call expression. CallSiteRetAnnotationKey is specifically
 // used for functions with contracts since we need to duplicate the sites for context sensitivity.
 type UseAsReturn struct {
 	TriggerIfNonNil
@@ -542,7 +544,7 @@ func (u UseAsReturn) Prestring() Prestring {
 			key.FuncDecl.Type().(*types.Signature).Results().At(key.RetNum).Name(),
 			"",
 		}
-	case ResAnnotationKey:
+	case CallSiteRetAnnotationKey:
 		return UseAsReturnPrestring{
 			key.FuncDecl.Name(),
 			key.RetNum,
@@ -551,7 +553,7 @@ func (u UseAsReturn) Prestring() Prestring {
 			key.Location.String(),
 		}
 	default:
-		panic(fmt.Sprintf("Expected RetAnnotationKey or ResAnnotationKey but see: %T", key))
+		panic(fmt.Sprintf("Expected RetAnnotationKey or CallSiteRetAnnotationKey but got: %T", key))
 	}
 }
 
@@ -562,7 +564,8 @@ type UseAsReturnPrestring struct {
 	IsNamedReturn bool
 	RetName       string
 	// Location is empty for a UseAsReturn enclosing RetAnnotationKey. Location points to the
-	// location of the result return at the call site for a UseAsReturn enclosing ResAnnotationKey.
+	// location of the result at the call site for a UseAsReturn enclosing
+	// CallSiteRetAnnotationKey.
 	Location string
 }
 

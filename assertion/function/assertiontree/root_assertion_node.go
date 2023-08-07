@@ -666,7 +666,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 						// Creates a new argument site with location information at every calling
 						// of the function with contracts. The return site is unique at every call
 						// site, even with the same function called.
-						paramOrArgKey = annotation.NewArgKey(fdecl, i, r.LocationOf(arg))
+						paramOrArgKey = annotation.NewCallSiteParamKey(fdecl, i, r.LocationOf(arg))
 					} else {
 						paramOrArgKey = annotation.ParamKeyFromArgNum(fdecl, i)
 					}

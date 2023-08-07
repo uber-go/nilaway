@@ -369,7 +369,7 @@ func duplicateFullTrigger(
 		retLoc := util.PosToLocation(callExpr.Pos(), pass)
 		dupTrigger.Consumer = annotation.DuplicateReturnConsumer(trigger.Consumer, retLoc)
 		// Set up the site that controls the controlled full trigger to be created
-		c := annotation.NewArgKey(callee, 0, argLoc)
+		c := annotation.NewCallSiteParamKey(callee, 0, argLoc)
 		dupTrigger.Controller = &c
 	}
 

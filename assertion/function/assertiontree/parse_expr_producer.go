@@ -419,7 +419,7 @@ func (r *RootAssertionNode) getFuncReturnProducers(ident *ast.Ident, expr *ast.C
 			// Creates a new result site with location information at every calling of the function
 			// with contracts. The return site is unique at every call site, even with the same
 			// function called.
-			retOrResKey = annotation.NewResKey(funcObj, i, r.LocationOf(expr))
+			retOrResKey = annotation.NewCallSiteRetKey(funcObj, i, r.LocationOf(expr))
 		} else {
 			retOrResKey = annotation.RetKeyFromRetNum(funcObj, i)
 		}

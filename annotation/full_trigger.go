@@ -37,7 +37,7 @@ type FullTrigger struct {
 	// otherwise the full trigger is deactivated in the inference engine.
 	// If this field is nil, it means the trigger is not a controlled trigger and the trigger will
 	// be activated all the time.
-	Controller *ArgAnnotationKey
+	Controller *CallSiteParamAnnotationKey
 }
 
 // Controlled returns true if this full trigger is controlled by a controller site; otherwise
