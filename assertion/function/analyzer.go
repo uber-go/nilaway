@@ -272,7 +272,7 @@ func duplicateFullTriggersFromContractedFunctionsToCallers(
 ) {
 
 	// Find all the calls to contracted functions
-	// callsByCtrtFunc is a mapping contracted function -> caller -> call expression
+	// callsByCtrtFunc is a mapping: contracted function -> caller -> all the call expressions
 	callsByCtrtFunc := map[*types.Func]map[*types.Func]*ast.CallExpr{}
 	for funcObj, r := range funcResults {
 		for ctrFunc, calls := range findCallsToContractedFunctions(r.funcDecl, pass, funcContracts) {
