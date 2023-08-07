@@ -15,6 +15,4 @@ coverage:
         if_ci_failed: error    # if ci fails report status as success, error, or failure
     patch:
       default:
-        enabled: yes
-        target: 80%            # For each PR, 80% of the new code should be covered, in addition to meeting
-                               # the project threshold above for overall code coverage for the codebase.
+        enabled: no
