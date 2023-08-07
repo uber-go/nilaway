@@ -47,9 +47,16 @@ func barReturn2() {
 
 // Test the contracted function contains a full trigger param 0 -> nonnil.
 // contract(nonnil -> nonnil)
-func fooParam(x *int) *int { // want "^ Annotation on Param 0.*\n.*Must be NILABLE.*\n.*AND.*\n.*Must be NONNIL.*NONNIL$"
-	sink(*x) // "nilable value dereferenced" wanted
-	return new(int)
+func fooParam(x *int) *int { // want "^ Annotation on Param 0.*\n.*Must be NILABLE.*\n.*AND.*\n.*Must be NONNIL.*NONNIL$" "^ Annotation on Result 0.*\n.*Must be NILABLE.*\n.*AND.*\n.*Must be NONNIL.*NONNIL$"
+	if x != nil {
+		return new(int)
+	}
+	if rand.Float64() > 0.5 {
+		return new(int)
+	} else {
+		sink(*x) // "nilable value dereferenced" wanted
+		return nil
+	}
 }
 
 func barParam1() {
@@ -67,25 +74,6 @@ func barParam2() {
 
 func sink(v int) {}
 
-// Test the contracted function contains a full trigger param 0 -> return 0.
-// contract(nonnil -> nonnil)
-func fooParamAndReturn(x *int) *int { // want "^ Annotation on Result 0.*\n.*Must be NILABLE.*\n.*AND.*\n.*Must be NONNIL.*NONNIL$"
-	return x
-}
-
-func barParamAndReturn1() {
-	n := 1
-	a1 := &n
-	b1 := fooParamAndReturn(a1)
-	print(*b1) // No "nilable value dereferenced" wanted
-}
-
-func barParamAndReturn2() {
-	var a2 *int
-	b2 := fooParamAndReturn(a2)
-	print(*b2) // "nilable value dereferenced" wanted
-}
-
 // Test the contracted function contains another contracted function.
 // contract(nonnil -> nonnil)
 func fooNested(x *int) *int {
@@ -94,7 +82,14 @@ func fooNested(x *int) *int {
 
 // contract(nonnil -> nonnil)
 func fooBase(x *int) *int { // want "^ Annotation on Result 0.*\n.*Must be NILABLE.*\n.*AND.*\n.*Must be NONNIL.*NONNIL$"
-	return x
+	if x != nil {
+		return new(int)
+	}
+	if rand.Float64() > 0.5 {
+		return nil
+	} else {
+		return new(int)
+	}
 }
 
 func barNested1() {
@@ -112,14 +107,21 @@ func barNested2() {
 
 // Test the contracted function is called by another function.
 // contract(nonnil -> nonnil)
-func fooParamCalledInAnotherFunction(s *int) *int { // want "^ Annotation on Param 0.*\n.*Must be NILABLE.*\n.*AND.*\n.*Must be NONNIL.*NONNIL$"
-	sink(*s)
-	return new(int)
+func fooParamCalledInAnotherFunction(x *int) *int { // want "^ Annotation on Param 0.*\n.*Must be NILABLE.*\n.*AND.*\n.*Must be NONNIL.*NONNIL$"
+	if x != nil {
+		return new(int)
+	}
+	if rand.Float64() > 0.5 {
+		return new(int)
+	} else {
+		sink(*x) // "nilable value dereferenced" wanted
+		return nil
+	}
 }
 
 func barParamCalledInAnotherFunction() {
-	var s *int
-	call(fooParamCalledInAnotherFunction(s))
+	var x *int
+	call(fooParamCalledInAnotherFunction(x))
 }
 
 func call(x *int) {}
