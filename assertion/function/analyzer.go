@@ -277,8 +277,15 @@ func duplicateFullTriggersFromContractedFunctionsToCallers(
 	for funcObj, r := range funcResults {
 		for ctrFunc, calls := range findCallsToContractedFunctions(r.funcDecl, pass, funcContracts) {
 			for _, call := range calls {
-				// TODO: have to introduce v to make NilAway happy. Remove v when NilAway can
-				//  tolerate this.
+				// TODO: Ideally, we should do
+				//
+				// if _, ok := callsByCtrtFunc[ctrFunc]; !ok {
+				//  callsByCtrtFunc[ctrFunc] = map[*types.Func]*ast.CallExpr{}
+				// }
+				// callsByCtrtFunc[ctrFunc][funcObj] = call
+				//
+				// However, NilAway complains that callsByCtrtFunc[ctrFunc] can be nil. Thus, we
+				// introduce an intermediate variable v and the following instead.
 				v, ok := callsByCtrtFunc[ctrFunc]
 				if !ok {
 					v = map[*types.Func]*ast.CallExpr{}
@@ -293,10 +300,10 @@ func duplicateFullTriggersFromContractedFunctionsToCallers(
 	// return) into all the callers
 	dupTriggers := map[*types.Func][]annotation.FullTrigger{}
 	for ctrtFunc, calls := range callsByCtrtFunc {
-		// TODO: have to introduce r to make NilAway happy. Remove r when NilAway can tolerate
-		//  this.
 		r := funcResults[ctrtFunc]
 		if r == nil {
+			// should not happen since funcResults should contain all the functions including any
+			// contracted functions.
 			continue
 		}
 		for _, trigger := range r.triggers {
@@ -322,10 +329,10 @@ func duplicateFullTriggersFromContractedFunctionsToCallers(
 
 	// Update funcTriggers with duplicated triggers
 	for funcObj, triggers := range dupTriggers {
-		// TODO: have to introduce r to make NilAway happy. Remove r when NilAway can tolerate
-		//  this.
 		r := funcResults[funcObj]
 		if r == nil {
+			// should not happen since funcResults should contain all the functions including any
+			// contracted functions.
 			continue
 		}
 		funcTriggers[r.index] = append(funcTriggers[r.index], triggers...)
