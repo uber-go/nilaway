@@ -158,3 +158,22 @@ func barReturnCalledMultipleTimesInTheSameFunction() {
 	b4 := fooReturnCalledMultipleTimesInTheSameFunction(a4)
 	print(*b4) // "nilable value dereferenced" wanted
 }
+
+// Contract below isn't useful, since return is always nonnil and argument is ignored, but added to
+// check we don't crash on unnamed parameters.
+// contract(nonnil -> nonnil)
+func fooUnamedParam(_ *int) *int {
+	return new(int)
+}
+
+func barUnamedParam1() {
+	var a1 *int
+	b1 := fooUnamedParam(a1)
+	print(*b1) // No "nilable value dereferenced" wanted
+}
+
+func barUnamedParam2() {
+	var a2 *int
+	b2 := fooUnamedParam(a2)
+	print(*b2) // No "nilable value dereferenced" wanted
+}
