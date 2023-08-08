@@ -321,6 +321,18 @@ func (c *ConsumeTriggerTautology) SetNeedsGuard(b bool) {
 	c.IsGuardNotNeeded = !b
 }
 
+// customPos has the below default implementation for ConsumeTriggerTautology, in which case ConsumeTrigger.Pos() will return a default value.
+// To return non-default position values, this method should be overridden appropriately.
+func (*ConsumeTriggerTautology) customPos() (token.Pos, bool) { return token.NoPos, false }
+
+// NeedsGuard default implementation for ConsumeTriggerTautology. To return non-default value, this method should be overridden.
+func (c *ConsumeTriggerTautology) NeedsGuard() bool { return !c.IsGuardNotNeeded }
+
+// SetNeedsGuard sets the underlying Guard-Neediness of this ConsumerTrigger
+func (c *ConsumeTriggerTautology) SetNeedsGuard(b bool) {
+	c.IsGuardNotNeeded = !b
+}
+
 // equals returns true if the passed ConsumingAnnotationTrigger is equal to this one
 func (c *ConsumeTriggerTautology) equals(other ConsumingAnnotationTrigger) bool {
 	if other, ok := other.(*ConsumeTriggerTautology); ok {
