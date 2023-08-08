@@ -188,5 +188,5 @@ type H struct {
 // nilable(x)
 func testChainedAccesses(x *X) bool {
 	// Below gives False Positives for the field accesses of `f` and `g`. Fix this in a follow-up diff. Issue tracked in
-	return x != nil && x.f != nil && x.f.g != nil && x.f.g.h == 4 //want "field access" "field access" "field access"
+	return x != nil && x.f != nil && x.f.g != nil && x.f.g.h == 4 //want "field .* accessed" "field .* accessed" "field .* accessed"
 }

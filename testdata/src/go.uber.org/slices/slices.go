@@ -825,17 +825,17 @@ func helperReturnNonZeroSlicingNonNilProducerForNonNilParam(b []int) []int {
 
 // nonnil(a, a[])
 func testAppendNil(a []*int) {
-	a[0] = nil //want "assigned deeply into deeply nonnil arg"
+	a[0] = nil //want "assigned into .* expected nonnil element type"
 	// Now, we append a literal nil into a deeply nonnil slice.
-	a = append(a, nil) //want "assigned deeply into deeply nonnil arg"
+	a = append(a, nil) //want "assigned into .* expected nonnil element type"
 }
 
 // nonnil(a, a[], b)
 // nilable(c, result 0)
 func testAppend(a []*int, b, c *int) {
 	b = c
-	a = append(a, b) //want "assigned deeply into deeply nonnil arg"
-	a = append(a, c) //want "assigned deeply into deeply nonnil arg"
+	a = append(a, b) //want "assigned into .* expected nonnil element type"
+	a = append(a, c) //want "assigned into .* expected nonnil element type"
 }
 
 // nilable(result 0)
@@ -845,8 +845,8 @@ func nilableFun() *int {
 
 // nonnil(a, a[], b)
 func testAppendNilableFunc(a []*int) {
-	a[0] = nilableFun()         //want "assigned deeply into"
-	a = append(a, nilableFun()) //want "assigned deeply into deeply nonnil arg"
+	a[0] = nilableFun()         //want "assigned into .* expected nonnil element type"
+	a = append(a, nilableFun()) //want "assigned into .* expected nonnil element type"
 }
 
 // nonnil(a, a[])
@@ -860,7 +860,7 @@ func testTheFirstArgumentOfAppend(a, b []*int) {
 // nonnil(a, a[])
 // nilable(b, b[])
 func testVariadicArgs(a, b []*int) {
-	a = append(a, b...) //want "assigned deeply into deeply nonnil arg"
+	a = append(a, b...) //want "assigned into .* expected nonnil element type"
 	b = append(b, a...)
 }
 

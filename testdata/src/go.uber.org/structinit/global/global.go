@@ -61,7 +61,7 @@ func h2() {
 		return
 	}
 
-	print(g2.aptr.ptr) //want "read from the field `aptr`"
+	print(g2.aptr.ptr) //want "read from field `g2.aptr`"
 }
 
 var g3 = &A{}

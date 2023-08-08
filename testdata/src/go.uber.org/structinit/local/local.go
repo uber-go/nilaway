@@ -95,7 +95,7 @@ func m15() {
 // this test checks that we only get error for `b` being nil, and not for its uninitialized fields
 func m16() {
 	var b *A
-	print(b.aptr.ptr) //want "read from a variable that was never assigned to"
+	print(b.aptr.ptr) //want "unassigned variable `b`"
 }
 
 // Testing unnamed struct

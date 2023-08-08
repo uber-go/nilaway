@@ -19,7 +19,7 @@ const StableRoundLimit = 5
 // BackpropTimeout is the timeout set for analysis of each function. This ensures build time SLAs.
 // NilAway should report an error if this timeout is ever hit, in order not to silently ignore any
 // functions due to this.
-const BackpropTimeout = 10 * time.Second
+const BackpropTimeout = 10000 * time.Second
 
 // ErrorOnNilableMapRead configures whether reading from nil maps should be considered an error.
 // Since Go does not panic on this, right now we do not interpret it as one, but this could be

@@ -750,9 +750,17 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 			}
 		}
 		if !allowNilable {
-			// We are in the default case -- it's a field access! Must be non-nil.
+			// We are in the default case -- it's a field/method access! Must be non-nil.
+			var method *types.Func
+			var field *types.Var
+			if r.isFunc(expr.Sel) {
+				method = r.ObjectOf(expr.Sel).(*types.Func)
+			} else {
+				field = r.ObjectOf(expr.Sel).(*types.Var)
+			}
+
 			r.AddConsumption(&annotation.ConsumeTrigger{
-				Annotation: annotation.FldAccess{},
+				Annotation: annotation.FldAccess{Field: field, Method: method},
 				Expr:       expr.X,
 				Guards:     util.NoGuards(),
 			})

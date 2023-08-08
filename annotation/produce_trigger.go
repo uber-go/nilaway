@@ -80,7 +80,7 @@ func (TriggerIfNilable) Prestring() Prestring {
 type TriggerIfNilablePrestring struct{}
 
 func (TriggerIfNilablePrestring) String() string {
-	return "could be nilable"
+	return "`<EXPR>` could be nilable"
 }
 
 // CheckProduce returns true if the underlying annotation is present in the passed map and nilable
@@ -126,7 +126,7 @@ func (TriggerIfDeepNilable) Prestring() Prestring {
 type TriggerIfDeepNilablePrestring struct{}
 
 func (TriggerIfDeepNilablePrestring) String() string {
-	return "could be nilable"
+	return "`<EXPR>` could be nilable"
 }
 
 // CheckProduce returns true if the underlying annotation is present in the passed map and deeply nilable
@@ -183,7 +183,7 @@ func (ProduceTriggerTautology) UnderlyingSite() Key { return nil }
 type ProduceTriggerTautologyPrestring struct{}
 
 func (ProduceTriggerTautologyPrestring) String() string {
-	return "is nilable"
+	return "`<EXPR>` is nilable"
 }
 
 // ProduceTriggerNever is used for trigger producers that will never be nil
@@ -202,7 +202,7 @@ func (ProduceTriggerNever) Prestring() Prestring {
 type ProduceTriggerNeverPrestring struct{}
 
 func (ProduceTriggerNeverPrestring) String() string {
-	return "could not be nilable"
+	return "`<EXPR>` could not be nilable"
 }
 
 // CheckProduce returns true false
@@ -256,7 +256,7 @@ func (PositiveNilCheck) Prestring() Prestring {
 type PositiveNilCheckPrestring struct{}
 
 func (PositiveNilCheckPrestring) String() string {
-	return "determined to be nil by a conditional check"
+	return "`<EXPR>` determined to be nil by a conditional check"
 }
 
 // NegativeNilCheck is used when a value is checked in a conditional to NOT BE nil
@@ -277,7 +277,7 @@ func (NegativeNilCheck) Prestring() Prestring {
 type NegativeNilCheckPrestring struct{}
 
 func (NegativeNilCheckPrestring) String() string {
-	return "determined not to be nil by a conditional check"
+	return "`<EXPR>` determined to be nonnil by a conditional check"
 }
 
 // OkReadReflCheck is used to produce nonnil for artifacts of successful `ok` forms (e.g., maps, channels, type casts).
@@ -331,7 +331,7 @@ func (UnassignedFld) Prestring() Prestring {
 type UnassignedFldPrestring struct{}
 
 func (UnassignedFldPrestring) String() string {
-	return "unassigned at struct initialization"
+	return "`<EXPR>` unassigned at struct initialization"
 }
 
 // NoVarAssign is when a value is determined to flow from a variable that wasn't assigned to
@@ -352,7 +352,7 @@ func (NoVarAssign) Prestring() Prestring {
 type NoVarAssignPrestring struct{}
 
 func (NoVarAssignPrestring) String() string {
-	return "read from a variable that was never assigned to"
+	return "unassigned variable `<EXPR>`"
 }
 
 // BlankVarReturn is when a value is determined to flow from a blank variable ('_') to a return of the function
@@ -361,7 +361,7 @@ type BlankVarReturn struct {
 }
 
 func (BlankVarReturn) String() string {
-	return "read from a blank variable that can never be assigned to"
+	return "blank variable `_`, which can never be assigned to"
 }
 
 // FuncParam is used when a value is determined to flow from a function parameter
@@ -386,7 +386,7 @@ type FuncParamPrestring struct {
 }
 
 func (f FuncParamPrestring) String() string {
-	return fmt.Sprintf("read from the function parameter `%s` of function `%s`", f.ParamName, f.FuncName)
+	return fmt.Sprintf("read by function parameter `<EXPR>`")
 }
 
 // MethodRecv is used when a value is determined to flow from a method receiver
@@ -410,7 +410,7 @@ type MethodRecvPrestring struct {
 }
 
 func (m MethodRecvPrestring) String() string {
-	return fmt.Sprintf("read from the receiver of method `%s`", m.FuncName)
+	return fmt.Sprintf("read by method receiver `<EXPR>`")
 }
 
 // MethodRecvDeep is used when a value is determined to flow deeply from a method receiver
@@ -425,16 +425,25 @@ func (m MethodRecvDeep) String() string {
 // Prestring returns this FuncParam as a Prestring
 func (m MethodRecvDeep) Prestring() Prestring {
 	key := m.Ann.(RecvAnnotationKey)
-	return MethodRecvDeepPrestring{key.FuncDecl.Name()}
+	recv := key.FuncDecl.Type().(*types.Signature).Recv()
+	recvStr := ""
+	if recv != nil {
+		recvStr = recv.Name()
+	}
+	return MethodRecvDeepPrestring{recvStr, key.FuncDecl.Name()}
 }
 
 // MethodRecvDeepPrestring is a Prestring storing the needed information to compactly encode a FuncParam
 type MethodRecvDeepPrestring struct {
+	RecvName string
 	FuncName string
 }
 
 func (m MethodRecvDeepPrestring) String() string {
-	return fmt.Sprintf("read deeply from the receiver of method `%s`", m.FuncName)
+	if m.RecvName == "" {
+		return fmt.Sprintf("value accessed directly from the receiver of method `%s`", m.FuncName)
+	}
+	return fmt.Sprintf("value accessed directly from the receiver `%s` of method `%s`", m.RecvName, m.FuncName)
 }
 
 // VariadicFuncParam is used when a value is determined to flow from a variadic function parameter,
@@ -456,7 +465,7 @@ func (VariadicFuncParam) Prestring() Prestring {
 type VariadicFuncParamPrestring struct{}
 
 func (VariadicFuncParamPrestring) String() string {
-	return "read directly from a variadic function parameter"
+	return "read directly from a variadic function parameter `<EXPR>`"
 }
 
 // TrustedFuncNilable is used when a value is determined to be nilable by a trusted function call
@@ -477,7 +486,7 @@ func (TrustedFuncNilable) Prestring() Prestring {
 type TrustedFuncNilablePrestring struct{}
 
 func (TrustedFuncNilablePrestring) String() string {
-	return "determined to be nilable by a trusted function"
+	return "`<EXPR>` determined to be nilable by a trusted function"
 }
 
 // TrustedFuncNonnil is used when a value is determined to be nonnil by a trusted function call
@@ -498,7 +507,7 @@ func (TrustedFuncNonnil) Prestring() Prestring {
 type TrustedFuncNonnilPrestring struct{}
 
 func (TrustedFuncNonnilPrestring) String() string {
-	return "determined to be nonnil by a trusted function"
+	return "`<EXPR>` determined to be nonnil by a trusted function"
 }
 
 // FldRead is used when a value is determined to flow from a read to a field
@@ -524,7 +533,7 @@ type FldReadPrestring struct {
 }
 
 func (f FldReadPrestring) String() string {
-	return fmt.Sprintf("read from the field `%s`", f.FieldName)
+	return fmt.Sprintf("read from field `<EXPR>`")
 }
 
 // ParamFldRead is used when a struct field value is determined to flow from the param of a function to a consumption
@@ -564,9 +573,9 @@ func (f ParamFldReadPrestring) IsReceiver() bool {
 
 func (f ParamFldReadPrestring) String() string {
 	if f.IsReceiver() {
-		return fmt.Sprintf("of the field `%s` of receiver of `%s`", f.FieldName, f.FuncName)
+		return fmt.Sprintf("read from field `%s` of receiver of method `%s`", f.FieldName, f.FuncName)
 	}
-	return fmt.Sprintf("of the field `%s` of param %d of `%s`", f.FieldName, f.ParamNum, f.FuncName)
+	return fmt.Sprintf("read from field `%s` of param %d of function `%s`", f.FieldName, f.ParamNum, f.FuncName)
 }
 
 // FuncReturn is used when a value is determined to flow from the return of a function
@@ -592,7 +601,7 @@ type FuncReturnPrestring struct {
 }
 
 func (f FuncReturnPrestring) String() string {
-	return fmt.Sprintf("returned as result %d from the function `%s`", f.RetNum, f.FuncName)
+	return fmt.Sprintf("read from result %d of function `%s`", f.RetNum, f.FuncName)
 }
 
 // NeedsGuardMatch for a FuncReturn returns whether this function return is guarded.
@@ -629,7 +638,7 @@ type MethodReturnPrestring struct {
 }
 
 func (m MethodReturnPrestring) String() string {
-	return fmt.Sprintf("returned as result %d from the method `%s`", m.RetNum, m.FuncName)
+	return fmt.Sprintf("read as result %d of method `%s`", m.RetNum, m.FuncName)
 }
 
 // MethodResultReachesInterface is used when a result of a method is determined to flow into a result of an interface using inheritance
@@ -660,8 +669,9 @@ type MethodResultReachesInterfacePrestring struct {
 }
 
 func (m MethodResultReachesInterfacePrestring) String() string {
-	return fmt.Sprintf("could be returned as result %d from the method `%s` (implementing `%s`)",
-		m.RetNum, m.ImplName, m.IntName)
+	// Information from this trigger is present in the error message from other triggers. Hence, dropping the string here
+	// to make the overall error message concise.
+	return ""
 }
 
 // InterfaceParamReachesImplementation is used when a param of a method is determined to flow into the param of an implementing method
@@ -692,8 +702,9 @@ type InterfaceParamReachesImplementationPrestring struct {
 }
 
 func (i InterfaceParamReachesImplementationPrestring) String() string {
-	return fmt.Sprintf("could be passed as param `%s` to the method `%s` (implemented by `%s`)",
-		i.ParamName, i.IntName, i.ImplName)
+	// Information from this trigger is present in the error message from other triggers. Hence, dropping the string here
+	// to make the overall error message concise.
+	return ""
 }
 
 // GlobalVarRead is when a value is determined to flow from a read to a global variable
@@ -719,7 +730,7 @@ type GlobalVarReadPrestring struct {
 }
 
 func (g GlobalVarReadPrestring) String() string {
-	return fmt.Sprintf("read from the global variable `%s`", g.VarName)
+	return fmt.Sprintf("read from global variable `<EXPR>`")
 }
 
 // MapRead is when a value is determined to flow from a map index expression
@@ -745,7 +756,7 @@ type MapReadPrestring struct {
 }
 
 func (m MapReadPrestring) String() string {
-	return fmt.Sprintf("read from an index of a map of type `%s`", m.TypeName)
+	return fmt.Sprintf("`<EXPR>` read from an index of a map of type `%s`", m.TypeName)
 }
 
 // NeedsGuardMatch for a map read is always true - map reads are always intended to be guarded unless checked
@@ -778,7 +789,7 @@ type ArrayReadPrestring struct {
 }
 
 func (a ArrayReadPrestring) String() string {
-	return fmt.Sprintf("read from an index of an array of type `%s`", a.TypeName)
+	return fmt.Sprintf("`<EXPR>` read from an index of an array of type `%s`", a.TypeName)
 }
 
 // SliceRead is when a value is determined to flow from a slice index expression
@@ -802,7 +813,7 @@ type SliceReadPrestring struct {
 }
 
 func (s SliceReadPrestring) String() string {
-	return fmt.Sprintf("read from an index of a slice of type `%s`", s.TypeName)
+	return fmt.Sprintf("`<EXPR>` read from an index of a slice of type `%s`", s.TypeName)
 }
 
 // PtrRead is when a value is determined to flow from a read to a pointer
@@ -826,7 +837,7 @@ type PtrReadPrestring struct {
 }
 
 func (p PtrReadPrestring) String() string {
-	return fmt.Sprintf("read from the value of a pointer of type `%s`", p.TypeName)
+	return fmt.Sprintf("`<EXPR>` read from the value of a pointer of type `%s`", p.TypeName)
 }
 
 // ChanRecv is when a value is determined to flow from a channel receive
@@ -851,7 +862,7 @@ type ChanRecvPrestring struct {
 }
 
 func (c ChanRecvPrestring) String() string {
-	return fmt.Sprintf("received from a channel of type `%s`", c.TypeName)
+	return fmt.Sprintf("`<EXPR>` received from a channel of type `%s`", c.TypeName)
 }
 
 // NeedsGuardMatch for a ChanRecv reads the field NeedsGuard of the
@@ -887,7 +898,7 @@ type FuncParamDeepPrestring struct {
 }
 
 func (f FuncParamDeepPrestring) String() string {
-	return fmt.Sprintf("read deeply from the parameter `%s` of function `%s`", f.ParamName, f.FuncName)
+	return fmt.Sprintf("value `<EXPR>` accessed directly from the parameter `%s`", f.ParamName)
 }
 
 // NeedsGuardMatch for a FuncParamDeep reads the field NeedsGuard of the
@@ -924,7 +935,7 @@ type VariadicFuncParamDeepPrestring struct {
 }
 
 func (v VariadicFuncParamDeepPrestring) String() string {
-	return fmt.Sprintf("read as an index of the variadic parameter `%s` of function `%s`",
+	return fmt.Sprintf("`<EXPR>` read as an index of the variadic parameter `%s` of function `%s`",
 		v.ParamName, v.FuncName)
 }
 
@@ -962,7 +973,7 @@ type FuncReturnDeepPrestring struct {
 }
 
 func (f FuncReturnDeepPrestring) String() string {
-	return fmt.Sprintf("read deeply from result %d of the function `%s`", f.RetNum, f.FuncName)
+	return fmt.Sprintf("value `<EXPR>` accessed directly from result %d of the function `%s`", f.RetNum, f.FuncName)
 }
 
 // NeedsGuardMatch for a FuncReturnDeep reads the field NeedsGuard of the
@@ -998,7 +1009,7 @@ type FldReadDeepPrestring struct {
 }
 
 func (f FldReadDeepPrestring) String() string {
-	return fmt.Sprintf("read deeply from the field `%s`", f.FieldName)
+	return fmt.Sprintf("value `<EXPR>` accessed directly from the field `%s`", f.FieldName)
 }
 
 // NeedsGuardMatch for a FldReadDeep reads the field NeedsGuard of the
@@ -1034,7 +1045,7 @@ type LocalVarReadDeepPrestring struct {
 }
 
 func (v LocalVarReadDeepPrestring) String() string {
-	return fmt.Sprintf("read deeply from the variable `%s`", v.VarName)
+	return fmt.Sprintf("value `<EXPR>` accessed directly from the variable `%s`", v.VarName)
 }
 
 // NeedsGuardMatch for a LocalVarReadDeep reads the field NeedsGuard of the
@@ -1070,7 +1081,7 @@ type GlobalVarReadDeepPrestring struct {
 }
 
 func (g GlobalVarReadDeepPrestring) String() string {
-	return fmt.Sprintf("read deeply from the global variable `%s`", g.VarName)
+	return fmt.Sprintf("value `<EXPR>` accessed directly from the global variable `%s`", g.VarName)
 }
 
 // NeedsGuardMatch for a GlobalVarReadDeep reads the field NeedsGuard of the
@@ -1113,7 +1124,7 @@ type GuardMissingPrestring struct {
 }
 
 func (g GuardMissingPrestring) String() string {
-	return fmt.Sprintf("%s lacking guarding", g.OldPrestring.String())
+	return fmt.Sprintf("%s; lacking guarding", g.OldPrestring.String())
 }
 
 // don't modify the ConsumeTrigger and ProduceTrigger objects after construction! Pointers

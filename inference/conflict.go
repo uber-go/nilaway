@@ -28,7 +28,7 @@ type conflict struct {
 	position         token.Pos  // stores position where the error should be reported
 	expr             string     // stores expression that is overcontrained (i.e., expected to be nonnil, but found nilable)
 	nilFlow          nilFlow    // stores nil flow from source to dereference point
-	similarConflicts []conflict // stores other conflicts that are similar to this one
+	similarConflicts []conflict // stores conflicts that are similar to this one
 }
 
 type nilFlow struct {
@@ -44,11 +44,11 @@ type node struct {
 // newNode creates a new node object from the given Prestring.
 // LocatedPrestring contains accurate information about the position and the reason why NilAway deemed that position
 // to be nilable. We use it if available, else we use the raw string representation available from the Prestring `p`.
-func newNode(p annotation.Prestring) node {
+func newNode(p annotation.Prestring, exprStr string) node {
 	nodeObj := node{}
 	if l, ok := p.(annotation.LocatedPrestring); ok {
 		nodeObj.position = l.Location
-		nodeObj.reason = l.Contained.String()
+		nodeObj.reason = strings.ReplaceAll(l.Contained.String(), "<EXPR>", exprStr)
 	} else if p != nil {
 		nodeObj.reason = p.String()
 	}
@@ -68,8 +68,8 @@ func (n *node) String() string {
 }
 
 // addNilPathNode adds a new node to the nil path.
-func (n *nilFlow) addNilPathNode(p annotation.Prestring) {
-	nodeObj := newNode(p)
+func (n *nilFlow) addNilPathNode(p annotation.Prestring, exprStr string) {
+	nodeObj := newNode(p, exprStr)
 
 	// Note that in the implication graph, we traverse backwards from the point of conflict to the source of nilability.
 	// Therefore, they are added in reverse order from what the program flow would look like. To account for this we
@@ -78,8 +78,8 @@ func (n *nilFlow) addNilPathNode(p annotation.Prestring) {
 }
 
 // addNonNilPathNode adds a new node to the non-nil path
-func (n *nilFlow) addNonNilPathNode(p annotation.Prestring) {
-	nodeObj := newNode(p)
+func (n *nilFlow) addNonNilPathNode(p annotation.Prestring, exprStr string) {
+	nodeObj := newNode(p, exprStr)
 	n.nonnilPath = append(n.nonnilPath, nodeObj)
 }
 
@@ -100,7 +100,8 @@ func (n *nilFlow) String() string {
 	lastNonnilNodeIndex := len(n.nonnilPath) - 1
 	n.nonnilPath[lastNonnilNodeIndex].reason = fmt.Sprintf("%s (must be NONNIL)", n.nonnilPath[lastNonnilNodeIndex].reason)
 
-	return pathString(n.nilPath) + pathString(n.nonnilPath)
+	flow := pathString(n.nilPath) + pathString(n.nonnilPath)
+	return flow
 }
 
 func (c *conflict) String() string {
@@ -149,8 +150,8 @@ func (l *ConflictList) AddSingleAssertionConflict(pass *analysis.Pass, trigger a
 		nilFlow:  nilFlow{},
 	}
 
-	c.nilFlow.addNilPathNode(t.ProducerRepr)
-	c.nilFlow.addNonNilPathNode(t.ConsumerRepr)
+	c.nilFlow.addNilPathNode(t.ProducerRepr, t.ProducerExprRepr)
+	c.nilFlow.addNonNilPathNode(t.ConsumerRepr, t.ConsumerExprRepr)
 
 	l.conflicts = append(l.conflicts, c)
 }
@@ -174,13 +175,13 @@ func (l *ConflictList) AddOverconstraintConflict(nilExplanation ExplainedBool, n
 		// 1. No annotation present (i.e., full inference): we have producer and consumer explanations available; use them directly
 		// 2: Annotation present (i.e., no inference): we construct the explanation from the annotation string
 		if t.ConsumerRepr != nil && t.ProducerRepr != nil {
-			c.nilFlow.addNilPathNode(t.ConsumerRepr)
-			c.nilFlow.addNilPathNode(t.ProducerRepr)
+			c.nilFlow.addNilPathNode(t.ConsumerRepr, t.ConsumerExprRepr)
+			c.nilFlow.addNilPathNode(t.ProducerRepr, t.ProducerExprRepr)
 		} else {
 			c.nilFlow.addNilPathNode(annotation.LocatedPrestring{
 				Contained: e,
 				Location:  util.TruncatePosition(pass.Fset.Position(t.Pos)),
-			})
+			}, "")
 		}
 
 		if e.getExplainedBool() != nil {
@@ -205,14 +206,14 @@ func (l *ConflictList) AddOverconstraintConflict(nilExplanation ExplainedBool, n
 		// 1. No annotation present (i.e., full inference): we have producer and consumer explanations available; use them directly
 		// 2: Annotation present (i.e., no inference): we construct the explanation from the annotation string
 		if t.ConsumerRepr != nil && t.ProducerRepr != nil {
-			c.nilFlow.addNonNilPathNode(t.ProducerRepr)
-			c.nilFlow.addNonNilPathNode(t.ConsumerRepr)
+			c.nilFlow.addNonNilPathNode(t.ProducerRepr, t.ProducerExprRepr)
+			c.nilFlow.addNonNilPathNode(t.ConsumerRepr, t.ConsumerExprRepr)
 			c.position = t.Pos
 		} else {
 			c.nilFlow.addNonNilPathNode(annotation.LocatedPrestring{
 				Contained: e,
 				Location:  util.TruncatePosition(pass.Fset.Position(t.Pos)),
-			})
+			}, "")
 			c.position = t.Pos
 		}
 
@@ -222,7 +223,7 @@ func (l *ConflictList) AddOverconstraintConflict(nilExplanation ExplainedBool, n
 	}
 
 	// add the expression that was overconstrained
-	c.expr = nonnilExplanation.getPrimitiveFullTrigger().ExprRepr
+	c.expr = nonnilExplanation.getPrimitiveFullTrigger().ConsumerExprRepr
 
 	l.conflicts = append(l.conflicts, c)
 }

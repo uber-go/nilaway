@@ -23,7 +23,7 @@ func testPassingArgsExplicityToAnonFuncs() {
 	// Passing nilable variables as parameters.
 	var t1 *int
 	func(t *int) {
-		print(*t) //want "read from a variable that was never assigned to"
+		print(*t) //want "unassigned variable `t1`"
 	}(t1)
 
 	func(t *int) {
@@ -41,7 +41,7 @@ func testPassingArgsExplicityToAnonFuncs() {
 	// Pass nilable struct as parameter.
 	var t3 *A
 	func(t *A) *int {
-		return t.a //want "read from a variable that was never assigned to"
+		return t.a //want "unassigned variable `t3`"
 	}(t3)
 
 	// test nested anonymous function
@@ -50,8 +50,8 @@ func testPassingArgsExplicityToAnonFuncs() {
 	func(t *int) {
 		var t2 *int
 		func(n1 *int, n2 *int) {
-			print(*n1) //want "read from a variable that was never assigned to"
-			print(*n2) //want "read from a variable that was never assigned to"
+			print(*n1) //want "unassigned variable `t4`"
+			print(*n2) //want "unassigned variable `t2`"
 		}(t, t2)
 	}(t4)
 
@@ -63,7 +63,7 @@ func testPassingArgsExplicityToAnonFuncs() {
 		// the following error is coming from n2 but not from n1
 		func(n1 *int, n2 *int) {
 			print(*n1) // this should be ok
-			print(*n2) //want "read from a variable that was never assigned to"
+			print(*n2) //want "unassigned variable `t2`"
 			if n2 != nil {
 				print(*n2) // this is ok
 			}
@@ -82,7 +82,7 @@ func (b *B) testOverWriteReceiver() {
 
 func (b *B) testPassReceiver() {
 	func(nb *B) {
-		print(*nb) //want "read from a variable that was never assigned to"
+		print(*nb) //want "unassigned variable `b`"
 	}(b)
 }
 
