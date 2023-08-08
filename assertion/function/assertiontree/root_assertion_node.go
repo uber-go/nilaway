@@ -49,6 +49,11 @@ type RootAssertionNode struct {
 	functionContext FunctionContext
 }
 
+// LocationOf returns the location of the given expression.
+func (r *RootAssertionNode) LocationOf(expr ast.Expr) token.Position {
+	return util.PosToLocation(expr.Pos(), r.Pass())
+}
+
 // HasContract returns if the given function has any contracts.
 func (r *RootAssertionNode) HasContract(funcObj *types.Func) bool {
 	_, ok := r.functionContext.funcContracts[funcObj]
@@ -656,13 +661,24 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 						},
 					})
 				} else {
-					r.AddConsumption(&annotation.ConsumeTrigger{
-						Annotation: annotation.ArgPass{TriggerIfNonNil: annotation.TriggerIfNonNil{
-							Ann: annotation.ParamKeyFromArgNum(fdecl, i),
-						}},
+					var paramKey annotation.Key
+					if r.HasContract(fdecl) {
+						// Creates a new param site with location information at every call site
+						// for a function with contracts. The param site is unique at every call
+						// site, even with the same function called.
+						paramKey = annotation.NewCallSiteParamKey(fdecl, i, r.LocationOf(arg))
+					} else {
+						paramKey = annotation.ParamKeyFromArgNum(fdecl, i)
+					}
+					consumer := annotation.ConsumeTrigger{
+						Annotation: annotation.ArgPass{
+							TriggerIfNonNil: annotation.TriggerIfNonNil{
+								Ann: paramKey,
+							}},
 						Expr:   arg,
 						Guards: util.NoGuards(),
-					})
+					}
+					r.AddConsumption(&consumer)
 				}
 			}
 		}

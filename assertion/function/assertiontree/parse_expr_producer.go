@@ -414,7 +414,15 @@ func (r *RootAssertionNode) getFuncReturnProducers(ident *ast.Ident, expr *ast.C
 	producers := make([]producer.ParsedProducer, numResults)
 
 	for i := 0; i < numResults; i++ {
-		retKey := annotation.RetKeyFromRetNum(funcObj, i)
+		var retKey annotation.Key
+		if r.HasContract(funcObj) {
+			// Creates a new return site with location information at every call site for a
+			// function with contracts. The return site is unique at every call site, even with the
+			// same function called.
+			retKey = annotation.NewCallSiteRetKey(funcObj, i, r.LocationOf(expr))
+		} else {
+			retKey = annotation.RetKeyFromRetNum(funcObj, i)
+		}
 
 		var fieldProducers []*annotation.ProduceTrigger
 
@@ -441,7 +449,6 @@ func (r *RootAssertionNode) getFuncReturnProducers(ident *ast.Ident, expr *ast.C
 			},
 			FieldProducers: fieldProducers,
 		}
-
 	}
 	return producers
 }

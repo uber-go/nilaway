@@ -19,6 +19,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"strings"
 
 	"go.uber.org/nilaway/util"
 )
@@ -355,7 +356,12 @@ func (g GlobalVarAssignPrestring) String() string {
 	return fmt.Sprintf("assigned into the global variable `%s`", g.VarName)
 }
 
-// ArgPass is when a value flows to a point where it is passed as an argument to a function
+// ArgPass is when a value flows to a point where it is passed as an argument to a function. This
+// consumer trigger can be used on top of two different sites: ParamAnnotationKey &
+// CallSiteParamAnnotationKey. ParamAnnotationKey is the parameter site in the function
+// declaration; CallSiteParamAnnotationKey is the argument site in the call expression.
+// CallSiteParamAnnotationKey is specifically used for functions with contracts since we need to
+// duplicate the sites for context sensitivity.
 type ArgPass struct {
 	TriggerIfNonNil
 }
@@ -366,10 +372,22 @@ func (a ArgPass) String() string {
 
 // Prestring returns this ArgPass as a Prestring
 func (a ArgPass) Prestring() Prestring {
-	paramAnn := a.Ann.(ParamAnnotationKey)
-	return ArgPassPrestring{
-		ParamName: paramAnn.MinimalString(),
-		FuncName:  paramAnn.FuncDecl.Name(),
+	switch key := a.Ann.(type) {
+	case ParamAnnotationKey:
+		return ArgPassPrestring{
+			ParamName: key.MinimalString(),
+			FuncName:  key.FuncDecl.Name(),
+			Location:  "",
+		}
+	case CallSiteParamAnnotationKey:
+		return ArgPassPrestring{
+			ParamName: key.MinimalString(),
+			FuncName:  key.FuncDecl.Name(),
+			Location:  key.Location.String(),
+		}
+	default:
+		panic(fmt.Sprintf(
+			"Expected ParamAnnotationKey or CallSiteParamAnnotationKey but got: %T", key))
 	}
 }
 
@@ -377,10 +395,18 @@ func (a ArgPass) Prestring() Prestring {
 type ArgPassPrestring struct {
 	ParamName string
 	FuncName  string
+	// Location points to the code location of the argument pass at the call site for a ArgPass
+	// enclosing CallSiteParamAnnotationKey; Location is empty for a ArgPass enclosing ParamAnnotationKey.
+	Location string
 }
 
 func (a ArgPassPrestring) String() string {
-	return fmt.Sprintf("passed as %s to func `%s`", a.ParamName, a.FuncName)
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("passed as %s to func `%s`", a.ParamName, a.FuncName))
+	if a.Location != "" {
+		sb.WriteString(fmt.Sprintf(" at %s", a.Location))
+	}
+	return sb.String()
 }
 
 // RecvPass is when a receiver value flows to a point where it is used to invoke a method.
@@ -474,7 +500,29 @@ func (m MethodParamFromInterfacePrestring) String() string {
 		m.ParamName, m.ImplName, m.IntName)
 }
 
-// UseAsReturn is when a value flows to a point where it is returned from a function
+// DuplicateReturnConsumer duplicates a given consume trigger, assuming the given consumer trigger
+// is for a UseAsReturn annotation.
+func DuplicateReturnConsumer(t *ConsumeTrigger, location token.Position) *ConsumeTrigger {
+	ann := t.Annotation.(UseAsReturn)
+	key := ann.TriggerIfNonNil.Ann.(RetAnnotationKey)
+	return &ConsumeTrigger{
+		Annotation: UseAsReturn{
+			TriggerIfNonNil: TriggerIfNonNil{
+				Ann: NewCallSiteRetKey(key.FuncDecl, key.RetNum, location)},
+			IsNamedReturn: ann.IsNamedReturn,
+			RetStmt:       ann.RetStmt,
+		},
+		Expr:         t.Expr,
+		Guards:       t.Guards.Copy(), // TODO: probably, we might not need a deep copy all the time
+		GuardMatched: t.GuardMatched,
+	}
+}
+
+// UseAsReturn is when a value flows to a point where it is returned from a function.
+// This consumer trigger can be used on top of two different sites: RetAnnotationKey &
+// CallSiteRetAnnotationKey. RetAnnotationKey is the parameter site in the function declaration;
+// CallSiteRetAnnotationKey is the argument site in the call expression. CallSiteRetAnnotationKey is specifically
+// used for functions with contracts since we need to duplicate the sites for context sensitivity.
 type UseAsReturn struct {
 	TriggerIfNonNil
 	IsNamedReturn bool
@@ -487,12 +535,25 @@ func (u UseAsReturn) String() string {
 
 // Prestring returns this UseAsReturn as a Prestring
 func (u UseAsReturn) Prestring() Prestring {
-	retAnn := u.Ann.(RetAnnotationKey)
-	return UseAsReturnPrestring{
-		retAnn.FuncDecl.Name(),
-		retAnn.RetNum,
-		u.IsNamedReturn,
-		retAnn.FuncDecl.Type().(*types.Signature).Results().At(retAnn.RetNum).Name(),
+	switch key := u.Ann.(type) {
+	case RetAnnotationKey:
+		return UseAsReturnPrestring{
+			key.FuncDecl.Name(),
+			key.RetNum,
+			u.IsNamedReturn,
+			key.FuncDecl.Type().(*types.Signature).Results().At(key.RetNum).Name(),
+			"",
+		}
+	case CallSiteRetAnnotationKey:
+		return UseAsReturnPrestring{
+			key.FuncDecl.Name(),
+			key.RetNum,
+			u.IsNamedReturn,
+			key.FuncDecl.Type().(*types.Signature).Results().At(key.RetNum).Name(),
+			key.Location.String(),
+		}
+	default:
+		panic(fmt.Sprintf("Expected RetAnnotationKey or CallSiteRetAnnotationKey but got: %T", key))
 	}
 }
 
@@ -502,13 +563,23 @@ type UseAsReturnPrestring struct {
 	RetNum        int
 	IsNamedReturn bool
 	RetName       string
+	// Location is empty for a UseAsReturn enclosing RetAnnotationKey. Location points to the
+	// location of the result at the call site for a UseAsReturn enclosing
+	// CallSiteRetAnnotationKey.
+	Location string
 }
 
 func (u UseAsReturnPrestring) String() string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("returned from the function `%s`", u.FuncName))
 	if u.IsNamedReturn {
-		return fmt.Sprintf("returned from the function `%s` via the named return value `%s` in position %d", u.FuncName, u.RetName, u.RetNum)
+		sb.WriteString(fmt.Sprintf(" via the named return value `%s`", u.RetName))
 	}
-	return fmt.Sprintf("returned from the function `%s` in position %d", u.FuncName, u.RetNum)
+	sb.WriteString(fmt.Sprintf(" in position %d", u.RetNum))
+	if u.Location != "" {
+		sb.WriteString(fmt.Sprintf(" at %s", u.Location))
+	}
+	return sb.String()
 }
 
 // overriding position value to point to the raw return statement, which is the source of the potential error

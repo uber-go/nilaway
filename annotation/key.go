@@ -16,6 +16,7 @@ package annotation
 
 import (
 	"fmt"
+	"go/token"
 	"go/types"
 )
 
@@ -60,6 +61,89 @@ func (k FieldAnnotationKey) Object() types.Object {
 
 func (k FieldAnnotationKey) String() string {
 	return fmt.Sprintf("Field %s", k.FieldDecl.Name())
+}
+
+// CallSiteParamAnnotationKey is similar to ParamAnnotationKey but it represents the site in the
+// caller where the actual argument is passed to the called function. For the same parameter of the
+// same function, there is only one distinct ParamAnnotationKey but there is a new
+// CallSiteParamAnnotationKey for the parameter for every call of the same function.
+type CallSiteParamAnnotationKey struct {
+	FuncDecl *types.Func
+	ParamNum int
+	Location token.Position
+}
+
+// ParamName returns the *types.Var naming the parameter associate with this key.
+// nilable(result 0)
+func (pk CallSiteParamAnnotationKey) ParamName() *types.Var {
+	return pk.FuncDecl.Type().(*types.Signature).Params().At(pk.ParamNum)
+}
+
+// Lookup looks this key up in the passed map, returning a Val.
+func (pk CallSiteParamAnnotationKey) Lookup(annMap Map) (Val, bool) {
+	if paramVal, ok := annMap.CheckFuncParamAnn(pk.FuncDecl, pk.ParamNum); ok {
+		return paramVal, true
+	}
+	return nonAnnotatedDefault, false
+}
+
+// Object returns the types.Object that this annotation can best be interpreted as annotating.
+func (pk CallSiteParamAnnotationKey) Object() types.Object {
+	return pk.FuncDecl
+}
+
+func (pk CallSiteParamAnnotationKey) String() string {
+	argname := ""
+	if pk.ParamName() != nil {
+		argname = fmt.Sprintf(": '%s'", pk.ParamName().Name())
+	}
+	return fmt.Sprintf("Param %d%s of Function %s at Location %s",
+		pk.ParamNum, argname, pk.FuncDecl.Name(), pk.Location.String())
+}
+
+// MinimalString returns a string representation for this CallSiteParamAnnotationKey consisting
+// only of the word "arg" followed by the name of the parameter, if named, or its position
+// otherwise.
+func (pk CallSiteParamAnnotationKey) MinimalString() string {
+	if pk.ParamName() != nil && len(pk.ParamName().Name()) > 0 {
+		return fmt.Sprintf("arg `%s`", pk.ParamName().Name())
+	}
+	return fmt.Sprintf("arg %d", pk.ParamNum)
+}
+
+// ParamNameString returns the name of this parameter, if named, or a placeholder string otherwise.
+func (pk CallSiteParamAnnotationKey) ParamNameString() string {
+	if pk.ParamName() != nil {
+		return pk.ParamName().Name()
+	}
+	return fmt.Sprintf("<unnamed param %d>", pk.ParamNum)
+}
+
+// NewCallSiteParamKey returns a new instance of CallSiteParamAnnotationKey constructed along with
+// validation that its passed argument number is valid for the passed function declaration.
+func NewCallSiteParamKey(
+	fdecl *types.Func, num int, location token.Position) CallSiteParamAnnotationKey {
+	sig := fdecl.Type().(*types.Signature)
+	// for variadic functions - "round down" their argument number to the variadic arg
+	if sig.Variadic() && num >= sig.Params().Len()-1 {
+		return CallSiteParamAnnotationKey{
+			FuncDecl: fdecl,
+			ParamNum: sig.Params().Len() - 1,
+			Location: location,
+		}
+	}
+
+	// for regular functions - panic if arg num too high
+	if sig.Params().Len() <= num {
+		panic(fmt.Sprintf(
+			"no such parameter number %d - out of bounds for function %s with %d parameters",
+			sig.Params().Len(), fdecl.Name(), num))
+	}
+	return CallSiteParamAnnotationKey{
+		FuncDecl: fdecl,
+		ParamNum: num,
+		Location: location,
+	}
 }
 
 // ParamAnnotationKey allows the Lookup of a function parameter's Annotation in the Annotation map
@@ -144,12 +228,50 @@ func (pk ParamAnnotationKey) MinimalString() string {
 	return fmt.Sprintf("arg %d", pk.ParamNum)
 }
 
-// ParamNameString returns the name of theis parameter, if named, or a placeholder string otherwise
+// ParamNameString returns the name of this parameter, if named, or a placeholder string otherwise
 func (pk ParamAnnotationKey) ParamNameString() string {
 	if pk.ParamName() != nil {
 		return pk.ParamName().Name()
 	}
 	return fmt.Sprintf("<unnamed param %d>", pk.ParamNum)
+}
+
+// CallSiteRetAnnotationKey is similar to RetAnnotationKey, but it represents the site in the
+// caller where the actual result is returned from the function. For the same return result of the
+// same function, there is only one distinct RetAnnotationKey but there is a new
+// CallSiteRetAnnotationKey for the return result for every call of the same function.
+type CallSiteRetAnnotationKey struct {
+	FuncDecl *types.Func
+	RetNum   int // which result
+	Location token.Position
+}
+
+// Lookup looks this key up in the passed map, returning a Val.
+func (rk CallSiteRetAnnotationKey) Lookup(annMap Map) (Val, bool) {
+	if retVal, ok := annMap.CheckFuncRetAnn(rk.FuncDecl, rk.RetNum); ok {
+		return retVal, true
+	}
+	return nonAnnotatedDefault, false
+}
+
+// Object returns the types.Object that this annotation can best be interpreted as annotating.
+func (rk CallSiteRetAnnotationKey) Object() types.Object {
+	return rk.FuncDecl
+}
+
+func (rk CallSiteRetAnnotationKey) String() string {
+	return fmt.Sprintf("Result %d of Function %s at Location %v",
+		rk.RetNum, rk.FuncDecl.Name(), rk.Location)
+}
+
+// NewCallSiteRetKey returns a new instance of CallSiteRetAnnotationKey constructed from the name
+// of the parameter.
+func NewCallSiteRetKey(fdecl *types.Func, retNum int, location token.Position) CallSiteRetAnnotationKey {
+	return CallSiteRetAnnotationKey{
+		FuncDecl: fdecl,
+		RetNum:   retNum,
+		Location: location,
+	}
 }
 
 // RetAnnotationKey allows the Lookup of a function's return Annotation in the Annotation Map

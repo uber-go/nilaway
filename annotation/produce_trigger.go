@@ -17,7 +17,9 @@ package annotation
 import (
 	"fmt"
 	"go/ast"
+	"go/token"
 	"go/types"
+	"strings"
 
 	"go.uber.org/nilaway/util"
 )
@@ -364,7 +366,24 @@ func (BlankVarReturn) String() string {
 	return "read from a blank variable that can never be assigned to"
 }
 
-// FuncParam is used when a value is determined to flow from a function parameter
+// DuplicateParamProducer duplicates a given produce trigger, assuming the given produce trigger
+// is of FuncParam.
+func DuplicateParamProducer(t *ProduceTrigger, location token.Position) *ProduceTrigger {
+	key := t.Annotation.(FuncParam).TriggerIfNilable.Ann.(ParamAnnotationKey)
+	return &ProduceTrigger{
+		Annotation: FuncParam{
+			TriggerIfNilable: TriggerIfNilable{
+				Ann: NewCallSiteParamKey(key.FuncDecl, key.ParamNum, location)}},
+		Expr: t.Expr,
+	}
+}
+
+// FuncParam is used when a value is determined to flow from a function parameter. This consumer
+// trigger can be used on top of two different sites: ParamAnnotationKey &
+// CallSiteParamAnnotationKey. ParamAnnotationKey is the parameter site in the function
+// declaration; CallSiteParamAnnotationKey is the argument site in the call expression.
+// CallSiteParamAnnotationKey is specifically used for functions with contracts since we need to
+// duplicate the sites for context sensitivity.
 type FuncParam struct {
 	TriggerIfNilable
 }
@@ -375,18 +394,33 @@ func (f FuncParam) String() string {
 
 // Prestring returns this FuncParam as a Prestring
 func (f FuncParam) Prestring() Prestring {
-	key := f.Ann.(ParamAnnotationKey)
-	return FuncParamPrestring{key.ParamNameString(), key.FuncDecl.Name()}
+	switch key := f.Ann.(type) {
+	case ParamAnnotationKey:
+		return FuncParamPrestring{key.ParamNameString(), key.FuncDecl.Name(), ""}
+	case CallSiteParamAnnotationKey:
+		return FuncParamPrestring{key.ParamNameString(), key.FuncDecl.Name(), key.Location.String()}
+	default:
+		panic(fmt.Sprintf("Expected ParamAnnotationKey or CallSiteParamAnnotationKey but got: %T", key))
+	}
 }
 
 // FuncParamPrestring is a Prestring storing the needed information to compactly encode a FuncParam
 type FuncParamPrestring struct {
 	ParamName string
 	FuncName  string
+	// Location is empty for a FuncParam enclosing ParamAnnotationKey. Location points to the
+	// location of the argument pass at the call site for a FuncParam enclosing CallSiteParamAnnotationKey.
+	Location string
 }
 
 func (f FuncParamPrestring) String() string {
-	return fmt.Sprintf("read from the function parameter `%s` of function `%s`", f.ParamName, f.FuncName)
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("read from the function parameter `%s` of function `%s`",
+		f.ParamName, f.FuncName))
+	if f.Location != "" {
+		sb.WriteString(fmt.Sprintf(" at %s", f.Location))
+	}
+	return sb.String()
 }
 
 // MethodRecv is used when a value is determined to flow from a method receiver
@@ -398,13 +432,13 @@ func (m MethodRecv) String() string {
 	return m.Prestring().String()
 }
 
-// Prestring returns this FuncParam as a Prestring
+// Prestring returns this MethodRecv as a Prestring
 func (m MethodRecv) Prestring() Prestring {
 	key := m.Ann.(RecvAnnotationKey)
 	return MethodRecvPrestring{key.FuncDecl.Name()}
 }
 
-// MethodRecvPrestring is a Prestring storing the needed information to compactly encode a FuncParam
+// MethodRecvPrestring is a Prestring storing the needed information to compactly encode a MethodRecv
 type MethodRecvPrestring struct {
 	FuncName string
 }
@@ -422,13 +456,13 @@ func (m MethodRecvDeep) String() string {
 	return m.Prestring().String()
 }
 
-// Prestring returns this FuncParam as a Prestring
+// Prestring returns this MethodRecv as a Prestring
 func (m MethodRecvDeep) Prestring() Prestring {
 	key := m.Ann.(RecvAnnotationKey)
 	return MethodRecvDeepPrestring{key.FuncDecl.Name()}
 }
 
-// MethodRecvDeepPrestring is a Prestring storing the needed information to compactly encode a FuncParam
+// MethodRecvDeepPrestring is a Prestring storing the needed information to compactly encode a MethodRecv
 type MethodRecvDeepPrestring struct {
 	FuncName string
 }
@@ -569,7 +603,12 @@ func (f ParamFldReadPrestring) String() string {
 	return fmt.Sprintf("of the field `%s` of param %d of `%s`", f.FieldName, f.ParamNum, f.FuncName)
 }
 
-// FuncReturn is used when a value is determined to flow from the return of a function
+// FuncReturn is used when a value is determined to flow from the return of a function. This
+// consumer trigger can be used on top of two different sites: RetAnnotationKey &
+// CallSiteRetAnnotationKey. RetAnnotationKey is the parameter site in the function declaration;
+// CallSiteRetAnnotationKey is the argument site in the call expression. CallSiteRetAnnotationKey
+// is specifically used for functions with contracts since we need to duplicate the sites for
+// context sensitivity.
 type FuncReturn struct {
 	TriggerIfNilable
 	Guarded bool
@@ -581,18 +620,33 @@ func (f FuncReturn) String() string {
 
 // Prestring returns this FuncReturn as a Prestring
 func (f FuncReturn) Prestring() Prestring {
-	retKey := f.Ann.(RetAnnotationKey)
-	return FuncReturnPrestring{retKey.RetNum, retKey.FuncDecl.Name()}
+	switch key := f.Ann.(type) {
+	case RetAnnotationKey:
+		return FuncReturnPrestring{key.RetNum, key.FuncDecl.Name(), ""}
+	case CallSiteRetAnnotationKey:
+		return FuncReturnPrestring{key.RetNum, key.FuncDecl.Name(), key.Location.String()}
+	default:
+		panic(fmt.Sprintf("Expected RetAnnotationKey or CallSiteRetAnnotationKey but got: %T", key))
+	}
 }
 
 // FuncReturnPrestring is a Prestring storing the needed information to compactly encode a FuncReturn
 type FuncReturnPrestring struct {
 	RetNum   int
 	FuncName string
+	// Location is empty for a FuncReturn enclosing RetAnnotationKey. Location points to the
+	// location of the result return at the call site for a FuncReturn enclosing CallSiteRetAnnotationKey.
+	Location string
 }
 
 func (f FuncReturnPrestring) String() string {
-	return fmt.Sprintf("returned as result %d from the function `%s`", f.RetNum, f.FuncName)
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("returned as result %d from the function `%s`",
+		f.RetNum, f.FuncName))
+	if f.Location != "" {
+		sb.WriteString(fmt.Sprintf(" at %s", f.Location))
+	}
+	return sb.String()
 }
 
 // NeedsGuardMatch for a FuncReturn returns whether this function return is guarded.

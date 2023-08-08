@@ -18,6 +18,7 @@ package util
 import (
 	"fmt"
 	"go/ast"
+	"go/token"
 	"go/types"
 	"regexp"
 	"strings"
@@ -418,6 +419,12 @@ func DocContainsAnonymousFuncCheck(group *ast.CommentGroup) bool {
 	return docContainsString(config.NilAwayAnonymousFuncCheckString)(group)
 }
 
+// DocContainsFunctionContractsCheck is used by analyzers to check if the function contracts check
+// enabling string is present.
+func DocContainsFunctionContractsCheck(group *ast.CommentGroup) bool {
+	return docContainsString(config.NilAwayFunctionContractsCheckString)(group)
+}
+
 // docContainsString is used to check if the file comments contain a string s.
 func docContainsString(s string) func(*ast.CommentGroup) bool {
 	return func(group *ast.CommentGroup) bool {
@@ -461,4 +468,18 @@ func PrettyPrintErrorMessage(msg string) string {
 	msg = pathPattern.ReplaceAllString(msg, pathStr)
 	msg = errorStr + msg
 	return msg
+}
+
+// truncatePosition removes part of prefix of the full file path, determined by
+// config.DirLevelsToPrintForTriggers.
+func truncatePosition(position token.Position) token.Position {
+	position.Filename = PortionAfterSep(
+		position.Filename, "/",
+		config.DirLevelsToPrintForTriggers)
+	return position
+}
+
+// PosToLocation converts a token.Pos as a real code location, of token.Position.
+func PosToLocation(pos token.Pos, pass *analysis.Pass) token.Position {
+	return truncatePosition(pass.Fset.Position(pos))
 }
