@@ -280,9 +280,9 @@ func duplicateFullTriggersFromContractedFunctionsToCallers(
 				// TODO: Ideally, we should do
 				//
 				// if _, ok := callsByCtrtFunc[ctrFunc]; !ok {
-				//  callsByCtrtFunc[ctrFunc] = map[*types.Func]*ast.CallExpr{}
+				//  callsByCtrtFunc[ctrFunc] = map[*types.Func][]*ast.CallExpr{}
 				// }
-				// callsByCtrtFunc[ctrFunc][funcObj] = call
+				// callsByCtrtFunc[ctrFunc][funcObj] = append(callsByCtrtFunc[ctrFunc][funcObj], call)
 				//
 				// However, NilAway complains that callsByCtrtFunc[ctrFunc] can be nil. Thus, we
 				// introduce an intermediate variable v and the following instead.
