@@ -304,7 +304,7 @@ func duplicateFullTriggersFromContractedFunctionsToCallers(
 		if r == nil {
 			// should not happen since funcResults should contain all the functions including any
 			// contracted functions.
-			continue
+			panic(fmt.Sprintf("Did not find the contracted function %s in funcResults", ctrtFunc.Id()))
 		}
 		for _, trigger := range r.triggers {
 			// If the full trigger has a FuncParam producer or a UseAsReturn consumer, then create
@@ -335,7 +335,7 @@ func duplicateFullTriggersFromContractedFunctionsToCallers(
 		if r == nil {
 			// should not happen since funcResults should contain all the functions including any
 			// contracted functions.
-			continue
+			panic(fmt.Sprintf("Did not find the contracted function %s in funcResults", funcObj.Id()))
 		}
 		funcTriggers[r.index] = append(funcTriggers[r.index], triggers...)
 	}
