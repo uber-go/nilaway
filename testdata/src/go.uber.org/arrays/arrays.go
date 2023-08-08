@@ -34,7 +34,7 @@ func testArrayRet() [2]*int {
 // nonnil(a[])
 func testParamArrayWrite(a [4]*int, v *int, b bool) (*int, *int) {
 	if b {
-		a[0] = v //want "assigned deeply into deeply nonnil arg"
+		a[0] = v //want "assigned into .* expected nonnil element type"
 	}
 	return a[0], a[1] //want "returned from the function `testParamArrayWrite` in position 0"
 }
@@ -59,12 +59,12 @@ func testParamNilableArrayWrite(a [4]*int, v *int, b bool) (*int, *int) {
 	}
 	i := 0
 	a[1] = &i
-	return a[0], a[1] //want "read deeply from the parameter `a`" "read from the function parameter `v`"
+	return a[0], a[1] //want "accessed directly from the parameter `a`" "read by function parameter `v`"
 }
 
 // nonnil(a[])
 func testArrayWriteNil(a [4]*int) *int {
-	a[0] = nil  //want "assigned deeply into deeply nonnil arg"
+	a[0] = nil  //want "assigned into .* expected nonnil element type"
 	return a[0] //want "returned from the function"
 }
 
@@ -129,7 +129,7 @@ type t struct {
 // nonnil(a[])
 func testArrayMultiLevelAssign(a [2]*t) {
 	var x *int
-	a[0].i[0] = x //want "assigned deeply into a field"
+	a[0].i[0] = x //want "assigned into field `i` with expected nonnil element type"
 }
 
 func testEmptyArrayReturn(a [0]*int) [0]*int {

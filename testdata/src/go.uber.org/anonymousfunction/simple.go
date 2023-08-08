@@ -46,14 +46,14 @@ func simple() {
 
 	func() {
 		var t *int
-		print(*t) //want "read from a variable that was never assigned"
+		print(*t) //want "unassigned variable `t`"
 		t2 := 1
 		ptr := &t2
 		print(*ptr)
 		t3 := retNilable()
-		print(*t3) //want "returned as result 0 from the method `retNilable`"
+		print(*t3) //want "read from result 0 of function `retNilable`"
 		var aPtr *A
-		print(*aPtr) //want "read from a variable that was never assigned"
+		print(*aPtr) //want "unassigned variable `aPtr`"
 		aNonnilPtr := &A{}
 		print(*(aNonnilPtr.a)) // (error here is grouped with the error at line marked with `ERROR_GROUP`)
 		// A.c is marked as nonnil, so it is ok to dereference.
@@ -62,13 +62,13 @@ func simple() {
 
 	a := func() {
 		var t *int
-		print(*t) //want "read from a variable that was never assigned"
+		print(*t) //want "unassigned variable `t`"
 	}
 	print(a)
 
 	var f func() = func() {
 		var t *int
-		print(*t) //want "read from a variable that was never assigned"
+		print(*t) //want "unassigned variable `t`"
 	}
 
 	f()
@@ -79,11 +79,11 @@ func nestedFunc() {
 	func() {
 		func() {
 			var t *int
-			print(*t) //want "read from a variable that was never assigned"
+			print(*t) //want "unassigned variable `t`"
 		}()
 		a := func() {
 			var t *int
-			print(*t) //want "read from a variable that was never assigned"
+			print(*t) //want "unassigned variable `t`"
 		}
 		print(a)
 	}()
@@ -92,7 +92,7 @@ func nestedFunc() {
 		func() {
 			func() {
 				var t *int
-				print(*t) //want "read from a variable that was never assigned"
+				print(*t) //want "unassigned variable `t`"
 			}()
 		}()
 	}()
@@ -100,5 +100,5 @@ func nestedFunc() {
 
 var a = func() {
 	var t *int
-	print(*t) //want "read from a variable that was never assigned"
+	print(*t) //want "unassigned variable `t`"
 }

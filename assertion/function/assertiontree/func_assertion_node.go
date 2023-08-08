@@ -41,7 +41,13 @@ func (f *funcAssertionNode) DefaultTrigger() annotation.ProducingAnnotationTrigg
 	if util.FuncNumResults(f.decl) != 1 {
 		panic("only functions with singular result should be entered into the assertion tree")
 	}
-	return annotation.MethodReturn{
+
+	if f.decl.Type().(*types.Signature).Recv() != nil {
+		return annotation.MethodReturn{
+			TriggerIfNilable: annotation.TriggerIfNilable{
+				Ann: annotation.RetKeyFromRetNum(f.decl, 0)}}
+	}
+	return annotation.FuncReturn{
 		TriggerIfNilable: annotation.TriggerIfNilable{
 			Ann: annotation.RetKeyFromRetNum(f.decl, 0)}}
 }

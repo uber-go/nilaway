@@ -290,9 +290,9 @@ func testDeepNilStruct(s *S) *S {
 	case 6:
 		return s.g[0].g[0]
 	case 7:
-		return s.f[0].f[0] //want "passed to a field access" "returned"
+		return s.f[0].f[0] //want "accessed directly from the field `f`" "returned"
 	default:
-		return s.f[0].g[0] //want "passed to a field access"
+		return s.f[0].g[0] //want "accessed directly from the field `f`"
 	}
 }
 

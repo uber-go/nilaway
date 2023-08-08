@@ -146,13 +146,13 @@ func takesRightNonNil(a *T, b *T, c *T) {}
 // multiple returners can be passed directly to multiple param funcs - test that here
 func testMultiToMultiCalls() {
 	takesLeftNonNil(leftNonNil())
-	takesLeftNonNil(centerNonNil()) //want "passed as arg `a`"
-	takesLeftNonNil(rightNonNil())  //want "passed as arg `a`"
-	takesCenterNonNil(leftNonNil()) //want "passed as arg `b`"
+	takesLeftNonNil(centerNonNil()) //want "passed as argument 0"
+	takesLeftNonNil(rightNonNil())  //want "passed as argument 0"
+	takesCenterNonNil(leftNonNil()) //want "passed as argument 1"
 	takesCenterNonNil(centerNonNil())
-	takesCenterNonNil(rightNonNil()) //want "passed as arg `b`"
-	takesRightNonNil(leftNonNil())   //want "passed as arg `c`"
-	takesRightNonNil(centerNonNil()) //want "passed as arg `c`"
+	takesCenterNonNil(rightNonNil()) //want "passed as argument 1"
+	takesRightNonNil(leftNonNil())   //want "passed as argument 2"
+	takesRightNonNil(centerNonNil()) //want "passed as argument 2"
 	takesRightNonNil(rightNonNil())
 }
 

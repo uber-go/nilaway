@@ -48,9 +48,9 @@ func (a *A) foo(b, c *A) *A {
 	case 7:
 		return c //want "returned from the function `foo`"
 	case 8:
-		return c.f //want "returned from the function `foo`" "passed to a field access"
+		return c.f //want "returned from the function `foo`" "field `f` of `c` accessed"
 	case 9:
-		return c.g //want "passed to a field access"
+		return c.g //want "field `g` of `c` accessed"
 	default:
 		return nil //want "returned from the function `foo`"
 	}

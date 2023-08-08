@@ -28,7 +28,7 @@ func (a *A) nilableRecv() string {
 }
 
 func (a *A) nonnilRecv() string {
-	return a.f //want "read from the receiver" "read from the receiver"
+	return a.f //want "read by method receiver" "read by method receiver"
 }
 
 func newA() *A {
@@ -97,8 +97,8 @@ func newI2() I {
 
 func testAffiliation() {
 	// TP since it's the case of untyped nil
-	newI1().foo() //want "returned as result 0 from the method `newI1`"
+	newI1().foo() //want "read from result 0 of function `newI1`"
 
 	// FP since affiliations are not tracked for nilable receivers
-	newI2().foo() //want "returned as result 0 from the method `newI2`"
+	newI2().foo() //want "read from result 0 of function `newI2`"
 }
