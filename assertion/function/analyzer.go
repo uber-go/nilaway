@@ -273,7 +273,7 @@ func duplicateFullTriggersFromContractedFunctionsToCallers(
 
 	// Find all the calls to contracted functions
 	// callsByCtrtFunc is a mapping: contracted function -> caller -> all the call expressions
-	callsByCtrtFunc := map[*types.Func]map[*types.Func]*ast.CallExpr{}
+	callsByCtrtFunc := map[*types.Func]map[*types.Func][]*ast.CallExpr{}
 	for funcObj, r := range funcResults {
 		for ctrFunc, calls := range findCallsToContractedFunctions(r.funcDecl, pass, funcContracts) {
 			for _, call := range calls {
@@ -288,10 +288,10 @@ func duplicateFullTriggersFromContractedFunctionsToCallers(
 				// introduce an intermediate variable v and the following instead.
 				v, ok := callsByCtrtFunc[ctrFunc]
 				if !ok {
-					v = map[*types.Func]*ast.CallExpr{}
+					v = map[*types.Func][]*ast.CallExpr{}
 					callsByCtrtFunc[ctrFunc] = v
 				}
-				v[funcObj] = call
+				v[funcObj] = append(v[funcObj], call)
 			}
 		}
 	}
@@ -317,12 +317,14 @@ func duplicateFullTriggersFromContractedFunctionsToCallers(
 				continue
 			}
 			// Duplicate the full trigger in every caller
-			for caller, callExpr := range calls {
-				dupTrigger := duplicateFullTrigger(trigger, ctrtFunc, callExpr, pass,
-					isParamProducer, isReturnConsumer)
+			for caller, callExprs := range calls {
+				for _, callExpr := range callExprs {
+					dupTrigger := duplicateFullTrigger(trigger, ctrtFunc, callExpr, pass,
+						isParamProducer, isReturnConsumer)
 
-				// Store the duplicated full trigger
-				dupTriggers[caller] = append(dupTriggers[caller], dupTrigger)
+					// Store the duplicated full trigger
+					dupTriggers[caller] = append(dupTriggers[caller], dupTrigger)
+				}
 			}
 		}
 	}

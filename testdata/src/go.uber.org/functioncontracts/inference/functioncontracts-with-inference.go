@@ -128,7 +128,7 @@ func call(x *int) {}
 
 // Test a contracted function is called multiple times in another function.
 // contract(nonnil->nonnil)
-func fooReturnCalledMultipleTimesInTheSameFunction(x *int) *int { // want "^ Annotation on Result 0.*\n.*Must be NILABLE.*\n.*AND.*\n.*Must be NONNIL.*NONNIL$"
+func fooReturnCalledMultipleTimesInTheSameFunction(x *int) *int { // want "^ Annotation on Result 0.*\n.*Must be NILABLE.*\n.*AND.*\n.*Must be NONNIL.*NONNIL$" "^ Annotation on Result 0.*\n.*Must be NILABLE.*\n.*AND.*\n.*Must be NONNIL.*NONNIL$"
 	if x != nil {
 		return new(int)
 	}
@@ -148,4 +148,13 @@ func barReturnCalledMultipleTimesInTheSameFunction() {
 	var a2 *int
 	b2 := fooReturnCalledMultipleTimesInTheSameFunction(a2)
 	print(*b2) // "nilable value dereferenced" wanted
+
+	m := 2
+	a3 := &m
+	b3 := fooReturnCalledMultipleTimesInTheSameFunction(a3)
+	print(*b3) // No "nilable value dereferenced" wanted
+
+	var a4 *int
+	b4 := fooReturnCalledMultipleTimesInTheSameFunction(a4)
+	print(*b4) // "nilable value dereferenced" wanted
 }
