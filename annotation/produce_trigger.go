@@ -444,7 +444,7 @@ type MethodRecvPrestring struct {
 }
 
 func (m MethodRecvPrestring) String() string {
-	return fmt.Sprintf("read by method receiver `<EXPR>`")
+	return "read by method receiver `<EXPR>`"
 }
 
 // MethodRecvDeep is used when a value is determined to flow deeply from a method receiver
@@ -567,7 +567,7 @@ type FldReadPrestring struct {
 }
 
 func (f FldReadPrestring) String() string {
-	return fmt.Sprintf("read from field `<EXPR>`")
+	return "read from field `<EXPR>`"
 }
 
 // ParamFldRead is used when a struct field value is determined to flow from the param of a function to a consumption
@@ -723,9 +723,8 @@ type MethodResultReachesInterfacePrestring struct {
 }
 
 func (m MethodResultReachesInterfacePrestring) String() string {
-	// Information from this trigger is present in the error message from other triggers. Hence, dropping the string here
-	// to make the overall error message concise.
-	return ""
+	return fmt.Sprintf("returned as result %d from the method `%s` (implementing `%s`)",
+		m.RetNum, m.ImplName, m.IntName)
 }
 
 // InterfaceParamReachesImplementation is used when a param of a method is determined to flow into the param of an implementing method
@@ -756,9 +755,8 @@ type InterfaceParamReachesImplementationPrestring struct {
 }
 
 func (i InterfaceParamReachesImplementationPrestring) String() string {
-	// Information from this trigger is present in the error message from other triggers. Hence, dropping the string here
-	// to make the overall error message concise.
-	return ""
+	return fmt.Sprintf("passed as param `%s` to the method `%s` (implemented by `%s`)",
+		i.ParamName, i.IntName, i.ImplName)
 }
 
 // GlobalVarRead is when a value is determined to flow from a read to a global variable
@@ -784,7 +782,7 @@ type GlobalVarReadPrestring struct {
 }
 
 func (g GlobalVarReadPrestring) String() string {
-	return fmt.Sprintf("read from global variable `<EXPR>`")
+	return "read from global variable `<EXPR>`"
 }
 
 // MapRead is when a value is determined to flow from a map index expression

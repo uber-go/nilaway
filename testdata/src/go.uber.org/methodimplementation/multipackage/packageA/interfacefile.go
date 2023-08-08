@@ -21,5 +21,5 @@ import (
 
 type I9 interface {
 	// nilable(x)
-	Foo(x *packageB.A9) (*packageB.A9, string) //want "could be returned as result"
+	Foo(x *packageB.A9) (*packageB.A9, string) //want "returned as result"
 }
