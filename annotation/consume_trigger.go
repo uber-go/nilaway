@@ -370,7 +370,7 @@ type GlobalVarAssignPrestring struct {
 }
 
 func (g GlobalVarAssignPrestring) String() string {
-	return fmt.Sprintf("assigned into the global variable `<EXPR>`")
+	return "assigned into the global variable `<EXPR>`"
 }
 
 // ArgPass is when a value flows to a point where it is passed as an argument to a function
@@ -456,9 +456,8 @@ type InterfaceResultFromImplementationPrestring struct {
 }
 
 func (i InterfaceResultFromImplementationPrestring) String() string {
-	// Information from this trigger is present in the error message from other triggers. Hence, dropping the string here
-	// to make the overall error message concise.
-	return ""
+	return fmt.Sprintf("returned as result %d from the interface method `%s` (implemented by method `%s`)",
+		i.RetNum, i.IntName, i.ImplName)
 }
 
 // MethodParamFromInterface is when a param flows from an interface method to a concrete method via implementation
@@ -489,9 +488,8 @@ type MethodParamFromInterfacePrestring struct {
 }
 
 func (m MethodParamFromInterfacePrestring) String() string {
-	// Information from this trigger is present in the error message from other triggers. Hence, dropping the string here
-	// to make the overall error message concise.
-	return ""
+	return fmt.Sprintf("passed as param `%s` to the method `%s` (implementing interface method `%s`)",
+		m.ParamName, m.ImplName, m.IntName)
 }
 
 // UseAsReturn is when a value flows to a point where it is returned from a function

@@ -32,7 +32,7 @@ package methodimplementation
 
 type I121 interface {
 	// nilable(x)
-	foo(x *A121) (*A121, string) //want "could be returned as result"
+	foo(x *A121) (*A121, string) //want "returned as result"
 }
 
 type J121 interface {
@@ -49,7 +49,7 @@ type B121 struct {
 }
 
 // nilable(result 0)
-func (A121) foo(x *A121) (*A121, string) { //want "could be passed as param"
+func (A121) foo(x *A121) (*A121, string) { //want "passed as param"
 	var b *A121
 	return b, x.s
 }
@@ -67,8 +67,8 @@ func (b B121) foo(x *A121) (*A121, string) {
 }
 
 // nilable(y, result 0)
-func (b *B121) bar(x *A121, y *B121) *string { //want "could be passed as param"
-	if b.i+y.i > 5 { //want "passed to a field access"
+func (b *B121) bar(x *A121, y *B121) *string { //want "passed as param"
+	if b.i+y.i > 5 { //want "field .* access"
 		return nil
 	}
 	return &x.s
@@ -88,7 +88,7 @@ func m121(x *A121, y *B121) (I121, J121) {
 
 type I122 interface {
 	// nilable(x)
-	foo(x *A122) (*A122, string) //want "could be returned as result"
+	foo(x *A122) (*A122, string) //want "returned as result"
 }
 
 type J122 interface {
@@ -105,7 +105,7 @@ type B122 struct {
 }
 
 // nilable(result 0)
-func (A122) foo(x *A122) (*A122, string) { //want "could be passed as param"
+func (A122) foo(x *A122) (*A122, string) { //want "passed as param"
 	var b *A122
 	return b, x.s
 }
@@ -123,8 +123,8 @@ func (b B122) foo(x *A122) (*A122, string) {
 }
 
 // nilable(y, result 0)
-func (b *B122) bar(x *A122, y *B122) *string { //want "could be passed as param"
-	if b.i+y.i > 5 { //want "passed to a field access"
+func (b *B122) bar(x *A122, y *B122) *string { //want "passed as param"
+	if b.i+y.i > 5 { //want "field .* access"
 		return nil
 	}
 	return &x.s
@@ -148,7 +148,7 @@ func m122_2() {
 
 type I122_3 interface {
 	// nilable(x)
-	foo(x *A122_3) (*A122_3, string) //want "could be returned as result"
+	foo(x *A122_3) (*A122_3, string) //want "returned as result"
 }
 
 type A122_3 struct {
@@ -156,7 +156,7 @@ type A122_3 struct {
 }
 
 // nilable(result 0)
-func (A122_3) foo(x *A122_3) (*A122_3, string) { //want "could be passed as param"
+func (A122_3) foo(x *A122_3) (*A122_3, string) { //want "passed as param"
 	var b *A122_3
 	return b, x.s
 }
@@ -172,7 +172,7 @@ func m122_3() {
 
 type I123 interface {
 	// nilable(x)
-	foo(x *A123) (*A123, string) //want "could be returned as result"
+	foo(x *A123) (*A123, string) //want "returned as result"
 }
 
 type A123 struct {
@@ -180,7 +180,7 @@ type A123 struct {
 }
 
 // nilable(result 0)
-func (A123) foo(x *A123) (*A123, string) { //want "could be passed as param"
+func (A123) foo(x *A123) (*A123, string) { //want "passed as param"
 	var b *A123
 	return b, x.s
 }
@@ -194,7 +194,7 @@ func m123() {
 
 type I123_2 interface {
 	// nilable(x)
-	foo(x *A123_2) (*A123_2, string) //want "could be returned as result"
+	foo(x *A123_2) (*A123_2, string) //want "returned as result"
 }
 
 type A123_2 struct {
@@ -202,7 +202,7 @@ type A123_2 struct {
 }
 
 // nilable(result 0)
-func (A123_2) foo(x *A123_2) (*A123_2, string) { //want "could be passed as param"
+func (A123_2) foo(x *A123_2) (*A123_2, string) { //want "passed as param"
 	var b *A123_2
 	return b, x.s
 }
