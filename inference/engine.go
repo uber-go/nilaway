@@ -325,6 +325,11 @@ func (e *Engine) observeSiteExplanation(site primitiveSite, siteExplained Explai
 		}
 		e.conflicts.addConflict(newOverconstrainedConflict(site, trueExplanation, falseExplanation))
 
+		// Even though we have a conflict, we still need to make sure to activate any controlled
+		// triggers that are waiting on this site, so that we would not miss processing any
+		// triggers.
+		e.activateControlledTriggers(site, siteExplained)
+
 	case *UndeterminedVal:
 		e.storeDeterminedAndActivateControlledTriggers(site, siteExplained)
 
@@ -354,6 +359,13 @@ func (e *Engine) observeSiteExplanation(site primitiveSite, siteExplained Explai
 // are also activated and will be used to build the inference map.
 func (e *Engine) storeDeterminedAndActivateControlledTriggers(site primitiveSite, siteExplained ExplainedBool) {
 	e.inferredMap.StoreDetermined(site, siteExplained)
+	e.activateControlledTriggers(site, siteExplained)
+}
+
+// activateControlledTriggers checks if the site has proper value and activates all the triggers
+// controlled by the site `site` if so. This method should be called whenever a site is determined
+// to be a new value.
+func (e *Engine) activateControlledTriggers(site primitiveSite, siteExplained ExplainedBool) {
 	if controlledTgs, ok := e.controlledTriggersBySite[site]; ok && siteExplained.Val() {
 		for tg := range controlledTgs {
 			e.buildFromSingleFullTrigger(tg)
