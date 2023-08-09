@@ -704,7 +704,3 @@ func newObservedMap(pass *analysis.Pass, files []*ast.File) *ObservedMap {
 func getLineFromPos(pos token.Pos, pass *analysis.Pass) int {
 	return pass.Fset.Position(pos).Line
 }
-
-func getFileNameFromPos(pos token.Pos, pass *analysis.Pass) string {
-	return pass.Fset.Position(pos).Filename
-}
