@@ -276,6 +276,18 @@ func (i *InferredMap) CheckGlobalVarAnn(v *types.Var) (annotation.Val, bool) {
 	return i.checkAnnotationKey(annotation.GlobalVarAnnotationKey{VarDecl: v})
 }
 
+// CheckFuncCallSiteParamAnn checks this InferredMap for a concrete mapping of the call site param
+// key provided.
+func (i *InferredMap) CheckFuncCallSiteParamAnn(key annotation.CallSiteParamAnnotationKey) (annotation.Val, bool) {
+	return i.checkAnnotationKey(key)
+}
+
+// CheckFuncCallSiteRetAnn checks this InferredMap for a concrete mapping of the call site return
+// key provided.
+func (i *InferredMap) CheckFuncCallSiteRetAnn(key annotation.CallSiteRetAnnotationKey) (annotation.Val, bool) {
+	return i.checkAnnotationKey(key)
+}
+
 func (i *InferredMap) checkAnnotationKey(key annotation.Key) (annotation.Val, bool) {
 	shallowKey := newPrimitiveSite(key, false)
 	deepKey := newPrimitiveSite(key, true)

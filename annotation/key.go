@@ -81,7 +81,7 @@ func (pk CallSiteParamAnnotationKey) ParamName() *types.Var {
 
 // Lookup looks this key up in the passed map, returning a Val.
 func (pk CallSiteParamAnnotationKey) Lookup(annMap Map) (Val, bool) {
-	if paramVal, ok := annMap.CheckFuncParamAnn(pk.FuncDecl, pk.ParamNum); ok {
+	if paramVal, ok := annMap.CheckFuncCallSiteParamAnn(pk); ok {
 		return paramVal, true
 	}
 	return nonAnnotatedDefault, false
@@ -248,7 +248,7 @@ type CallSiteRetAnnotationKey struct {
 
 // Lookup looks this key up in the passed map, returning a Val.
 func (rk CallSiteRetAnnotationKey) Lookup(annMap Map) (Val, bool) {
-	if retVal, ok := annMap.CheckFuncRetAnn(rk.FuncDecl, rk.RetNum); ok {
+	if retVal, ok := annMap.CheckFuncCallSiteRetAnn(rk); ok {
 		return retVal, true
 	}
 	return nonAnnotatedDefault, false

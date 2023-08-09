@@ -38,12 +38,21 @@ type FullTrigger struct {
 	// If this field is nil, it means the trigger is not a controlled trigger and the trigger will
 	// be activated all the time.
 	Controller *CallSiteParamAnnotationKey
+	// CreatedFromDuplication is true if the full trigger is created from duplicating another full
+	// trigger; otherwise false, which is also the default value for any normal full trigger.
+	CreatedFromDuplication bool
 }
 
 // Controlled returns true if this full trigger is controlled by a controller site; otherwise
 // returns false.
 func (t *FullTrigger) Controlled() bool {
 	return t.Controller != nil
+}
+
+// Duplicated returns true if the full trigger is created from duplicating another full trigger;
+// otherwise returns false.
+func (t *FullTrigger) Duplicated() bool {
+	return t.CreatedFromDuplication
 }
 
 // Pos returns the position for logging the error specified by the ConsumeTrigger
