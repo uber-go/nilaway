@@ -39,6 +39,9 @@ type node struct {
 	reason   string
 }
 
+// newNode creates a new node object from the given Prestring.
+// LocatedPrestring contains accurate information about the position and the reason why NilAway deemed that position
+// to be nilable. We use it if available, else we use the raw string representation available from the Prestring `p`.
 func newNode(p annotation.Prestring) node {
 	nodeObj := node{}
 	if l, ok := p.(annotation.LocatedPrestring); ok {
@@ -63,12 +66,12 @@ func (n *node) String() string {
 }
 
 // addNilPathNode adds a new node to the nil path.
-// LocatedPrestring contains accurate information about the position and the reason why NilAway deemed that position
-// to be nilable. We use it if available, else we use the raw string representation available from the Prestring `p`.
 func (n *nilFlow) addNilPathNode(p annotation.Prestring) {
 	nodeObj := newNode(p)
 
-	// Note that we prepend the new node to nilPath because we want to print the flow in the order in which it was discovered.
+	// Note that in the implication graph, we traverse backwards from the point of conflict to the source of nilability.
+	// Therefore, they are added in reverse order from what the program flow would look like. To account for this we
+	// prepend the new node to nilPath because we want to print the program flow in its correct (forward) order.
 	n.nilPath = append([]node{nodeObj}, n.nilPath...)
 }
 
@@ -126,7 +129,7 @@ func (l *conflictList) addOverconstraintConflict(nilExplanation ExplainedBool, n
 
 	// Build nil path by traversing the inference graph from `nilExplanation` part of the overconstraint failure.
 	// (Note that this traversal gives us a backward path from point of conflict to the source of nilability. Hence, we
-	// must take this into consideration while printing the flow.)
+	// must take this into consideration while printing the flow, which is currently being handled in `addNilPathNode()`.)
 	var queue []ExplainedBool
 	queue = append(queue, nilExplanation)
 
@@ -135,6 +138,9 @@ func (l *conflictList) addOverconstraintConflict(nilExplanation ExplainedBool, n
 		queue = queue[1:]
 
 		t := e.getPrimitiveFullTrigger()
+		// We have two cases here:
+		// 1. No annotation present (i.e., full inference): we have producer and consumer explanations available; use them directly
+		// 2: Annotation present (i.e., no inference): we construct the explanation from the annotation string
 		if t.ConsumerRepr != nil && t.ProducerRepr != nil {
 			c.nilFlow.addNilPathNode(t.ConsumerRepr)
 			c.nilFlow.addNilPathNode(t.ProducerRepr)
@@ -153,6 +159,9 @@ func (l *conflictList) addOverconstraintConflict(nilExplanation ExplainedBool, n
 	// Build nonnil path by traversing the inference graph from `nonnilExplanation` part of the overconstraint failure.
 	// (Note that this traversal is forward from the point of conflict to dereference. Hence, we don't need to make
 	// any special considerations while printing the flow.)
+	// Different from building the nil path above, here we also want to deduce the position where the error should be reported,
+	// i.e., the point of dereference where the nil panic would occur. In NilAway's context this is the last node
+	// in the non-nil path. Therefore, we keep updating `c.position` until we reach the end of the non-nil path.
 	queue = make([]ExplainedBool, 0)
 	queue = append(queue, nonnilExplanation)
 	for len(queue) > 0 {
@@ -160,6 +169,9 @@ func (l *conflictList) addOverconstraintConflict(nilExplanation ExplainedBool, n
 		queue = queue[1:]
 
 		t := e.getPrimitiveFullTrigger()
+		// Similar to above, we have two cases here:
+		// 1. No annotation present (i.e., full inference): we have producer and consumer explanations available; use them directly
+		// 2: Annotation present (i.e., no inference): we construct the explanation from the annotation string
 		if t.ConsumerRepr != nil && t.ProducerRepr != nil {
 			c.nilFlow.addNonNilPathNode(t.ProducerRepr)
 			c.nilFlow.addNonNilPathNode(t.ConsumerRepr)
