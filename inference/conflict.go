@@ -195,6 +195,7 @@ func (l *ConflictList) AddOverconstraintConflict(nilExplanation ExplainedBool, n
 	// Different from building the nil path above, here we also want to deduce the position where the error should be reported,
 	// i.e., the point of dereference where the nil panic would occur. In NilAway's context this is the last node
 	// in the non-nil path. Therefore, we keep updating `c.position` until we reach the end of the non-nil path.
+	// Similarly, we repeatedly update `c.expr` to identify the final consumer expression in the flow.
 	queue = make([]ExplainedBool, 0)
 	queue = append(queue, nonnilExplanation)
 	for len(queue) > 0 {
@@ -216,14 +217,12 @@ func (l *ConflictList) AddOverconstraintConflict(nilExplanation ExplainedBool, n
 			}, "")
 			c.position = t.Pos
 		}
+		c.expr = t.ConsumerExprRepr
 
 		if e.getExplainedBool() != nil {
 			queue = append(queue, e.getExplainedBool())
 		}
 	}
-
-	// add the expression that was overconstrained
-	c.expr = nonnilExplanation.getPrimitiveFullTrigger().ConsumerExprRepr
 
 	l.conflicts = append(l.conflicts, c)
 }
