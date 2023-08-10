@@ -210,6 +210,7 @@ func (l *ConflictList) AddOverconstraintConflict(nilExplanation ExplainedBool, n
 			c.nilFlow.addNonNilPathNode(t.ProducerRepr, t.ProducerExprRepr)
 			c.nilFlow.addNonNilPathNode(t.ConsumerRepr, t.ConsumerExprRepr)
 			c.position = t.Pos
+			c.expr = t.ConsumerExprRepr
 		} else {
 			c.nilFlow.addNonNilPathNode(annotation.LocatedPrestring{
 				Contained: e,
@@ -217,7 +218,6 @@ func (l *ConflictList) AddOverconstraintConflict(nilExplanation ExplainedBool, n
 			}, "")
 			c.position = t.Pos
 		}
-		c.expr = t.ConsumerExprRepr
 
 		if e.getExplainedBool() != nil {
 			queue = append(queue, e.getExplainedBool())
