@@ -137,7 +137,7 @@ func barReturnCalledMultipleTimesInTheSameFunction() {
 // Test call site annotations are wrongly written.
 // nilable(x, result 0)
 // contract(nonnil -> nonnil)
-func fooWrongAnnotation(x *int) *int {
+func fooWrongCallSiteAnnotation(x *int) *int {
 	if x != nil {
 		// Return nonnil
 		return new(int)
@@ -150,8 +150,31 @@ func fooWrongAnnotation(x *int) *int {
 	}
 }
 
-func barWrongAnnotation() {
+func barWrongCallSiteAnnotation() {
 	var a *int
-	b := fooWrongAnnotation(a) // nonnil(param 0, result 0) // want "read from a variable that was never assigned to"
-	print(*b)                  // safe because the call site annotation is used
+	b := fooWrongCallSiteAnnotation(a) // nonnil(param 0, result 0) // want "read from a variable that was never assigned to"
+	print(*b)                          // safe because the call site annotation is used
+}
+
+// nonnil(x) nilable(result 0)
+// contract(nonnil -> nonnil)
+func fooNoCallSiteAnnoatation(x *int) *int {
+	if x != nil {
+		// Return nonnil
+		return new(int)
+	}
+	// Return nonnil or nil randomly
+	if rand.Float64() > 0.5 {
+		return new(int)
+	} else {
+		return nil
+	}
+}
+
+func barNoCallSiteAnnoatation() {
+	var a *int
+	// We should rely on the function header annotations if we do not find any call site
+	// annotations.
+	v := fooNoCallSiteAnnoatation(a) // want "nilable value passed"
+	print(*v)                        // want "nilable value dereferenced"
 }
