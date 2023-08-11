@@ -103,6 +103,9 @@ how to pass them using different linter drivers.
 
 ## Support 
 
+We follow the same [version support policy](https://go.dev/doc/devel/release#policy) as the [Go](https://golang.org/) 
+project: we support and test the last two major versions of Go.
+
 Please feel free to [open a GitHub issue](https://github.com/uber-go/nilaway/issues) if you have any questions, bug 
 reports, and feature requests.
 
