@@ -221,7 +221,7 @@ func TestFunctionContracts(t *testing.T) {
 	t.Parallel()
 
 	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/functioncontracts/inference")
+	analysistest.Run(t, testdata, Analyzer, "go.uber.org/functioncontracts", "go.uber.org/functioncontracts/inference")
 }
 
 func TestPrettyPrint(t *testing.T) { //nolint:paralleltest

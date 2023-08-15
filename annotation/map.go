@@ -35,6 +35,8 @@ type Map interface {
 	CheckFuncRecvAnn(*types.Func) (Val, bool)
 	CheckDeepTypeAnn(*types.TypeName) (Val, bool)
 	CheckGlobalVarAnn(*types.Var) (Val, bool)
+	CheckFuncCallSiteParamAnn(key CallSiteParamAnnotationKey) (Val, bool)
+	CheckFuncCallSiteRetAnn(key CallSiteRetAnnotationKey) (Val, bool)
 }
 
 // Val is a possible value of an Annotation
@@ -153,6 +155,27 @@ type ObservedMap struct {
 
 	// this maps declarations of global variables to their annotations
 	globalVarsAnnMap map[*types.Var]Val
+
+	// funcCallSiteParamAnnMap maps a function call site to a slice with the annotations of its
+	// duplicated params at the call site.
+	funcCallSiteParamAnnMap map[CallSite][]ArgLocAndVal
+
+	// funcCallSiteRetAnnMap maps a function call site to a slice with the annotations of its
+	// duplicated returns at the call site.
+	funcCallSiteRetAnnMap map[CallSite][]Val
+}
+
+// CallSite uniquely identifies a function call. It contains the called function object and the
+// code location of the call expression.
+type CallSite struct {
+	Fun      *types.Func
+	Location token.Position
+}
+
+// ArgLocAndVal pairs the code location of the argument expression and the annotation value.
+type ArgLocAndVal struct {
+	Location token.Position
+	Val      Val
 }
 
 // Range calls the passed function `op` on each annotation site in this map. If `setSitesOnly`
@@ -194,6 +217,21 @@ func (m *ObservedMap) Range(op func(key Key, isDeep bool, val bool), setSitesOnl
 
 	for gvar, val := range m.globalVarsAnnMap {
 		callOpOnKeyVal(GlobalVarAnnotationKey{VarDecl: gvar}, val)
+	}
+
+	for callSite, vals := range m.funcCallSiteParamAnnMap {
+		for i, argLocAndVal := range vals {
+			// the location inside the callSite is the location of the call expression, we want
+			// the location of every argument expression
+			funcObj := callSite.Fun
+			callOpOnKeyVal(NewCallSiteParamKey(funcObj, i, argLocAndVal.Location), argLocAndVal.Val)
+		}
+	}
+
+	for callSite, vals := range m.funcCallSiteRetAnnMap {
+		for i, val := range vals {
+			callOpOnKeyVal(NewCallSiteRetKey(callSite.Fun, i, callSite.Location), val)
+		}
 	}
 }
 
@@ -398,6 +436,10 @@ func newObservedMap(pass *analysis.Pass, files []*ast.File) *ObservedMap {
 	deepTypeAnnMap := make(map[*types.TypeName]Val)
 	globalVarsAnnMap := make(map[*types.Var]Val)
 
+	funcObjToFuncDecl := make(map[*types.Func]*ast.FuncDecl)
+	funcCallSiteParamAnnMap := make(map[CallSite][]ArgLocAndVal)
+	funcCallSiteRetAnnMap := make(map[CallSite][]Val)
+
 	typeOf := func(expr ast.Expr) types.Type {
 		return pass.TypesInfo.Types[expr].Type
 	}
@@ -405,19 +447,20 @@ func newObservedMap(pass *analysis.Pass, files []*ast.File) *ObservedMap {
 	// for a function declaration, accumulate its parameters from an *ast.Fieldlist object
 	// listing them, look them up in the docstring, and return an equally long list of
 	// annotationVals
-	accFromFieldList := func(set nilabilitySet, fieldList *ast.FieldList, isParamList bool) []Val {
+	accFromFieldList := func(set nilabilitySet, fieldList *ast.FieldList, isParamList bool,
+		isCallSiteAnnotation bool) []Val {
 		if fieldList == nil {
 			// this is included for nil-safety
 			return nil
 		}
 
 		var annVals []Val
+		var lookupKey string
 		for _, field := range fieldList.List {
 			if len(field.Names) == 0 {
 				// case of anonymous field - on which we do not permit annotations
 				// non-named fields
 
-				var lookupKey string
 				if isParamList {
 					lookupKey = paramStr(len(annVals))
 				} else {
@@ -442,7 +485,16 @@ func newObservedMap(pass *analysis.Pass, files []*ast.File) *ObservedMap {
 						fieldType = typeOf(field.Type)
 					}
 
-					annVals = append(annVals, set.checkNilability(name.Name, fieldType))
+					if isCallSiteAnnotation {
+						if isParamList {
+							lookupKey = paramStr(len(annVals))
+						} else {
+							lookupKey = resultStr(len(annVals))
+						}
+					} else {
+						lookupKey = name.Name
+					}
+					annVals = append(annVals, set.checkNilability(lookupKey, fieldType))
 				}
 			}
 		}
@@ -454,7 +506,7 @@ func newObservedMap(pass *analysis.Pass, files []*ast.File) *ObservedMap {
 			if len(decl.Recv.List) > 1 {
 				panic(fmt.Sprintf("Multiple receivers found for method %s", decl.Name))
 			}
-			return accFromFieldList(set, decl.Recv, false)[0]
+			return accFromFieldList(set, decl.Recv, false, false)[0]
 		}
 		return nonAnnotatedDefault
 	}
@@ -466,9 +518,11 @@ func newObservedMap(pass *analysis.Pass, files []*ast.File) *ObservedMap {
 				case *ast.FuncDecl:
 					funcObj := pass.TypesInfo.ObjectOf(decl.Name).(*types.Func)
 					set := nilabilityFromCommentGroup(decl.Doc)
-					funcParamAnnMap[funcObj] = accFromFieldList(set, decl.Type.Params, true)
-					funcRetAnnMap[funcObj] = accFromFieldList(set, decl.Type.Results, false)
+					funcParamAnnMap[funcObj] = accFromFieldList(set, decl.Type.Params, true, false)
+					funcRetAnnMap[funcObj] = accFromFieldList(set, decl.Type.Results, false, false)
 					funcRecvAnnMap[funcObj] = readRecvAnnotations(decl, set)
+					// store the mapping from the function object to the ast node.
+					funcObjToFuncDecl[funcObj] = decl
 				case *ast.GenDecl:
 					// this is used for any declaration besides a function
 					// here, we specifically look for declarations of struct types
@@ -529,8 +583,8 @@ func newObservedMap(pass *analysis.Pass, files []*ast.File) *ObservedMap {
 											// this is the common case - a simply declared method
 											set := nilabilityFromCommentGroup(method.Doc)
 											funcObj := pass.TypesInfo.ObjectOf(method.Names[0]).(*types.Func)
-											funcParamAnnMap[funcObj] = accFromFieldList(set, method.Type.(*ast.FuncType).Params, true)
-											funcRetAnnMap[funcObj] = accFromFieldList(set, method.Type.(*ast.FuncType).Results, false)
+											funcParamAnnMap[funcObj] = accFromFieldList(set, method.Type.(*ast.FuncType).Params, true, false)
+											funcRetAnnMap[funcObj] = accFromFieldList(set, method.Type.(*ast.FuncType).Results, false, false)
 										case 0:
 										// this is the case of inheritance - i.e. a method with another
 										// method named within it, in this case the identifiers will
@@ -570,12 +624,83 @@ func newObservedMap(pass *analysis.Pass, files []*ast.File) *ObservedMap {
 			}
 		}
 	}
-	return &ObservedMap{
-		fieldAnnMap:      fieldAnnMap,
-		funcParamAnnMap:  funcParamAnnMap,
-		funcRetAnnMap:    funcRetAnnMap,
-		funcRecvAnnMap:   funcRecvAnnMap,
-		deepTypeAnnMap:   deepTypeAnnMap,
-		globalVarsAnnMap: globalVarsAnnMap,
+
+	// Parse inline annotations at call sites.
+	for _, file := range files {
+		if !conf.IsFileInScope(file) || !util.DocContainsFunctionContractsCheck(file.Doc) {
+			continue
+		}
+		// Store a mapping between single comment's line number to its text.
+		comments := make(map[int]*ast.CommentGroup)
+		for _, group := range file.Comments {
+			if len(group.List) != 1 {
+				continue
+			}
+			comment := group.List[0]
+			comments[getLineFromPos(comment.Pos(), pass)] = group
+		}
+
+		// Now, find all *ast.CallExpr nodes and find their comment and extract annotations.
+		// Comment nodes are floating in GO asts. https://github.com/golang/go/issues/20744
+		// Thus, we require the comments for annotations are written in the same line as the
+		// function call expression, so we can match them by line numbers.
+		ast.Inspect(file, func(node ast.Node) bool {
+			expr, ok := node.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			commentGroup, ok := comments[getLineFromPos(expr.Pos(), pass)]
+			if !ok {
+				// No annotations for this CallExpr node, but we still need to traverse further since
+				// there could be comments for nested CallExpr nodes.
+				return true
+			}
+
+			ident := util.FuncIdentFromCallExpr(expr)
+			// if ident is nil, keep searching for nested CallExpr nodes.
+			if ident == nil {
+				return true
+			}
+			funcObj, ok := pass.TypesInfo.ObjectOf(ident).(*types.Func)
+			if !ok {
+				// not a function, keep searching for nested CallExpr nodes.
+				return true
+			}
+
+			set := nilabilityFromCommentGroup(commentGroup)
+			if len(set) == 0 {
+				// empty set, no annotation, keep searching for nested CallExpr nodes.
+				return true
+			}
+			funcDecl, ok := funcObjToFuncDecl[funcObj]
+			if !ok {
+				panic(funcObj.FullName() + " not found but this should not happen since we " +
+					"have parsed annotations once for every function declaration and the " +
+					"mappings should have been set up.")
+			}
+			callSite := CallSite{Fun: funcObj, Location: util.PosToLocation(expr.Pos(), pass)}
+			for i, val := range accFromFieldList(set, funcDecl.Type.Params, true, true) {
+				argLoc := util.PosToLocation(expr.Args[i].Pos(), pass)
+				funcCallSiteParamAnnMap[callSite] = append(funcCallSiteParamAnnMap[callSite],
+					ArgLocAndVal{Location: argLoc, Val: val})
+			}
+			funcCallSiteRetAnnMap[callSite] = accFromFieldList(set, funcDecl.Type.Results, false, true)
+			// keep searching for nested CallExpr nodes.
+			return true
+		})
 	}
+	return &ObservedMap{
+		fieldAnnMap:             fieldAnnMap,
+		funcParamAnnMap:         funcParamAnnMap,
+		funcRetAnnMap:           funcRetAnnMap,
+		funcRecvAnnMap:          funcRecvAnnMap,
+		deepTypeAnnMap:          deepTypeAnnMap,
+		globalVarsAnnMap:        globalVarsAnnMap,
+		funcCallSiteParamAnnMap: funcCallSiteParamAnnMap,
+		funcCallSiteRetAnnMap:   funcCallSiteRetAnnMap,
+	}
+}
+
+func getLineFromPos(pos token.Pos, pass *analysis.Pass) int {
+	return pass.Fset.Position(pos).Line
 }
