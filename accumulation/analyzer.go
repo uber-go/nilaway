@@ -203,7 +203,7 @@ func checkErrors(triggers []annotation.FullTrigger, annMap annotation.Map) []ann
 	for _, trigger := range filteredTriggers {
 		// Skip checking any full triggers we created by duplicating from contracted functions
 		// to the caller function.
-		if !trigger.Duplicated() && trigger.Check(annMap) {
+		if !trigger.CreatedFromDuplication && trigger.Check(annMap) {
 			triggered = append(triggered, trigger)
 		}
 	}

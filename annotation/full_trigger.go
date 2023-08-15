@@ -49,12 +49,6 @@ func (t *FullTrigger) Controlled() bool {
 	return t.Controller != nil
 }
 
-// Duplicated returns true if the full trigger is created from duplicating another full trigger;
-// otherwise returns false.
-func (t *FullTrigger) Duplicated() bool {
-	return t.CreatedFromDuplication
-}
-
 // Pos returns the position for logging the error specified by the ConsumeTrigger
 func (t *FullTrigger) Pos() token.Pos {
 	return t.Consumer.Pos()
