@@ -415,7 +415,7 @@ func (r *RootAssertionNode) getFuncReturnProducers(ident *ast.Ident, expr *ast.C
 
 	for i := 0; i < numResults; i++ {
 		var retKey annotation.Key
-		if r.HasContract(funcObj) {
+		if r.RetHasContract(funcObj, i) {
 			// Creates a new return site with location information at every call site for a
 			// function with contracts. The return site is unique at every call site, even with the
 			// same function called.

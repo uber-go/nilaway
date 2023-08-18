@@ -214,18 +214,52 @@ func deriveContracts(
 	nilnessTableSetByBB map[*ssa.BasicBlock]nilnessTableSet) []*FunctionContract {
 	// TODO: verify other or multiple param/return contracts in the future; for now we consider
 	//  contract(nonnil->nonnil) only.
-	param := fn.Params[0]
+	nParams, nRets := fn.Signature.Params().Len(), fn.Signature.Results().Len()
+	for p := 0; p < nParams; p++ {
+		for r := 0; r < nRets; r++ {
+			if deriveContractsForSinglePairParamAndRet(p, r, retInstrs, fn, nilnessTableSetByBB) {
+				// TODO: return the first pair of nonnil->nonnil we've seen. We will see how to
+				//  support multiple contracts at the same time in the future.
+				return []*FunctionContract{newNonnilToNonnilContract(p, nParams, r, nRets)}
+			}
+		}
+	}
+	// no nonnil->nonnil pair has been found
+	return []*FunctionContract{}
+}
+
+// deriveContractsForSinglePairParamAndRet checks if a single pair of parameter and return obeys
+// nonnil->nonnil.
+func deriveContractsForSinglePairParamAndRet(
+	paramIndex int,
+	retIndex int,
+	retInstrs []*ssa.Return,
+	fn *ssa.Function,
+	nilnessTableSetByBB map[*ssa.BasicBlock]nilnessTableSet,
+) bool {
+	// If the parameter or return has a type that cannot have nil as a valid value, then we
+	// immediately return false.
+	if util.TypeBarsNilness(fn.Signature.Params().At(paramIndex).Type()) ||
+		util.TypeBarsNilness(fn.Signature.Results().At(retIndex).Type()) {
+		return false
+	}
+
+	// NOTE: *ssa.Function.Params includes both parameters and receiver!
+	if fn.Signature.Recv() != nil {
+		paramIndex++
+	}
+	param := fn.Params[paramIndex]
 	nonnilOrUnknownParamChoices := 0
 	nilParamChoices := 0
 	nonnilRetChoices := 0
 	totalChoices := 0
 
 	// We try to find a counterexample to nonnil->nonnil. If we find one, we immediately break out
-	// of the loop and return the contract(nonnil->nonnil) does not hold. Otherwise, we will
-	// move on to post-check before we can conclude the contaract(nonnil->nonnil) holds.
+	// of the loop and return fals, i.e., the contract(nonnil->nonnil) does not hold. Otherwise, we
+	// will move on to post-check before we can conclude the contract(nonnil->nonnil) holds.
 	for _, retInstr := range retInstrs {
 		// b ends with a return
-		ret := retInstr.Results[0]
+		ret := retInstr.Results[retIndex]
 		tables := newNilnessTableSet()
 		if r, ok := nilnessTableSetByBB[retInstr.Block()]; ok {
 			tables = r
@@ -265,7 +299,7 @@ func deriveContracts(
 				continue
 			}
 			// All the remaining cases are counterexamples to contract(nonnil->nonnil)
-			return []*FunctionContract{}
+			return false
 		}
 	}
 
@@ -281,16 +315,14 @@ func deriveContracts(
 	// infer nonnil->nonnil.
 	if (nilParamChoices == totalChoices && nonnilOrUnknownParamChoices == 0) ||
 		nonnilRetChoices == totalChoices {
-		return []*FunctionContract{}
+		return false
 	}
 
 	// totalChoices > nilParamChoices >= 0 && totalChoices >= nonnilOrUnknownParamChoices > 0 &&
 	// nonnilRetChoices < totalChoices
 
 	// nonnil->nonnil is valid at all exit blocks
-	return []*FunctionContract{
-		{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
-	}
+	return true
 }
 
 func getReturnInstrs(fn *ssa.Function) []*ssa.Return {

@@ -316,6 +316,11 @@ type STR struct {
 	f *int
 }
 
+// contract(nonnil -> nonnil) does not hold because we do not consider receiver as a parameter.
+func (s *STR) receiverNotConsidered(fr *int) *STR {
+	return s
+}
+
 func twoCondsMerge(x *STR) *STR {
 	if x == nil || x.f == nil {
 		return x
@@ -325,4 +330,43 @@ func twoCondsMerge(x *STR) *STR {
 
 func unknownToUnknownButSameValue(x *int) *int {
 	return x
+}
+
+func nonnilAnyToNonnilAny(x *int, y *int) (*int, *int) {
+	if x != nil {
+		return new(int), nil
+	}
+	return x, y
+}
+
+func nonnilAnyToAnyNonnil(x *int, y *int) (*int, *int) {
+	if x != nil {
+		return nil, new(int)
+	}
+	return y, x
+}
+
+func anyNonnilToNonnilAny(x *int, y *int) (*int, *int) {
+	if y != nil {
+		return new(int), nil
+	}
+	return y, x
+}
+
+func anyNonnilToAnyNonnil(x *int, y *int) (*int, *int) {
+	if y != nil {
+		return nil, new(int)
+	}
+	return x, y
+}
+
+func anyNonnilAnyToAnyAnyNonnilAny(x, y, z *int) (*int, *int, *int, *int) {
+	return nil, nil, y, nil
+}
+
+func mixType(x int, y *int) (int, *int) {
+	if y != nil {
+		return 0, new(int)
+	}
+	return x, y
 }
