@@ -1,16 +1,15 @@
 /*
-This package aims to test function contracts.
+This package aims to test automated inferred function contracts in no inference mode.
 
 <nilaway no inference>
 <nilaway contract enable>
 */
-package functioncontracts
+package infer
 
 import "math/rand"
 
 // Test the contracted function contains a full trigger nilable -> return 0.
 // nilable(x, result 0)
-// contract(nonnil -> nonnil)
 func fooReturn(x *int) *int {
 	if x != nil {
 		// Return nonnil
@@ -39,7 +38,6 @@ func barReturn2() {
 
 // Test the contracted function retains a full trigger param 0 -> nonnil.
 // nilable(x, result 0)
-// contract(nonnil -> nonnil)
 func fooParam(x *int) *int {
 	if x != nil {
 		return new(int)
@@ -68,13 +66,13 @@ func barParam2() {
 func sink(v int) {}
 
 // Test the contracted function contains another contracted function.
-// nilable(x, result 0)
+// TODO: remove the contract here when we can automatically infer the contract for this function.
 // contract(nonnil -> nonnil)
+// nilable(x, result 0)
 func fooNested(x *int) *int {
 	return fooBase(x)
 }
 
-// contract(nonnil -> nonnil)
 // nilable(x, result 0)
 func fooBase(x *int) *int {
 	if x != nil {
@@ -101,7 +99,6 @@ func barNested2() {
 }
 
 // Test the contracted function is called multiple times in another function.
-// contract(nonnil -> nonnil)
 // nilable(x, result 0)
 func fooReturnCalledMultipleTimesInTheSameFunction(x *int) *int {
 	if x != nil {
@@ -136,7 +133,6 @@ func barReturnCalledMultipleTimesInTheSameFunction() {
 
 // Test call site annotations are wrongly written.
 // nilable(x, result 0)
-// contract(nonnil -> nonnil)
 func fooWrongCallSiteAnnotation(x *int) *int {
 	if x != nil {
 		// Return nonnil
@@ -157,7 +153,6 @@ func barWrongCallSiteAnnotation() {
 }
 
 // nonnil(x) nilable(result 0)
-// contract(nonnil -> nonnil)
 func fooNoCallSiteAnnoatation(x *int) *int {
 	if x != nil {
 		// Return nonnil

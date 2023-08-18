@@ -12,7 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// <nilaway contract enable>
+/*
+This package aims to test hand-written function contracts in full inference mode.
+
+<nilaway contract enable>
+*/
 package inference
 
 import "math/rand"

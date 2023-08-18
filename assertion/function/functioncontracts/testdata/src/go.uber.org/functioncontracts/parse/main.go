@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // <nilaway contract enable>
-package functioncontracts
+package parse
 
 // contract(nonnil -> nonnil)
 func f1(x *int) *int {
