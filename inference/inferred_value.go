@@ -14,7 +14,11 @@
 
 package inference
 
-import "fmt"
+import (
+	"fmt"
+
+	"go.uber.org/nilaway/annotation"
+)
 
 // An InferredVal is the information that we export about an annotation site after having
 // witnessed an assertion about that site. If that assertion, and any other we've observed here and
@@ -87,13 +91,13 @@ func (e *UndeterminedVal) copy() InferredVal {
 // SitesWithAssertions is a type that allows us to encode a set of annotation sites annotated with
 // an assertion for each one. This is used in an UndeterminedVal to specify the implicants and
 // implicates of a site along with the triggers that brought about those implications.
-type SitesWithAssertions map[primitiveSite]primitiveFullTrigger
+type SitesWithAssertions map[PrimitiveSite]PrimitiveFullTrigger
 
 func newSitesWithAssertions() SitesWithAssertions {
 	return make(SitesWithAssertions)
 }
 
-func (s SitesWithAssertions) addSiteWithAssertion(site primitiveSite, assertion primitiveFullTrigger) {
+func (s SitesWithAssertions) addSiteWithAssertion(site PrimitiveSite, assertion PrimitiveFullTrigger) {
 	s[site] = assertion
 }
 
@@ -157,4 +161,82 @@ func inferredValDiff(newVal, oldVal InferredVal) (InferredVal, bool) {
 		}
 	}
 	panic(fmt.Sprintf("ERROR: unrecognized InferredAnnotationVals: %T, %T", newVal, oldVal))
+}
+
+// Implication represents an implication edge that nilable flows in the direction of and nonnil
+// flows in the opposite direction of. For example, if a producer is nilable, then the consumer
+// must be nilable, but not vice versa. Similarly, if a consumer is nonnil, then the producer must
+// be nonnil, but not vice versa. The Controller field is the site that is responsible for if this
+// implication edge is considered or not during inference of the graph. If the Controlled field is
+// false, then the implication edge is considered regardless of the value of the controller site.
+// If the Controlled is true, then the implication edge is only considered if the controller site
+// is nilable. The IsProducerValid and IsConsumerValid fields are used to determine if the producer
+// and consumer are valid to use for the given implication edge. The HasParamProducer and
+// HasRetConsumer fields are used to determine if the producer and consumer originally
+// correspond to FuncParam producer and UseAsReturn consumer, respectively. The CtrtParamIndex
+// determines which parameter of the function is involved in the contract. The CtrtRetIndex
+// determines which return value of the function is involved in the contract.
+type Implication struct {
+	Producer         PrimitiveSite
+	Consumer         PrimitiveSite
+	Assertion        PrimitiveFullTrigger
+	Controller       PrimitiveSite
+	Controlled       bool
+	IsProducerValid  bool
+	IsConsumerValid  bool
+	HasParamProducer bool
+	HasRetConsumer   bool
+	CtrtParamIndex   int
+	CtrtRetIndex     int
+}
+
+// SetProducerFromKey sets the producer site of the implication edge to the site corresponding
+// to the given key.
+func (i *Implication) SetProducerFromKey(primitiver *Primitivizer, key annotation.Key, isDeep bool) {
+	i.Producer = primitiver.site(key, isDeep)
+}
+
+// SetConsumerFromKey sets the consumer site of the implication edge to the site corresponding
+// to the given key.
+func (i *Implication) SetConsumerFromKey(primitiver *Primitivizer, key annotation.Key, isDeep bool) {
+	i.Consumer = primitiver.site(key, isDeep)
+}
+
+// SetControllerFromKey sets the controller site of the implication edge to the site corresponding
+// to the given key.
+func (i *Implication) SetControllerFromKey(primitiver *Primitivizer, key annotation.Key, isDeep bool) {
+	i.Controller = primitiver.site(key, isDeep)
+}
+
+// AllSites returns Producer, Consumer, and Controller as a slice.
+func (i *Implication) AllSites() []PrimitiveSite {
+	return []PrimitiveSite{i.Producer, i.Consumer, i.Controller}
+}
+
+// String returns a string representation of the implication edge for debugging purposes.
+func (i *Implication) String() string {
+	return fmt.Sprintf(
+		"Producer: %s,\n"+
+			"Consumer: %s,\n"+
+			"Assertion: %v,\n"+
+			"Controller: %s,\n"+
+			"Controlled: %t,\n"+
+			"IsProducerValid: %t,\n"+
+			"IsConsumerValid: %t,\n"+
+			"HasParamProducer: %t,\n"+
+			"HasRetConsumer: %t,\n"+
+			"CtrtParamIndex: %d,\n"+
+			"CtrtRetIndex: %d",
+		i.Producer.String(),
+		i.Consumer.String(),
+		i.Assertion,
+		i.Controller.String(),
+		i.Controlled,
+		i.IsProducerValid,
+		i.IsConsumerValid,
+		i.HasParamProducer,
+		i.HasRetConsumer,
+		i.CtrtParamIndex,
+		i.CtrtRetIndex,
+	)
 }

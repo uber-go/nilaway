@@ -131,7 +131,7 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 		// Incorporate assertions from this package one-by-one into the inferredAnnotationMap, possibly
 		// determining local and upstream sites in the process. This is guaranteed not to determine any
 		// sites unless we really have a reason they have to be determined.
-		engine.ObservePackage(assertionsResult.FullTriggers)
+		engine.ObservePackage(assertionsResult.FullTriggers, assertionsResult.Implications)
 		inferredMap, diagnostics = engine.InferredMapWithDiagnostics()
 
 	case inference.NoInfer:

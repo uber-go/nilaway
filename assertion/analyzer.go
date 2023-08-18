@@ -26,6 +26,7 @@ import (
 	"go.uber.org/nilaway/assertion/function"
 	"go.uber.org/nilaway/assertion/global"
 	"go.uber.org/nilaway/config"
+	"go.uber.org/nilaway/inference"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -41,6 +42,9 @@ type Result struct {
 	// part of the result of this sub-analyzer so that the upper-level analyzers can decide what
 	// to do with them.
 	Errors []error
+	// Implications is the extra implications generated from the function contracts analysis, to be
+	// used in the inference stage.
+	Implications []*inference.Implication
 }
 
 // Analyzer here is the analyzer than generates assertions and passes them onto the accumulator to
@@ -90,5 +94,5 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 		errs = append(errs, resultErrs...)
 	}
 
-	return Result{FullTriggers: triggers, Errors: errs}, nil
+	return Result{FullTriggers: triggers, Errors: errs, Implications: r1.Implications}, nil
 }

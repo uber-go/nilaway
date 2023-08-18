@@ -59,7 +59,7 @@ func (r *RootAssertionNode) LocationOf(expr ast.Expr) token.Position {
 // one nonnil in input and only one nonnil in output and all the other values are any, e.g.,
 // contract(_,nonnil->nonnil,_) is OK, but contract(nonnil,nonnil->nonnil,_) is not.
 func (r *RootAssertionNode) getSingleNonnilToNonnilContract(funcObj *types.Func) *functioncontracts.FunctionContract {
-	ctrts := r.functionContext.funcContracts[funcObj]
+	ctrts := r.functionContext.funcContracts[funcObj.FullName()]
 	if ctrts == nil || len(ctrts) != 1 || !ctrts[0].IsGeneralNonnnilToNonnil() {
 		return nil
 	}

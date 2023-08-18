@@ -38,15 +38,17 @@ import (
 // inferredValDiff on shared keys is used to ensure that only
 // information present in `Mapping` but not `UpstreamMapping` is exported.
 type InferredMap struct {
-	upstreamMapping map[primitiveSite]InferredVal
-	mapping         map[primitiveSite]InferredVal
+	primitive       *Primitivizer
+	upstreamMapping map[PrimitiveSite]InferredVal
+	mapping         map[PrimitiveSite]InferredVal
 }
 
 // newInferredMap returns a new, empty InferredMap.
-func newInferredMap() *InferredMap {
+func newInferredMap(primitive *Primitivizer) *InferredMap {
 	return &InferredMap{
-		upstreamMapping: make(map[primitiveSite]InferredVal),
-		mapping:         make(map[primitiveSite]InferredVal),
+		primitive:       primitive,
+		upstreamMapping: make(map[PrimitiveSite]InferredVal),
+		mapping:         make(map[PrimitiveSite]InferredVal),
 	}
 }
 
@@ -82,21 +84,21 @@ func (i *InferredMap) String() string {
 
 // Load returns the value stored in the map for an annotation site, or nil if no value is present.
 // The ok result indicates whether value was found in the map.
-func (i *InferredMap) Load(site primitiveSite) (value InferredVal, ok bool) {
+func (i *InferredMap) Load(site PrimitiveSite) (value InferredVal, ok bool) {
 	value, ok = i.mapping[site]
 	return
 }
 
 // StoreDetermined sets the inferred value for an annotation site.
-func (i *InferredMap) StoreDetermined(site primitiveSite, value ExplainedBool) {
+func (i *InferredMap) StoreDetermined(site PrimitiveSite, value ExplainedBool) {
 	i.mapping[site] = &DeterminedVal{Bool: value}
 }
 
 // StoreImplication stores an implication edge between the `from` and `to` annotation sites in the
 // graph with the assertion for error reporting.
-func (i *InferredMap) StoreImplication(from primitiveSite, to primitiveSite, assertion primitiveFullTrigger) {
+func (i *InferredMap) StoreImplication(from PrimitiveSite, to PrimitiveSite, assertion PrimitiveFullTrigger) {
 	// First create UndeterminedVal in the map if it does not exist yet.
-	for _, site := range [...]primitiveSite{from, to} {
+	for _, site := range [...]PrimitiveSite{from, to} {
 		if _, ok := i.mapping[site]; !ok {
 			i.mapping[site] = &UndeterminedVal{
 				Implicates: newSitesWithAssertions(),
@@ -116,7 +118,7 @@ func (i *InferredMap) Len() int {
 
 // Range calls f sequentially for each annotation site and inferred value present in the map.
 // If f returns false, range stops the iteration.
-func (i *InferredMap) Range(f func(primitiveSite, InferredVal) bool) {
+func (i *InferredMap) Range(f func(PrimitiveSite, InferredVal) bool) {
 	for site, value := range i.mapping {
 		if !f(site, value) {
 			return
@@ -135,7 +137,7 @@ func (i *InferredMap) Export(pass *analysis.Pass) {
 
 	// First create a new map containing only the sites and their inferred values that we would
 	// like to export.
-	exported := make(map[primitiveSite]InferredVal)
+	exported := make(map[PrimitiveSite]InferredVal)
 	sitesToExport := i.chooseSitesToExport()
 	for site, val := range i.mapping {
 
@@ -154,7 +156,7 @@ func (i *InferredMap) Export(pass *analysis.Pass) {
 	}
 
 	if len(exported) > 0 {
-		m := newInferredMap()
+		m := newInferredMap(nil /* primitive */)
 		m.mapping = exported
 		pass.ExportPackageFact(m)
 	}
@@ -177,7 +179,7 @@ func (i *InferredMap) GobDecode(input []byte) error {
 	buf := bytes.NewBuffer(input)
 	dec := gob.NewDecoder(buf)
 
-	i.mapping, i.upstreamMapping = make(map[primitiveSite]InferredVal), make(map[primitiveSite]InferredVal)
+	i.mapping, i.upstreamMapping = make(map[PrimitiveSite]InferredVal), make(map[PrimitiveSite]InferredVal)
 
 	return dec.Decode(&i.mapping)
 }
@@ -187,13 +189,13 @@ func (i *InferredMap) GobDecode(input []byte) error {
 // reachability  here to be reflexive, and we choose this definition so that the returned set is
 // convex -guaranteeing that we never forget a semantically meaningful implication - yet minimal -
 // containing no site that could be forgotten without sacrificing soundness
-func (i *InferredMap) chooseSitesToExport() map[primitiveSite]bool {
-	toExport := make(map[primitiveSite]bool)
-	reachableFromExported := make(map[primitiveSite]bool)
-	reachesExported := make(map[primitiveSite]bool)
+func (i *InferredMap) chooseSitesToExport() map[PrimitiveSite]bool {
+	toExport := make(map[PrimitiveSite]bool)
+	reachableFromExported := make(map[PrimitiveSite]bool)
+	reachesExported := make(map[PrimitiveSite]bool)
 
-	var markReachableFromExported func(site primitiveSite)
-	markReachableFromExported = func(site primitiveSite) {
+	var markReachableFromExported func(site PrimitiveSite)
+	markReachableFromExported = func(site PrimitiveSite) {
 		if val, isUndetermined := i.mapping[site].(*UndeterminedVal); isUndetermined && !site.Exported && !toExport[site] && !reachableFromExported[site] {
 			if reachesExported[site] {
 				toExport[site] = true
@@ -207,8 +209,8 @@ func (i *InferredMap) chooseSitesToExport() map[primitiveSite]bool {
 		}
 	}
 
-	var markReachesExported func(site primitiveSite)
-	markReachesExported = func(site primitiveSite) {
+	var markReachesExported func(site PrimitiveSite)
+	markReachesExported = func(site PrimitiveSite) {
 		if val, isUndetermined := i.mapping[site].(*UndeterminedVal); isUndetermined && !site.Exported && !toExport[site] && !reachesExported[site] {
 			if reachableFromExported[site] {
 				toExport[site] = true
@@ -289,8 +291,8 @@ func (i *InferredMap) CheckFuncCallSiteRetAnn(key annotation.CallSiteRetAnnotati
 }
 
 func (i *InferredMap) checkAnnotationKey(key annotation.Key) (annotation.Val, bool) {
-	shallowKey := newPrimitiveSite(key, false)
-	deepKey := newPrimitiveSite(key, true)
+	shallowKey := i.primitive.site(key, false)
+	deepKey := i.primitive.site(key, true)
 
 	shallowVal, shallowOk := i.mapping[shallowKey]
 	deepVal, deepOk := i.mapping[deepKey]
