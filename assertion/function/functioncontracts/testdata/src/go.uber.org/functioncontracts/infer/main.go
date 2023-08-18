@@ -1,3 +1,5 @@
+// want package:".*"
+
 //  Copyright (c) 2023 Uber Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -369,4 +371,11 @@ func mixType(x int, y *int) (int, *int) {
 		return 0, new(int)
 	}
 	return x, y
+}
+
+func ExportedFromInfer(x *int) *int {
+	if x != nil {
+		return new(int)
+	}
+	return nil
 }

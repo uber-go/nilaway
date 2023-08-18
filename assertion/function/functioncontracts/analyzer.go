@@ -45,11 +45,12 @@ type Result struct {
 	Errors []error
 }
 
-// Analyzer here is the analyzer than reads function contracts
+// Analyzer here is the analyzer that reads function contracts.
 var Analyzer = &analysis.Analyzer{
 	Name:       "nilaway_function_contracts_analyzer",
 	Doc:        _doc,
 	Run:        run,
+	FactTypes:  []analysis.Fact{new(Cache)},
 	ResultType: reflect.TypeOf((*Result)(nil)).Elem(),
 	Requires:   []*analysis.Analyzer{buildssa.Analyzer, config.Analyzer},
 }
@@ -84,14 +85,63 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 		return Result{FunctionContracts: Map{}}, nil
 	}
 
-	return Result{FunctionContracts: collectFunctionContracts(pass)}, nil
+	return Result{FunctionContracts: collectUpstreamAndCurrent(pass)}, nil
+}
+
+// Cache stores the contracts collected from the current package. This information can be used by
+// downstream packages to avoid re-collection from the same package.
+type Cache struct {
+	CurPkgContracts map[string][]*FunctionContract
+}
+
+// AFact enables use of the facts passing mechanism in Go's analysis framework
+func (*Cache) AFact() {}
+
+// collectUpstreamAndCurrent collects all the contracts from upstream packages and the current
+// package, and also exports the contracts in the current package for downstream packages to use.
+func collectUpstreamAndCurrent(pass *analysis.Pass) Map {
+	// collect all contracts from upstream
+	totalCtrts := map[string][]*FunctionContract{}
+	// populate totalCtrts by importing contracts passed from upstream packages
+	facts := pass.AllPackageFacts()
+	if len(facts) > 0 {
+		for _, f := range facts {
+			switch c := f.Fact.(type) {
+			case *Cache:
+				for funcID, contracts := range c.CurPkgContracts {
+					totalCtrts[funcID] = append(totalCtrts[funcID], contracts...)
+				}
+			}
+		}
+	}
+
+	curPkgCtrts := collectFunctionContracts(pass)
+	// export new contracts from this package; only necessary for those exportable functions.
+	exported := map[string][]*FunctionContract{}
+	for funcObj, contracts := range curPkgCtrts {
+		if !funcObj.Exported() {
+			// skip non-exported functions
+			continue
+		}
+		funcID := funcObj.FullName()
+		exported[funcID] = append(exported[funcID], contracts...)
+	}
+	if len(curPkgCtrts) > 0 {
+		pass.ExportPackageFact(&Cache{CurPkgContracts: exported})
+	}
+
+	// include contracts in the current package
+	for funcObj, contracts := range curPkgCtrts {
+		totalCtrts[funcObj.FullName()] = contracts
+	}
+	return totalCtrts
 }
 
 // collectFunctionContracts collects all the function contracts and returns a map that associates
 // every function with its contracts if it has any. We prefer to parse handwritten contracts from
 // the comments at the top of each function. Only when there are no handwritten contracts there,
 // do we try to automatically infer contracts.
-func collectFunctionContracts(pass *analysis.Pass) Map {
+func collectFunctionContracts(pass *analysis.Pass) map[*types.Func][]*FunctionContract {
 	// Collect ssa for every function.
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
 	ssaInput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
@@ -113,7 +163,7 @@ func collectFunctionContracts(pass *analysis.Pass) Map {
 	var wg sync.WaitGroup
 	funcChan := make(chan functionResult)
 
-	m := Map{}
+	m := map[*types.Func][]*FunctionContract{}
 	for _, file := range pass.Files {
 		if !conf.IsFileInScope(file) || !util.DocContainsFunctionContractsCheck(file.Doc) {
 			continue

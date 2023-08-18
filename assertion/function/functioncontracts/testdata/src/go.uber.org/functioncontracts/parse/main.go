@@ -1,3 +1,5 @@
+// want package:".*"
+
 //  Copyright (c) 2023 Uber Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -65,3 +67,11 @@ func multipleContracts(x *int, y *int) (*int, bool) {
 // function has no param or return. Only a contract in its own line should be parsed, not even `//
 // contract(nonnil -> nonnil)`.
 func contractCommentInOtherLine() {}
+
+// contract(nonnil -> nonnil)
+func ExportedFromParse(x *int) *int {
+	if x != nil {
+		return new(int)
+	}
+	return nil
+}

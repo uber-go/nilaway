@@ -85,15 +85,17 @@ type conflict interface {
 // `nil` and the same field `f` of `T` passed to a deeper field access without nil check in a
 // different source file.
 type singleAssertionConflict struct {
-	trigger         primitiveFullTrigger
+	pos             token.Pos
+	trigger         PrimitiveFullTrigger
 	originalTrigger annotation.FullTrigger
 }
 
 // newSingleAssertionConflict constructs and returns a singleAssertionConflict.
-func newSingleAssertionConflict(pass *analysis.Pass, trigger annotation.FullTrigger) *singleAssertionConflict {
+func newSingleAssertionConflict(pos token.Pos, trigger PrimitiveFullTrigger, origTrigger annotation.FullTrigger) *singleAssertionConflict {
 	return &singleAssertionConflict{
-		trigger:         fullTriggerAsPrimitive(pass, trigger),
-		originalTrigger: trigger,
+		pos:             pos,
+		trigger:         trigger,
+		originalTrigger: origTrigger,
 	}
 }
 
@@ -104,7 +106,7 @@ func (t *singleAssertionConflict) getSiteMessage() string {
 
 // getPosition returns the source code position of the conflict.
 func (t *singleAssertionConflict) getPosition() token.Pos {
-	return t.trigger.Pos
+	return t.pos
 }
 
 // getProducerMessage returns the error message to be reported for the producer part of the conflict.
@@ -126,14 +128,16 @@ func (t *singleAssertionConflict) key() groupKey {
 // chains of assertions to be both nilable (true) and nonnil (false). It encodes the overconstrained
 // site, and the reason that the site had to be true and had to be false, as ExplainedBools.
 type overconstrainedConflict struct {
-	site             primitiveSite
+	pos              token.Pos
+	site             PrimitiveSite
 	trueExplanation  ExplainedBool
 	falseExplanation ExplainedBool
 }
 
 // newOverconstrainedConflict  constructs and returns an overconstrainedConflict.
-func newOverconstrainedConflict(site primitiveSite, trueExplanation, falseExplanation ExplainedBool) *overconstrainedConflict {
+func newOverconstrainedConflict(pos token.Pos, site PrimitiveSite, trueExplanation, falseExplanation ExplainedBool) *overconstrainedConflict {
 	return &overconstrainedConflict{
+		pos:              pos,
 		site:             site,
 		trueExplanation:  trueExplanation,
 		falseExplanation: falseExplanation,
@@ -147,7 +151,7 @@ func (t *overconstrainedConflict) getSiteMessage() string {
 
 // getPosition returns the source code position of the conflict.
 func (t *overconstrainedConflict) getPosition() token.Pos {
-	return t.site.Pos
+	return t.pos
 }
 
 // getProducerMessage returns the error message to be reported for the producer part of the conflict.

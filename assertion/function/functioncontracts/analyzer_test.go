@@ -40,27 +40,30 @@ func TestParse(t *testing.T) {
 
 	require.NotNil(t, funcContractsMap)
 
-	actualNameToContracts := map[*types.Func][]*FunctionContract{}
-	for funcObj, contracts := range funcContractsMap {
-		actualNameToContracts[funcObj] = contracts
+	actualNameToContracts := map[string][]*FunctionContract{}
+	for funcID, contracts := range funcContractsMap {
+		actualNameToContracts[funcID] = contracts
 	}
 
-	expectedNameToContracts := map[*types.Func][]*FunctionContract{
-		getFuncObj(pass, "f1"): {
+	expectedNameToContracts := map[string][]*FunctionContract{
+		getFuncID(pass, "f1"): {
 			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		},
-		getFuncObj(pass, "f2"): {
+		getFuncID(pass, "f2"): {
 			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{True}},
 		},
-		getFuncObj(pass, "f3"): {
+		getFuncID(pass, "f3"): {
 			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{False}},
 		},
-		getFuncObj(pass, "multipleValues"): {
+		getFuncID(pass, "multipleValues"): {
 			&FunctionContract{Ins: []ContractVal{Any, NonNil}, Outs: []ContractVal{NonNil, True}},
 		},
-		getFuncObj(pass, "multipleContracts"): {
+		getFuncID(pass, "multipleContracts"): {
 			&FunctionContract{Ins: []ContractVal{Any, NonNil}, Outs: []ContractVal{NonNil, True}},
 			&FunctionContract{Ins: []ContractVal{NonNil, Any}, Outs: []ContractVal{NonNil, True}},
+		},
+		getFuncID(pass, "ExportedFromParse"): {
+			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		},
 		// function contractCommentInOtherLine should not exist in the map as it has no contract.
 	}
@@ -83,57 +86,63 @@ func TestInfer(t *testing.T) {
 
 	require.NotNil(t, funcContractsMap)
 
-	actualNameToContracts := map[*types.Func][]*FunctionContract{}
+	actualNameToContracts := map[string][]*FunctionContract{}
 	for funcObj, contracts := range funcContractsMap {
 		actualNameToContracts[funcObj] = contracts
 	}
 
-	expectedNameToContracts := map[*types.Func][]*FunctionContract{
-		getFuncObj(pass, "onlyLocalVar"): {
+	expectedNameToContracts := map[string][]*FunctionContract{
+		getFuncID(pass, "onlyLocalVar"): {
 			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		},
-		getFuncObj(pass, "unknownCondition"): {
+		getFuncID(pass, "unknownCondition"): {
 			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		},
-		getFuncObj(pass, "noLocalVar"): {
+		getFuncID(pass, "noLocalVar"): {
 			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		},
-		getFuncObj(pass, "learnUnderlyingFromOuterMakeInterface"): {
+		getFuncID(pass, "learnUnderlyingFromOuterMakeInterface"): {
 			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		},
-		getFuncObj(pass, "twoCondsMerge"): {
+		getFuncID(pass, "ExportedFromInfer"): {
 			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		},
-		getFuncObj(pass, "unknownToUnknownButSameValue"): {
+		getFuncID(pass, "twoCondsMerge"): {
 			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		},
-		getFuncObj(pass, "nonnilAnyToNonnilAny"): {
+		getFuncID(pass, "unknownToUnknownButSameValue"): {
+			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+		},
+		getFuncID(pass, "nonnilAnyToNonnilAny"): {
 			&FunctionContract{Ins: []ContractVal{NonNil, Any}, Outs: []ContractVal{NonNil, Any}},
 		},
-		getFuncObj(pass, "nonnilAnyToAnyNonnil"): {
+		getFuncID(pass, "nonnilAnyToAnyNonnil"): {
 			&FunctionContract{Ins: []ContractVal{NonNil, Any}, Outs: []ContractVal{Any, NonNil}},
 		},
-		getFuncObj(pass, "anyNonnilToNonnilAny"): {
+		getFuncID(pass, "anyNonnilToNonnilAny"): {
 			&FunctionContract{Ins: []ContractVal{Any, NonNil}, Outs: []ContractVal{NonNil, Any}},
 		},
-		getFuncObj(pass, "anyNonnilToAnyNonnil"): {
+		getFuncID(pass, "anyNonnilToAnyNonnil"): {
 			&FunctionContract{Ins: []ContractVal{Any, NonNil}, Outs: []ContractVal{Any, NonNil}},
 		},
-		getFuncObj(pass, "anyNonnilAnyToAnyAnyNonnilAny"): {
+		getFuncID(pass, "anyNonnilAnyToAnyAnyNonnilAny"): {
 			&FunctionContract{Ins: []ContractVal{Any, NonNil, Any}, Outs: []ContractVal{Any, Any, NonNil, Any}},
 		},
-		getFuncObj(pass, "mixType"): {
+		getFuncID(pass, "mixType"): {
 			&FunctionContract{Ins: []ContractVal{Any, NonNil}, Outs: []ContractVal{Any, NonNil}},
+		},
+		getFuncID(pass, "ExportedFromInfer"): {
+			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		},
 		// other functions should not exist in the map as the contract nonnil->nonnil does not hold
 		// for them.
 
 		// TODO: uncomment this when we support field access when inferring contracts.
-		//getFuncObj(pass, "field"): {
+		//getFuncID(pass, "field"): {
 		//	&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		//},
 		// TODO: uncomment this when we support nonempty slice to nonnil.
-		//getFuncObj(pass, "nonEmptySliceToNonnil"): {
+		//getFuncID(pass, "nonEmptySliceToNonnil"): {
 		//	&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		//},
 	}
@@ -142,6 +151,47 @@ func TestInfer(t *testing.T) {
 	}
 }
 
-func getFuncObj(pass *analysis.Pass, name string) *types.Func {
-	return pass.Pkg.Scope().Lookup(name).(*types.Func)
+func TestUpstream(t *testing.T) {
+	t.Parallel()
+
+	testdata := analysistest.TestData()
+	r := analysistest.Run(t, testdata, Analyzer, "go.uber.org/functioncontracts")
+	require.Equal(t, 1, len(r))
+	require.NotNil(t, r[0])
+
+	pass, result := r[0].Pass, r[0].Result
+	require.IsType(t, Result{}, result)
+	funcContractsMap := result.(Result).FunctionContracts
+
+	require.NotNil(t, funcContractsMap)
+
+	actualNameToContracts := map[string][]*FunctionContract{}
+	for funcObj, contracts := range funcContractsMap {
+		actualNameToContracts[funcObj] = contracts
+	}
+
+	expectedNameToContracts := map[string][]*FunctionContract{
+		getFuncID(pass, "ExportedFromParse"): {
+			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+		},
+		getFuncID(pass, "ExportedFromInfer"): {
+			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+		},
+	}
+	if diff := cmp.Diff(expectedNameToContracts, actualNameToContracts); diff != "" {
+		require.Fail(t, fmt.Sprintf("inferred contracts mismatch (-want +got):\n%s", diff))
+	}
+}
+
+func getFuncID(pass *analysis.Pass, name string) string {
+	obj := pass.Pkg.Scope().Lookup(name)
+	if obj == nil {
+		for _, iPkg := range pass.Pkg.Imports() {
+			obj = iPkg.Scope().Lookup(name)
+			if obj != nil {
+				break
+			}
+		}
+	}
+	return obj.(*types.Func).FullName()
 }

@@ -14,10 +14,6 @@
 
 package functioncontracts
 
-import (
-	"go/types"
-)
-
 // ContractVal represents the possible value appearing in a function contract.
 type ContractVal string
 
@@ -57,8 +53,8 @@ type FunctionContract struct {
 	Outs []ContractVal
 }
 
-// Map stores the mappings from *types.Func to associated function contracts.
-type Map map[*types.Func][]*FunctionContract
+// Map stores the mappings from *types.Func.FullName() string to associated function contracts.
+type Map map[string][]*FunctionContract
 
 // newNonnilToNonnilContract creates a function contract that has only one NonNil value at the
 // given index p for input and r for output.

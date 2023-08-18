@@ -55,7 +55,7 @@ func (ExplainedFalse) Val() bool {
 // truth.
 type TrueBecauseShallowConstraint struct {
 	ExplainedTrue
-	ExternalAssertion primitiveFullTrigger
+	ExternalAssertion PrimitiveFullTrigger
 }
 
 func (t TrueBecauseShallowConstraint) String() string {
@@ -72,7 +72,7 @@ func (t TrueBecauseShallowConstraint) String() string {
 // falsehood.
 type FalseBecauseShallowConstraint struct {
 	ExplainedFalse
-	ExternalAssertion primitiveFullTrigger
+	ExternalAssertion PrimitiveFullTrigger
 }
 
 func (f FalseBecauseShallowConstraint) String() string {
@@ -87,7 +87,7 @@ func (f FalseBecauseShallowConstraint) String() string {
 // `TrueBecauseAnnotation`, `TrueBecauseShallowConstraint`, or another `TrueBecauseDeepConstraint`.
 type TrueBecauseDeepConstraint struct {
 	ExplainedTrue
-	InternalAssertion primitiveFullTrigger
+	InternalAssertion PrimitiveFullTrigger
 	DeeperExplanation ExplainedBool
 }
 
@@ -103,7 +103,7 @@ func (t TrueBecauseDeepConstraint) String() string {
 // `FalseBecauseAnnotation`, `FalseBecauseShallowConstraint`, or another `FalseBecauseDeepConstraint`.
 type FalseBecauseDeepConstraint struct {
 	ExplainedFalse
-	InternalAssertion primitiveFullTrigger
+	InternalAssertion PrimitiveFullTrigger
 	DeeperExplanation ExplainedBool
 }
 
