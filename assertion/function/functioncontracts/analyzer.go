@@ -134,25 +134,21 @@ func collectFunctionContracts(pass *analysis.Pass) Map {
 				m[funcObj] = parsedContracts
 				continue
 			}
-
 			// If we reach here, it means that there are no handwritten contracts for this
 			// function. We need to infer contracts for this function.
-			if funcDecl.Type.Params.NumFields() != 1 ||
-				funcDecl.Type.Results.NumFields() != 1 ||
-				util.TypeBarsNilness(funcObj.Type().(*types.Signature).Params().At(0).Type()) ||
-				util.TypeBarsNilness(funcObj.Type().(*types.Signature).Results().At(0).Type()) ||
+			if funcDecl.Type.Params.NumFields() == 0 ||
+				funcDecl.Type.Results.NumFields() == 0 ||
+				allParamOrRetTypesBarNilness(funcObj) ||
 				funcObj.Type().(*types.Signature).Variadic() {
-				// We definitely want to ignore any function without any parameters or return
-				// values since they cannot have any contracts.
+				// We ignore any function without any parameters or return values since they cannot
+				// have any contracts.
+				// We ignore any function that has a parameter or return value with a type that
+				// cannot have nil as a valid value, e.g., an int.
 
-				// TODO: However, we want to analyze for multiple param/return in the future; for
-				//  now we consider contract(nonnil->nonnil) only.
-
-				// TODO: If the function has only one parameter and the parameter is variadic, then
-				//  it may happen that no argument is passed when calling the function. Such cases
-				//  are not handled well when duplicating full triggers from contracted functions,
-				//  so we don't infer contract(nonnil->nonnil) for such a function although we can
-				//  already.
+				// TODO: We ignore variadic parameters since they are not well handled when
+				//  creating triggers. We will need to create a Always Nilable producer if no
+				//  argument is passed to a site that is supposed to be a variadic parameter.
+				//  We leave this as future work.
 				continue
 			}
 			fnssa, ok := ssaOfFunc[funcObj]
@@ -177,10 +173,33 @@ func collectFunctionContracts(pass *analysis.Pass) Map {
 	// Collect inferred contracts from the channel.
 	for r := range funcChan {
 		if len(r.contracts) != 0 {
+			ctrt := r.contracts[0]
+			if ctrt == nil {
+				continue
+			}
 			m[r.funcObj] = r.contracts
 		}
 	}
 	return m
+}
+
+// allParamOrRetTypesBarNilness checks if all parameter or return values of a function have types
+// that cannot have nil as a valid value, e.g., all ints.
+func allParamOrRetTypesBarNilness(funcObj *types.Func) bool {
+	params := funcObj.Type().(*types.Signature).Params()
+	results := funcObj.Type().(*types.Signature).Results()
+	return allInTupleTypesBarNilness(params) || allInTupleTypesBarNilness(results)
+}
+
+// allInTupleTypesBarNilness checks if all types in a tuple cannot have nil as a valid value, e.g.,
+// all ints.
+func allInTupleTypesBarNilness(vars *types.Tuple) bool {
+	for i := 0; i < vars.Len(); i++ {
+		if !util.TypeBarsNilness(vars.At(i).Type()) {
+			return false
+		}
+	}
+	return true
 }
 
 // inferContractsToChannel infers contracts for a function that does not have any contracts

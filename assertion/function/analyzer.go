@@ -304,24 +304,43 @@ func duplicateFullTriggersFromContractedFunctionsToCallers(
 		if r == nil {
 			// should not happen since funcResults should contain all the functions including any
 			// contracted functions.
-			panic(fmt.Sprintf("Did not find the contracted function %s in funcResults", ctrtFunc.Id()))
+			panic(fmt.Sprintf("Did not find the contracted function %s in funcResults",
+				ctrtFunc.FullName()))
 		}
+		ctrts := funcContracts[ctrtFunc]
+		if ctrts == nil {
+			// should not happen since ctrtFunc is a contracted function
+			panic(fmt.Sprintf(
+				"Did not find the contracted function %s in funcContracts",
+				ctrtFunc.FullName()))
+		}
+		contract := ctrts[0]
+		ctrtParamIndex := contract.IndexOfNonnilIn()
+		ctrtRetIndex := contract.IndexOfNonnilOut()
 		for _, trigger := range r.triggers {
 			// If the full trigger has a FuncParam producer or a UseAsReturn consumer, then create
 			// a duplicated (possibly controlled) full trigger from it and add the created full
 			// trigger to every caller.
-			_, isParamProducer := trigger.Producer.Annotation.(annotation.FuncParam)
-			_, isReturnConsumer := trigger.Consumer.Annotation.(annotation.UseAsReturn)
-			if !isParamProducer && !isReturnConsumer {
-				// No need to duplicate the full trigger
+			p, isContractedParam := trigger.Producer.Annotation.(annotation.FuncParam)
+			if isContractedParam {
+				isContractedParam = ctrtParamIndex == p.TriggerIfNilable.Ann.(annotation.ParamAnnotationKey).ParamNum
+			}
+			c, isContractedReturn := trigger.Consumer.Annotation.(annotation.UseAsReturn)
+			if isContractedReturn {
+				isContractedReturn = ctrtRetIndex == c.TriggerIfNonNil.Ann.(annotation.RetAnnotationKey).RetNum
+			}
+			if !isContractedParam && !isContractedReturn {
+				// We only duplicate the full trigger if it is the right parameter which is the one
+				// with contract value NONNIL in a general nonnil->nonnil contract.
+				// TODO: However, this could be changed in the future if we support multiple
+				//  contracts and/or other kinds of contract values.
 				continue
 			}
 			// Duplicate the full trigger in every caller
 			for caller, callExprs := range calls {
 				for _, callExpr := range callExprs {
 					dupTrigger := duplicateFullTrigger(trigger, ctrtFunc, callExpr, pass,
-						isParamProducer, isReturnConsumer)
-
+						ctrtParamIndex, isContractedParam, isContractedReturn)
 					// Store the duplicated full trigger
 					dupTriggers[caller] = append(dupTriggers[caller], dupTrigger)
 				}
@@ -349,11 +368,15 @@ func duplicateFullTrigger(
 	callee *types.Func,
 	callExpr *ast.CallExpr,
 	pass *analysis.Pass,
+	ctrtParamIndex int,
 	isParamProducer bool,
 	isReturnConsumer bool,
 ) annotation.FullTrigger {
-	// TODO: what if we have more than one parameter, planned in future revisions
-	argExpr := callExpr.Args[0]
+	// TODO: what if we have other kinds of contracts than a general nonnil->nonnil contract,
+	//  planned in the future.
+
+	// Assume the contract is a general nonnil->nonnil contract
+	argExpr := callExpr.Args[ctrtParamIndex]
 	argLoc := util.PosToLocation(argExpr.Pos(), pass)
 
 	// Create the duplicated full trigger
@@ -379,7 +402,7 @@ func duplicateFullTrigger(
 		retLoc := util.PosToLocation(callExpr.Pos(), pass)
 		dupTrigger.Consumer = annotation.DuplicateReturnConsumer(trigger.Consumer, retLoc)
 		// Set up the site that controls the controlled full trigger to be created
-		c := annotation.NewCallSiteParamKey(callee, 0, argLoc)
+		c := annotation.NewCallSiteParamKey(callee, ctrtParamIndex, argLoc)
 		dupTrigger.Controller = &c
 	}
 
@@ -424,16 +447,15 @@ func findCallsToContractedFunctions(
 	return calls
 }
 
-// hasOnlyNonNilToNonNilContract returns whether the given function has only one contract that is
-// nonnil->nonnil.
+// hasOnlyNonNilToNonNilContract returns true if the given function has only a single contract
+// and the contract is a general nonnil -> nonnil contract, i.e., the contract has only one
+// nonnil in input and only one nonnil in output, and all the other values are any.
 func hasOnlyNonNilToNonNilContract(funcContracts functioncontracts.Map, funcObj *types.Func) bool {
 	contracts, ok := funcContracts[funcObj]
 	if !ok || len(contracts) != 1 {
 		return false
 	}
-	ctr := contracts[0]
-	return len(ctr.Ins) == 1 && ctr.Ins[0] == functioncontracts.NonNil &&
-		len(ctr.Outs) == 1 && ctr.Outs[0] == functioncontracts.NonNil
+	return contracts[0].IsGeneralNonnnilToNonnil()
 }
 
 // analyzeFunc analyzes a given function declaration and emit generated triggers, or an error if

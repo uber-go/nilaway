@@ -158,3 +158,46 @@ func barReturnCalledMultipleTimesInTheSameFunction() {
 	b4 := fooReturnCalledMultipleTimesInTheSameFunction(a4)
 	print(*b4) // "nilable value dereferenced" wanted
 }
+
+func fooContractAnyNonnilToNonnilAnyReturn(x, y *int) (*int, *int) { // want "^ Annotation on Result 0.*\n.*Must be NILABLE.*\n.*AND.*\n.*Must be NONNIL.*NONNIL$"
+	if y != nil {
+		return new(int), nil
+	}
+	return nil, x
+}
+
+func barContractAnyNonnilToNonnilAnyReturn1() {
+	n := 1
+	a1 := &n
+	b1, _ := fooContractAnyNonnilToNonnilAnyReturn(nil, a1)
+	print(*b1) // No "nilable value dereferenced" wanted
+}
+
+func barContractAnyNonnilToNonnilAnyReturn2() {
+	var a2 *int
+	n := 1
+	b2, _ := fooContractAnyNonnilToNonnilAnyReturn(&n, a2)
+	print(*b2) // "nilable value dereferenced" wanted
+}
+
+func fooContractAnyNonnilToNonnilAnyParam(x, y *int) (*int, *int) { // want "^ Annotation on Param 1.*\n.*Must be NILABLE.*\n.*AND.*\n.*Must be NONNIL.*NONNIL$" "^ Annotation on Result 0.*\n.*Must be NILABLE.*\n.*AND.*\n.*Must be NONNIL.*NONNIL$"
+	if y != nil {
+		return new(int), nil
+	}
+	sink(*y) // "nilable value dereferenced" wanted
+	return nil, x
+}
+
+func barContractAnyNonnilToNonnilAnyParam1() {
+	n := 1
+	a1 := &n
+	b1, _ := fooContractAnyNonnilToNonnilAnyParam(nil, a1)
+	print(*b1) // No "nilable value dereferenced" wanted
+}
+
+func barContractAnyNonnilToNonnilAnyParam2() {
+	var a2 *int
+	n := 1
+	b2, _ := fooContractAnyNonnilToNonnilAnyParam(&n, a2)
+	print(*b2) // "nilable value dereferenced" wanted
+}

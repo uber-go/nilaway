@@ -22,6 +22,7 @@ import (
 	"go/types"
 
 	"go.uber.org/nilaway/annotation"
+	"go.uber.org/nilaway/assertion/function/functioncontracts"
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
 	"golang.org/x/tools/go/analysis"
@@ -54,10 +55,29 @@ func (r *RootAssertionNode) LocationOf(expr ast.Expr) token.Position {
 	return util.PosToLocation(expr.Pos(), r.Pass())
 }
 
-// HasContract returns if the given function has any contracts.
-func (r *RootAssertionNode) HasContract(funcObj *types.Func) bool {
-	_, ok := r.functionContext.funcContracts[funcObj]
-	return ok
+// getSingleNonnilToNonnilContract returns if the given function has only one contract that has only
+// one nonnil in input and only one nonnil in output and all the other values are any, e.g.,
+// contract(_,nonnil->nonnil,_) is OK, but contract(nonnil,nonnil->nonnil,_) is not.
+func (r *RootAssertionNode) getSingleNonnilToNonnilContract(funcObj *types.Func) *functioncontracts.FunctionContract {
+	ctrts := r.functionContext.funcContracts[funcObj]
+	if ctrts == nil || len(ctrts) != 1 || !ctrts[0].IsGeneralNonnnilToNonnil() {
+		return nil
+	}
+	return ctrts[0]
+}
+
+// ParamHasContract returns if the given parameter of the given function has a non-nil contract
+// value.
+func (r *RootAssertionNode) ParamHasContract(funcObj *types.Func, i int) bool {
+	ctrt := r.getSingleNonnilToNonnilContract(funcObj)
+	return ctrt != nil && ctrt.Ins[i] == functioncontracts.NonNil
+}
+
+// RetHasContract returns if the given return value of the given function has a non-nil contract
+// value.
+func (r *RootAssertionNode) RetHasContract(funcObj *types.Func, i int) bool {
+	ctrt := r.getSingleNonnilToNonnilContract(funcObj)
+	return ctrt != nil && ctrt.Outs[i] == functioncontracts.NonNil
 }
 
 // MinimalString for a RootAssertionNode returns a minimal string representation of that root node
@@ -662,7 +682,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 					})
 				} else {
 					var paramKey annotation.Key
-					if r.HasContract(fdecl) {
+					if r.ParamHasContract(fdecl, i) {
 						// Creates a new param site with location information at every call site
 						// for a function with contracts. The param site is unique at every call
 						// site, even with the same function called.

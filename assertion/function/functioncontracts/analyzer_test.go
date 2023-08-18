@@ -107,6 +107,24 @@ func TestInfer(t *testing.T) {
 		getFuncObj(pass, "unknownToUnknownButSameValue"): {
 			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		},
+		getFuncObj(pass, "nonnilAnyToNonnilAny"): {
+			&FunctionContract{Ins: []ContractVal{NonNil, Any}, Outs: []ContractVal{NonNil, Any}},
+		},
+		getFuncObj(pass, "nonnilAnyToAnyNonnil"): {
+			&FunctionContract{Ins: []ContractVal{NonNil, Any}, Outs: []ContractVal{Any, NonNil}},
+		},
+		getFuncObj(pass, "anyNonnilToNonnilAny"): {
+			&FunctionContract{Ins: []ContractVal{Any, NonNil}, Outs: []ContractVal{NonNil, Any}},
+		},
+		getFuncObj(pass, "anyNonnilToAnyNonnil"): {
+			&FunctionContract{Ins: []ContractVal{Any, NonNil}, Outs: []ContractVal{Any, NonNil}},
+		},
+		getFuncObj(pass, "anyNonnilAnyToAnyAnyNonnilAny"): {
+			&FunctionContract{Ins: []ContractVal{Any, NonNil, Any}, Outs: []ContractVal{Any, Any, NonNil, Any}},
+		},
+		getFuncObj(pass, "mixType"): {
+			&FunctionContract{Ins: []ContractVal{Any, NonNil}, Outs: []ContractVal{Any, NonNil}},
+		},
 		// other functions should not exist in the map as the contract nonnil->nonnil does not hold
 		// for them.
 
