@@ -266,6 +266,30 @@ func testEmbeddingInterfaceInStruct(x int) *int {
 	return &x
 }
 
+// below test checks nested structs
+type A10 struct {
+	I
+}
+
+type B10 struct {
+	I
+}
+
+type C10 struct {
+	D10
+}
+
+type D10 struct{}
+
+func (*D10) foo(x *int) *int { //want "nilable value could be passed as param"
+	return x
+}
+
+func testNestedStructs() {
+	a := &A10{&B10{&C10{D10: D10{}}}}
+	_ = a.foo(nil) // (error reported at D10.foo() definition)
+}
+
 // below test checks a non-trivial case simulated from https://github.com/golang/go/pull/60823
 type Conn interface {
 	RemoteAddr() Addr //want "nilable value could be returned"
