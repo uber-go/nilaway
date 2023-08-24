@@ -181,14 +181,14 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysis.Pass, upstre
 					switch nodeType := node.Type.(type) {
 					case *ast.ArrayType:
 						// A slice (or array) declared of type interface, and initialized with a struct
-						// e.g., var i I = []I{&S{}}
+						// e.g., _ = []I{&S{}}
 						lhsType := util.TypeOf(pass, nodeType.Elt)
 						for _, elt := range node.Elts {
 							appendTypeToTypeTriggers(lhsType, util.TypeOf(pass, elt))
 						}
 					case *ast.MapType:
 						// Key, value, or both of a map declared of type interface, and initialized with a struct
-						// e.g., var i I = map[int]I{0: &S{}}
+						// e.g., _ = map[int]I{0: &S{}}
 						keyType := util.TypeOf(pass, nodeType.Key)
 						valueType := util.TypeOf(pass, nodeType.Value)
 						for _, elt := range node.Elts {
@@ -205,11 +205,11 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysis.Pass, upstre
 						for i, elt := range node.Elts {
 							var lhsType, rhsType types.Type
 							if kv, ok := elt.(*ast.KeyValueExpr); ok {
-								// In this case the initialization is key-value based. E.g. a = &A{f: &B{}}
+								// In this case the initialization is key-value based. E.g. s = &S{t: &T{}}
 								lhsType = util.TypeOf(pass, kv.Key)
 								rhsType = util.TypeOf(pass, kv.Value)
 							} else {
-								// In this case the initialization is serial. E.g. a = &A{&B{}}
+								// In this case the initialization is serial. E.g. s = &S{&T{}}
 								if sObj := util.TypeAsDeeplyStruct(util.TypeOf(pass, node)); sObj != nil {
 									lhsType = sObj.Field(i).Type()
 									rhsType = util.TypeOf(pass, elt)

@@ -1,5 +1,6 @@
 /*
-This is a test for checking nilability-type variance for struct embedding (i.e., embedded and anonymous fields).
+This is a test for checking affiliations anlysis for struct fields (embedded or explicit) declared as interfaces,
+and instantiated with structs that implement the interface.
 
 <nilaway no inference>
 */
