@@ -61,6 +61,10 @@ func RootNodeSlicesString(name string, rootNodes []*RootAssertionNode) string {
 // this combines each of the special-cased deep nilability introspectors to give a method that
 // determines a deep nilability trigger for an arbitrary assertion node
 func deepNilabilityTriggerOf(node AssertionNode) annotation.ProducingAnnotationTrigger {
+	if node == nil {
+		panic("deepNilabilityTriggerOf should not be called on nil node")
+	}
+
 	switch node := node.(type) {
 	case *varAssertionNode:
 		if node.Root() == nil {
@@ -109,6 +113,9 @@ func (t TrackableExpr) MinimalString() string {
 }
 
 func detachFromParent(node AssertionNode, whichChild int) {
+	if node.Parent() == nil {
+		panic("passed assertion node has no parent - cannot detach")
+	}
 	if len(node.Parent().Children()) <= whichChild {
 		panic(fmt.Sprintf("passed assertion node only has %d children - "+
 			"cannot remove child %d", len(node.Parent().Children()), whichChild))

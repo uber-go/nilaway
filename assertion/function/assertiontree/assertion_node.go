@@ -93,7 +93,7 @@ func (n *assertionNodeCommon) SetConsumeTriggers(triggers []*annotation.ConsumeT
 
 // nilable(node, result 0)
 func (n *assertionNodeCommon) Root() *RootAssertionNode {
-	if n == nil {
+	if n == nil || n.parent == nil {
 		return nil
 	}
 	return n.parent.Root()

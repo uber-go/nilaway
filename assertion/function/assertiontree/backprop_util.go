@@ -719,7 +719,7 @@ func exprAsDeepProducer(rootNode *RootAssertionNode, expr ast.Expr) annotation.P
 	if len(parsedExpr) > 1 {
 		panic("multiply returning function passed where a deep producer is expected - tuple types are not deep")
 	}
-	if len(parsedExpr) == 0 || !parsedExpr[0].IsDeep() {
+	if len(parsedExpr) == 0 || !parsedExpr[0].IsDeep() || parsedExpr[0].GetDeep() == nil {
 		// the expr is not deeply nilable
 		return annotation.ProduceTriggerNever{}
 	}
