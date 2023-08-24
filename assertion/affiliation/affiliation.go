@@ -63,7 +63,7 @@ func (a *Affiliation) extractAffiliations(pass *analysis.Pass) {
 
 	// populate upstreamCache by importing entries passed from upstream packages
 	facts := pass.AllPackageFacts()
-	if facts != nil && len(facts) > 0 {
+	if len(facts) > 0 {
 		for _, f := range facts {
 			switch c := f.Fact.(type) {
 			case *AffliliationCache:
