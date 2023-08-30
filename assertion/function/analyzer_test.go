@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"go.uber.org/nilaway/assertion/anonymousfunc"
 	"go.uber.org/nilaway/assertion/function/assertiontree"
 	"go.uber.org/nilaway/assertion/function/functioncontracts"
@@ -94,4 +95,8 @@ func TestTimeout(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		require.Fail(t, "A cancelled context was given to backprop, but it did not return within 10 seconds.")
 	}
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

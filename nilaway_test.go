@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"go.uber.org/nilaway/config"
 	"golang.org/x/tools/go/analysis/analysistest"
 )
@@ -252,6 +253,5 @@ func TestMain(m *testing.M) {
 			os.Exit(1)
 		}
 	}
-
-	os.Exit(m.Run())
+	goleak.VerifyTestMain(m)
 }
