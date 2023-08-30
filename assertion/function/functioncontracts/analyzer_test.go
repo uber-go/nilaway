@@ -21,6 +21,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
@@ -69,4 +70,8 @@ func TestAnalyzer(t *testing.T) {
 	if diff := cmp.Diff(expectedNameToContracts, actualNameToContracts); diff != "" {
 		require.Fail(t, fmt.Sprintf("parsed contracts mismatch (-want +got):\n%s", diff))
 	}
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }
