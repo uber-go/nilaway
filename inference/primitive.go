@@ -307,11 +307,14 @@ func (p *primitivizer) sitePos(site primitiveSite) token.Pos {
 		// error on a file from a transitively imported package, we need to create a fake file in
 		// the file set.
 		// [gcexportdata]: https://pkg.go.dev/golang.org/x/tools/go/gcexportdata
-		info = fileInfo{
-			// Fake lines will be padded later.
-			file:   p.pass.Fset.AddFile(site.Position.Filename, p.pass.Fset.Base(), _fakeFileMaxLines),
-			isFake: true,
+		file := p.pass.Fset.AddFile(site.Position.Filename, p.pass.Fset.Base(), _fakeFileMaxLines)
+		// Set up fake lines for the fake file.
+		fakeLines := make([]int, site.Position.Line)
+		for i := range fakeLines {
+			fakeLines[i] = i
 		}
+		file.SetLines(fakeLines)
+		info = fileInfo{file: file, isFake: true}
 		p.files[site.Position.Filename] = info
 	}
 
