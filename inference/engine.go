@@ -218,7 +218,7 @@ func (e *Engine) buildPkgInferenceMap(triggers []annotation.FullTrigger) {
 		// controller is an CallSiteParamAnnotationKey, which must be enclosed in a ArgPass
 		// consumer, which Kind() method returns Conditional which is not deep. Thus, we pass false
 		// here.
-		site := newPrimitiveSite(*trigger.Controller, false)
+		site := e.primitive.site(*trigger.Controller, false)
 		ts, ok := controlledTgsBySite[site]
 		if !ok {
 			ts = map[annotation.FullTrigger]bool{}
