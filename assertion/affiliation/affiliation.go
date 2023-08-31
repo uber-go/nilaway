@@ -178,48 +178,53 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysis.Pass, upstre
 					}
 
 				case *ast.CompositeLit:
-					nodeType := util.TypeOf(pass, node.Type)
-
-					// If the composite is initializing a map, then check for possible pseudo-assignments
-					// for keys and values. For instance, if the type of value of the map is an interface
-					// but a struct is added to the map.
-					if mpType, ok := nodeType.(*types.Map); ok {
-						elemType := mpType.Elem()
-						keyType := mpType.Key()
-						// Iterate through each element in the composite
+					switch nodeType := node.Type.(type) {
+					case *ast.ArrayType:
+						// A slice (or array) declared of type interface, and initialized with a struct
+						// e.g., _ = []I{&S{}}
+						// TODO: currently, nested composite literal for ArrayType is not supported (e.g., _ = [][]I{{&A1{}}}).
+						//  Tracked in issue #46.
+						lhsType := util.TypeOf(pass, nodeType.Elt)
 						for _, elt := range node.Elts {
-							// This should be true as we have already checked that the composite is for a map
+							appendTypeToTypeTriggers(lhsType, util.TypeOf(pass, elt))
+						}
+					case *ast.MapType:
+						// Key, value, or both of a map declared of type interface, and initialized with a struct
+						// e.g., _ = map[int]I{0: &S{}}
+						keyType := util.TypeOf(pass, nodeType.Key)
+						valueType := util.TypeOf(pass, nodeType.Value)
+						for _, elt := range node.Elts {
 							if kv, ok := elt.(*ast.KeyValueExpr); ok {
-								appendTypeToTypeTriggers(elemType, util.TypeOf(pass, kv.Value))
 								appendTypeToTypeTriggers(keyType, util.TypeOf(pass, kv.Key))
+								appendTypeToTypeTriggers(valueType, util.TypeOf(pass, kv.Value))
 							}
 						}
-					}
-
-					// If the composite is used for initializing an array or a slice, then check for possible
-					// pseudo-assignments through the initialized values of the elements in arrays/slice
-					var elemType types.Type
-
-					if slcType, ok := nodeType.(*types.Slice); ok {
-						elemType = slcType.Elem()
-					}
-
-					if arrType, ok := nodeType.(*types.Array); ok {
-						elemType = arrType.Elem()
-					}
-
-					if elemType != nil {
-						// Iterate through each element in the composite
-						for _, elt := range node.Elts {
-							// This should be true as we have already checked that the composite is for an array/slice
-							if un, ok := elt.(*ast.UnaryExpr); ok {
-								appendTypeToTypeTriggers(elemType, util.TypeOf(pass, un))
+					case *ast.Ident:
+						// A struct field (embedded or explicit) declared of type interface, and initialized with a struct
+						// e.g., var i I = S{t:&T{}}, where `type S struct { t J }`. (Here I and J are interfaces,
+						// and S and T are structs implementing them, respectively.)
+						// Similarly, embedding is also supported. E.g., var i I = &S{&T{}}, where `type S struct { J }`.
+						for i, elt := range node.Elts {
+							var lhsType, rhsType types.Type
+							if kv, ok := elt.(*ast.KeyValueExpr); ok {
+								// In this case the initialization is key-value based. E.g. s = &S{t: &T{}}
+								lhsType = util.TypeOf(pass, kv.Key)
+								rhsType = util.TypeOf(pass, kv.Value)
+							} else {
+								// In this case the initialization is serial. E.g. s = &S{&T{}}
+								if sObj := util.TypeAsDeeplyStruct(util.TypeOf(pass, node)); sObj != nil {
+									lhsType = sObj.Field(i).Type()
+									rhsType = util.TypeOf(pass, elt)
+								}
+							}
+							if lhsType != nil && rhsType != nil {
+								appendTypeToTypeTriggers(lhsType, rhsType)
 							}
 						}
 					}
 				case *ast.FuncLit:
 					// TODO: Nilability analysis support for anonymous functions is currently not
-					//       implemented (tracked in , so here we completely skip
+					//       implemented (tracked in issue #52), so here we completely skip
 					//       the affiliation analysis for them.
 					return false
 				}
@@ -240,7 +245,7 @@ func (a *Affiliation) computeTriggersForTypes(lhsType types.Type, rhsType types.
 		return nil
 	}
 	rhsObj, ok := util.UnwrapPtr(rhsType).(*types.Named)
-	if !ok || rhsObj.NumMethods() <= 0 {
+	if !ok {
 		return nil
 	}
 
@@ -257,18 +262,15 @@ func (a *Affiliation) computeTriggersForTypes(lhsType types.Type, rhsType types.
 	currentCache[key] = true
 
 	var triggers []annotation.FullTrigger
-	declaredMethods := a.getDeclaredMethods(lhsObj)
-	implementedMethods := a.getImplementedMethods(rhsObj)
-	for _, dm := range declaredMethods {
-		for _, im := range implementedMethods {
-			// early return if the interface and its implementation is out of scope
-			if (dm.Pkg() != nil && !a.conf.IsPkgInScope(dm.Pkg())) && (im.Pkg() != nil && !a.conf.IsPkgInScope(im.Pkg())) {
-				return triggers
-			}
-
-			if dm.Name() == im.Name() {
-				triggers = append(triggers, a.createFunctionTriggers(im, dm)...)
-			}
+	// for each method declared in the interface, find its corresponding concrete implementation
+	for i := 0; i < lhsObj.NumMethods(); i++ {
+		interfaceMethod := lhsObj.Method(i)
+		implementedMethodObj, _, _ := types.LookupFieldOrMethod(rhsType, false, rhsObj.Obj().Pkg(), interfaceMethod.Name())
+		if implementedMethodObj == nil || !a.conf.IsPkgInScope(interfaceMethod.Pkg()) || !a.conf.IsPkgInScope(implementedMethodObj.Pkg()) {
+			continue
+		}
+		if implementedMethod, ok := implementedMethodObj.(*types.Func); ok {
+			triggers = append(triggers, createFunctionTriggers(implementedMethod, interfaceMethod)...)
 		}
 	}
 	return triggers
@@ -307,27 +309,9 @@ func computeAfflitiationCacheKey(interfaceObj *types.Interface, concreteObj *typ
 	}
 }
 
-// getDeclaredMethods returns all the methods declared by the interface "t"
-func (*Affiliation) getDeclaredMethods(t *types.Interface) []*types.Func {
-	methods := make([]*types.Func, 0)
-	for i := 0; i < t.NumMethods(); i++ {
-		methods = append(methods, t.Method(i))
-	}
-	return methods
-}
-
-// getImplementedMethods returns all the methods implemented by the struct "t"
-func (*Affiliation) getImplementedMethods(t *types.Named) []*types.Func {
-	methods := make([]*types.Func, 0)
-	for i := 0; i < t.NumMethods(); i++ {
-		methods = append(methods, t.Method(i))
-	}
-	return methods
-}
-
 // createFunctionTriggers verifies the nilability annotations of the concrete implementation of a method
 // against its interface declaration for covariant return types and contravariant parameter types
-func (*Affiliation) createFunctionTriggers(implementingMethod *types.Func, interfaceMethod *types.Func) []annotation.FullTrigger {
+func createFunctionTriggers(implementingMethod *types.Func, interfaceMethod *types.Func) []annotation.FullTrigger {
 	triggers := make([]annotation.FullTrigger, 0)
 
 	methodSig := implementingMethod.Type().(*types.Signature)

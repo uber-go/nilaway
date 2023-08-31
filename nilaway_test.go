@@ -172,7 +172,7 @@ func TestMethodImplementation(t *testing.T) {
 	t.Parallel()
 
 	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/methodimplementation", "go.uber.org/methodimplementation/mergedDependencies", "go.uber.org/methodimplementation/chainedDependencies", "go.uber.org/methodimplementation/multipackage")
+	analysistest.Run(t, testdata, Analyzer, "go.uber.org/methodimplementation", "go.uber.org/methodimplementation/mergedDependencies", "go.uber.org/methodimplementation/chainedDependencies", "go.uber.org/methodimplementation/multipackage", "go.uber.org/methodimplementation/embedding")
 
 }
 
