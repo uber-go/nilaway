@@ -31,7 +31,6 @@ type AssertionNode interface {
 	Children() []AssertionNode
 	ConsumeTriggers() []*annotation.ConsumeTrigger
 
-	// nilable(param 0)
 	SetParent(AssertionNode)
 	SetChildren([]AssertionNode)
 	SetConsumeTriggers([]*annotation.ConsumeTrigger)
@@ -91,7 +90,6 @@ func (n *assertionNodeCommon) SetConsumeTriggers(triggers []*annotation.ConsumeT
 	n.consumeTriggers = triggers
 }
 
-// nilable(node, result 0)
 func (n *assertionNodeCommon) Root() *RootAssertionNode {
 	if n == nil || n.parent == nil {
 		return nil

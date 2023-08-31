@@ -182,6 +182,8 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysis.Pass, upstre
 					case *ast.ArrayType:
 						// A slice (or array) declared of type interface, and initialized with a struct
 						// e.g., _ = []I{&S{}}
+						// TODO: currently, nested composite literal for ArrayType is not supported (e.g., _ = [][]I{{&A1{}}}).
+						//  Tracked in issue #46.
 						lhsType := util.TypeOf(pass, nodeType.Elt)
 						for _, elt := range node.Elts {
 							appendTypeToTypeTriggers(lhsType, util.TypeOf(pass, elt))
@@ -222,7 +224,7 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysis.Pass, upstre
 					}
 				case *ast.FuncLit:
 					// TODO: Nilability analysis support for anonymous functions is currently not
-					//       implemented (tracked in PROGSYS-559), so here we completely skip
+					//       implemented (tracked in issue #52), so here we completely skip
 					//       the affiliation analysis for them.
 					return false
 				}
