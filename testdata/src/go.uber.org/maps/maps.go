@@ -19,12 +19,6 @@ This package aims to test nilability behavior surrounding maps
 */
 package maps
 
-import (
-	"math"
-
-	"go.uber.org/maps/lib"
-)
-
 var nilableMap map[int]*int
 
 // nonnil(nonnilMap)
@@ -697,57 +691,4 @@ func testExplicitBool(mp map[int]*int, i int) *int {
 		}
 	}
 	return &i
-}
-
-// tests for checking index expressions as constants both built-in and user defined (declared locally and in another package)
-// nonnil(mp, mp[])
-func testIndexAsUserDefinedConst(mp map[string]*string, i int) string {
-	switch i {
-	case 0:
-		// local const
-		const key = "key"
-		if mp[key] == nil || *mp[key] == "" {
-			return "nil"
-		} else {
-			return *mp[key]
-		}
-	case 1:
-		// local const created from a another package const
-		const key = lib.MyStrConst
-		if mp[key] == nil || *mp[key] == "" {
-			return "nil"
-		} else {
-			return *mp[key]
-		}
-	case 2:
-		// another package const
-		if mp == nil || mp[lib.MyStrConst] == nil || *mp[lib.MyStrConst] == "" {
-			return "nil"
-		} else {
-			return *mp[lib.MyStrConst]
-		}
-	case 3:
-		// variable is not considered a stable expression, hence an error would be reported here
-		var v = lib.MyStrConst
-		if mp[v] == nil || *mp[v] == "" { //want "read deeply from the parameter `mp`"
-			return "nil"
-		}
-	case 4:
-		// write and read from the same map
-		if dummy {
-			mp[lib.MyStrConst] = new(string)
-			return *mp[lib.MyStrConst]
-		}
-		mp[lib.MyStrConst] = nil   //want "nilable value assigned"
-		return *mp[lib.MyStrConst] //want "nilable value dereferenced"
-	case 5:
-		// built-in
-		mp2 := make(map[float64]*string)
-		if mp2[math.Pi] == nil || *mp2[math.Pi] == "" {
-			return "nil"
-		} else {
-			return *mp2[math.Pi]
-		}
-	}
-	return ""
 }

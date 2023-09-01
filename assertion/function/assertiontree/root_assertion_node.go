@@ -1163,21 +1163,11 @@ func (r *RootAssertionNode) isStable(expr ast.Expr) bool {
 		}
 		return r.isStable(expr.Fun)
 	case *ast.Ident:
-		// there are three cases in which we admit an identifier is a stable:
-		// if it is a builtin name, if it is a function name, or if it is const
-		if r.isBuiltIn(expr) {
-			return true
-		}
-		if r.isConst(expr) {
-			return true
-		}
-		if r.isNil(expr) {
-			return true
-		}
-
-		// package is considered a special case of ident to suppport selector expressions used to access stable
+		// There are three cases in which we admit an identifier is a stable:
+		// if it is a builtin name, if it is a function name, or if it is const.
+		// Package is considered a special case of ident to suppport selector expressions used to access stable
 		// expressions, such as constants declared in another package (e.g., pkg.Const)
-		if r.isPkgName(expr) {
+		if r.isBuiltIn(expr) || r.isConst(expr) || r.isNil(expr) || r.isPkgName(expr) {
 			return true
 		}
 
