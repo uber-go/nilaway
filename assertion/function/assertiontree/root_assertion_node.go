@@ -1163,20 +1163,18 @@ func (r *RootAssertionNode) isStable(expr ast.Expr) bool {
 		}
 		return r.isStable(expr.Fun)
 	case *ast.Ident:
-		// there are three cases in which we admit an identifier is a stable:
-		// if it is a builtin name, if it is a function name, or if it is const
-		if r.isBuiltIn(expr) {
-			return true
-		}
-		if r.isConst(expr) {
-			return true
-		}
-		if r.isNil(expr) {
+		// There are three cases in which we admit an identifier is a stable:
+		// if it is a builtin name, if it is a function name, or if it is const.
+		// Package is considered a special case of ident to suppport selector expressions used to access stable
+		// expressions, such as constants declared in another package (e.g., pkg.Const)
+		if r.isBuiltIn(expr) || r.isConst(expr) || r.isNil(expr) || r.isPkgName(expr) {
 			return true
 		}
 
-		// TODO: check for function names and user-declared constants
+		// TODO: check for function names
 		return false
+	case *ast.SelectorExpr:
+		return r.isStable(expr.Sel) && r.isStable(expr.X)
 	default:
 		return false
 	}
@@ -1221,7 +1219,8 @@ func (r *RootAssertionNode) eqStable(left, right ast.Expr) bool {
 			// if the two identifiers are special values, just check them for string equality
 			if (r.isNil(left) && r.isNil(right)) ||
 				(r.isBuiltIn(left) && r.isBuiltIn(right)) ||
-				(r.isConst(left) && (r.isConst(right))) {
+				(r.isConst(left) && (r.isConst(right))) ||
+				(r.isPkgName(left) && r.isPkgName(right)) {
 				return left.Name == right.Name
 			}
 			rightVarObj, rightOk := r.ObjectOf(right).(*types.Var)
@@ -1234,6 +1233,14 @@ func (r *RootAssertionNode) eqStable(left, right ast.Expr) bool {
 			}
 			// if they are variables, check them for declaration equality
 			return leftVarObj == rightVarObj
+		}
+		return false
+	case *ast.SelectorExpr:
+		if right, ok := right.(*ast.SelectorExpr); ok {
+			if !r.eqStable(left.Sel, right.Sel) {
+				return false
+			}
+			return r.eqStable(left.X, right.X)
 		}
 		return false
 	default:
