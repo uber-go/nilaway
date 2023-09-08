@@ -66,8 +66,8 @@ func (v *varAssertionNode) DefaultTrigger() annotation.ProducingAnnotationTrigge
 	//  preprocessing phase
 	if !util.TypeIsDeeplyPtr(v.decl.Type()) {
 		if structType := util.TypeAsDeeplyStruct(v.decl.Type()); structType != nil {
-			builtExpr := v.BuildExpr(v.Root().Pass(), nil)
 			if v.Root().functionContext.isDepthOneFieldCheck() {
+				builtExpr := v.BuildExpr(v.Root().Pass(), nil)
 				v.Root().addProductionForVarFieldNode(v, builtExpr)
 			}
 			return annotation.ProduceTriggerNever{} // indicating that the struct object itself is not nil
