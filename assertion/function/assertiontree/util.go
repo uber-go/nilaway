@@ -383,14 +383,14 @@ func CopyNode(node AssertionNode) AssertionNode {
 	case *varAssertionNode:
 		fresh = &varAssertionNode{decl: node.decl}
 	case *fldAssertionNode:
-		fresh = &fldAssertionNode{decl: node.decl, functionContext: node.functionContext, assertionNodeCommon: node.assertionNodeCommon}
+		fresh = &fldAssertionNode{decl: node.decl, functionContext: node.functionContext}
 	case *funcAssertionNode:
-		fresh = &funcAssertionNode{decl: node.decl, assertionNodeCommon: node.assertionNodeCommon}
+		fresh = &funcAssertionNode{decl: node.decl, args: node.args}
 	case *indexAssertionNode:
 		fresh = &indexAssertionNode{
-			valType:             node.valType,
-			assertionNodeCommon: node.assertionNodeCommon,
-		}
+			index:    node.index,
+			valType:  node.valType,
+			recvType: node.recvType}
 	default:
 		panic("unrecognized node type")
 	}

@@ -240,7 +240,7 @@ func (e *Engine) buildFromSingleFullTrigger(trigger annotation.FullTrigger) {
 	case pKind == annotation.Always && cKind == annotation.Always:
 		// Producer always produces nilable value -> consumer always consumes nonnil value.
 		// We simply generate a failure for this case.
-		e.conflicts.addConflict(newSingleAssertionConflict(e.pass, trigger))
+		e.conflicts.addSingleAssertionConflict(e.pass, trigger)
 
 	case pKind == annotation.Always && (cKind == annotation.Conditional || cKind == annotation.DeepConditional):
 		// Producer always produces nilable value -> consumer unknown.
