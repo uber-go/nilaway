@@ -85,9 +85,7 @@ func copyGraph(graph *cfg.CFG) *cfg.CFG {
 	// must have already been copied.
 	for i, newBlock := range newGraph.Blocks {
 		for _, succ := range graph.Blocks[i].Succs {
-			if c, ok := copiedBlocks[succ]; ok {
-				newBlock.Succs = append(newBlock.Succs, c)
-			}
+			newBlock.Succs = append(newBlock.Succs, copiedBlocks[succ])
 		}
 	}
 

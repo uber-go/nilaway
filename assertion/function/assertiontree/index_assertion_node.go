@@ -15,17 +15,24 @@
 package assertiontree
 
 import (
+	"go/ast"
 	"go/types"
 
 	"go.uber.org/nilaway/annotation"
+	"golang.org/x/tools/go/analysis"
 )
 
 type indexAssertionNode struct {
 	assertionNodeCommon
+	index ast.Expr
 
 	// we need to remember the type of the values of this index because there is no other way
 	// to look it up - unlike fields and functions there is no sufficient identifier to store
 	valType types.Type
+
+	// here we store the type of the reciever to this indexAssertionNode -
+	// specifically to determine if it is a map
+	recvType types.Type
 }
 
 func (i *indexAssertionNode) MinimalString() string {
@@ -35,4 +42,14 @@ func (i *indexAssertionNode) MinimalString() string {
 // DefaultTrigger for an index node is the deep nilability annotation of its parent type
 func (i *indexAssertionNode) DefaultTrigger() annotation.ProducingAnnotationTrigger {
 	return deepNilabilityTriggerOf(i.Parent())
+}
+
+// BuildExpr for an index node adds that index to `expr`
+func (i *indexAssertionNode) BuildExpr(_ *analysis.Pass, expr ast.Expr) ast.Expr {
+	return &ast.IndexExpr{
+		X:      expr,
+		Lbrack: 0,
+		Index:  i.index,
+		Rbrack: 0,
+	}
 }

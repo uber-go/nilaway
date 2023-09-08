@@ -91,7 +91,7 @@ func (r *RootAssertionNode) DefaultTrigger() annotation.ProducingAnnotationTrigg
 }
 
 // BuildExpr is not well defined for root nodes
-func (r *RootAssertionNode) BuildExpr() ast.Expr {
+func (r *RootAssertionNode) BuildExpr(*analysis.Pass, ast.Expr) ast.Expr {
 	panic("BuildExpr() not defined for RootAssertionNodes")
 }
 
@@ -384,7 +384,7 @@ func (r *RootAssertionNode) triggerProductions(node AssertionNode, producer *ann
 	var processChildren func(ast.Expr, AssertionNode)
 	processChildren = func(producingSubexpr ast.Expr, node AssertionNode) {
 		for _, child := range node.Children() {
-			producingExpr := child.BuildExpr()
+			producingExpr := child.BuildExpr(r.Pass(), producingSubexpr)
 
 			matchConsumeTriggers(child, &annotation.ProduceTrigger{
 				Annotation: child.DefaultTrigger(),
@@ -937,7 +937,7 @@ type RootFunc = func(*RootAssertionNode)
 func (r *RootAssertionNode) ProcessEntry() {
 	for len(r.Children()) > 0 {
 		child := r.Children()[0]
-		builtExpr := child.BuildExpr()
+		builtExpr := child.BuildExpr(r.Pass(), nil)
 
 		if r.functionContext.isDepthOneFieldCheck() {
 			// process field Assertion nodes of function parameters
@@ -1009,20 +1009,15 @@ func (r *RootAssertionNode) shallowEqNodes(left, right AssertionNode) bool {
 		if left.decl != right.decl {
 			return false
 		}
-
-		leftCallExpr, okLeft := left.originalExpr.(*ast.CallExpr)
-		rightCallExpr, okRight := right.originalExpr.(*ast.CallExpr)
-
-		if !okLeft || !okRight || len(leftCallExpr.Args) != len(rightCallExpr.Args) {
+		if len(left.args) != len(right.args) {
 			return false
 		}
-
-		for i := range leftCallExpr.Args {
-			if rightCallExpr.Args == nil {
+		for i := range left.args {
+			if right.args == nil {
 				// TODO: remove this when  is implemented and we can replace it with a real suppression
 				return false
 			}
-			if !r.eqStable(leftCallExpr.Args[i], rightCallExpr.Args[i]) {
+			if !r.eqStable(left.args[i], right.args[i]) {
 				return false
 			}
 		}
@@ -1031,15 +1026,7 @@ func (r *RootAssertionNode) shallowEqNodes(left, right AssertionNode) bool {
 		if !ok {
 			return false
 		}
-
-		leftIndexExpr, okLeft := left.originalExpr.(*ast.IndexExpr)
-		rightIndexExpr, okRight := right.originalExpr.(*ast.IndexExpr)
-
-		if !okLeft || !okRight {
-			return false
-		}
-
-		if !r.eqStable(leftIndexExpr.Index, rightIndexExpr.Index) {
+		if !r.eqStable(left.index, right.index) {
 			return false
 		}
 	default:
