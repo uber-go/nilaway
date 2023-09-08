@@ -25,7 +25,6 @@ import (
 
 type conflict struct {
 	position token.Pos // stores position where the error should be reported
-	expr     string    // stores expression that is overcontrained (i.e., expected to be nonnil, but found nilable)
 	nilFlow  nilFlow   // stores nil flow from source to dereference point
 }
 
@@ -123,7 +122,6 @@ func (l *conflictList) addSingleAssertionConflict(pass *analysis.Pass, trigger a
 	t := fullTriggerAsPrimitive(pass, trigger)
 	c := conflict{
 		position: t.Pos,
-		expr:     util.ExprToString(trigger.Consumer.Expr, pass),
 		nilFlow:  nilFlow{},
 	}
 
@@ -194,9 +192,6 @@ func (l *conflictList) addOverconstraintConflict(nilExplanation ExplainedBool, n
 			queue = append(queue, e.getExplainedBool())
 		}
 	}
-
-	// add the expression that was overconstrained
-	c.expr = nonnilExplanation.getPrimitiveFullTrigger().ExprRepr
 
 	l.conflicts = append(l.conflicts, c)
 }
