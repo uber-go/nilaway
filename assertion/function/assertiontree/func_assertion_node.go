@@ -16,10 +16,12 @@ package assertiontree
 
 import (
 	"fmt"
+	"go/ast"
 	"go/types"
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/util"
+	"golang.org/x/tools/go/analysis"
 )
 
 type funcAssertionNode struct {
@@ -27,6 +29,7 @@ type funcAssertionNode struct {
 
 	// declaring identifier for this function
 	decl *types.Func
+	args []ast.Expr
 }
 
 func (f *funcAssertionNode) MinimalString() string {
@@ -41,4 +44,27 @@ func (f *funcAssertionNode) DefaultTrigger() annotation.ProducingAnnotationTrigg
 	return annotation.MethodReturn{
 		TriggerIfNilable: annotation.TriggerIfNilable{
 			Ann: annotation.RetKeyFromRetNum(f.decl, 0)}}
+}
+
+// BuildExpr for a function node adds that function to `expr` as a method call
+func (f *funcAssertionNode) BuildExpr(_ *analysis.Pass, expr ast.Expr) ast.Expr {
+	if f.Root() == nil {
+		panic("f.BuildExpr should only be called on nodes present in a valid assertion tree")
+	}
+	genFunc := func() ast.Expr {
+		if expr == nil {
+			return f.Root().GetDeclaringIdent(f.decl)
+		}
+		return &ast.SelectorExpr{
+			X:   expr,
+			Sel: f.Root().GetDeclaringIdent(f.decl),
+		}
+	}
+	return &ast.CallExpr{
+		Fun:      genFunc(),
+		Lparen:   0,
+		Args:     f.args,
+		Ellipsis: 0,
+		Rparen:   0,
+	}
 }
