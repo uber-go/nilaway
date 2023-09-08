@@ -21,7 +21,9 @@ these cases no diagnostics are emitted
 */
 package nilabletypes
 
-type A struct{}
+type A struct {
+	f int
+}
 
 type A2 A
 
@@ -91,6 +93,46 @@ func nilableTypesTest() interface{} {
 		return mp1 //want "nilable value returned"
 	case 22:
 		return mp2 //want "nilable value returned"
+	case 23:
+		var x A
+		y := &x
+		return y
+	case 24:
+		var x A
+		y := &x
+		return y.f
+	case 25:
+		var x A
+		return x
+	case 26:
+		var x A
+		return x.f
+	case 27:
+		var x A
+		y := &x
+		return *y
+	case 28:
+		var x A
+		return *(&x)
+	case 29:
+		var x A
+		return (&(*(&(*(&x)))))
+	case 30:
+		var x *A
+		y := *x //want "read from a variable that was never assigned to"
+		return &y
+	case 31:
+		var x *A
+		return &x //want "read from a variable that was never assigned to"
+	case 32:
+		var x *A
+		return x.f //want "read from a variable that was never assigned to"
+	case 33:
+		var x *A
+		return &(*x) //want "read from a variable that was never assigned to"
+	case 34:
+		var x *A
+		return (*(&(*(&(*x))))) //want "read from a variable that was never assigned to"
 	default:
 		return nilableTypesTest()
 	}
