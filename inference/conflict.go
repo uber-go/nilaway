@@ -36,9 +36,10 @@ type nilFlow struct {
 }
 
 type node struct {
-	position     token.Position
-	producerRepr string
-	consumerRepr string
+	producerPosition token.Position
+	consumerPosition token.Position
+	producerRepr     string
+	consumerRepr     string
 }
 
 // newNode creates a new node object from the given producer and consumer Prestrings.
@@ -49,7 +50,7 @@ func newNode(p annotation.Prestring, c annotation.Prestring) node {
 
 	// get producer representation string
 	if l, ok := p.(annotation.LocatedPrestring); ok {
-		nodeObj.position = l.Location
+		nodeObj.producerPosition = l.Location
 		nodeObj.producerRepr = l.Contained.String()
 	} else if p != nil {
 		nodeObj.producerRepr = p.String()
@@ -57,7 +58,7 @@ func newNode(p annotation.Prestring, c annotation.Prestring) node {
 
 	// get consumer representation string
 	if l, ok := c.(annotation.LocatedPrestring); ok {
-		nodeObj.position = l.Location
+		nodeObj.consumerPosition = l.Location
 		nodeObj.consumerRepr = l.Contained.String()
 	} else if c != nil {
 		nodeObj.consumerRepr = c.String()
@@ -69,8 +70,8 @@ func newNode(p annotation.Prestring, c annotation.Prestring) node {
 func (n *node) String() string {
 	posStr := "<no pos info>"
 	reasonStr := "<no reason info>"
-	if n.position.IsValid() {
-		posStr = n.position.String()
+	if n.consumerPosition.IsValid() {
+		posStr = n.consumerPosition.String()
 	}
 	if len(n.producerRepr) > 0 && len(n.consumerRepr) > 0 {
 		reasonStr = n.producerRepr + " " + n.consumerRepr
@@ -120,15 +121,14 @@ func (n *nilFlow) String() string {
 }
 
 func (c *conflict) String() string {
-	consumerPos := c.flow.nonnilPath[len(c.flow.nonnilPath)-1].position
-	producerPos := c.flow.nilPath[0].position
+	consumerPos := c.flow.nonnilPath[len(c.flow.nonnilPath)-1].consumerPosition
 
 	// build string for similar conflicts (i.e., conflicts with the same nil path)
 	similarConflictsString := ""
 	if len(c.similarConflicts) > 0 {
 		similarPos := ""
 		for _, s := range c.similarConflicts {
-			similarPos += fmt.Sprintf("\"%s\", ", s.flow.nonnilPath[len(s.nilFlow.nonnilPath)-1].position.String())
+			similarPos += fmt.Sprintf("\"%s\", ", s.flow.nonnilPath[len(s.nilFlow.nonnilPath)-1].consumerPosition.String())
 		}
 		// remove trailing comma and space
 		similarPos = strings.TrimSuffix(similarPos, ", ")
@@ -139,11 +139,15 @@ func (c *conflict) String() string {
 			similarPos = similarPos[:lastComma] + " and" + similarPos[lastComma+1:]
 		}
 
-		similarConflictsString = fmt.Sprintf("\n\n(Nilable source at \"%s\" is also causing similar nil problem(s) at %d other place(s): %s.)", producerPos.String(), len(c.similarConflicts), similarPos)
+		similarConflictsString = fmt.Sprintf("\n\n(Same nil source could also cause potential nil panic(s) at %d other place(s): %s.)", len(c.similarConflicts), similarPos)
 	}
 
 	return fmt.Sprintf(" Potential nil panic at \"%s\". Observed nil flow from "+
-		"source to dereference: %s", consumerPos.String(), c.flow.String())
+		"source to dereference: %s%s", consumerPos.String(), c.flow.String(), similarConflictsString)
+}
+
+func (c *conflict) addSimilarConflict(conflict conflict) {
+	c.similarConflicts = append(c.similarConflicts, conflict)
 }
 
 type conflictList struct {
@@ -249,6 +253,13 @@ func groupConflicts(allConflicts []conflict) []conflict {
 	conflictsMap := make(map[string]conflict)
 	for _, c := range allConflicts {
 		s := pathString(c.nilFlow.nilPath)
+		if len(c.nilFlow.nilPath) == 0 && len(c.nilFlow.nonnilPath) == 1 {
+			// This is the case of single assertion conflict. Use producer position and repr from the non-nil path as the key.
+			if p := c.nilFlow.nonnilPath[0]; p.producerPosition.IsValid() {
+				s = p.producerPosition.String() + ": " + p.producerRepr
+			}
+		}
+
 		if existingConflict, ok := conflictsMap[s]; ok {
 			// Grouping condition satisfied. Add new conflict to `similarConflicts` in `existingConflict`, and update groupedConflicts map
 			existingConflict.addSimilarConflict(c)
