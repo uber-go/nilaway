@@ -101,14 +101,6 @@ func (n *nilFlow) addNonNilPathNode(p annotation.Prestring, c annotation.Prestri
 	n.nonnilPath = append(n.nonnilPath, nodeObj)
 }
 
-func pathString(nodes []node) string {
-	path := ""
-	for _, n := range nodes {
-		path += n.String()
-	}
-	return path
-}
-
 // String converts a nilFlow to a string representation, where each entry is the flow of the form: `<pos>: <reason>`
 func (n *nilFlow) String() string {
 	var flow []string
