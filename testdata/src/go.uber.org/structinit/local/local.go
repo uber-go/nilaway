@@ -30,7 +30,7 @@ func m() {
 	var b = &A{}
 	// TODO: all errors because of "aptr" unassigned at struct initialization are grouped and reported on the line below,
 	// which is not correct. This should be fixed after https://github.com/uber-go/nilaway/issues/29 is implemented,
-	// and struct initi producer expressions are updated accordingly with the original AST expressions.
+	// and struct init producer expressions are updated accordingly with the original AST expressions.
 	print(b.aptr.ptr) //want "unassigned at struct initialization"
 }
 
