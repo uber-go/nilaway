@@ -873,12 +873,12 @@ func testMultipleAppendArgs(a []*int, nilablevar, nonnilvar *int) {
 func testAppendNilableForLocalVar() {
 	var a = make([]*int, 0)
 	a = append(a, nil)
-	print(*a[0]) //want "(?s)literal nil .* sliced into"
+	print(*a[0]) //want "literal nil sliced into"
 }
 
 var a = make([]*int, 0)
 
 func testAppendNilableForGlobalVar() {
-	a = append(a, nil) //want "(?s)literal nil .* assigned into the global variable `a"
-	print(*a[0])       //want "(?s)literal nil .* sliced into"
+	a = append(a, nil) //want "literal nil assigned into the global variable `a`"
+	print(*a[0])       //want "literal nil sliced into"
 }

@@ -756,8 +756,8 @@ func callRetPtrPtrErr() {
 	if err != nil {
 		print(err.Error())
 	} else {
-		print(*a) //want "(?s)returned as result 0 from the function `retPtrPtrErr` .* dereferenced"
-		print(*b) //want "(?s)returned as result 1 from the function `retPtrPtrErr` .* dereferenced"
+		print(*a) //want "returned as result 0 from the function `retPtrPtrErr` dereferenced"
+		print(*b) //want "returned as result 1 from the function `retPtrPtrErr` dereferenced"
 	}
 }
 

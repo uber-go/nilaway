@@ -14,7 +14,7 @@ type I interface {
 // below test checks struct embedding at depth 1 (T embeds S)
 type A1 struct{}
 
-func (A1) foo(x *int) *int { //want "nilable value could be passed as param"
+func (A1) foo(x *int) *int { //want "could be passed as param"
 	return x
 }
 
@@ -49,7 +49,7 @@ type E2 struct {
 	f *int
 }
 
-func (e *E2) foo(x *int) *int { //want "nilable value could be passed as param"
+func (e *E2) foo(x *int) *int { //want "could be passed as param"
 	if e.f != nil {
 		return e.f
 	}
@@ -68,7 +68,7 @@ type A3 struct {
 	f *int
 }
 
-func (A3) foo(x *int) *int { //want "nilable value could be passed as param"
+func (A3) foo(x *int) *int { //want "could be passed as param"
 	return x
 }
 
@@ -116,7 +116,7 @@ func (b *B4) foo(x *int) *int {
 func testAnonymousFields(cond bool) *int {
 	b := B4{}
 	if cond {
-		return b.A4.foo(nil) //want "nilable value passed as arg"
+		return b.A4.foo(nil) //want "passed as arg"
 	}
 	return b.foo(nil) // safe, since B4.foo() accepts a nilable parameter
 }
@@ -141,14 +141,14 @@ func (C5) foo(x *int) *int {
 
 func testEmbeddingMultipleStructs() {
 	a := &A5{}
-	_ = a.B5.foo(nil) //want "nilable value passed as arg"
-	_ = a.C5.foo(nil) //want "nilable value passed as arg"
+	_ = a.B5.foo(nil) //want "passed as arg"
+	_ = a.C5.foo(nil) //want "passed as arg"
 }
 
 // below test checks for recursive embedding of structs
 type A6 struct{}
 
-func (A6) foo(x *int) *int { //want "nilable value could be passed as param"
+func (A6) foo(x *int) *int { //want "could be passed as param"
 	return x
 }
 
@@ -165,7 +165,7 @@ func testRecursion() *int {
 
 // below test checks embedding of multiple interfaces within a struct, and embedding of interfaces within an interface
 type J interface {
-	bar() *int //want "nilable value could be returned" "nilable value could be returned"
+	bar() *int //want "could be returned" "could be returned"
 }
 
 type A9 struct {
@@ -175,7 +175,7 @@ type A9 struct {
 
 type B9 struct{}
 
-func (B9) foo(x *int) *int { //want "nilable value could be passed as param"
+func (B9) foo(x *int) *int { //want "could be passed as param"
 	return x
 }
 
@@ -199,7 +199,7 @@ type IandJ interface {
 
 type A7 struct{}
 
-func (*A7) foo(x *int) *int { //want "nilable value could be passed as param"
+func (*A7) foo(x *int) *int { //want "could be passed as param"
 	return x
 }
 
@@ -217,7 +217,7 @@ func testEmbeddingInterfaceInInterface() {
 // below test checks embedding of interface within a struct
 type A8 struct{}
 
-func (*A8) foo(x *int) *int { //want "nilable value could be passed as param"
+func (*A8) foo(x *int) *int { //want "could be passed as param"
 	return x
 }
 
@@ -231,7 +231,7 @@ type C8 struct {
 	I
 }
 
-func (*C8) foo(x *int) *int { //want "nilable value could be passed as param"
+func (*C8) foo(x *int) *int { //want "could be passed as param"
 	return x
 }
 
@@ -242,7 +242,7 @@ type D8 struct {
 
 type E8 struct{}
 
-func (*E8) foo(x *int) *int { //want "nilable value could be passed as param"
+func (*E8) foo(x *int) *int { //want "could be passed as param"
 	return x
 }
 
@@ -281,7 +281,7 @@ type C10 struct {
 
 type D10 struct{}
 
-func (*D10) foo(x *int) *int { //want "nilable value could be passed as param"
+func (*D10) foo(x *int) *int { //want "could be passed as param"
 	return x
 }
 
@@ -292,7 +292,7 @@ func testNestedStructs() {
 
 // below test checks a non-trivial case simulated from https://github.com/golang/go/pull/60823
 type Conn interface {
-	RemoteAddr() Addr //want "nilable value could be returned"
+	RemoteAddr() Addr //want "could be returned"
 }
 
 type Addr interface {
