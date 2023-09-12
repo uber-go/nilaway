@@ -231,16 +231,16 @@ func (e *Engine) buildPkgInferenceMap(triggers []annotation.FullTrigger) {
 func (e *Engine) buildFromSingleFullTrigger(trigger annotation.FullTrigger) {
 	primitiveAssertion := fullTriggerAsPrimitive(e.pass, trigger)
 
-		pKind, cKind := trigger.Producer.Annotation.Kind(), trigger.Consumer.Annotation.Kind()
-		pSite, cSite := trigger.Producer.Annotation.UnderlyingSite(), trigger.Consumer.Annotation.UnderlyingSite()
-		// NilAway does not know that (kind == Conditional || DeepConditional) => (site != nil),
-		// so we have to add some redundant checks in the corresponding cases to give some hints.
-		// TODO: remove this redundant check .
-		switch {
-		case pKind == annotation.Always && cKind == annotation.Always:
-			// Producer always produces nilable value -> consumer always consumes nonnil value.
-			// We simply generate a failure for this case.
-			e.conflicts.AddSingleAssertionConflict(e.pass, trigger)
+	pKind, cKind := trigger.Producer.Annotation.Kind(), trigger.Consumer.Annotation.Kind()
+	pSite, cSite := trigger.Producer.Annotation.UnderlyingSite(), trigger.Consumer.Annotation.UnderlyingSite()
+	// NilAway does not know that (kind == Conditional || DeepConditional) => (site != nil),
+	// so we have to add some redundant checks in the corresponding cases to give some hints.
+	// TODO: remove this redundant check .
+	switch {
+	case pKind == annotation.Always && cKind == annotation.Always:
+		// Producer always produces nilable value -> consumer always consumes nonnil value.
+		// We simply generate a failure for this case.
+		e.conflicts.AddSingleAssertionConflict(e.pass, trigger)
 
 	case pKind == annotation.Always && (cKind == annotation.Conditional || cKind == annotation.DeepConditional):
 		// Producer always produces nilable value -> consumer unknown.
