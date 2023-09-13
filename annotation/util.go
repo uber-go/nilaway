@@ -102,6 +102,7 @@ func DeepNilabilityOfVar(fdecl *types.Func, v *types.Var) ProducingAnnotationTri
 			return MethodRecvDeep{
 				TriggerIfDeepNilable: TriggerIfDeepNilable{
 					Ann: RecvAnnotationKey{FuncDecl: fdecl}},
+				VarDecl: v,
 			}
 		}
 		// in this case, the deep nilability of the variable is dependent only on its possible guarding
