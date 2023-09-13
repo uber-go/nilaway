@@ -458,8 +458,7 @@ func ExprToString(e ast.Expr, pass *analysis.Pass) string {
 	var buf bytes.Buffer
 	err := printer.Fprint(&buf, pass.Fset, e)
 	if err != nil {
-		// printer failed to convert AST expression to string, hence return empty string to avoid any panics downstream
-		return ""
+		panic(fmt.Sprintf("Failed to convert AST expression to string: %v\n", err))
 	}
 	return buf.String()
 }

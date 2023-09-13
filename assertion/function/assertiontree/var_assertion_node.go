@@ -49,6 +49,7 @@ func (v *varAssertionNode) DefaultTrigger() annotation.ProducingAnnotationTrigge
 		return annotation.MethodRecv{
 			TriggerIfNilable: annotation.TriggerIfNilable{
 				Ann: annotation.RecvAnnotationKey{FuncDecl: fdecl}},
+			VarDecl: v.decl,
 		}
 	}
 	if annotation.VarIsGlobal(v.decl) {
@@ -73,7 +74,7 @@ func (v *varAssertionNode) DefaultTrigger() annotation.ProducingAnnotationTrigge
 		}
 	}
 
-	return annotation.NoVarAssign{}
+	return annotation.NoVarAssign{VarDecl: v.decl}
 }
 
 // BuildExpr for a varAssertionNode returns the underlying variable's AST node

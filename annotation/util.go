@@ -163,7 +163,7 @@ func ParamAsProducer(fdecl *types.Func, param *types.Var) ProducingAnnotationTri
 		panic(fmt.Sprintf("non-param %s passed to ParamAsProducer", param.Name()))
 	}
 	if VarIsVariadicParam(fdecl, param) {
-		return VariadicFuncParam{}
+		return VariadicFuncParam{VarDecl: param}
 	}
 	return FuncParam{
 		TriggerIfNilable: TriggerIfNilable{

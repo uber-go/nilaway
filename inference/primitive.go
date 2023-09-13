@@ -34,22 +34,19 @@ import (
 // static type information necessary to format that minimal information into a full string
 // representation without needing to encode it all when using Gob encodings through the Facts mechanism
 type primitiveFullTrigger struct {
-	ProducerRepr     annotation.Prestring
-	ConsumerRepr     annotation.Prestring
-	Pos              token.Pos
-	ProducerExprRepr string
-	ConsumerExprRepr string
+	ProducerRepr annotation.Prestring
+	ConsumerRepr annotation.Prestring
+	Pos          token.Pos
+	ExprRepr     string
 }
 
 func fullTriggerAsPrimitive(pass *analysis.Pass, trigger annotation.FullTrigger) primitiveFullTrigger {
 	producer, consumer := trigger.Prestrings(pass)
-
 	return primitiveFullTrigger{
-		ProducerRepr:     producer,
-		ConsumerRepr:     consumer,
-		Pos:              trigger.Consumer.Expr.Pos(),
-		ProducerExprRepr: util.ExprToString(trigger.Producer.Expr, pass),
-		ConsumerExprRepr: util.ExprToString(trigger.Consumer.Expr, pass),
+		ProducerRepr: producer,
+		ConsumerRepr: consumer,
+		Pos:          trigger.Consumer.Expr.Pos(),
+		ExprRepr:     util.ExprToString(trigger.Consumer.Expr, pass),
 	}
 }
 

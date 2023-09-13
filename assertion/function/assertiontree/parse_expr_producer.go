@@ -83,6 +83,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 						Annotation: annotation.MethodRecv{
 							TriggerIfNilable: annotation.TriggerIfNilable{
 								Ann: annotation.RecvAnnotationKey{FuncDecl: funcObj}},
+							VarDecl: varObj,
 						},
 						Expr: expr,
 					},
