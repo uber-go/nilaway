@@ -115,8 +115,6 @@ func (n *nilFlow) String() string {
 }
 
 func (c *conflict) String() string {
-	consumerPos := c.flow.nonnilPath[len(c.flow.nonnilPath)-1].consumerPosition
-
 	// build string for similar conflicts (i.e., conflicts with the same nil path)
 	similarConflictsString := ""
 	if len(c.similarConflicts) > 0 {
@@ -135,8 +133,8 @@ func (c *conflict) String() string {
 			"other place(s): %s.)", len(c.similarConflicts), posString)
 	}
 
-	return fmt.Sprintf(" Potential nil panic at \"%s\". Observed nil flow from "+
-		"source to dereference point: %s%s", consumerPos.String(), c.flow.String(), similarConflictsString)
+	return fmt.Sprintf(" Potential nil panic detected. Observed nil flow from "+
+		"source to dereference point: %s%s", c.flow.String(), similarConflictsString)
 }
 
 func (c *conflict) addSimilarConflict(conflict conflict) {
