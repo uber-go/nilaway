@@ -825,17 +825,17 @@ func helperReturnNonZeroSlicingNonNilProducerForNonNilParam(b []int) []int {
 
 // nonnil(a, a[])
 func testAppendNil(a []*int) {
-	a[0] = nil //want "assigned into .* expected nonnil element type"
+	a[0] = nil //want "assigned deeply into parameter arg `a`"
 	// Now, we append a literal nil into a deeply nonnil slice.
-	a = append(a, nil) //want "assigned into .* expected nonnil element type"
+	a = append(a, nil) //want "assigned deeply into parameter arg `a`"
 }
 
 // nonnil(a, a[], b)
 // nilable(c, result 0)
 func testAppend(a []*int, b, c *int) {
 	b = c
-	a = append(a, b) //want "assigned into .* expected nonnil element type"
-	a = append(a, c) //want "assigned into .* expected nonnil element type"
+	a = append(a, b) //want "assigned deeply into parameter arg `a`"
+	a = append(a, c) //want "assigned deeply into parameter arg `a`"
 }
 
 // nilable(result 0)
@@ -845,8 +845,8 @@ func nilableFun() *int {
 
 // nonnil(a, a[], b)
 func testAppendNilableFunc(a []*int) {
-	a[0] = nilableFun()         //want "assigned into .* expected nonnil element type"
-	a = append(a, nilableFun()) //want "assigned into .* expected nonnil element type"
+	a[0] = nilableFun()         //want "assigned deeply into parameter arg `a`"
+	a = append(a, nilableFun()) //want "assigned deeply into parameter arg `a`"
 }
 
 // nonnil(a, a[])
@@ -860,7 +860,7 @@ func testTheFirstArgumentOfAppend(a, b []*int) {
 // nonnil(a, a[])
 // nilable(b, b[])
 func testVariadicArgs(a, b []*int) {
-	a = append(a, b...) //want "assigned into .* expected nonnil element type"
+	a = append(a, b...) //want "assigned deeply into parameter arg `a`"
 	b = append(b, a...)
 }
 
@@ -873,12 +873,12 @@ func testMultipleAppendArgs(a []*int, nilablevar, nonnilvar *int) {
 func testAppendNilableForLocalVar() {
 	var a = make([]*int, 0)
 	a = append(a, nil)
-	print(*a[0]) //want "literal nil sliced into"
+	print(*a[0]) //want "literal `nil` sliced into"
 }
 
 var a = make([]*int, 0)
 
 func testAppendNilableForGlobalVar() {
-	a = append(a, nil) //want "literal nil assigned into the global variable `a`"
-	print(*a[0])       //want "literal nil sliced into"
+	a = append(a, nil) //want "literal `nil` assigned into global variable `a`"
+	print(*a[0])       //want "literal `nil` sliced into"
 }

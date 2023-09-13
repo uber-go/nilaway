@@ -41,7 +41,7 @@ func testConst(mp map[string]*string, i int) string {
 	case 3:
 		// variable is not considered a stable expression, hence an error would be reported here
 		var v = lib.MyStrConst
-		if mp[v] == nil || *mp[v] == "" { //want "read deeply from the parameter `mp`"
+		if mp[v] == nil || *mp[v] == "" { //want "read deeply from parameter `mp`"
 			return "nil"
 		}
 	case 4:

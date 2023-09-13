@@ -119,20 +119,20 @@ func nilableTypesTest() interface{} {
 		return (&(*(&(*(&x)))))
 	case 30:
 		var x *A
-		y := *x //want "read from a variable that was never assigned to"
+		y := *x //want "unassigned variable `x` dereferenced"
 		return &y
 	case 31:
 		var x *A
-		return &x //want "read from a variable that was never assigned to"
+		return &x //want "unassigned variable `x` returned"
 	case 32:
 		var x *A
-		return x.f //want "read from a variable that was never assigned to"
+		return x.f //want "unassigned variable `x` accessed field `f`"
 	case 33:
 		var x *A
-		return &(*x) //want "read from a variable that was never assigned to"
+		return &(*x) //want "unassigned variable `x` dereferenced"
 	case 34:
 		var x *A
-		return (*(&(*(&(*x))))) //want "read from a variable that was never assigned to"
+		return (*(&(*(&(*x))))) //want "unassigned variable `x` dereferenced"
 	default:
 		return nilableTypesTest()
 	}

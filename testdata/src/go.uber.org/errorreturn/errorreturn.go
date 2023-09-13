@@ -102,7 +102,7 @@ func retsNonnilNilableWithErr(x *int, y *int) (*int, *int, error) {
 		return nil, nil, nil //want "returned"
 	case 7:
 		// this is the same error case as above, but involving flow from a param
-		return x, nil, nil // "returned"
+		return x, nil, nil //want "returned"
 	case 8:
 		// this is safe
 		return &i, nil, nil
@@ -153,7 +153,7 @@ func retsNonnilNilableWithErr(x *int, y *int) (*int, *int, error) {
 					}
 				}
 				if dummy { // here - two different flows result in a nilable (L131) or non-nil (L119) value for e2
-					return nil, nil, e2 // "returned from the function `retsNonnilNilableWithErr` in position 0 when the error return in position 2 is not guaranteed to be non-nil through all paths"
+					return nil, nil, e2 //want "returned from `retsNonnilNilableWithErr.*` in position 0 when the error return in position 2 is not guaranteed to be non-nil through all paths"
 				}
 			} else {
 				if dummy {
@@ -168,11 +168,11 @@ func retsNonnilNilableWithErr(x *int, y *int) (*int, *int, error) {
 			}
 			if dummy {
 				// here - two different flows result in a nilable (L131) or non-nil (L119, L144) value for e2
-				return nil, nil, e2 // "returned from the function `retsNonnilNilableWithErr` in position 0 when the error return in position 2 is not guaranteed to be non-nil through all paths"
+				return nil, nil, e2 //want "returned from `retsNonnilNilableWithErr.*` in position 0 when the error return in position 2 is not guaranteed to be non-nil through all paths"
 			}
 		}
 		// here - two different flows result in a nilable (L60, L131) or non-nil (L144) value for e2
-		return nil, nil, e2 //want "returned from .* in position 0 when the error return in position 2 is not guaranteed to be non-nil through all paths"
+		return nil, nil, e2 //want "returned from `retsNonnilNilableWithErr.*` in position 0 when the error return in position 2 is not guaranteed to be non-nil through all paths"
 	}
 
 	// these cases now test the direct return of other error-returning functions
@@ -206,32 +206,32 @@ func usesErrFunc() {
 
 	switch 0 {
 	case 1:
-		takesNonnil(nonnilPtr)  // "passed"
-		takesNonnil(nilablePtr) // "passed"
+		takesNonnil(nonnilPtr)  //want "passed"
+		takesNonnil(nilablePtr) //want "passed"
 	case 2:
 		if err == nil {
 			takesNonnil(nonnilPtr)
-			takesNonnil(nilablePtr) // "passed"
+			takesNonnil(nilablePtr) //want "passed"
 			return
 		}
-		takesNonnil(nonnilPtr)  // "passed"
-		takesNonnil(nilablePtr) // "passed"
+		takesNonnil(nonnilPtr)  //want "passed"
+		takesNonnil(nilablePtr) //want "passed"
 	case 3:
 		if err != nil {
-			takesNonnil(nonnilPtr)  // "passed"
-			takesNonnil(nilablePtr) // "passed"
+			takesNonnil(nonnilPtr)  //want "passed"
+			takesNonnil(nilablePtr) //want "passed"
 			return
 		}
 		takesNonnil(nonnilPtr)
-		takesNonnil(nilablePtr) // "passed"
+		takesNonnil(nilablePtr) //want "passed"
 	case 6:
 		if err2 == nil {
-			takesNonnil(nonnilPtr)  // "passed"
-			takesNonnil(nilablePtr) // "passed"
+			takesNonnil(nonnilPtr)  //want "passed"
+			takesNonnil(nilablePtr) //want "passed"
 			return
 		}
-		takesNonnil(nonnilPtr)  // "passed"
-		takesNonnil(nilablePtr) // "passed"
+		takesNonnil(nonnilPtr)  //want "passed"
+		takesNonnil(nilablePtr) //want "passed"
 	case 7:
 		if dummy {
 			if err != nil {
@@ -243,7 +243,7 @@ func usesErrFunc() {
 			}
 		}
 		takesNonnil(nonnilPtr)
-		takesNonnil(nilablePtr) // "passed"
+		takesNonnil(nilablePtr) //want "passed"
 	case 8:
 		if dummy {
 			if err == nil {
@@ -254,8 +254,8 @@ func usesErrFunc() {
 				return
 			}
 		}
-		takesNonnil(nonnilPtr)  // "passed"
-		takesNonnil(nilablePtr) // "passed"
+		takesNonnil(nonnilPtr)  //want "passed"
+		takesNonnil(nilablePtr) //want "passed"
 	case 9:
 		if dummy {
 			if err != nil {
@@ -266,8 +266,8 @@ func usesErrFunc() {
 				return
 			}
 		}
-		takesNonnil(nonnilPtr)  // "passed"
-		takesNonnil(nilablePtr) // "passed"
+		takesNonnil(nonnilPtr)  //want "passed"
+		takesNonnil(nilablePtr) //want "passed"
 	case 10:
 		var nilablePtr, nonnilPtr *int
 		var err error
@@ -282,7 +282,7 @@ func usesErrFunc() {
 		}
 
 		takesNonnil(nonnilPtr)
-		takesNonnil(nilablePtr) // "passed"
+		takesNonnil(nilablePtr) //want "passed"
 	case 11:
 		var nonnilPtr *int
 		var err error
@@ -316,7 +316,7 @@ func usesErrFunc() {
 		}
 
 		takesNonnil(nonnilPtr)
-		takesNonnil(nilablePtr) // "passed" "passed"
+		takesNonnil(nilablePtr) //want "passed" "passed"
 	}
 }
 
@@ -329,7 +329,7 @@ func testSometimesErrs(i *int, e error) (*int, error) {
 }
 
 func testSometimesErrs2(e error) (*int, error) {
-	return nil, sometimesErrs(e) // "returned from the function `testSometimesErrs2` in position 0"
+	return nil, sometimesErrs(e) //want "returned from `testSometimesErrs2.*` in position 0"
 }
 
 // nilable(result 0)
@@ -368,7 +368,7 @@ func testStableThroughLoop(x []string) any {
 		noop()
 	}
 
-	return cert // "returned"
+	return cert //want "returned"
 }
 
 // nilable(f, g)
@@ -403,10 +403,10 @@ func testTrackingThroughDeeperExprParallel() {
 		takesNonnil(a.g)
 		takesNonnil(b.f)
 		takesNonnil(b.g)
-		takesNonnil(a.f.g) // "passed"
-		takesNonnil(a.g.f) // "passed"
-		takesNonnil(b.f.g) // "passed"
-		takesNonnil(b.g.f) // "passed"
+		takesNonnil(a.f.g) //want "passed"
+		takesNonnil(a.g.f) //want "passed"
+		takesNonnil(b.f.g) //want "passed"
+		takesNonnil(b.g.f) //want "passed"
 	case getInt():
 		if b.e == nil {
 			takesNonnil(a)
@@ -416,9 +416,9 @@ func testTrackingThroughDeeperExprParallel() {
 			takesNonnil(b.f)
 			takesNonnil(b.g)
 			takesNonnil(a.f.g)
-			takesNonnil(a.g.f) // "passed"
-			takesNonnil(b.f.g) // "passed"
-			takesNonnil(b.g.f) // "passed"
+			takesNonnil(a.g.f) //want "passed"
+			takesNonnil(b.f.g) //want "passed"
+			takesNonnil(b.g.f) //want "passed"
 		}
 	case getInt():
 		if a.e == nil {
@@ -428,10 +428,10 @@ func testTrackingThroughDeeperExprParallel() {
 			takesNonnil(a.g)
 			takesNonnil(b.f)
 			takesNonnil(b.g)
-			takesNonnil(a.f.g) // "passed"
-			takesNonnil(a.g.f) // "passed"
+			takesNonnil(a.f.g) //want "passed"
+			takesNonnil(a.g.f) //want "passed"
 			takesNonnil(b.f.g)
-			takesNonnil(b.g.f) // "passed"
+			takesNonnil(b.g.f) //want "passed"
 		}
 	case getInt():
 		if a.e == nil && b.e == nil {
@@ -442,9 +442,9 @@ func testTrackingThroughDeeperExprParallel() {
 			takesNonnil(b.f)
 			takesNonnil(b.g)
 			takesNonnil(a.f.g)
-			takesNonnil(a.g.f) // "passed"
+			takesNonnil(a.g.f) //want "passed"
 			takesNonnil(b.f.g)
-			takesNonnil(b.g.f) // "passed"
+			takesNonnil(b.g.f) //want "passed"
 		}
 	case getInt():
 		if a.e == nil || b.e == nil {
@@ -454,10 +454,10 @@ func testTrackingThroughDeeperExprParallel() {
 			takesNonnil(a.g)
 			takesNonnil(b.f)
 			takesNonnil(b.g)
-			takesNonnil(a.f.g) // "passed"
-			takesNonnil(a.g.f) // "passed"
-			takesNonnil(b.f.g) // "passed"
-			takesNonnil(b.g.f) // "passed"
+			takesNonnil(a.f.g) //want "passed"
+			takesNonnil(a.g.f) //want "passed"
+			takesNonnil(b.f.g) //want "passed"
+			takesNonnil(b.g.f) //want "passed"
 		}
 	case getInt():
 		if b.e == nil && a.e == nil {
@@ -468,9 +468,9 @@ func testTrackingThroughDeeperExprParallel() {
 			takesNonnil(b.f)
 			takesNonnil(b.g)
 			takesNonnil(a.f.g)
-			takesNonnil(a.g.f) // "passed"
+			takesNonnil(a.g.f) //want "passed"
 			takesNonnil(b.f.g)
-			takesNonnil(b.g.f) // "passed"
+			takesNonnil(b.g.f) //want "passed"
 		}
 	case getInt():
 		if b.e == nil || a.e == nil {
@@ -480,10 +480,10 @@ func testTrackingThroughDeeperExprParallel() {
 			takesNonnil(a.g)
 			takesNonnil(b.f)
 			takesNonnil(b.g)
-			takesNonnil(a.f.g) // "passed"
-			takesNonnil(a.g.f) // "passed"
-			takesNonnil(b.f.g) // "passed"
-			takesNonnil(b.g.f) // "passed"
+			takesNonnil(a.f.g) //want "passed"
+			takesNonnil(a.g.f) //want "passed"
+			takesNonnil(b.f.g) //want "passed"
+			takesNonnil(b.g.f) //want "passed"
 		}
 	}
 }
@@ -501,10 +501,10 @@ func testTrackingThroughDeeperExprSeries() {
 	takesNonnil(a.g)
 	takesNonnil(b.f)
 	takesNonnil(b.g)
-	takesNonnil(a.f.g) // "passed"
-	takesNonnil(a.g.f) // "passed"
-	takesNonnil(b.f.g) // "passed"
-	takesNonnil(b.g.f) // "passed"
+	takesNonnil(a.f.g) //want "passed"
+	takesNonnil(a.g.f) //want "passed"
+	takesNonnil(b.f.g) //want "passed"
+	takesNonnil(b.g.f) //want "passed"
 
 	if b.e == nil {
 		takesNonnil(a)
@@ -514,9 +514,9 @@ func testTrackingThroughDeeperExprSeries() {
 		takesNonnil(b.f)
 		takesNonnil(b.g)
 		takesNonnil(a.f.g)
-		takesNonnil(a.g.f) // "passed"
-		takesNonnil(b.f.g) // "passed"
-		takesNonnil(b.g.f) // "passed"
+		takesNonnil(a.g.f) //want "passed"
+		takesNonnil(b.f.g) //want "passed"
+		takesNonnil(b.g.f) //want "passed"
 	}
 
 	if a.e == nil {
@@ -526,10 +526,10 @@ func testTrackingThroughDeeperExprSeries() {
 		takesNonnil(a.g)
 		takesNonnil(b.f)
 		takesNonnil(b.g)
-		takesNonnil(a.f.g) // "passed"
-		takesNonnil(a.g.f) // "passed"
+		takesNonnil(a.f.g) //want "passed"
+		takesNonnil(a.g.f) //want "passed"
 		takesNonnil(b.f.g)
-		takesNonnil(b.g.f) // "passed"
+		takesNonnil(b.g.f) //want "passed"
 	}
 
 	if a.e == nil && b.e == nil {
@@ -540,9 +540,9 @@ func testTrackingThroughDeeperExprSeries() {
 		takesNonnil(b.f)
 		takesNonnil(b.g)
 		takesNonnil(a.f.g)
-		takesNonnil(a.g.f) // "passed"
+		takesNonnil(a.g.f) //want "passed"
 		takesNonnil(b.f.g)
-		takesNonnil(b.g.f) // "passed"
+		takesNonnil(b.g.f) //want "passed"
 	}
 
 	if a.e == nil || b.e == nil {
@@ -552,10 +552,10 @@ func testTrackingThroughDeeperExprSeries() {
 		takesNonnil(a.g)
 		takesNonnil(b.f)
 		takesNonnil(b.g)
-		takesNonnil(a.f.g) // "passed"
-		takesNonnil(a.g.f) // "passed"
-		takesNonnil(b.f.g) // "passed"
-		takesNonnil(b.g.f) // "passed"
+		takesNonnil(a.f.g) //want "passed"
+		takesNonnil(a.g.f) //want "passed"
+		takesNonnil(b.f.g) //want "passed"
+		takesNonnil(b.g.f) //want "passed"
 	}
 
 	if b.e == nil && a.e == nil {
@@ -566,9 +566,9 @@ func testTrackingThroughDeeperExprSeries() {
 		takesNonnil(b.f)
 		takesNonnil(b.g)
 		takesNonnil(a.f.g)
-		takesNonnil(a.g.f) // "passed"
+		takesNonnil(a.g.f) //want "passed"
 		takesNonnil(b.f.g)
-		takesNonnil(b.g.f) // "passed"
+		takesNonnil(b.g.f) //want "passed"
 	}
 
 	if b.e == nil || a.e == nil {
@@ -578,10 +578,10 @@ func testTrackingThroughDeeperExprSeries() {
 		takesNonnil(a.g)
 		takesNonnil(b.f)
 		takesNonnil(b.g)
-		takesNonnil(a.f.g) // "passed"
-		takesNonnil(a.g.f) // "passed"
-		takesNonnil(b.f.g) // "passed"
-		takesNonnil(b.g.f) // "passed"
+		takesNonnil(a.f.g) //want "passed"
+		takesNonnil(a.g.f) //want "passed"
+		takesNonnil(b.f.g) //want "passed"
+		takesNonnil(b.g.f) //want "passed"
 	}
 }
 
@@ -622,7 +622,7 @@ func testErrorsAndFmtPkg(i int) (*int, error) {
 		if dummy {
 			e2 = errors.New("some new error")
 		}
-		return nil, e2 // "position 1 is not guaranteed to be non-nil through all paths"
+		return nil, e2 //want "position 1 is not guaranteed to be non-nil through all paths"
 	case 4:
 		return nil, fmt.Errorf("some fmt error")
 	case 5:
@@ -660,7 +660,7 @@ func retNilableErrorByDefault() error {
 
 // nilable(i)
 func testRetNilableErr(i *int) (*int, error) {
-	return i, retNilableErr() // "returned from the function `testRetNilableErr` in position 0 when the error return in position 1 is not guaranteed to be non-nil through all paths"
+	return i, retNilableErr() //want "returned from `testRetNilableErr.*` in position 0 when the error return in position 1 is not guaranteed to be non-nil through all paths"
 }
 
 func testRetNilableErrorByDefault(x *int) (*int, error) {
@@ -677,7 +677,7 @@ func retPtrAndErr(i int) (*int, error) {
 	case 0:
 		return nil, retNonNilErr()
 	case 1:
-		return x, retNilErr() // "returned from the function `retPtrAndErr` in position 0"
+		return x, retNilErr() //want "returned from `retPtrAndErr.*` in position 0"
 	}
 	return &i, retNilErr()
 }
@@ -687,9 +687,9 @@ func testFuncRet(i int) (*int, error) {
 	var errNonNil = retNonNilErr()
 	switch i {
 	case 0:
-		return nil, errNil // "returned from the function `testFuncRet` in position 0"
+		return nil, errNil //want "returned from `testFuncRet.*` in position 0"
 	case 1:
-		return nil, retNilErr() // "returned from the function `testFuncRet` in position 0"
+		return nil, retNilErr() //want "returned from `testFuncRet.*` in position 0"
 	case 2:
 		return nil, errNonNil
 	case 3:
@@ -756,8 +756,8 @@ func callRetPtrPtrErr() {
 	if err != nil {
 		print(err.Error())
 	} else {
-		print(*a) // "returned as result 0 from the function `retPtrPtrErr` dereferenced"
-		print(*b) // "returned as result 1 from the function `retPtrPtrErr` dereferenced"
+		print(*a) //want "result 0 of `retPtrPtrErr.*` dereferenced"
+		print(*b) //want "result 1 of `retPtrPtrErr.*` dereferenced"
 	}
 }
 
@@ -771,21 +771,21 @@ func testErrInNonLastPos(i, j int) (error, *int, *int) {
 	var e error
 	switch i {
 	case 0:
-		return nil, nil, nil // "returned from the function `testErrInNonLastPos` in position 2"
+		return nil, nil, nil //want "returned from `testErrInNonLastPos.*` in position 2"
 	case 1:
 		return retNilErr(), &i, &j
 	case 2:
 		return nil, nil, &j
 	case 3:
-		return e, &i, nil // "returned from the function `testErrInNonLastPos` in position 2"
+		return e, &i, nil //want "returned from `testErrInNonLastPos.*` in position 2"
 	case 4:
 		// the below error can be considered to be a false positive as per the error contract
-		return errors.New("some error"), nil, nil // "returned from the function `testErrInNonLastPos` in position 2"
+		return errors.New("some error"), nil, nil //want "returned from `testErrInNonLastPos.*` in position 2"
 	case 5:
 		return retNonNilErr(), nil, &j
 	case 6:
 		// the below error can be considered to be a false positive as per the error contract
-		return retNonNilErr(), &i, nil // "returned from the function `testErrInNonLastPos` in position 2"
+		return retNonNilErr(), &i, nil //want "returned from `testErrInNonLastPos.*` in position 2"
 	}
 	return retNonNilErr(), &i, &j
 }
@@ -796,5 +796,5 @@ func testMultipleErrs(i int) (*int, error, error) {
 		return &i, nil, nil
 	}
 	// the below error can be considered to be a false positive
-	return nil, retNonNilErr(), retNonNilErr() // "returned from the function `testMultipleErrs` in position 0"
+	return nil, retNonNilErr(), retNonNilErr() //want "returned from `testMultipleErrs.*` in position 0"
 }

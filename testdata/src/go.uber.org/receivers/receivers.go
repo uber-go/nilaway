@@ -27,7 +27,7 @@ type S struct {
 func (s *S) nilableRecv(i int) string {
 	switch i {
 	case 0:
-		return s.f //want "field .* accessed"
+		return s.f //want "accessed field `f`"
 
 	case 1:
 		if s == nil {
@@ -51,7 +51,7 @@ func testCaller(dummy bool, i int) {
 	var s *S // DECL_1: s is uninitialized
 	switch i {
 	case 0:
-		s.nonnilRecv() //want "used as receiver to call method `nonnilRecv`"
+		s.nonnilRecv() //want "used as receiver to call `nonnilRecv.*`"
 	case 1:
 		s = &S{}
 		s.nonnilRecv()
@@ -59,7 +59,7 @@ func testCaller(dummy bool, i int) {
 		if dummy {
 			s = &S{}
 		}
-		s.nonnilRecv() //want "used as receiver to call method `nonnilRecv`"
+		s.nonnilRecv() //want "used as receiver to call `nonnilRecv.*`"
 	case 3:
 		if s != nil {
 			if dummy {
@@ -69,11 +69,11 @@ func testCaller(dummy bool, i int) {
 				if dummy {
 					s = nil // DECL_2: s is assigned nil
 					if dummy {
-						s.nonnilRecv() //want "used as receiver to call method `nonnilRecv`"
+						s.nonnilRecv() //want "used as receiver to call `nonnilRecv.*`"
 					}
 				}
 				if dummy {
-					s.nonnilRecv() //want "used as receiver to call method `nonnilRecv`"
+					s.nonnilRecv() //want "used as receiver to call `nonnilRecv.*`"
 				}
 			} else {
 				if dummy {
@@ -87,11 +87,11 @@ func testCaller(dummy bool, i int) {
 				}
 			}
 			if dummy {
-				s.nonnilRecv() //want "used as receiver to call method `nonnilRecv`"
+				s.nonnilRecv() //want "used as receiver to call `nonnilRecv.*`"
 			}
 		}
 		// here - two different flows result in a nilable (DECL_1 and DECL_2)
-		s.nonnilRecv() //want "used as receiver to call method `nonnilRecv`" "used as receiver to call method `nonnilRecv`"
+		s.nonnilRecv() //want "used as receiver to call `nonnilRecv.*`" "used as receiver to call `nonnilRecv.*`"
 	}
 }
 

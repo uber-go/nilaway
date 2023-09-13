@@ -55,5 +55,5 @@ func (pool *Pool) giveEmptyA() *A22 {
 func m22() *int {
 	pool := new(Pool)
 	var b = pool.giveEmptyA()
-	return b.aptr.ptr //want "field `ptr` of `b.aptr` accessed"
+	return b.aptr.ptr //want "accessed field `ptr`"
 }

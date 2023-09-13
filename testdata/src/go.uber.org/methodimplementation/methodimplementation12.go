@@ -68,7 +68,7 @@ func (b B121) foo(x *A121) (*A121, string) {
 
 // nilable(y, result 0)
 func (b *B121) bar(x *A121, y *B121) *string { //want "passed as param"
-	if b.i+y.i > 5 { //want "field .* access"
+	if b.i+y.i > 5 { //want "accessed field `i`"
 		return nil
 	}
 	return &x.s
@@ -124,7 +124,7 @@ func (b B122) foo(x *A122) (*A122, string) {
 
 // nilable(y, result 0)
 func (b *B122) bar(x *A122, y *B122) *string { //want "passed as param"
-	if b.i+y.i > 5 { //want "field .* access"
+	if b.i+y.i > 5 { //want "accessed field `i`"
 		return nil
 	}
 	return &x.s

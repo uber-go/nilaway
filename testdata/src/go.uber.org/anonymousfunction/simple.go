@@ -51,7 +51,7 @@ func simple() {
 		ptr := &t2
 		print(*ptr)
 		t3 := retNilable()
-		print(*t3) //want "read from result 0 of function `retNilable`"
+		print(*t3) //want "result 0 of `retNilable.*` dereferenced"
 		var aPtr *A
 		print(*aPtr) //want "unassigned variable `aPtr`"
 		aNonnilPtr := &A{}

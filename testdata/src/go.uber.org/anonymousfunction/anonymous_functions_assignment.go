@@ -26,7 +26,7 @@ func testSimpleAssignment() {
 	var t2 *int
 	b := func() {
 		print(*t1)
-		print(*t2) //want "read by function parameter `t2`"
+		print(*t2) //want "function parameter `t2` dereferenced"
 	}
 
 	i := 1

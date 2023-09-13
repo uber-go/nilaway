@@ -62,7 +62,7 @@ func (a *A) retErr() error {
 func testInScope() {
 	var a *A
 	err := a.retErr()
-	print(err.Error()) //want "returned as the error result 0 of function `retErr`"
+	print(err.Error()) //want "returned as error result 0 of `retErr.*`"
 }
 
 // -----------------------------------
@@ -97,8 +97,8 @@ func newI2() I {
 
 func testAffiliation() {
 	// TP since it's the case of untyped nil
-	newI1().foo() //want "read from result 0 of function `newI1`"
+	newI1().foo() //want "result 0 of `newI1.*`"
 
 	// FP since affiliations are not tracked for nilable receivers
-	newI2().foo() //want "read from result 0 of function `newI2`"
+	newI2().foo() //want "result 0 of `newI2.*`"
 }

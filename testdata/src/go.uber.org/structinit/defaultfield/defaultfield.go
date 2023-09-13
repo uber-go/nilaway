@@ -35,7 +35,7 @@ func m() *A10 {
 
 func m3(a *A10) {
 	// relies on default annotation of field aptr since we don't track field at depth >=2
-	print(a.aptr.aptr.ptr) //want "read from field `a.aptr.aptr`"
+	print(a.aptr.aptr.ptr) //want "accessed field `ptr`"
 }
 
 // This should give an error since aptr escapes

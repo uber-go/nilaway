@@ -46,10 +46,10 @@ func writeToGlobals(a, b *int) {
 }
 
 // nilable(deepnilable[]), nonnil(deepnilable)
-var deepnilable []*int //want "assigned into the global variable"
+var deepnilable []*int //want "assigned into global variable"
 
 // nonnil(deepnonnil)
-var deepnonnil []*int //want "assigned into the global variable"
+var deepnonnil []*int //want "assigned into global variable"
 
 func readDeepFromGlobals() *int {
 	if true {

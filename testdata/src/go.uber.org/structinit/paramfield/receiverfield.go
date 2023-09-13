@@ -38,7 +38,7 @@ func callM22() {
 }
 
 func (c *A) m22() {
-	print(c.aptr.ptr) //want "field `aptr` of receiver of method `m22`"
+	print(c.aptr.ptr) //want "field `aptr` of receiver of call to function `m22`"
 }
 
 // Checking if Nilaway does not crash on unnamed receivers
@@ -51,7 +51,7 @@ func callF24() {
 }
 
 func (c A) f24() {
-	print(c.aptr.ptr) //want "field `aptr` of receiver of method `f24`"
+	print(c.aptr.ptr) //want "field `aptr` of receiver of call to function `f24`"
 }
 
 // Positive example with direct composite as parameter
@@ -64,7 +64,7 @@ func callF25() {
 }
 
 func (c *A) f25() {
-	print(c.aptr.ptr) //want "field `aptr` of receiver of method `f25`"
+	print(c.aptr.ptr) //want "field `aptr` of receiver of call to function `f25`"
 }
 
 // Negative example with direct composite as parameter

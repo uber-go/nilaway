@@ -107,7 +107,7 @@ func giveEmptyA122(someInt int) *A12 {
 
 func m122(someInt int) *int {
 	var b = giveEmptyA122(someInt)
-	return b.aptr.ptr //want "field `ptr` of `b.aptr` accessed"
+	return b.aptr.ptr //want "accessed field `ptr`"
 }
 
 // In this test case, B12 is named type
@@ -121,7 +121,7 @@ func giveEmptyB12() *B12 {
 
 func mb12() *int {
 	var b = giveEmptyB12()
-	return b.aptr.ptr //want "field `ptr` of `b.aptr` accessed"
+	return b.aptr.ptr //want "accessed field `ptr`"
 }
 
 // In this test case, B122 is named type
@@ -135,7 +135,7 @@ func giveEmptyB122() *B122 {
 
 func mb122() *int {
 	var b = giveEmptyB122()
-	return b.aptr.ptr //want "field `ptr` of `b.aptr` accessed"
+	return b.aptr.ptr //want "accessed field `ptr`"
 }
 
 // In the following test case we have an anonymous field from different package

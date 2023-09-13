@@ -122,13 +122,13 @@ func rightNonNil() (a *T, b *T, c *T) {
 func testThreeRets() (a *T, b *T, c *T) {
 	switch 0 {
 	case 1:
-		return leftNonNil() //want "returned from the function `testThreeRets` in position 2"
+		return leftNonNil() //want "returned from `testThreeRets.*` in position 2"
 	case 2:
-		return centerNonNil() //want "returned from the function `testThreeRets` in position 2" "returned from the function `testThreeRets` in position 0"
+		return centerNonNil() //want "returned from `testThreeRets.*` in position 2" "returned from `testThreeRets.*` in position 0"
 	case 3:
-		return rightNonNil() //want "returned from the function `testThreeRets` in position 0"
+		return rightNonNil() //want "returned from `testThreeRets.*` in position 0"
 	case 4:
-		return nil, nil, nil //want "returned from the function `testThreeRets` in position 2" "returned from the function `testThreeRets` in position 0"
+		return nil, nil, nil //want "returned from `testThreeRets.*` in position 2" "returned from `testThreeRets.*` in position 0"
 	default:
 		return &T{}, &T{}, &T{}
 	}
@@ -146,13 +146,13 @@ func takesRightNonNil(a *T, b *T, c *T) {}
 // multiple returners can be passed directly to multiple param funcs - test that here
 func testMultiToMultiCalls() {
 	takesLeftNonNil(leftNonNil())
-	takesLeftNonNil(centerNonNil()) //want "passed as argument 0"
-	takesLeftNonNil(rightNonNil())  //want "passed as argument 0"
-	takesCenterNonNil(leftNonNil()) //want "passed as argument 1"
+	takesLeftNonNil(centerNonNil()) //want "passed as arg `a`"
+	takesLeftNonNil(rightNonNil())  //want "passed as arg `a`"
+	takesCenterNonNil(leftNonNil()) //want "passed as arg `b`"
 	takesCenterNonNil(centerNonNil())
-	takesCenterNonNil(rightNonNil()) //want "passed as argument 1"
-	takesRightNonNil(leftNonNil())   //want "passed as argument 2"
-	takesRightNonNil(centerNonNil()) //want "passed as argument 2"
+	takesCenterNonNil(rightNonNil()) //want "passed as arg `b`"
+	takesRightNonNil(leftNonNil())   //want "passed as arg `c`"
+	takesRightNonNil(centerNonNil()) //want "passed as arg `c`"
 	takesRightNonNil(rightNonNil())
 }
 
@@ -172,9 +172,9 @@ func returnTwoNonNil() *T {
 }
 
 func assignThreeNonNil(tt *twoTs) {
-	tt.second, tt.second, tt.second = rightNonNil()  //want "assigned into the field" "assigned into the field"
-	tt.second, tt.second, tt.second = centerNonNil() //want "assigned into the field" "assigned into the field"
-	tt.second, tt.second, tt.second = leftNonNil()   //want "assigned into the field" "assigned into the field"
+	tt.second, tt.second, tt.second = rightNonNil()  //want "assigned into field" "assigned into field"
+	tt.second, tt.second, tt.second = centerNonNil() //want "assigned into field" "assigned into field"
+	tt.second, tt.second, tt.second = leftNonNil()   //want "assigned into field" "assigned into field"
 	tt.first, tt.first, tt.second = rightNonNil()
 	tt.first, tt.second, tt.first = centerNonNil()
 	tt.second, tt.first, tt.first = leftNonNil()

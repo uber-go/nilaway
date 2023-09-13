@@ -522,7 +522,7 @@ func testRangeOverChans(a, b, c, d chan *int) *int {
 func takesNonnil(interface{}) {}
 
 func singleKeysEstablishNonnil(ch chan *int) {
-	v, ok := <-ch //want "channel .* uninitialized"
+	v, ok := <-ch //want "uninitialized channel"
 
 	// here, ch and v should be nilable
 	takesNonnil(v)  //want "passed"
@@ -575,7 +575,7 @@ func plainReflCheck(ch chan any) any {
 		return ch //want "returned"
 	}
 
-	_, ok := <-ch //want "channel .* uninitialized"
+	_, ok := <-ch //want "uninitialized channel"
 
 	if ok {
 		return ch
@@ -589,39 +589,39 @@ var nilChanGlobal chan string
 var nonnilChanGlobal = make(chan string)
 
 func testSendToGlobalChan() {
-	nilChanGlobal <- "xyz" //want "channel .* uninitialized"
+	nilChanGlobal <- "xyz" //want "uninitialized channel"
 	nonnilChanGlobal <- "xyz"
 }
 
 // nonnil(nonnilChanParam)
 func testSendToParamChan(nilChanParam chan string, nonnilChanParam chan string) {
-	nilChanParam <- "xyz" //want "channel .* uninitialized"
+	nilChanParam <- "xyz" //want "uninitialized channel"
 	nonnilChanParam <- "xyz"
 }
 
 func testSendToLocalChan() {
 	var nilChanLocal chan string
-	nilChanLocal <- "xyz" //want "channel .* uninitialized"
+	nilChanLocal <- "xyz" //want "uninitialized channel"
 
 	var nonnilChanLocal = make(chan string)
 	nonnilChanLocal <- "xyz"
 }
 
 func testRecvFromGlobalChan() (string, string) {
-	return <-nilChanGlobal, <-nonnilChanGlobal //want "channel .* uninitialized"
+	return <-nilChanGlobal, <-nonnilChanGlobal //want "uninitialized channel"
 }
 
 // nonnil(nonnilChanParam)
 func testRecvFromParamChan(nilChanParam chan string, nonnilChanParam chan string) {
-	v1 := <-nilChanParam //want "channel .* uninitialized"
+	v1 := <-nilChanParam //want "uninitialized channel"
 	v2 := <-nonnilChanParam
 	func(...any) {}(v1, v2)
 }
 
 func testRecvFromLocalChan() {
 	var nilChanLocal chan string
-	nilChanLocal <- "xyz" //want "channel .* uninitialized"
-	v1 := <-nilChanLocal  //want "channel .* uninitialized"
+	nilChanLocal <- "xyz" //want "uninitialized channel"
+	v1 := <-nilChanLocal  //want "uninitialized channel"
 
 	var nonnilChanLocal = make(chan string)
 	nonnilChanLocal <- "xyz"
@@ -642,14 +642,14 @@ func retNonNilChan() chan string {
 
 func testSendRecvFuncRet() {
 	nilChanLocal := retNilChan()
-	nilChanLocal <- "xyz" //want "channel .* uninitialized"
-	v1 := <-nilChanLocal  //want "channel .* uninitialized"
+	nilChanLocal <- "xyz" //want "uninitialized channel"
+	v1 := <-nilChanLocal  //want "uninitialized channel"
 
 	nonnilChanLocal := retNonNilChan()
 	nonnilChanLocal <- "xyz"
 	v2 := <-nonnilChanLocal
 
-	nilChanLocal <- <-nonnilChanGlobal //want "channel .* uninitialized"
+	nilChanLocal <- <-nonnilChanGlobal //want "uninitialized channel"
 	nonnilChanLocal <- <-nonnilChanGlobal
 
 	func(...any) {}(v1, v2)

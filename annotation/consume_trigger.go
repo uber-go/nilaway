@@ -451,7 +451,7 @@ type RecvPassPrestring struct {
 }
 
 func (a RecvPassPrestring) String() string {
-	return fmt.Sprintf("used as a receiver to call `%s()`", a.FuncName)
+	return fmt.Sprintf("used as receiver to call `%s()`", a.FuncName)
 }
 
 // InterfaceResultFromImplementation is when a result is determined to flow from a concrete method to an interface method via implementation

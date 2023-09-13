@@ -76,7 +76,7 @@ type B struct{}
 func (b *B) testOverWriteReceiver() {
 	b = nil
 	func() {
-		print(*b) //want "literal nil"
+		print(*b) //want "literal `nil`"
 	}()
 }
 

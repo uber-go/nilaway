@@ -72,7 +72,7 @@ func noDeep4(x *ralph) *ralph {
 	if x == nil {
 		x = x
 	}
-	return x //want "returned from the function `noDeep4`"
+	return x //want "returned from `noDeep4.*`"
 }
 
 // nilable(x)

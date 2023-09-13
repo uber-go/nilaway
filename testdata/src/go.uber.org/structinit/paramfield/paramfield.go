@@ -86,7 +86,7 @@ func callF14() {
 }
 
 func f14(c *A) {
-	print(c.aptr.ptr) //want "field `aptr` of param 0 of function `f14`"
+	print(c.aptr.ptr) //want "field `aptr` of argument 0 to call to function `f14`"
 }
 
 // Positive example with direct composite as parameter

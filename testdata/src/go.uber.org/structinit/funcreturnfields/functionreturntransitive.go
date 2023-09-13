@@ -27,7 +27,7 @@ func giveEmptyA() *A11 {
 
 func m07() *int {
 	b := giveEmptyA()
-	return b.aptr.ptr //want "field `ptr` of `b.aptr` accessed"
+	return b.aptr.ptr //want "accessed field `ptr`"
 }
 
 // Testing with direct return of struct as a composite literal.
@@ -37,7 +37,7 @@ func giveEmptyAComposite() *A11 {
 
 func m08() *int {
 	t := giveEmptyAComposite()
-	return t.aptr.ptr //want "field `ptr` of `t.aptr` accessed"
+	return t.aptr.ptr //want "accessed field `ptr`"
 }
 
 // Testing with transitive return of struct through a function call.
@@ -51,5 +51,5 @@ func giveEmptyACallFun() *A11 {
 
 func m10() *int {
 	t := giveEmptyACallFun()
-	return t.aptr.ptr //want "field `ptr` of `t.aptr` accessed"
+	return t.aptr.ptr //want "accessed field `ptr`"
 }
