@@ -411,8 +411,10 @@ func (r *RootAssertionNode) addProductionForFuncCallArgFieldsAtIndex(arg ast.Exp
 			if paramFieldKey != nil {
 				r.AddProduction(
 					&annotation.ProduceTrigger{
-						Annotation: annotation.TriggerIfNilable{
-							Ann: paramFieldKey,
+						Annotation: annotation.ParamFldRead{
+							TriggerIfNilable: annotation.TriggerIfNilable{
+								Ann: paramFieldKey,
+							},
 						},
 						Expr: selExpr})
 			}
