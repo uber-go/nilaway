@@ -944,7 +944,7 @@ func (c ChanAccess) Prestring() Prestring {
 type ChanAccessPrestring struct{}
 
 func (ChanAccessPrestring) String() string {
-	return "uninitialized channel"
+	return "uninitialized; nil channel accessed"
 }
 
 // LocalVarAssignDeep is when a value flows to a point where it is assigned deeply into a local variable of deeply nonnil type
