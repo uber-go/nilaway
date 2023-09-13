@@ -58,7 +58,7 @@ func giveEmptyA12() *A12 {
 
 func m12() *int {
 	var b = giveEmptyA12()
-	return b.aptr.ptr //want "unassigned at struct initialization"
+	return b.aptr.ptr //want "uninitialized"
 }
 
 // Testing function with multiple returns
@@ -73,7 +73,7 @@ func giveOneEmptyAndOneNonEmptyA12() (*A12, *A12) {
 
 func m123() {
 	var b1, b2 = giveOneEmptyAndOneNonEmptyA12()
-	print(b1.aptr.ptr, b2.aptr.ptr) //want "unassigned at struct initialization"
+	print(b1.aptr.ptr, b2.aptr.ptr) //want "uninitialized"
 }
 
 // Testing function with multiple returns
@@ -84,7 +84,7 @@ func giveTwoEmptyA12() (*A12, *A12) {
 
 func m124() {
 	var b1, b2 = giveTwoEmptyA12()
-	print(b1.aptr.ptr, b2.aptr.ptr) //want "unassigned at struct initialization" "unassigned at struct initialization"
+	print(b1.aptr.ptr, b2.aptr.ptr) //want "uninitialized" "uninitialized"
 }
 
 // Testing function with multiple returns

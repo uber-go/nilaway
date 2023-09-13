@@ -333,7 +333,7 @@ func (UnassignedFld) Prestring() Prestring {
 type UnassignedFldPrestring struct{}
 
 func (UnassignedFldPrestring) String() string {
-	return "unassigned at struct initialization"
+	return "uninitialized"
 }
 
 // NoVarAssign is when a value is determined to flow from a variable that wasn't assigned to
@@ -609,6 +609,32 @@ func (f ParamFldReadPrestring) String() string {
 		structObjName = f.ParamName
 	}
 	return fmt.Sprintf("field `%s.%s`", structObjName, f.FieldName)
+}
+
+// FldReturn is used when a struct field value is determined to flow from a return value of a function
+type FldReturn struct {
+	TriggerIfNilable
+}
+
+func (f FldReturn) String() string {
+	return f.Prestring().String()
+}
+
+// Prestring returns this FldReturn as a Prestring
+func (f FldReturn) Prestring() Prestring {
+	key := f.Ann.(RetFieldAnnotationKey)
+	return FldReturnPrestring{key.RetNum, key.FuncDecl.Name(), key.FieldDecl.Name()}
+}
+
+// FldReturnPrestring is a Prestring storing the needed information to compactly encode a FldReturn
+type FldReturnPrestring struct {
+	RetNum    int
+	FuncName  string
+	FieldName string
+}
+
+func (f FldReturnPrestring) String() string {
+	return fmt.Sprintf("field `%s` of result %d of `%s()`", f.FieldName, f.RetNum, f.FuncName)
 }
 
 // FuncReturn is used when a value is determined to flow from the return of a function. This

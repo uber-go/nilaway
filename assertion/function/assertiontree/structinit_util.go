@@ -141,8 +141,8 @@ func (r *RootAssertionNode) getFieldProducersForFuncReturns(calledFuncDecl *type
 			retKey := annotation.NewRetFldAnnKey(calledFuncDecl, retNum, fieldDecl)
 
 			fieldProducer := &annotation.ProduceTrigger{
-				Annotation: annotation.TriggerIfNilable{
-					Ann: retKey,
+				Annotation: annotation.FldReturn{
+					TriggerIfNilable: annotation.TriggerIfNilable{Ann: retKey},
 				},
 			}
 
