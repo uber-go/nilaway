@@ -472,7 +472,7 @@ type MethodRecvDeepPrestring struct {
 }
 
 func (m MethodRecvDeepPrestring) String() string {
-	return fmt.Sprintf("read deeply by method receiver `%s`", m.RecvName)
+	return fmt.Sprintf("deep read by method receiver `%s`", m.RecvName)
 }
 
 // VariadicFuncParam is used when a value is determined to flow from a variadic function parameter,
@@ -945,7 +945,7 @@ type FuncParamDeepPrestring struct {
 }
 
 func (f FuncParamDeepPrestring) String() string {
-	return fmt.Sprintf("read deeply from parameter `%s`", f.ParamName)
+	return fmt.Sprintf("deep read from parameter `%s`", f.ParamName)
 }
 
 // NeedsGuardMatch for a FuncParamDeep reads the field NeedsGuard of the
@@ -1017,7 +1017,7 @@ type FuncReturnDeepPrestring struct {
 }
 
 func (f FuncReturnDeepPrestring) String() string {
-	return fmt.Sprintf("read deeply from result %d of `%s()`", f.RetNum, f.FuncName)
+	return fmt.Sprintf("deep read from result %d of `%s()`", f.RetNum, f.FuncName)
 }
 
 // NeedsGuardMatch for a FuncReturnDeep reads the field NeedsGuard of the
@@ -1053,7 +1053,7 @@ type FldReadDeepPrestring struct {
 }
 
 func (f FldReadDeepPrestring) String() string {
-	return fmt.Sprintf("read deeply from field `%s`", f.FieldName)
+	return fmt.Sprintf("deep read from field `%s`", f.FieldName)
 }
 
 // NeedsGuardMatch for a FldReadDeep reads the field NeedsGuard of the
@@ -1089,7 +1089,7 @@ type LocalVarReadDeepPrestring struct {
 }
 
 func (v LocalVarReadDeepPrestring) String() string {
-	return fmt.Sprintf("read deeply from variable `%s`", v.VarName)
+	return fmt.Sprintf("deep read from variable `%s`", v.VarName)
 }
 
 // NeedsGuardMatch for a LocalVarReadDeep reads the field NeedsGuard of the
@@ -1125,7 +1125,7 @@ type GlobalVarReadDeepPrestring struct {
 }
 
 func (g GlobalVarReadDeepPrestring) String() string {
-	return fmt.Sprintf("read deeply from global variable `%s`", g.VarName)
+	return fmt.Sprintf("deep read from global variable `%s`", g.VarName)
 }
 
 // NeedsGuardMatch for a GlobalVarReadDeep reads the field NeedsGuard of the

@@ -59,7 +59,7 @@ func testParamNilableArrayWrite(a [4]*int, v *int, b bool) (*int, *int) {
 	}
 	i := 0
 	a[1] = &i
-	return a[0], a[1] //want "read deeply from parameter `a`" "returned from `testParamNilableArrayWrite.*` in position 0"
+	return a[0], a[1] //want "deep read from parameter `a`" "returned from `testParamNilableArrayWrite.*` in position 0"
 }
 
 // nonnil(a[])
