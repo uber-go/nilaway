@@ -82,7 +82,7 @@ func (TriggerIfNilable) Prestring() Prestring {
 type TriggerIfNilablePrestring struct{}
 
 func (TriggerIfNilablePrestring) String() string {
-	return "could be nilable"
+	return "nilable value"
 }
 
 // CheckProduce returns true if the underlying annotation is present in the passed map and nilable
@@ -128,7 +128,7 @@ func (TriggerIfDeepNilable) Prestring() Prestring {
 type TriggerIfDeepNilablePrestring struct{}
 
 func (TriggerIfDeepNilablePrestring) String() string {
-	return "could be deeply nilable"
+	return "deeply nilable value"
 }
 
 // CheckProduce returns true if the underlying annotation is present in the passed map and deeply nilable
@@ -185,7 +185,7 @@ func (ProduceTriggerTautology) UnderlyingSite() Key { return nil }
 type ProduceTriggerTautologyPrestring struct{}
 
 func (ProduceTriggerTautologyPrestring) String() string {
-	return "nilable"
+	return "nilable value"
 }
 
 // ProduceTriggerNever is used for trigger producers that will never be nil
