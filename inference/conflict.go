@@ -134,7 +134,7 @@ func (c *conflict) String() string {
 	}
 
 	return fmt.Sprintf(" Potential nil panic detected. Observed nil flow from "+
-		"source to dereference point: %s%s", c.flow.String(), similarConflictsString)
+		"source to dereference point: %s%s\n", c.flow.String(), similarConflictsString)
 }
 
 func (c *conflict) addSimilarConflict(conflict conflict) {
