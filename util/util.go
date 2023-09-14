@@ -478,7 +478,7 @@ var nilabilityPattern = regexp.MustCompile(`([\(|^\t](?i)(found\s|must\sbe\s)(ni
 // PrettyPrintErrorMessage is used in error reporting to post process and pretty print the output with colors
 func PrettyPrintErrorMessage(msg string) string {
 	// TODO: below string parsing should not be required after  is implemented
-	errorStr := fmt.Sprintf("\x1b[%dm%s\x1b[0m", 31, "error:")       // red
+	errorStr := fmt.Sprintf("\x1b[%dm%s\x1b[0m", 31, "error: ")      // red
 	codeStr := fmt.Sprintf("\u001B[%dm%s\u001B[0m", 95, "`${1}`")    // magenta
 	pathStr := fmt.Sprintf("\u001B[%dm%s\u001B[0m", 36, "${1}")      // cyan
 	nilabilityStr := fmt.Sprintf("\u001B[%dm%s\u001B[0m", 1, "${1}") // bold

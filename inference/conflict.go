@@ -133,7 +133,7 @@ func (c *conflict) String() string {
 			"other place(s): %s.)", len(c.similarConflicts), posString)
 	}
 
-	return fmt.Sprintf(" Potential nil panic detected. Observed nil flow from "+
+	return fmt.Sprintf("Potential nil panic detected. Observed nil flow from "+
 		"source to dereference point: %s%s\n", c.flow.String(), similarConflictsString)
 }
 
