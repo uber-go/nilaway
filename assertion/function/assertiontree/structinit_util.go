@@ -471,7 +471,9 @@ func (r *RootAssertionNode) addConsumptionsForFieldsOfParam(param *types.Var, pa
 				r.AddConsumption(&annotation.ConsumeTrigger{
 					Annotation: annotation.ArgFldPass{
 						TriggerIfNonNil: annotation.TriggerIfNonNil{
-							Ann: paramFieldKey}},
+							Ann: paramFieldKey},
+						IsPassed: true,
+					},
 					Expr:   selExpr,
 					Guards: util.NoGuards(),
 				})

@@ -316,6 +316,7 @@ func (f FldAssignPrestring) String() string {
 // the same struct type (A)
 type ArgFldPass struct {
 	TriggerIfNonNil
+	IsPassed bool
 }
 
 func (f ArgFldPass) String() string {
@@ -325,27 +326,39 @@ func (f ArgFldPass) String() string {
 // Prestring returns this ArgFldPass as a Prestring
 func (f ArgFldPass) Prestring() Prestring {
 	ann := f.Ann.(ParamFieldAnnotationKey)
+	recvName := ""
+	if ann.IsReceiver() {
+		recvName = ann.FuncDecl.Type().(*types.Signature).Recv().Name()
+	}
+
 	return ArgFldPassPrestring{
-		FieldName:  ann.FieldDecl.Name(),
-		FuncName:   ann.FuncDecl.Name(),
-		ParamNum:   ann.ParamNum,
-		IsReceiver: ann.IsReceiver(),
+		FieldName: ann.FieldDecl.Name(),
+		FuncName:  ann.FuncDecl.Name(),
+		ParamNum:  ann.ParamNum,
+		RecvName:  recvName,
+		IsPassed:  f.IsPassed,
 	}
 }
 
 // ArgFldPassPrestring is a Prestring storing the needed information to compactly encode a ArgFldPass
 type ArgFldPassPrestring struct {
-	FieldName  string
-	FuncName   string
-	ParamNum   int
-	IsReceiver bool
+	FieldName string
+	FuncName  string
+	ParamNum  int
+	RecvName  string
+	IsPassed  bool
 }
 
 func (f ArgFldPassPrestring) String() string {
-	if f.IsReceiver {
-		return fmt.Sprintf("field `%s` of receiver of call to function `%s`", f.FieldName, f.FuncName)
+	prefix := ""
+	if f.IsPassed {
+		prefix = "assigned to "
 	}
-	return fmt.Sprintf("field `%s` of argument %d to call to function `%s`", f.FieldName, f.ParamNum, f.FuncName)
+
+	if len(f.RecvName) > 0 {
+		return fmt.Sprintf("%sfield `%s` of method receiver `%s`", prefix, f.FieldName, f.RecvName)
+	}
+	return fmt.Sprintf("%sfield `%s` of argument %d to `%s()`", prefix, f.FieldName, f.ParamNum, f.FuncName)
 }
 
 // GlobalVarAssign is when a value flows to a point where it is assigned into a global variable
@@ -668,7 +681,9 @@ func GetParamFldConsumer(paramKey Key, expr ast.Expr) *ConsumeTrigger {
 	return &ConsumeTrigger{
 		Annotation: ArgFldPass{
 			TriggerIfNonNil: TriggerIfNonNil{
-				Ann: paramKey}},
+				Ann: paramKey},
+			IsPassed: true,
+		},
 		Expr:   expr,
 		Guards: util.NoGuards(),
 	}

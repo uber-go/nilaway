@@ -581,34 +581,18 @@ func (f ParamFldRead) String() string {
 // Prestring returns this ParamFldRead as a Prestring
 func (f ParamFldRead) Prestring() Prestring {
 	ann := f.Ann.(ParamFieldAnnotationKey)
-	if ann.ParamNum == ReceiverParamIndex {
-		if recv := ann.FuncDecl.Type().(*types.Signature).Recv(); recv != nil {
-			return ParamFldReadPrestring{
-				FieldName: ann.FieldDecl.Name(),
-				RecvName:  recv.Name(),
-			}
-		}
-	}
 	return ParamFldReadPrestring{
 		FieldName: ann.FieldDecl.Name(),
-		ParamName: ann.FuncDecl.Type().(*types.Signature).Params().At(ann.ParamNum).Name(),
 	}
 }
 
 // ParamFldReadPrestring is a Prestring storing the needed information to compactly encode a ParamFldRead
 type ParamFldReadPrestring struct {
 	FieldName string
-	RecvName  string
-	// ParamName is the name of the function param. In case of a receiver this is set to const ReceiverParamIndex
-	ParamName string
 }
 
 func (f ParamFldReadPrestring) String() string {
-	structObjName := f.RecvName
-	if len(f.RecvName) == 0 {
-		structObjName = f.ParamName
-	}
-	return fmt.Sprintf("field `%s.%s`", structObjName, f.FieldName)
+	return fmt.Sprintf("field `%s`", f.FieldName)
 }
 
 // FldReturn is used when a struct field value is determined to flow from a return value of a function

@@ -280,7 +280,7 @@ func groupConflicts(allConflicts []conflict) []conflict {
 		}
 	}
 
-	// update groupedConflicts list with grouped groupedConflicts                                                                                            String         ts
+	// update groupedConflicts list with grouped groupedConflicts
 	var groupedConflicts []conflict
 	for i, c := range allConflicts {
 		if _, ok := indicesToIgnore[i]; !ok {

@@ -42,6 +42,6 @@ func m22() *int {
 	b := &A{}
 	b.aptr = &A{}
 	b.populateMethod2()
-	print(b.newPtr.ptr) //want "field `newPtr` of receiver of call to function `populateMethod2`"
+	print(b.newPtr.ptr) //want "field `newPtr` of method receiver `x`"
 	return b.aptr.ptr
 }
