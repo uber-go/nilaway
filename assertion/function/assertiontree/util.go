@@ -39,19 +39,6 @@ func GetDeclaringPath(pass *analysis.Pass, start, end token.Pos) ([]ast.Node, bo
 	return nil, false
 }
 
-// RootNodeSlicesString returns a slice of RootAssertionNodes as a string representation
-func RootNodeSlicesString(name string, rootNodes []*RootAssertionNode) string {
-	out := fmt.Sprintf("%s len %d: {\n", name, len(rootNodes))
-	for i, rootNode := range rootNodes {
-		repr := "nil"
-		if rootNode != nil {
-			repr = rootNode.String()
-		}
-		out += fmt.Sprintf("\t%s[%d]: %s\n", name, i, repr)
-	}
-	return out + "}"
-}
-
 // each of the following deepNilabilityOf... functions serves to inspect an object for possible sites
 // that could grant it a deep nilability annotation. Every case defaults to just introspecting the
 // type itself - as named types can be declared with annotations; this is the call to `DeepNilabilityAsNamedType`
