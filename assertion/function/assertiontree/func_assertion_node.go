@@ -43,12 +43,12 @@ func (f *funcAssertionNode) DefaultTrigger() annotation.ProducingAnnotationTrigg
 	}
 
 	if f.decl.Type().(*types.Signature).Recv() != nil {
-		return annotation.MethodReturn{
-			TriggerIfNilable: annotation.TriggerIfNilable{
+		return &annotation.MethodReturn{
+			TriggerIfNilable: &annotation.TriggerIfNilable{
 				Ann: annotation.RetKeyFromRetNum(f.decl, 0)}}
 	}
-	return annotation.FuncReturn{
-		TriggerIfNilable: annotation.TriggerIfNilable{
+	return &annotation.FuncReturn{
+		TriggerIfNilable: &annotation.TriggerIfNilable{
 			Ann: annotation.RetKeyFromRetNum(f.decl, 0)}}
 }
 

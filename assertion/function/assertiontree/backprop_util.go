@@ -142,8 +142,8 @@ func computeAndConsumeResults(rootNode *RootAssertionNode, node *ast.ReturnStmt)
 			// below is the normal handling for named return variables
 			for i, retVariable := range results {
 				consumer := &annotation.ConsumeTrigger{
-					Annotation: annotation.UseAsReturn{
-						TriggerIfNonNil: annotation.TriggerIfNonNil{
+					Annotation: &annotation.UseAsReturn{
+						TriggerIfNonNil: &annotation.TriggerIfNonNil{
 							Ann: annotation.RetKeyFromRetNum(
 								rootNode.ObjectOf(rootNode.FuncNameIdent()).(*types.Func),
 								i,
@@ -166,7 +166,7 @@ func computeAndConsumeResults(rootNode *RootAssertionNode, node *ast.ReturnStmt)
 					// special handling if retVariable is a blank identifier (e.g., _ *int)
 					if !util.ExprBarsNilness(rootNode.Pass(), retVariable) {
 						producer := &annotation.ProduceTrigger{
-							Annotation: annotation.BlankVarReturn{},
+							Annotation: &annotation.BlankVarReturn{ProduceTriggerTautology: &annotation.ProduceTriggerTautology{}},
 							Expr:       retVariable,
 						}
 						fullTrigger := annotation.FullTrigger{
@@ -206,8 +206,8 @@ func computeAndConsumeResults(rootNode *RootAssertionNode, node *ast.ReturnStmt)
 	// we've excluded all abnormal cases - here, just really consume each result as a return value
 	for i := range node.Results {
 		rootNode.AddConsumption(&annotation.ConsumeTrigger{
-			Annotation: annotation.UseAsReturn{
-				TriggerIfNonNil: annotation.TriggerIfNonNil{
+			Annotation: &annotation.UseAsReturn{
+				TriggerIfNonNil: &annotation.TriggerIfNonNil{
 					Ann: annotation.RetKeyFromRetNum(
 						rootNode.ObjectOf(rootNode.FuncNameIdent()).(*types.Func),
 						i,
@@ -309,8 +309,8 @@ func handleErrorReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, re
 // createConsumerForErrorReturn creates a consumer for the error return enforcing it to be non-nil
 func createConsumerForErrorReturn(rootNode *RootAssertionNode, errRetExpr ast.Expr, errRetIndex int, retStmt *ast.ReturnStmt, isNamedReturn bool) {
 	rootNode.AddConsumption(&annotation.ConsumeTrigger{
-		Annotation: annotation.UseAsErrorResult{
-			TriggerIfNonNil: annotation.TriggerIfNonNil{
+		Annotation: &annotation.UseAsErrorResult{
+			TriggerIfNonNil: &annotation.TriggerIfNonNil{
 				Ann: annotation.RetKeyFromRetNum(rootNode.FuncObj(), errRetIndex),
 			},
 			IsNamedReturn: isNamedReturn,
@@ -329,8 +329,8 @@ func createGeneralReturnConsumers(rootNode *RootAssertionNode, results []ast.Exp
 			continue
 		}
 		rootNode.AddConsumption(&annotation.ConsumeTrigger{
-			Annotation: annotation.UseAsReturn{
-				TriggerIfNonNil: annotation.TriggerIfNonNil{
+			Annotation: &annotation.UseAsReturn{
+				TriggerIfNonNil: &annotation.TriggerIfNonNil{
 					Ann: annotation.RetKeyFromRetNum(rootNode.FuncObj(), i)},
 				IsNamedReturn: isNamedReturn,
 				RetStmt:       retStmt},
@@ -348,8 +348,8 @@ func createSpecialConsumersForAllReturns(rootNode *RootAssertionNode, nonErrRetE
 			continue
 		}
 		consumer := &annotation.ConsumeTrigger{
-			Annotation: annotation.UseAsNonErrorRetDependentOnErrorRetNilability{
-				TriggerIfNonNil: annotation.TriggerIfNonNil{Ann: annotation.RetKeyFromRetNum(rootNode.FuncObj(), i)},
+			Annotation: &annotation.UseAsNonErrorRetDependentOnErrorRetNilability{
+				TriggerIfNonNil: &annotation.TriggerIfNonNil{Ann: annotation.RetKeyFromRetNum(rootNode.FuncObj(), i)},
 				RetStmt:         retStmt,
 				IsNamedReturn:   isNamedReturn,
 			},
@@ -360,8 +360,8 @@ func createSpecialConsumersForAllReturns(rootNode *RootAssertionNode, nonErrRetE
 	}
 
 	rootNode.AddConsumption(&annotation.ConsumeTrigger{
-		Annotation: annotation.UseAsErrorRetWithNilabilityUnknown{
-			TriggerIfNonNil: annotation.TriggerIfNonNil{Ann: annotation.RetKeyFromRetNum(rootNode.FuncObj(), errRetIndex)},
+		Annotation: &annotation.UseAsErrorRetWithNilabilityUnknown{
+			TriggerIfNonNil: &annotation.TriggerIfNonNil{Ann: annotation.RetKeyFromRetNum(rootNode.FuncObj(), errRetIndex)},
 			RetStmt:         retStmt,
 			IsNamedReturn:   isNamedReturn,
 		},
@@ -387,7 +387,7 @@ func exprAsConsumedByAssignment(rootNode *RootAssertionNode, expr ast.Node) *ann
 		t := util.TypeOf(rootNode.Pass(), exprType.X)
 		if util.TypeIsDeeplyMap(t) {
 			return &annotation.ConsumeTrigger{
-				Annotation: annotation.MapWrittenTo{},
+				Annotation: &annotation.MapWrittenTo{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
 				Expr:       exprType.X,
 				Guards:     util.NoGuards(),
 			}
@@ -414,9 +414,9 @@ func exprAsAssignmentConsumer(rootNode *RootAssertionNode, expr ast.Node, exprRH
 		v := rootNode.ObjectOf(ident).(*types.Var)
 		if annotation.VarIsGlobal(v) {
 			// we've found an assignment to a global
-			return annotation.GlobalVarAssign{
-				TriggerIfNonNil: annotation.TriggerIfNonNil{
-					Ann: annotation.GlobalVarAnnotationKey{
+			return &annotation.GlobalVarAssign{
+				TriggerIfNonNil: &annotation.TriggerIfNonNil{
+					Ann: &annotation.GlobalVarAnnotationKey{
 						VarDecl: v,
 					}}}
 		}
@@ -435,21 +435,21 @@ func exprAsAssignmentConsumer(rootNode *RootAssertionNode, expr ast.Node, exprRH
 					// but first - if it's a variadic parameter then its "deep" annotation is really just
 					// its shallow annotation:
 					if annotation.VarIsVariadicParam(funcObj, varObj) {
-						return annotation.VariadicParamAssignDeep{
-							TriggerIfNonNil: annotation.TriggerIfNonNil{
+						return &annotation.VariadicParamAssignDeep{
+							TriggerIfNonNil: &annotation.TriggerIfNonNil{
 								Ann: paramKey}}
 					}
 
 					// we've concluded it's not a variadic parameter
-					return annotation.ParamAssignDeep{
-						TriggerIfDeepNonNil: annotation.TriggerIfDeepNonNil{
+					return &annotation.ParamAssignDeep{
+						TriggerIfDeepNonNil: &annotation.TriggerIfDeepNonNil{
 							Ann: paramKey}}
 				}
 				if annotation.VarIsGlobal(varObj) {
 					// we've found an assignment to a global var with deep type - have to check its deep annotation!
-					return annotation.GlobalVarAssignDeep{
-						TriggerIfDeepNonNil: annotation.TriggerIfDeepNonNil{
-							Ann: annotation.GlobalVarAnnotationKey{
+					return &annotation.GlobalVarAssignDeep{
+						TriggerIfDeepNonNil: &annotation.TriggerIfDeepNonNil{
+							Ann: &annotation.GlobalVarAnnotationKey{
 								VarDecl: varObj,
 							}}}
 				}
@@ -475,9 +475,9 @@ func exprAsAssignmentConsumer(rootNode *RootAssertionNode, expr ast.Node, exprRH
 				// this is an assignment to an index of a field
 				fldObj := rootNode.ObjectOf(expr.Sel).(*types.Var)
 				if fldObj.IsField() && util.TypeIsDeep(fldObj.Type()) {
-					return annotation.FieldAssignDeep{
-						TriggerIfDeepNonNil: annotation.TriggerIfDeepNonNil{
-							Ann: annotation.FieldAnnotationKey{FieldDecl: fldObj},
+					return &annotation.FieldAssignDeep{
+						TriggerIfDeepNonNil: &annotation.TriggerIfDeepNonNil{
+							Ann: &annotation.FieldAnnotationKey{FieldDecl: fldObj},
 						},
 					}, nil
 				}
@@ -488,8 +488,8 @@ func exprAsAssignmentConsumer(rootNode *RootAssertionNode, expr ast.Node, exprRH
 					if obj.Type().(*types.Signature).Results().Len() != 1 {
 						return nil, errors.New("multiply returning function treated as assignment consumer")
 					}
-					return annotation.FuncRetAssignDeep{
-						TriggerIfDeepNonNil: annotation.TriggerIfDeepNonNil{
+					return &annotation.FuncRetAssignDeep{
+						TriggerIfDeepNonNil: &annotation.TriggerIfDeepNonNil{
 							Ann: annotation.RetKeyFromRetNum(obj, 0),
 						},
 					}, nil
@@ -498,8 +498,8 @@ func exprAsAssignmentConsumer(rootNode *RootAssertionNode, expr ast.Node, exprRH
 				return exprAsAssignmentConsumer(rootNode, expr.X, exprRHS)
 			}
 
-			nameAsDeepTrigger := func(name *types.TypeName) annotation.TriggerIfDeepNonNil {
-				return annotation.TriggerIfDeepNonNil{Ann: annotation.TypeNameAnnotationKey{TypeDecl: name}}
+			nameAsDeepTrigger := func(name *types.TypeName) *annotation.TriggerIfDeepNonNil {
+				return &annotation.TriggerIfDeepNonNil{Ann: &annotation.TypeNameAnnotationKey{TypeDecl: name}}
 			}
 
 			exprType := rootNode.Pass().TypesInfo.Types[expr].Type
@@ -510,15 +510,15 @@ func exprAsAssignmentConsumer(rootNode *RootAssertionNode, expr ast.Node, exprRH
 				// See [https://github.com/golang/example/tree/master/gotypes#named-types].
 				switch named.Underlying().(type) {
 				case *types.Slice:
-					return annotation.SliceAssign{TriggerIfDeepNonNil: nameAsDeepTrigger(named.Obj())}, nil
+					return &annotation.SliceAssign{TriggerIfDeepNonNil: nameAsDeepTrigger(named.Obj())}, nil
 				case *types.Array:
-					return annotation.ArrayAssign{TriggerIfDeepNonNil: nameAsDeepTrigger(named.Obj())}, nil
+					return &annotation.ArrayAssign{TriggerIfDeepNonNil: nameAsDeepTrigger(named.Obj())}, nil
 				case *types.Map:
-					return annotation.MapAssign{TriggerIfDeepNonNil: nameAsDeepTrigger(named.Obj())}, nil
+					return &annotation.MapAssign{TriggerIfDeepNonNil: nameAsDeepTrigger(named.Obj())}, nil
 				case *types.Pointer:
-					return annotation.PtrAssign{TriggerIfDeepNonNil: nameAsDeepTrigger(named.Obj())}, nil
+					return &annotation.PtrAssign{TriggerIfDeepNonNil: nameAsDeepTrigger(named.Obj())}, nil
 				case *types.Chan:
-					return annotation.ChanSend{TriggerIfDeepNonNil: nameAsDeepTrigger(named.Obj())}, nil
+					return &annotation.ChanSend{TriggerIfDeepNonNil: nameAsDeepTrigger(named.Obj())}, nil
 				}
 			}
 
@@ -529,11 +529,12 @@ func exprAsAssignmentConsumer(rootNode *RootAssertionNode, expr ast.Node, exprRH
 			if !annotation.TypeIsDeepDefaultNilable(exprType) {
 				if ident, ok := expr.(*ast.Ident); ok {
 					varObj := rootNode.ObjectOf(ident).(*types.Var)
-					return annotation.LocalVarAssignDeep{
-						LocalVar: varObj,
+					return &annotation.LocalVarAssignDeep{
+						ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{},
+						LocalVar:                varObj,
 					}, nil
 				}
-				return annotation.DeepAssignPrimitive{}, nil
+				return &annotation.DeepAssignPrimitive{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}}, nil
 			}
 			return nil, nil
 		}
@@ -578,9 +579,9 @@ func exprAsAssignmentConsumer(rootNode *RootAssertionNode, expr ast.Node, exprRH
 			}
 		}
 
-		return annotation.FldAssign{
-			TriggerIfNonNil: annotation.TriggerIfNonNil{
-				Ann: annotation.FieldAnnotationKey{
+		return &annotation.FldAssign{
+			TriggerIfNonNil: &annotation.TriggerIfNonNil{
+				Ann: &annotation.FieldAnnotationKey{
 					FieldDecl: rootNode.ObjectOf(expr.Sel).(*types.Var),
 				},
 			},
@@ -695,7 +696,7 @@ func blocksAndPreprocessingFromCFG(
 				&preprocessPair{
 					trueBranchFunc: func(node *RootAssertionNode) { // producing ranging expression as nonnil
 						node.AddProduction(&annotation.ProduceTrigger{
-							Annotation: annotation.RangeOver{},
+							Annotation: &annotation.RangeOver{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
 							Expr:       rangeExpr,
 						})
 					},
@@ -723,7 +724,7 @@ func exprAsDeepProducer(rootNode *RootAssertionNode, expr ast.Expr) annotation.P
 	}
 	if len(parsedExpr) == 0 || !parsedExpr[0].IsDeep() || parsedExpr[0].GetDeep() == nil {
 		// the expr is not deeply nilable
-		return annotation.ProduceTriggerNever{}
+		return &annotation.ProduceTriggerNever{}
 	}
 	return parsedExpr[0].GetDeep().Annotation
 }
@@ -737,8 +738,9 @@ func CheckGuardOnFullTrigger(trigger annotation.FullTrigger) annotation.FullTrig
 	if trigger.Producer.Annotation.NeedsGuardMatch() && !trigger.Consumer.GuardMatched {
 		return annotation.FullTrigger{
 			Producer: &annotation.ProduceTrigger{
-				Annotation: annotation.GuardMissing{
-					OldAnnotation: trigger.Producer.Annotation,
+				Annotation: &annotation.GuardMissing{
+					ProduceTriggerTautology: &annotation.ProduceTriggerTautology{},
+					OldAnnotation:           trigger.Producer.Annotation,
 				},
 				Expr: trigger.Producer.Expr,
 			},

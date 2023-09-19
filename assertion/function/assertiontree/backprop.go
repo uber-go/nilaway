@@ -118,7 +118,7 @@ func backpropAcrossNode(rootNode *RootAssertionNode, node ast.Node) error {
 func backpropAcrossSend(rootNode *RootAssertionNode, node *ast.SendStmt) error {
 	// Added this consumer since sending over a nil channel can cause panic
 	rootNode.AddConsumption(&annotation.ConsumeTrigger{
-		Annotation: annotation.ChanAccess{},
+		Annotation: &annotation.ChanAccess{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
 		Expr:       node.Chan,
 		Guards:     util.NoGuards(),
 	})
@@ -212,8 +212,8 @@ func backpropAcrossReturn(rootNode *RootAssertionNode, node *ast.ReturnStmt) err
 								Expr:       call,
 							},
 							Consumer: &annotation.ConsumeTrigger{
-								Annotation: annotation.UseAsReturn{
-									TriggerIfNonNil: annotation.TriggerIfNonNil{
+								Annotation: &annotation.UseAsReturn{
+									TriggerIfNonNil: &annotation.TriggerIfNonNil{
 										Ann: annotation.RetKeyFromRetNum(
 											rootNode.ObjectOf(rootNode.FuncNameIdent()).(*types.Func),
 											i,
@@ -320,9 +320,12 @@ func backpropAcrossAssignment(rootNode *RootAssertionNode, lhs, rhs []ast.Expr) 
 				// Add produce trigger for channel receive on the expression `v` here itself,
 				// since we want to set guarding = true.
 				if !util.IsEmptyExpr(lhs[0]) {
+					producer := exprAsDeepProducer(rootNode, r.X)
+					producer.SetNeedsGuard(true)
+
 					rootNode.AddProduction(&annotation.ProduceTrigger{
 						// set the guard on channel receive since it is an ok form
-						Annotation: exprAsDeepProducer(rootNode, r.X).SetNeedsGuard(true),
+						Annotation: producer,
 						Expr:       lhs[0],
 					})
 				}
@@ -356,7 +359,7 @@ func backpropAcrossRange(rootNode *RootAssertionNode, lhs []ast.Expr, rhs ast.Ex
 		// if nonempty, produce the index as definitely non-nil
 		if !util.IsEmptyExpr(lhs[i]) {
 			rootNode.AddProduction(&annotation.ProduceTrigger{
-				Annotation: annotation.RangeIndexAssignment{},
+				Annotation: &annotation.RangeIndexAssignment{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
 				Expr:       lhs[i],
 			})
 		}
@@ -369,10 +372,13 @@ func backpropAcrossRange(rootNode *RootAssertionNode, lhs []ast.Expr, rhs ast.Ex
 		// to an unbounded number of indices to conclude anything other than the annotation-based
 		// deep nilability of rhs
 		if !util.IsEmptyExpr(lhs[i]) {
+			producer := exprAsDeepProducer(rootNode, rhs)
+			producer.SetNeedsGuard(false)
+
 			rootNode.AddProduction(&annotation.ProduceTrigger{
 				// we remove the guard on any deep types read from a range because reading
 				// them through a range guarantees they exist, removing the need for an ok check
-				Annotation: exprAsDeepProducer(rootNode, rhs).SetNeedsGuard(false),
+				Annotation: producer,
 				Expr:       lhs[i],
 			})
 		}
@@ -461,7 +467,7 @@ func backpropAcrossTypeSwitch(rootNode *RootAssertionNode, lhs *ast.Ident, rhs a
 					case 0:
 						// lhsVal expression will never be nil here because rhsVal will never be nil
 						rootNode.triggerProductions(liftedChild, &annotation.ProduceTrigger{
-							Annotation: annotation.ProduceTriggerNever{},
+							Annotation: &annotation.ProduceTriggerNever{},
 							Expr:       lhs,
 						})
 					case 1:
@@ -594,7 +600,7 @@ buildShadowMask:
 					case 0:
 						// lhsVal expression will never be nil here because rhsVal will never be nil
 						rootNode.AddProduction(&annotation.ProduceTrigger{
-							Annotation: annotation.ProduceTriggerNever{},
+							Annotation: &annotation.ProduceTriggerNever{},
 							Expr:       lhsVal,
 						})
 					case 1:
