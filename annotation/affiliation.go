@@ -62,7 +62,7 @@ func FullTriggerForInterfaceParamFlow(affiliation AffiliationPair, paramNum int)
 			Annotation: &InterfaceParamReachesImplementation{
 				TriggerIfNilable: &TriggerIfNilable{
 					Ann: ParamKeyFromArgNum(affiliation.InterfaceMethod, paramNum)},
-				AffiliationPair: affiliation,
+				AffiliationPair: &affiliation,
 			},
 			Expr: affiliation.interfaceMethodAsExpr(),
 		},
@@ -70,7 +70,7 @@ func FullTriggerForInterfaceParamFlow(affiliation AffiliationPair, paramNum int)
 			Annotation: &MethodParamFromInterface{
 				TriggerIfNonNil: &TriggerIfNonNil{
 					Ann: ParamKeyFromArgNum(affiliation.ImplementingMethod, paramNum)},
-				AffiliationPair: affiliation,
+				AffiliationPair: &affiliation,
 			},
 			Expr:         affiliation.implementingMethodAsExpr(),
 			Guards:       util.NoGuards(),
@@ -91,7 +91,7 @@ func FullTriggerForInterfaceResultFlow(affiliation AffiliationPair, retNum int) 
 			Annotation: &MethodResultReachesInterface{
 				TriggerIfNilable: &TriggerIfNilable{
 					Ann: RetKeyFromRetNum(affiliation.ImplementingMethod, retNum)},
-				AffiliationPair: affiliation,
+				AffiliationPair: &affiliation,
 			},
 			Expr: affiliation.implementingMethodAsExpr(),
 		},
@@ -99,7 +99,7 @@ func FullTriggerForInterfaceResultFlow(affiliation AffiliationPair, retNum int) 
 			Annotation: &InterfaceResultFromImplementation{
 				TriggerIfNonNil: &TriggerIfNonNil{
 					Ann: RetKeyFromRetNum(affiliation.InterfaceMethod, retNum)},
-				AffiliationPair: affiliation,
+				AffiliationPair: &affiliation,
 			},
 			Expr:         affiliation.interfaceMethodAsExpr(),
 			Guards:       util.NoGuards(),

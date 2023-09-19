@@ -174,12 +174,6 @@ func (*ConsumeTriggerTautology) equals(other ConsumingAnnotationTrigger) bool {
 	return ok
 }
 
-// Copy returns a deep copy of this ConsumingAnnotationTrigger
-func (t *ConsumeTriggerTautology) Copy() ConsumingAnnotationTrigger {
-	copyConsumer := *t
-	return &copyConsumer
-}
-
 // Prestring returns this Prestring as a Prestring
 func (*ConsumeTriggerTautology) Prestring() Prestring {
 	return ConsumeTriggerTautologyPrestring{}
