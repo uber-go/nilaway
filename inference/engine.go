@@ -165,7 +165,7 @@ func (e *Engine) ObservePackage(pkgFullTriggers []annotation.FullTrigger) {
 	nonErrRetTriggers := make(map[annotation.FullTrigger]bool, 0)
 	var otherTriggers []annotation.FullTrigger
 	for _, t := range pkgFullTriggers {
-		if _, ok := t.Consumer.Annotation.(annotation.UseAsNonErrorRetDependentOnErrorRetNilability); ok {
+		if _, ok := t.Consumer.Annotation.(*annotation.UseAsNonErrorRetDependentOnErrorRetNilability); ok {
 			nonErrRetTriggers[t] = true
 		} else {
 			otherTriggers = append(otherTriggers, t)

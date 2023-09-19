@@ -231,7 +231,7 @@ func AddNilCheck(pass *analysis.Pass, expr ast.Expr) (trueCheck, falseCheck Root
 	}
 
 	produceNegativeNilCheck := func(expr ast.Expr) RootFunc {
-		return produceExprByTrigger(expr, annotation.NegativeNilCheck{})
+		return produceExprByTrigger(expr, &annotation.NegativeNilCheck{ProduceTriggerNever: &annotation.ProduceTriggerNever{}})
 	}
 
 	// An exprCheck is a pattern that we match on that, if successful, will give us a pair
@@ -472,7 +472,7 @@ func FilterTriggersForErrorReturn(
 	retTriggers := make(map[*ast.ReturnStmt]info)
 	for i, t := range triggers {
 		switch c := t.Consumer.Annotation.(type) {
-		case annotation.UseAsErrorRetWithNilabilityUnknown:
+		case *annotation.UseAsErrorRetWithNilabilityUnknown:
 			v := retTriggers[c.RetStmt]
 			v.errTriggers = append(v.errTriggers, i)
 
@@ -485,7 +485,7 @@ func FilterTriggersForErrorReturn(
 			}
 			retTriggers[c.RetStmt] = v
 
-		case annotation.UseAsNonErrorRetDependentOnErrorRetNilability:
+		case *annotation.UseAsNonErrorRetDependentOnErrorRetNilability:
 			v := retTriggers[c.RetStmt]
 			v.nonErrTriggers = append(v.nonErrTriggers, i)
 			retTriggers[c.RetStmt] = v
@@ -509,11 +509,11 @@ func FilterTriggersForErrorReturn(
 
 			// update the placeholder non-error returns consumer `UseAsNonErrorRetDependentOnErrorRetNilability` with `UseAsReturn`
 			for _, i := range v.nonErrTriggers {
-				if old, ok := triggers[i].Consumer.Annotation.(annotation.UseAsNonErrorRetDependentOnErrorRetNilability); ok {
-					if oldAnn, ok := old.Ann.(annotation.RetAnnotationKey); ok {
+				if old, ok := triggers[i].Consumer.Annotation.(*annotation.UseAsNonErrorRetDependentOnErrorRetNilability); ok {
+					if oldAnn, ok := old.Ann.(*annotation.RetAnnotationKey); ok {
 						triggers[i].Consumer = &annotation.ConsumeTrigger{
-							Annotation: annotation.UseAsReturn{
-								TriggerIfNonNil: annotation.TriggerIfNonNil{Ann: oldAnn},
+							Annotation: &annotation.UseAsReturn{
+								TriggerIfNonNil: &annotation.TriggerIfNonNil{Ann: oldAnn},
 								IsNamedReturn:   old.IsNamedReturn,
 								RetStmt:         old.RetStmt,
 							},
@@ -532,11 +532,11 @@ func FilterTriggersForErrorReturn(
 
 			// update the placeholder error return consumer `UseAsErrorRetWithNilabilityUnknown` with `UseAsErrorResult`
 			for _, i := range v.errTriggers {
-				if old, ok := triggers[i].Consumer.Annotation.(annotation.UseAsErrorRetWithNilabilityUnknown); ok {
-					if oldAnn, ok := old.Ann.(annotation.RetAnnotationKey); ok {
+				if old, ok := triggers[i].Consumer.Annotation.(*annotation.UseAsErrorRetWithNilabilityUnknown); ok {
+					if oldAnn, ok := old.Ann.(*annotation.RetAnnotationKey); ok {
 						triggers[i].Consumer = &annotation.ConsumeTrigger{
-							Annotation: annotation.UseAsErrorResult{
-								TriggerIfNonNil: annotation.TriggerIfNonNil{Ann: oldAnn},
+							Annotation: &annotation.UseAsErrorResult{
+								TriggerIfNonNil: &annotation.TriggerIfNonNil{Ann: oldAnn},
 								IsNamedReturn:   old.IsNamedReturn,
 								RetStmt:         old.RetStmt,
 							},
