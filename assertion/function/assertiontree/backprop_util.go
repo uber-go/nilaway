@@ -672,14 +672,16 @@ func blocksAndPreprocessingFromCFG(
 				}
 			}
 		} else if rangeExpr := getRangeExpr(blocks[i]); rangeExpr != nil {
+			blockSuccs := blocks[i].Succs
+
 			// blocks[i] is a precursor to a range loop
-			if len(blocks[i].Succs) != 1 {
+			if blockSuccs == nil || len(blocks[i].Succs) != 1 {
 				panic("expected shape of CFG violated: block that ends with range has " +
 					"non-singular successors")
 			}
 
 			// this is the actual range loop node with two successors
-			rangeLoop := blocks[i].Succs[0]
+			rangeLoop := blockSuccs[0]
 			if len(rangeLoop.Nodes) != 0 {
 				panic("expected shape of CFG violated: block presumed to be a range loop has " +
 					"a nonzero number of nodes")

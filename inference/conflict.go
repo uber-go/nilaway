@@ -107,7 +107,7 @@ func (n *nilFlow) String() string {
 			flow = append(flow, nodeObj.String())
 		}
 	}
-	return strings.Join(flow, "\n")
+	return "\n" + strings.Join(flow, "\n")
 }
 
 func (c *conflict) String() string {
