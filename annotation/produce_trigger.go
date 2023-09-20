@@ -339,7 +339,7 @@ func (UnassignedFldPrestring) String() string {
 // NoVarAssign is when a value is determined to flow from a variable that wasn't assigned to
 type NoVarAssign struct {
 	ProduceTriggerTautology
-	VarDecl *types.Var
+	VarObj *types.Var
 }
 
 func (n NoVarAssign) String() string {
@@ -349,7 +349,7 @@ func (n NoVarAssign) String() string {
 // Prestring returns this Prestring as a Prestring
 func (n NoVarAssign) Prestring() Prestring {
 	return NoVarAssignPrestring{
-		VarName: n.VarDecl.Name(),
+		VarName: n.VarObj.Name(),
 	}
 }
 

@@ -75,9 +75,12 @@ func (n *node) String() string {
 	}
 
 	if len(n.producerRepr) > 0 {
-		reasonStr += n.producerRepr + " "
+		reasonStr += n.producerRepr
 	}
 	if len(n.consumerRepr) > 0 {
+		if len(n.producerRepr) > 0 {
+			reasonStr += " "
+		}
 		reasonStr += n.consumerRepr
 	}
 

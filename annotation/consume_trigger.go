@@ -204,8 +204,8 @@ func (SliceAccessPrestring) String() string {
 // FldAccess is when a value flows to a point where a field of it is accessed, and so it must be non-nil
 type FldAccess struct {
 	ConsumeTriggerTautology
-	Field  *types.Var
-	Method *types.Func
+
+	Sel types.Object
 }
 
 func (f FldAccess) String() string {
@@ -215,10 +215,13 @@ func (f FldAccess) String() string {
 // Prestring returns this FldAccess as a Prestring
 func (f FldAccess) Prestring() Prestring {
 	fieldName, methodName := "", ""
-	if f.Field != nil {
-		fieldName = f.Field.Name()
-	} else if f.Method != nil {
-		methodName = f.Method.Name()
+	switch t := f.Sel.(type) {
+	case *types.Var:
+		fieldName = t.Name()
+	case *types.Func:
+		methodName = t.Name()
+	default:
+		panic(fmt.Sprintf("unexpected Sel type %T in FldAccess", t))
 	}
 
 	return FldAccessPrestring{

@@ -74,7 +74,7 @@ func (v *varAssertionNode) DefaultTrigger() annotation.ProducingAnnotationTrigge
 		}
 	}
 
-	return annotation.NoVarAssign{VarDecl: v.decl}
+	return annotation.NoVarAssign{VarObj: v.decl}
 }
 
 // BuildExpr for a varAssertionNode returns the underlying variable's AST node
