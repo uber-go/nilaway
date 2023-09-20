@@ -35,10 +35,10 @@ type Engine struct {
 	// construction of the engine and populated by the "Observe*" methods of the engine. Users
 	// should use the Engine.InferredMapWithDiagnostics() method to obtain the current inferred map.
 	inferredMap *InferredMap
-	// conflicts stores conflict groups encountered during the observations. It will be
+	// conflicts stores conflicts encountered during the observations. It will be
 	// converted to diagnostics and returned along with the current inferred map whenever users
 	// request it.
-	conflicts *conflictGrouping
+	conflicts *conflictList
 	// controlledTriggersBySite stores the set of controlled triggers for each site if the site
 	// controls any triggers. This field is for internal use in the struct only and should not be
 	// accessed elsewhere.
@@ -50,7 +50,7 @@ func NewEngine(pass *analysis.Pass) *Engine {
 	return &Engine{
 		pass:        pass,
 		inferredMap: newInferredMap(),
-		conflicts:   newConflictGrouping(),
+		conflicts:   &conflictList{},
 	}
 }
 
@@ -112,9 +112,9 @@ func (e *Engine) ObserveAnnotations(pkgAnnotations *annotation.ObservedMap, mode
 	pkgAnnotations.Range(func(key annotation.Key, isDeep bool, val bool) {
 		site := newPrimitiveSite(key, isDeep)
 		if val {
-			e.observeSiteExplanation(site, TrueBecauseAnnotation{})
+			e.observeSiteExplanation(site, TrueBecauseAnnotation{Pos: site.Pos})
 		} else {
-			e.observeSiteExplanation(site, FalseBecauseAnnotation{})
+			e.observeSiteExplanation(site, FalseBecauseAnnotation{Pos: site.Pos})
 		}
 	}, mode != NoInfer)
 }
@@ -240,7 +240,7 @@ func (e *Engine) buildFromSingleFullTrigger(trigger annotation.FullTrigger) {
 	case pKind == annotation.Always && cKind == annotation.Always:
 		// Producer always produces nilable value -> consumer always consumes nonnil value.
 		// We simply generate a failure for this case.
-		e.conflicts.addConflict(newSingleAssertionConflict(e.pass, trigger))
+		e.conflicts.addSingleAssertionConflict(e.pass, trigger)
 
 	case pKind == annotation.Always && (cKind == annotation.Conditional || cKind == annotation.DeepConditional):
 		// Producer always produces nilable value -> consumer unknown.
@@ -323,7 +323,7 @@ func (e *Engine) observeSiteExplanation(site primitiveSite, siteExplained Explai
 		if !v.Bool.Val() {
 			trueExplanation, falseExplanation = falseExplanation, trueExplanation
 		}
-		e.conflicts.addConflict(newOverconstrainedConflict(site, trueExplanation, falseExplanation))
+		e.conflicts.addOverconstraintConflict(trueExplanation, falseExplanation, e.pass)
 
 		// Even though we have a conflict, we still need to make sure to activate any controlled
 		// triggers that are waiting on this site, so that we would not miss processing any
@@ -463,11 +463,9 @@ func GobRegister() {
 	gob.RegisterName(nextStr(), FalseBecauseShallowConstraint{})
 	gob.RegisterName(nextStr(), FalseBecauseDeepConstraint{})
 	gob.RegisterName(nextStr(), FalseBecauseAnnotation{})
-	gob.RegisterName(nextStr(), FalseBecauseMyopia{})
 	gob.RegisterName(nextStr(), TrueBecauseShallowConstraint{})
 	gob.RegisterName(nextStr(), TrueBecauseDeepConstraint{})
 	gob.RegisterName(nextStr(), TrueBecauseAnnotation{})
-	gob.RegisterName(nextStr(), TrueBecauseMyopia{})
 
 	gob.RegisterName(nextStr(), annotation.PtrLoadPrestring{})
 	gob.RegisterName(nextStr(), annotation.MapAccessPrestring{})

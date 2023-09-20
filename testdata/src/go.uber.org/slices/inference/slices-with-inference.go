@@ -32,20 +32,20 @@ func testInterProcedural() {
 		helperSliceParamForNonNilParam(nonNilA[0:])
 
 		// non-zero slicing triggering non-nil producer all the time, e.g, [1:3]
-		helperSliceParamForNonNilParam(nilA[1:3]) //want "Value literal nil at \"(.*)\" \\(definitely nilable\\) and is sliced into"
+		helperSliceParamForNonNilParam(nilA[1:3]) //want "literal nil"
 		helperSliceParamForNonNilParam(nonNilA[1:3])
 	case 2:
 		// use slicing as return result
 
 		// zero slicing triggering nil producer all the time, e.g., [:0]
 		b := helperReturnZeroSlicingAlwaysNilProducerForNilableParam(nilA)
-		print(b[1])
+		print(b[1]) //want "sliced into"
 		c := helperReturnZeroSlicingAlwaysNilProducerForNonNilParam(nonNilA)
-		print(c[1])
+		print(c[1]) //want "sliced into"
 
 		// zero slicing that preserves nilability of original slice, e.g., [0:]
 		b = helperReturnZeroSlicingPreserveForNilableParam(nilA)
-		print(b[1])
+		print(b[1]) //want "sliced into"
 		c = helperReturnZeroSlicingPreserveForNonNilParam(nonNilA)
 		print(c[1])
 
@@ -57,31 +57,31 @@ func testInterProcedural() {
 	}
 }
 
-func helperSliceParamForNilableParam1(b []int) { //want "Annotation on Param 0: 'b'"
-	print(b[0])
+func helperSliceParamForNilableParam1(b []int) {
+	print(b[0]) //want "sliced into"
 }
 
-func helperSliceParamForNilableParam2(b []int) { //want "Annotation on Param 0: 'b'"
-	print(b[0])
+func helperSliceParamForNilableParam2(b []int) {
+	print(b[0]) //want "sliced into"
 }
 
-func helperSliceParamForNilableParam3(b []int) { //want "Annotation on Param 0: 'b'"
-	print(b[0])
+func helperSliceParamForNilableParam3(b []int) {
+	print(b[0]) //want "sliced into"
 }
 
 func helperSliceParamForNonNilParam(b []int) {
 	print(b[0])
 }
 
-func helperReturnZeroSlicingAlwaysNilProducerForNilableParam(b []int) []int { //want "Annotation on Result 0"
+func helperReturnZeroSlicingAlwaysNilProducerForNilableParam(b []int) []int {
 	return b[:0]
 }
 
-func helperReturnZeroSlicingAlwaysNilProducerForNonNilParam(b []int) []int { //want "Annotation on Result 0"
+func helperReturnZeroSlicingAlwaysNilProducerForNonNilParam(b []int) []int {
 	return b[:0]
 }
 
-func helperReturnZeroSlicingPreserveForNilableParam(b []int) []int { //want "Annotation on Result 0"
+func helperReturnZeroSlicingPreserveForNilableParam(b []int) []int {
 	return b[0:]
 }
 
@@ -89,8 +89,8 @@ func helperReturnZeroSlicingPreserveForNonNilParam(b []int) []int {
 	return b[0:]
 }
 
-func helperReturnNonZeroSlicingNonNilProducerForNilableParam(b []int) []int { //want "Annotation on Param 0: 'b'"
-	return b[1:3]
+func helperReturnNonZeroSlicingNonNilProducerForNilableParam(b []int) []int {
+	return b[1:3] //want "sliced into"
 }
 
 func helperReturnNonZeroSlicingNonNilProducerForNonNilParam(b []int) []int {

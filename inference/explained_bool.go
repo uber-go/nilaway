@@ -16,6 +16,7 @@ package inference
 
 import (
 	"fmt"
+	"go/token"
 )
 
 // An ExplainedBool is a boolean value, wrapped by a "reason" that we came to the conclusion it should
@@ -29,6 +30,8 @@ import (
 type ExplainedBool interface {
 	Val() bool
 	String() string
+	getPrimitiveFullTrigger() primitiveFullTrigger
+	deeperReason() ExplainedBool
 }
 
 // ExplainedTrue is a common embedding in all instances of ExplainedBool that wrap the value `true`
@@ -64,6 +67,14 @@ func (t TrueBecauseShallowConstraint) String() string {
 		t.ExternalAssertion.ConsumerRepr, t.ExternalAssertion.ProducerRepr)
 }
 
+func (t TrueBecauseShallowConstraint) getPrimitiveFullTrigger() primitiveFullTrigger {
+	return t.ExternalAssertion
+}
+
+func (t TrueBecauseShallowConstraint) deeperReason() ExplainedBool {
+	return nil
+}
+
 // FalseBecauseShallowConstraint is used as the label for site X when an assertion of the form
 // `nilable X -> nilable Y` is discovered and the trigger for `nilable Y` always fires (i.e. yields
 // nonnil) - for example because it is the dereferenced as a pointer or passed to a field access. In
@@ -79,6 +90,14 @@ func (f FalseBecauseShallowConstraint) String() string {
 	return fmt.Sprintf(
 		"NONNIL because it describes the value %s, and that value is %s, where it must be NONNIL",
 		f.ExternalAssertion.ProducerRepr, f.ExternalAssertion.ConsumerRepr)
+}
+
+func (f FalseBecauseShallowConstraint) getPrimitiveFullTrigger() primitiveFullTrigger {
+	return f.ExternalAssertion
+}
+
+func (f FalseBecauseShallowConstraint) deeperReason() ExplainedBool {
+	return nil
 }
 
 // TrueBecauseDeepConstraint is used as the label for a site Y when an assertion of the form
@@ -97,6 +116,14 @@ func (t TrueBecauseDeepConstraint) String() string {
 		t.InternalAssertion.ConsumerRepr, t.InternalAssertion.ProducerRepr, t.DeeperExplanation.String())
 }
 
+func (t TrueBecauseDeepConstraint) getPrimitiveFullTrigger() primitiveFullTrigger {
+	return t.InternalAssertion
+}
+
+func (t TrueBecauseDeepConstraint) deeperReason() ExplainedBool {
+	return t.DeeperExplanation
+}
+
 // FalseBecauseDeepConstraint is used as the label for a site X when an assertion of the form
 // `nilable X -> nilable Y` is discovered along with some reason for Y to be nonnil, besides it
 // necessarily being so because it always fires. This reason could be any ExplainedFalse - such as
@@ -113,44 +140,48 @@ func (f FalseBecauseDeepConstraint) String() string {
 		f.InternalAssertion.ProducerRepr, f.InternalAssertion.ConsumerRepr, f.DeeperExplanation.String())
 }
 
+func (f FalseBecauseDeepConstraint) getPrimitiveFullTrigger() primitiveFullTrigger {
+	return f.InternalAssertion
+}
+
+func (f FalseBecauseDeepConstraint) deeperReason() ExplainedBool {
+	return f.DeeperExplanation
+}
+
 // TrueBecauseAnnotation is used as the label for a site X on which a literal annotation "//nilable(x)"
 // has been discovered - forcing that site to be nilable.
 type TrueBecauseAnnotation struct {
 	ExplainedTrue
+	Pos token.Pos
 }
 
 func (TrueBecauseAnnotation) String() string {
 	return "NILABLE because it is annotated as so"
 }
 
+func (t TrueBecauseAnnotation) getPrimitiveFullTrigger() primitiveFullTrigger {
+	return primitiveFullTrigger{Pos: t.Pos}
+}
+
+func (t TrueBecauseAnnotation) deeperReason() ExplainedBool {
+	return nil
+}
+
 // FalseBecauseAnnotation is used as the label for a site X on which a literal annotation "//nonnil(x)"
 // has been discovered - forcing that site to be nonnil.
 type FalseBecauseAnnotation struct {
 	ExplainedFalse
+	Pos token.Pos
 }
 
 func (FalseBecauseAnnotation) String() string {
 	return "NONNIL because it is annotated as so"
 }
 
-// TrueBecauseMyopia is used as the label for a site X that a myopic inference procedure decided should
-// be nilable
-type TrueBecauseMyopia struct {
-	ExplainedTrue
-	PkgName string
+func (f FalseBecauseAnnotation) getPrimitiveFullTrigger() primitiveFullTrigger {
+	return primitiveFullTrigger{Pos: f.Pos}
 }
 
-func (t TrueBecauseMyopia) String() string {
-	return fmt.Sprintf("NILABLE because myopic annotation inference for package %s decided so", t.PkgName)
-}
-
-// FalseBecauseMyopia is used as the label for a site X that a myopic inference procedure decided should
-// be nonnil
-type FalseBecauseMyopia struct {
-	ExplainedFalse
-	PkgName string
-}
-
-func (f FalseBecauseMyopia) String() string {
-	return fmt.Sprintf("NONNIL because myopic annotation inference for package %s decided so", f.PkgName)
+func (f FalseBecauseAnnotation) deeperReason() ExplainedBool {
+	return nil
 }

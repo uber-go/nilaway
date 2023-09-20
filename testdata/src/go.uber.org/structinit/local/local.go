@@ -28,12 +28,12 @@ type A struct {
 
 func m() {
 	var b = &A{}
-	print(b.aptr.ptr) //want "Value unassigned at struct initialization"
+	print(b.aptr.ptr) //want "unassigned at struct initialization"
 }
 
 func m2() {
 	var b = A{}
-	print(b.aptr.ptr) //want "Value unassigned at struct initialization"
+	print(b.aptr.ptr) //want "unassigned at struct initialization"
 }
 
 func m3() {
@@ -59,7 +59,7 @@ func m6() {
 
 func m7() {
 	b := &A{}
-	print(b.aptr.ptr) //want "Value unassigned at struct initialization"
+	print(b.aptr.ptr) //want "unassigned at struct initialization"
 }
 
 func m8() {
@@ -70,7 +70,7 @@ func m8() {
 func m9() {
 	var b *A
 	b = &A{}
-	print(b.aptr.ptr) //want "Value unassigned at struct initialization"
+	print(b.aptr.ptr) //want "unassigned at struct initialization"
 }
 
 func m10() {
@@ -81,18 +81,18 @@ func m10() {
 
 func m14() {
 	b := new(A)
-	print(b.aptr.ptr) //want "Value unassigned at struct initialization"
+	print(b.aptr.ptr) //want "unassigned at struct initialization"
 }
 
 func m15() {
 	var b A
-	print(b.aptr.ptr) //want "Value unassigned at struct initialization"
+	print(b.aptr.ptr) //want "unassigned at struct initialization"
 }
 
 // this test checks that we only get error for `b` being nil, and not for its uninitialized fields
 func m16() {
 	var b *A
-	print(b.aptr.ptr) //want "Value read from a variable that was never assigned to"
+	print(b.aptr.ptr) //want "read from a variable that was never assigned to"
 }
 
 // Testing unnamed struct
@@ -115,7 +115,7 @@ type A11 struct {
 
 func m11() {
 	var b = &A11{}
-	print(b.A11.ptr) //want "Value unassigned at struct initialization"
+	print(b.A11.ptr) //want "unassigned at struct initialization"
 }
 
 // Tests use of promoted fields

@@ -15,6 +15,7 @@
 // This package tests _single_ package inference. Due to limitations of `analysistest` framework,
 // multi-package inference is tested by our integration test suites. Please see
 // `testdata/README.md` for more details.
+
 package inference
 
 var dummyBool bool
@@ -100,4 +101,14 @@ func retsAndTakes() {
 		takesNilable(retsNilable3())
 		takesNilable(retsNilable4())
 	}
+}
+
+// Below test checks the working of inference in the presence of annotations
+// nonnil(result 0)
+func foo(x *int) *int { //want "because it is annotated as so"
+	return x
+}
+
+func callFoo() {
+	_ = foo(nil)
 }
