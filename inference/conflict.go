@@ -43,7 +43,7 @@ type node struct {
 }
 
 // newNode creates a new node object from the given producer and consumer Prestrings.
-// LocatedPrestring contains accurate information about the pos and the reason why NilAway deemed that pos
+// LocatedPrestring contains accurate information about the position and the reason why NilAway deemed that position
 // to be nilable. We use it if available, else we use the raw string representation available from the Prestring.
 func newNode(p annotation.Prestring, c annotation.Prestring) node {
 	nodeObj := node{}
@@ -198,7 +198,7 @@ func (l *ConflictList) AddOverconstraintConflict(nilExplanation ExplainedBool, n
 	// Build nonnil path by traversing the inference graph from `nonnilExplanation` part of the overconstraint failure.
 	// (Note that this traversal is forward from the point of conflict to dereference. Hence, we don't need to make
 	// any special considerations while printing the flow.)
-	// Different from building the nil path above, here we also want to deduce the pos where the error should be reported,
+	// Different from building the nil path above, here we also want to deduce the position where the error should be reported,
 	// i.e., the point of dereference where the nil panic would occur. In NilAway's context this is the last node
 	// in the non-nil path. Therefore, we keep updating `c.pos` until we reach the end of the non-nil path.
 	queue = make([]ExplainedBool, 0)
