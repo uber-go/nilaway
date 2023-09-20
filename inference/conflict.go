@@ -231,10 +231,8 @@ func (l *ConflictList) AddOverconstraintConflict(nilExplanation ExplainedBool, n
 func (l *ConflictList) Diagnostics() []analysis.Diagnostic {
 	var diagnostics []analysis.Diagnostic
 
-	var conflicts []conflict
-	if l.NoGrouping {
-		conflicts = l.conflicts
-	} else {
+	conflicts := l.conflicts
+	if !l.NoGrouping {
 		// group conflicts with the same nil path together for concise reporting
 		conflicts = groupConflicts(l.conflicts)
 	}
