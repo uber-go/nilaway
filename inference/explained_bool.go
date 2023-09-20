@@ -31,7 +31,7 @@ type ExplainedBool interface {
 	Val() bool
 	String() string
 	getPrimitiveFullTrigger() primitiveFullTrigger
-	getExplainedBool() ExplainedBool
+	deeperReason() ExplainedBool
 }
 
 // ExplainedTrue is a common embedding in all instances of ExplainedBool that wrap the value `true`
@@ -71,7 +71,7 @@ func (t TrueBecauseShallowConstraint) getPrimitiveFullTrigger() primitiveFullTri
 	return t.ExternalAssertion
 }
 
-func (t TrueBecauseShallowConstraint) getExplainedBool() ExplainedBool {
+func (t TrueBecauseShallowConstraint) deeperReason() ExplainedBool {
 	return nil
 }
 
@@ -96,7 +96,7 @@ func (f FalseBecauseShallowConstraint) getPrimitiveFullTrigger() primitiveFullTr
 	return f.ExternalAssertion
 }
 
-func (f FalseBecauseShallowConstraint) getExplainedBool() ExplainedBool {
+func (f FalseBecauseShallowConstraint) deeperReason() ExplainedBool {
 	return nil
 }
 
@@ -120,7 +120,7 @@ func (t TrueBecauseDeepConstraint) getPrimitiveFullTrigger() primitiveFullTrigge
 	return t.InternalAssertion
 }
 
-func (t TrueBecauseDeepConstraint) getExplainedBool() ExplainedBool {
+func (t TrueBecauseDeepConstraint) deeperReason() ExplainedBool {
 	return t.DeeperExplanation
 }
 
@@ -144,7 +144,7 @@ func (f FalseBecauseDeepConstraint) getPrimitiveFullTrigger() primitiveFullTrigg
 	return f.InternalAssertion
 }
 
-func (f FalseBecauseDeepConstraint) getExplainedBool() ExplainedBool {
+func (f FalseBecauseDeepConstraint) deeperReason() ExplainedBool {
 	return f.DeeperExplanation
 }
 
@@ -163,7 +163,7 @@ func (t TrueBecauseAnnotation) getPrimitiveFullTrigger() primitiveFullTrigger {
 	return primitiveFullTrigger{Pos: t.Pos}
 }
 
-func (t TrueBecauseAnnotation) getExplainedBool() ExplainedBool {
+func (t TrueBecauseAnnotation) deeperReason() ExplainedBool {
 	return nil
 }
 
@@ -182,6 +182,6 @@ func (f FalseBecauseAnnotation) getPrimitiveFullTrigger() primitiveFullTrigger {
 	return primitiveFullTrigger{Pos: f.Pos}
 }
 
-func (f FalseBecauseAnnotation) getExplainedBool() ExplainedBool {
+func (f FalseBecauseAnnotation) deeperReason() ExplainedBool {
 	return nil
 }

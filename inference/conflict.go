@@ -17,6 +17,7 @@ package inference
 import (
 	"fmt"
 	"go/token"
+	"strings"
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/util"
@@ -24,8 +25,8 @@ import (
 )
 
 type conflict struct {
-	position token.Pos // stores position where the error should be reported
-	nilFlow  nilFlow   // stores nil flow from source to dereference point
+	pos  token.Pos // stores position where the error should be reported (note that this field is used only within the current, and should NOT be exported)
+	flow nilFlow   // stores nil flow from source to dereference point
 }
 
 type nilFlow struct {
@@ -40,7 +41,7 @@ type node struct {
 }
 
 // newNode creates a new node object from the given producer and consumer Prestrings.
-// LocatedPrestring contains accurate information about the position and the reason why NilAway deemed that position
+// LocatedPrestring contains accurate information about the pos and the reason why NilAway deemed that pos
 // to be nilable. We use it if available, else we use the raw string representation available from the Prestring.
 func newNode(p annotation.Prestring, c annotation.Prestring) node {
 	nodeObj := node{}
@@ -78,7 +79,7 @@ func (n *node) String() string {
 		reasonStr = n.consumerRepr
 	}
 
-	return fmt.Sprintf("\n\t-> %s: %s", posStr, reasonStr)
+	return fmt.Sprintf("\t-> %s: %s", posStr, reasonStr)
 }
 
 // addNilPathNode adds a new node to the nil path.
@@ -88,6 +89,7 @@ func (n *nilFlow) addNilPathNode(p annotation.Prestring, c annotation.Prestring)
 	// Note that in the implication graph, we traverse backwards from the point of conflict to the source of nilability.
 	// Therefore, they are added in reverse order from what the program flow would look like. To account for this we
 	// prepend the new node to nilPath because we want to print the program flow in its correct (forward) order.
+	// TODO: instead of prepending here, we can reverse the nilPath slice while printing.
 	n.nilPath = append([]node{nodeObj}, n.nilPath...)
 }
 
@@ -97,21 +99,21 @@ func (n *nilFlow) addNonNilPathNode(p annotation.Prestring, c annotation.Prestri
 	n.nonnilPath = append(n.nonnilPath, nodeObj)
 }
 
-// String converts a nilFlow to a string representation, where each entry is the flow of the form: `<pos>: <reason>`
+// String converts a flow to a string representation, where each entry is the flow of the form: `<pos>: <reason>`
 func (n *nilFlow) String() string {
-	flow := ""
+	var flow []string
 	for _, nodes := range [...][]node{n.nilPath, n.nonnilPath} {
 		for _, nodeObj := range nodes {
-			flow += nodeObj.String()
+			flow = append(flow, nodeObj.String())
 		}
 	}
-	return flow
+	return strings.Join(flow, "\n")
 }
 
 func (c *conflict) String() string {
-	consumerPos := c.nilFlow.nonnilPath[len(c.nilFlow.nonnilPath)-1].position
+	consumerPos := c.flow.nonnilPath[len(c.flow.nonnilPath)-1].position
 	return fmt.Sprintf(" Potential nil panic at \"%s\". Observed nil flow from "+
-		"source to dereference: %s", consumerPos.String(), c.nilFlow.String())
+		"source to dereference: %s", consumerPos.String(), c.flow.String())
 }
 
 type conflictList struct {
@@ -121,11 +123,11 @@ type conflictList struct {
 func (l *conflictList) addSingleAssertionConflict(pass *analysis.Pass, trigger annotation.FullTrigger) {
 	t := fullTriggerAsPrimitive(pass, trigger)
 	c := conflict{
-		position: t.Pos,
-		nilFlow:  nilFlow{},
+		pos:  t.Pos,
+		flow: nilFlow{},
 	}
 
-	c.nilFlow.addNonNilPathNode(t.ProducerRepr, t.ConsumerRepr)
+	c.flow.addNonNilPathNode(t.ProducerRepr, t.ConsumerRepr)
 
 	l.conflicts = append(l.conflicts, c)
 }
@@ -148,25 +150,25 @@ func (l *conflictList) addOverconstraintConflict(nilExplanation ExplainedBool, n
 		// 1. No annotation present (i.e., full inference): we have producer and consumer explanations available; use them directly
 		// 2: Annotation present (i.e., no inference): we construct the explanation from the annotation string
 		if t.ConsumerRepr != nil && t.ProducerRepr != nil {
-			c.nilFlow.addNilPathNode(t.ProducerRepr, t.ConsumerRepr)
+			c.flow.addNilPathNode(t.ProducerRepr, t.ConsumerRepr)
 		} else {
-			c.nilFlow.addNilPathNode(annotation.LocatedPrestring{
+			c.flow.addNilPathNode(annotation.LocatedPrestring{
 				Contained: e,
 				Location:  util.TruncatePosition(pass.Fset.Position(t.Pos)),
 			}, nil)
 		}
 
-		if e.getExplainedBool() != nil {
-			queue = append(queue, e.getExplainedBool())
+		if b := e.deeperReason(); b != nil {
+			queue = append(queue, b)
 		}
 	}
 
 	// Build nonnil path by traversing the inference graph from `nonnilExplanation` part of the overconstraint failure.
 	// (Note that this traversal is forward from the point of conflict to dereference. Hence, we don't need to make
 	// any special considerations while printing the flow.)
-	// Different from building the nil path above, here we also want to deduce the position where the error should be reported,
+	// Different from building the nil path above, here we also want to deduce the pos where the error should be reported,
 	// i.e., the point of dereference where the nil panic would occur. In NilAway's context this is the last node
-	// in the non-nil path. Therefore, we keep updating `c.position` until we reach the end of the non-nil path.
+	// in the non-nil path. Therefore, we keep updating `c.pos` until we reach the end of the non-nil path.
 	queue = make([]ExplainedBool, 0)
 	queue = append(queue, nonnilExplanation)
 	for len(queue) > 0 {
@@ -178,18 +180,18 @@ func (l *conflictList) addOverconstraintConflict(nilExplanation ExplainedBool, n
 		// 1. No annotation present (i.e., full inference): we have producer and consumer explanations available; use them directly
 		// 2: Annotation present (i.e., no inference): we construct the explanation from the annotation string
 		if t.ConsumerRepr != nil && t.ProducerRepr != nil {
-			c.nilFlow.addNonNilPathNode(t.ProducerRepr, t.ConsumerRepr)
-			c.position = t.Pos
+			c.flow.addNonNilPathNode(t.ProducerRepr, t.ConsumerRepr)
+			c.pos = t.Pos
 		} else {
-			c.nilFlow.addNonNilPathNode(annotation.LocatedPrestring{
+			c.flow.addNonNilPathNode(annotation.LocatedPrestring{
 				Contained: e,
 				Location:  util.TruncatePosition(pass.Fset.Position(t.Pos)),
 			}, nil)
-			c.position = t.Pos
+			c.pos = t.Pos
 		}
 
-		if e.getExplainedBool() != nil {
-			queue = append(queue, e.getExplainedBool())
+		if b := e.deeperReason(); b != nil {
+			queue = append(queue, b)
 		}
 	}
 
@@ -200,7 +202,7 @@ func (l *conflictList) diagnostics() []analysis.Diagnostic {
 	var diagnostics []analysis.Diagnostic
 	for _, c := range l.conflicts {
 		diagnostics = append(diagnostics, analysis.Diagnostic{
-			Pos:     c.position,
+			Pos:     c.pos,
 			Message: c.String(),
 		})
 	}
