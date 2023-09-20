@@ -41,7 +41,7 @@ type node struct {
 }
 
 // newNode creates a new node object from the given producer and consumer Prestrings.
-// LocatedPrestring contains accurate information about the position and the reason why NilAway deemed that position
+// LocatedPrestring contains accurate information about the pos and the reason why NilAway deemed that pos
 // to be nilable. We use it if available, else we use the raw string representation available from the Prestring.
 func newNode(p annotation.Prestring, c annotation.Prestring) node {
 	nodeObj := node{}
