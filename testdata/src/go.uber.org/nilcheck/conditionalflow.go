@@ -72,7 +72,7 @@ func noDeep4(x *ralph) *ralph {
 	if x == nil {
 		x = x
 	}
-	return x //want "nilable value returned from the function `noDeep4`"
+	return x //want "returned from the function `noDeep4`"
 }
 
 // nilable(x)
@@ -110,7 +110,7 @@ func posNilCheckPreservesNilable(x *ralph) *ralph {
 	if x == nil {
 		noop()
 	}
-	return x //want "nilable value returned"
+	return x //want "returned"
 }
 
 // nilable(x)
@@ -118,7 +118,7 @@ func negNilCheckPreservesNilable(x *ralph) *ralph {
 	if x != nil {
 		noop()
 	}
-	return x //want "nilable value returned"
+	return x //want "returned"
 }
 
 func posNilCheckDoesntTriggerConsumption(x *ralph) *ralph {

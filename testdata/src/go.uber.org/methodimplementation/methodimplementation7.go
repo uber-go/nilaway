@@ -22,8 +22,8 @@ interface method param2 nil, implementing method param2 non-nil --> contravarian
 package methodimplementation
 
 type I7 interface {
-	//nilable(x)
-	foo(x *A7) (*A7, string) //want "nilable value could be returned as result"
+	// nilable(x)
+	foo(x *A7) (*A7, string) //want "could be returned as result"
 }
 
 type A7 struct {
@@ -33,7 +33,7 @@ type A7 struct {
 type FuncType func(x *A7) (*A7, string)
 
 // nilable(result 0)
-func (f FuncType) foo(x *A7) (*A7, string) { //want "nilable value could be passed as param"
+func (f FuncType) foo(x *A7) (*A7, string) { //want "could be passed as param"
 	var b *A7
 	return b, x.s
 }

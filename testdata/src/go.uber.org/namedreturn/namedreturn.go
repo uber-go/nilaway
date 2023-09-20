@@ -21,8 +21,8 @@ values
 */
 package namedreturn
 
-func foo1() (i *int) {
-	return //want "named return value `i` in position 0"
+func foo1() (i *int) { //want "named return value `i` in position 0"
+	return
 }
 
 // nilable(i)
@@ -30,60 +30,60 @@ func foo2() (i *int) {
 	return
 }
 
-func foo3() (i, j *int) {
+func foo3() (i, j *int) { //want "named return value `j` in position 1"
 	x := 1
 	i = &x
-	return //want "named return value `j` in position 1"
+	return
 }
 
-func foo4(x int, y string) (k bool, i *int, s *string, a []int) {
+func foo4(x int, y string) (k bool, i *int, s *string, a []int) { //want "named return value `s` in position 2" "named return value `i` in position 1" "named return value `i` in position 1" "named return value `s` in position 2" "named return value `i` in position 1" "named return value `s` in position 2"
 	switch x {
 	case 0:
-		return k, i, s, a //want "nilable value returned" "nilable value returned"
+		return k, i, s, a //want "returned" "returned"
 	case 1:
 		i = &x
-		return //want "named return value `s` in position 2"
+		return // (error is reported for `s` at function declaration)
 	case 2:
 		s = &y
-		return //want "named return value `i` in position 1"
+		return // (error is reported for `i` at function declaration)
 	case 3:
 		i = &x
 		s = &y
 		return
 	case 4:
 		a = make([]int, 5)
-		return //want "named return value `i` in position 1" "named return value `s` in position 2"
+		return // (error is reported for `i` and `s` at function declaration)
 	}
-	return //want "named return value `i` in position 1" "named return value `s` in position 2"
+	return // (error is reported for `i` and `s` at function declaration)
 }
 
-func foo5(n int) (i *int) {
+func foo5(n int) (i *int) { //want "named return value `i` in position 0"
 	if n > 0 {
 		x := 1
 		i := &x
 		return i
 	}
-	return //want "named return value `i` in position 0"
+	return
 }
 
-func foo6() (i, j *int) {
+func foo6() (i, j *int) { //want "named return value `j` in position 1"
 	x := 1
 	i, k := &x, 0
 	func(...any) {}(i, k)
-	return //want "named return value `j` in position 1"
+	return
 }
 
-func foo7() (i, j *int) {
+func foo7() (i, j *int) { //want "named return value `i` in position 0" "named return value `j` in position 1"
 	x := 1
 	if true {
 		i := &x
 		func(any) {}(i)
 	}
-	return //want "named return value `i` in position 0" "named return value `j` in position 1"
+	return
 }
 
-func foo8(x string) (_ *int) {
-	return //want "named return value `_` in position 0"
+func foo8(x string) (_ *int) { //want "named return value `_` in position 0"
+	return
 }
 
 type myErr struct{}
@@ -101,8 +101,8 @@ func foo10() (x *int, _ error) {
 	return
 }
 
-func foo11() (x *int, _ error) {
-	return //want "named return value `x` in position 0"
+func foo11() (x *int, _ error) { //want "named return value `x` in position 0"
+	return
 }
 
 var dummy bool
@@ -113,7 +113,7 @@ func takesNonnilRetsNilable(x *int) *int {
 }
 
 // nilable(x, r1)
-func retsNonnilNilableWithErr(x *int, y *int) (r0 *int, r1 *int, e error) {
+func retsNonnilNilableWithErr1(x *int, y *int) (r0 *int, r1 *int, e error) {
 	i := 0
 	switch 0 {
 	case 1:
@@ -122,7 +122,7 @@ func retsNonnilNilableWithErr(x *int, y *int) (r0 *int, r1 *int, e error) {
 		e = &myErr{}
 		return
 	case 2:
-		// this is the same safe case as above, but involving flow from a nilableparam
+		// this is the same safe case as above, but involving flow from a nilable param
 		r0 = x
 		e = &myErr{}
 		return
@@ -136,20 +136,34 @@ func retsNonnilNilableWithErr(x *int, y *int) (r0 *int, r1 *int, e error) {
 		r0 = y
 		e = &myErr{}
 		return
-	case 5:
-		// this checks that even if a non-nil error aborts the consumption of the other returns,
-		// the other returns are still checked for inner illegal consumptions
-		r0 = takesNonnilRetsNilable(nil) //want "nilable value passed"
-		e = &myErr{}
-		return
-	case 6:
-		// this error case indicates that if we return nil as our error and as a
-		// non-nilable result, that result will be interpreted as an error
-		return //want "nilable value returned"
+	}
+	return &i, &i, nil
+}
+
+// nilable(x, r1)
+func retsNonnilNilableWithErr2(x *int, y *int) (r0 *int, r1 *int, e error) {
+	// this checks that even if a non-nil error aborts the consumption of the other returns,
+	// the other returns are still checked for inner illegal consumptions
+	r0 = takesNonnilRetsNilable(nil) //want "passed"
+	e = &myErr{}
+	return
+}
+
+// nilable(x, r1)
+func retsNonnilNilableWithErr3(x *int, y *int) (r0 *int, r1 *int, e error) { //want "named return value `r0` in position 0"
+	// this error case indicates that if we return nil as our error and as a
+	// non-nilable result, that result will be interpreted as an error
+	return
+}
+
+// nilable(x, r1)
+func retsNonnilNilableWithErr4(x *int, y *int) (r0 *int, r1 *int, e error) { //want "named return value `r0` in position 0"
+	i := 0
+	switch 0 {
 	case 7:
 		// this is the same error case as above, but involving flow from a param
 		r0 = x
-		return //want "nilable value returned"
+		return
 	case 8:
 		// this is safe
 		r0 = &i
@@ -158,33 +172,51 @@ func retsNonnilNilableWithErr(x *int, y *int) (r0 *int, r1 *int, e error) {
 		// this is safe
 		r0 = y
 		return
-	case 10:
-		// this illustrates that an unassigned local error variable is interpreted as nil based on its zero value
-		var e2 error
-		e = e2
-		return //want "named return value `r0` in position 0"
-	case 11:
-		return //want "named return value `r0` in position 0"
-	case 12:
-		// this is similar to the above case - but makes sure that computations in non-error results
-		// are not ignored
-		r0 = takesNonnilRetsNilable(nil) //want "nilable value passed"
-		return                           //want "named return value `r0` in position 0"
-	case 13:
-		// this illustrates that the checking for nilable results really is flow sensitive
-		// here, we determine that `e` is non-nil making it a valid error that suppresses consumption
-		// of the other returns
-		if e != nil {
-			return
-		}
-	case 14:
-		// this is similar to the above case - but makes sure that computations in non-error results
-		// are not ignored
-		if e != nil {
-			r0 = takesNonnilRetsNilable(nil) //want "nilable value passed"
-			return
-		}
-	case 15:
+	}
+	return &i, &i, nil
+}
+
+// nilable(x, r1)
+func retsNonnilNilableWithErr5(x *int, y *int) (r0 *int, r1 *int, e error) { //want "named return value `r0` in position 0"
+	// this illustrates that an unassigned local error variable is interpreted as nil based on its zero value
+	var e2 error
+	e = e2
+	return
+}
+
+// nilable(x, r1)
+func retsNonnilNilableWithErr6(x *int, y *int) (r0 *int, r1 *int, e error) { //want "named return value `r0` in position 0"
+	// this is similar to the above case - but makes sure that computations in non-error results
+	// are not ignored
+	r0 = takesNonnilRetsNilable(nil) //want "passed"
+	return
+}
+
+// nilable(x, r1)
+func retsNonnilNilableWithErr7(x *int, y *int) (r0 *int, r1 *int, e error) {
+	// this illustrates that the checking for nilable results really is flow sensitive
+	// here, we determine that `e` is non-nil making it a valid error that suppresses consumption
+	// of the other returns
+	if e != nil {
+		return
+	}
+	return new(int), new(int), nil
+}
+
+// nilable(x, r1)
+func retsNonnilNilableWithErr8(x *int, y *int) (r0 *int, r1 *int, e error) {
+	// this is similar to the above case - but makes sure that computations in non-error results
+	// are not ignored
+	if e != nil {
+		r0 = takesNonnilRetsNilable(nil) //want "passed"
+		return
+	}
+	return new(int), new(int), nil
+}
+
+// nilable(x, r1)
+func retsNonnilNilableWithErr9(x *int, y *int, cond bool) (r0 *int, r1 *int, e error) { //want "named return" "named return" "named return" "named return"
+	if cond {
 		// this case further tests the flow-sensitivity of the error result
 		if e != nil {
 			if dummy {
@@ -200,11 +232,11 @@ func retsNonnilNilableWithErr(x *int, y *int) (r0 *int, r1 *int, e error) {
 					}
 					e = nil
 					if dummy {
-						return //want "named return value `r0` in position 0"
+						return // (error is reported for `r0` at function declaration)
 					}
 				}
 				if dummy { // here - two different flows result in a nilable (L187) or non-nil (L175) value for e
-					return //want "named return value `r0` in position 0 when the error return in position 2 is not guaranteed to be non-nil through all paths"
+					return // (error is reported for `r0` at function declaration)
 				}
 			} else {
 				if dummy {
@@ -219,10 +251,10 @@ func retsNonnilNilableWithErr(x *int, y *int) (r0 *int, r1 *int, e error) {
 			}
 			if dummy {
 				// here - two different flows result in a nilable (L187) or non-nil (L175, L200) value for e
-				return //want "named return value `r0` in position 0 when the error return in position 2 is not guaranteed to be non-nil through all paths"
+				return // (error is reported for `r0` at function declaration)
 			}
 		}
 	}
 	// here - two different flows result in a nilable (L102, L187) or non-nil (L200) value for e
-	return //want "named return value `r0` in position 0 when the error return in position 2 is not guaranteed to be non-nil through all paths"
+	return // (error is reported for `r0` at function declaration)
 }

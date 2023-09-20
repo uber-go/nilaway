@@ -45,7 +45,6 @@ func giveEmptyA11Fun() *A11 {
 	return &A11{}
 }
 
-// TODO: Location of the error in this case is inappropriate.
 func giveEmptyACallFun() *A11 {
 	return giveEmptyA11Fun()
 }

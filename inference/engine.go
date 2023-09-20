@@ -38,7 +38,7 @@ type Engine struct {
 	// conflicts stores conflicts encountered during the observations. It will be
 	// converted to diagnostics and returned along with the current inferred map whenever users
 	// request it.
-	conflicts *conflictList
+	conflicts *ConflictList
 	// controlledTriggersBySite stores the set of controlled triggers for each site if the site
 	// controls any triggers. This field is for internal use in the struct only and should not be
 	// accessed elsewhere.
@@ -50,14 +50,14 @@ func NewEngine(pass *analysis.Pass) *Engine {
 	return &Engine{
 		pass:        pass,
 		inferredMap: newInferredMap(),
-		conflicts:   &conflictList{},
+		conflicts:   &ConflictList{},
 	}
 }
 
 // InferredMapWithDiagnostics returns the current inferred annotation map and a slice of diagnostics
 // generated during inference.
 func (e *Engine) InferredMapWithDiagnostics() (*InferredMap, []analysis.Diagnostic) {
-	return e.inferredMap, e.conflicts.diagnostics()
+	return e.inferredMap, e.conflicts.Diagnostics()
 }
 
 // ObserveUpstream imports all information from upstream dependencies. Specifically, it iterates
@@ -235,12 +235,12 @@ func (e *Engine) buildFromSingleFullTrigger(trigger annotation.FullTrigger) {
 	pSite, cSite := trigger.Producer.Annotation.UnderlyingSite(), trigger.Consumer.Annotation.UnderlyingSite()
 	// NilAway does not know that (kind == Conditional || DeepConditional) => (site != nil),
 	// so we have to add some redundant checks in the corresponding cases to give some hints.
-	// TODO: remove this redundant check.
+	// TODO: remove this redundant check .
 	switch {
 	case pKind == annotation.Always && cKind == annotation.Always:
 		// Producer always produces nilable value -> consumer always consumes nonnil value.
 		// We simply generate a failure for this case.
-		e.conflicts.addSingleAssertionConflict(e.pass, trigger)
+		e.conflicts.AddSingleAssertionConflict(e.pass, trigger)
 
 	case pKind == annotation.Always && (cKind == annotation.Conditional || cKind == annotation.DeepConditional):
 		// Producer always produces nilable value -> consumer unknown.
@@ -323,7 +323,7 @@ func (e *Engine) observeSiteExplanation(site primitiveSite, siteExplained Explai
 		if !v.Bool.Val() {
 			trueExplanation, falseExplanation = falseExplanation, trueExplanation
 		}
-		e.conflicts.addOverconstraintConflict(trueExplanation, falseExplanation, e.pass)
+		e.conflicts.AddOverconstraintConflict(trueExplanation, falseExplanation, e.pass)
 
 		// Even though we have a conflict, we still need to make sure to activate any controlled
 		// triggers that are waiting on this site, so that we would not miss processing any

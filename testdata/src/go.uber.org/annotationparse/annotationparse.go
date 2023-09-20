@@ -46,7 +46,7 @@ func foo(a, b *bar, c *bar, d, e *bar) (f, g *bar, h *bar) {
 	myBar.jar = a
 	myBar.karp = a
 	myBar.lug = a
-	myBar.myr = a //want "nilable value assigned into the field `myr`"
+	myBar.myr = a //want "assigned into the field `myr`"
 
 	myBar.jar = b
 	myBar.karp = b
@@ -56,7 +56,7 @@ func foo(a, b *bar, c *bar, d, e *bar) (f, g *bar, h *bar) {
 	myBar.jar = c
 	myBar.karp = c
 	myBar.lug = c
-	myBar.myr = c //want "nilable value assigned into the field `myr`"
+	myBar.myr = c //want "assigned into the field `myr`"
 
 	myBar.jar = d
 	myBar.karp = d
@@ -66,19 +66,19 @@ func foo(a, b *bar, c *bar, d, e *bar) (f, g *bar, h *bar) {
 	myBar.jar = e
 	myBar.karp = e
 	myBar.lug = e
-	myBar.myr = e //want "nilable value assigned into the field `myr`"
+	myBar.myr = e //want "assigned into the field `myr`"
 
 	switch 0 {
 	case 1:
-		return a, a, a //want "nilable value returned from the function `foo` in position 1"
+		return a, a, a //want "returned from the function `foo` in position 1"
 	case 2:
 		return b, b, b
 	case 3:
-		return c, c, c //want "nilable value returned from the function `foo` in position 1"
+		return c, c, c //want "returned from the function `foo` in position 1"
 	case 4:
 		return d, d, d
 	default:
-		return e, e, e //want "nilable value returned from the function `foo` in position 1"
+		return e, e, e //want "returned from the function `foo` in position 1"
 	}
 }
 
@@ -93,14 +93,14 @@ type A struct{}
 func variadicNilable(a, b, c *A, d *A, e ...*A) *A {
 	if len(e) > 1 {
 		e[1] = nil
-		return e[0] //want "nilable value returned"
+		return e[0] //want "returned"
 	}
 	return a
 }
 
 func variadicNonNil(a, b, c *A, d *A, e ...*A) *A {
 	if len(e) > 1 {
-		e[1] = nil //want "nilable value assigned"
+		e[1] = nil //want "assigned"
 		return e[0]
 	}
 	return a
@@ -114,11 +114,11 @@ func variadicTest() {
 	variadicNilable(a, a, a, a, nil, nil)
 	variadicNilable(a, a, a, a, a, nil)
 	variadicNonNil(a, a, a, a)
-	variadicNonNil(a, a, a, a, nil) //want "nilable value passed"
+	variadicNonNil(a, a, a, a, nil) //want "passed"
 	variadicNonNil(a, a, a, a, a)
-	variadicNonNil(a, a, a, a, a, nil)      //want "nilable value passed"
-	variadicNonNil(a, a, a, a, a, a, nil)   //want "nilable value passed"
-	variadicNonNil(a, a, a, a, a, nil, nil) //want "nilable value passed" "nilable value passed"
+	variadicNonNil(a, a, a, a, a, nil)      //want "passed"
+	variadicNonNil(a, a, a, a, a, a, nil)   //want "passed"
+	variadicNonNil(a, a, a, a, a, nil, nil) //want "passed" "passed"
 }
 
 type (
@@ -143,17 +143,17 @@ func testMultiStructDecl(m1 *multiStructOne, m2 *multiStructTwo) *A {
 
 	switch 0 {
 	case 1:
-		return a1 //want "nilable value returned"
+		return a1 //want "returned"
 	case 2:
 		return b1
 	case 3:
 		return a2
 	case 4:
-		return b2 //want "nilable value returned"
+		return b2 //want "returned"
 	default:
 		m1.a = nil
-		m1.b = nil //want "nilable value assigned into the field"
-		m2.a = nil //want "nilable value assigned into the field"
+		m1.b = nil //want "assigned into the field"
+		m2.a = nil //want "assigned into the field"
 		m2.b = nil
 		return &A{}
 	}
@@ -164,7 +164,7 @@ func anonParams(*int, *int, *int, *int) {
 	i := 0
 	anonParams(&i, &i, &i, &i)
 	anonParams(nil, &i, nil, &i)
-	anonParams(nil, nil, nil, nil) //want "nilable value passed" "nilable value passed"
+	anonParams(nil, nil, nil, nil) //want "passed" "passed"
 }
 
 // nilable(result 0, result 2)
@@ -176,7 +176,7 @@ func anonResults() (*int, *int, *int, *int) {
 	case 2:
 		return nil, &i, nil, &i
 	default:
-		return nil, nil, nil, nil //want "nilable value returned" "nilable value returned"
+		return nil, nil, nil, nil //want "returned" "returned"
 	}
 }
 
@@ -186,11 +186,11 @@ func takesPacked(b ...*int) {}
 // nilable(d[])
 func testPacking(a *int, b *int, c []*int, d []*int) {
 	takesPacked(a)
-	takesPacked(b) //want "nilable value passed"
+	takesPacked(b) //want "passed"
 	takesPacked(a, a)
-	takesPacked(a, b) //want "nilable value passed"
-	takesPacked(b, a) //want "nilable value passed"
-	takesPacked(b, b) //want "nilable value passed" "nilable value passed"
+	takesPacked(a, b) //want "passed"
+	takesPacked(b, a) //want "passed"
+	takesPacked(b, b) //want "passed" "passed"
 	takesPacked(c...)
-	takesPacked(d...) //want "nilable value passed"
+	takesPacked(d...) //want "passed"
 }

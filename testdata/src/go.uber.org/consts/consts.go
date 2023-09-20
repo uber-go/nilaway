@@ -50,8 +50,8 @@ func testConst(mp map[string]*string, i int) string {
 			mp[lib.MyStrConst] = new(string)
 			return *mp[lib.MyStrConst]
 		}
-		mp[lib.MyStrConst] = nil   //want "nilable value assigned"
-		return *mp[lib.MyStrConst] //want "nilable value dereferenced"
+		mp[lib.MyStrConst] = nil   //want "assigned"
+		return *mp[lib.MyStrConst] //want "dereferenced"
 	case 5:
 		// built-in
 		mp2 := make(map[float64]*string)
@@ -72,17 +72,17 @@ func testGlobalVar(mp map[string]*string, i int) string {
 	switch i {
 	case 0:
 		// locally defined unexported global variable
-		if mp[unexportedGlobalVar] == nil || *mp[unexportedGlobalVar] == "" { //want "nilable value dereferenced"
+		if mp[unexportedGlobalVar] == nil || *mp[unexportedGlobalVar] == "" { //want "dereferenced"
 			return "nil"
 		} else {
-			return *mp[unexportedGlobalVar] //want "nilable value dereferenced"
+			return *mp[unexportedGlobalVar] //want "dereferenced"
 		}
 	case 2:
 		// global variable defined in another package
-		if mp == nil || mp[lib.MyGlobalVar] == nil || *mp[lib.MyGlobalVar] == "" { //want "nilable value dereferenced"
+		if mp == nil || mp[lib.MyGlobalVar] == nil || *mp[lib.MyGlobalVar] == "" { //want "dereferenced"
 			return "nil"
 		} else {
-			return *mp[lib.MyGlobalVar] //want "nilable value dereferenced"
+			return *mp[lib.MyGlobalVar] //want "dereferenced"
 		}
 	}
 	return ""
