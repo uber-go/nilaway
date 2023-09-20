@@ -617,6 +617,6 @@ func implyCall() {
 	var s *int = nil // this is nilable
 	if c := imply(s); c != nil {
 		// "c != nil" implies "s != nil", but NilAway does not know this and reports the next line
-		print(*s) //want "literal nil dereferenced"
+		print(*s) //want "literal `nil` dereferenced"
 	}
 }

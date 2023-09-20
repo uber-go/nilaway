@@ -102,6 +102,7 @@ func DeepNilabilityOfVar(fdecl *types.Func, v *types.Var) ProducingAnnotationTri
 			return MethodRecvDeep{
 				TriggerIfDeepNilable: TriggerIfDeepNilable{
 					Ann: RecvAnnotationKey{FuncDecl: fdecl}},
+				VarDecl: v,
 			}
 		}
 		// in this case, the deep nilability of the variable is dependent only on its possible guarding
@@ -163,7 +164,7 @@ func ParamAsProducer(fdecl *types.Func, param *types.Var) ProducingAnnotationTri
 		panic(fmt.Sprintf("non-param %s passed to ParamAsProducer", param.Name()))
 	}
 	if VarIsVariadicParam(fdecl, param) {
-		return VariadicFuncParam{}
+		return VariadicFuncParam{VarDecl: param}
 	}
 	return FuncParam{
 		TriggerIfNilable: TriggerIfNilable{

@@ -20,7 +20,7 @@ func testNilFlowFromClosure() {
 
 	var t *int
 	func() {
-		print(*t) //want "read from a variable that was never assigned to"
+		print(*t) //want "unassigned variable `t`"
 	}()
 
 	i := 1
@@ -38,7 +38,7 @@ func testNilFlowFromClosure() {
 
 	func() {
 		print(*t) // (error here grouped with the error on the next line)
-		print(*t) //want "literal nil"
+		print(*t) //want "literal `nil`"
 	}()
 
 	t = &i
@@ -46,7 +46,7 @@ func testNilFlowFromClosure() {
 	func() {
 		print(*t)
 		t = nil
-		print(*t) //want "literal nil"
+		print(*t) //want "literal `nil`"
 	}()
 
 	// TODO we will report an error here after updating the return type of function literals to include variables from closure
@@ -58,8 +58,8 @@ func testNilFlowFromClosure() {
 	func() {
 		var t2 *int
 		func() {
-			print(*t1) //want "read from a variable that was never assigned to"
-			print(*t2) //want "read from a variable that was never assigned to"
+			print(*t1) //want "unassigned variable `t1`"
+			print(*t2) //want "unassigned variable `t2`"
 		}()
 	}()
 
@@ -71,7 +71,7 @@ func testNilFlowFromClosure() {
 		// the following error is coming from t4 but not from t3
 		func() {
 			print(*t3) // this should be ok
-			print(*t4) //want "read from a variable that was never assigned to"
+			print(*t4) //want "unassigned variable `t4`"
 			if t4 != nil {
 				print(*t4) // this is ok
 			}
@@ -80,9 +80,9 @@ func testNilFlowFromClosure() {
 
 	var t5 *int
 	func() {
-		print(*t1) //want "read from a variable that was never assigned to"
+		print(*t1) //want "unassigned variable `t1`"
 		print(*t3)
-		print(*t5) //want "read from a variable that was never assigned to"
+		print(*t5) //want "unassigned variable `t5`"
 	}()
 
 }

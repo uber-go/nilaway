@@ -152,7 +152,7 @@ func fooWrongCallSiteAnnotation(x *int) *int {
 
 func barWrongCallSiteAnnotation() {
 	var a *int
-	b := fooWrongCallSiteAnnotation(a) // nonnil(param 0, result 0) // want "read from a variable that was never assigned to"
+	b := fooWrongCallSiteAnnotation(a) // nonnil(param 0, result 0) // want "unassigned variable `a`"
 	print(*b)                          // safe because the call site annotation is used
 }
 

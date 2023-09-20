@@ -23,7 +23,7 @@ package methodimplementation
 
 type I5 interface {
 	// nilable(x)
-	foo(x *A5) (*A5, string) //want "could be returned as result"
+	foo(x *A5) (*A5, string) //want "returned as result"
 }
 
 type A5 struct {
@@ -31,7 +31,7 @@ type A5 struct {
 }
 
 // nilable(result 0)
-func (A5) foo(x *A5) (*A5, string) { //want "could be passed as param"
+func (A5) foo(x *A5) (*A5, string) { //want "passed as param"
 	var b *A5
 	return b, x.s
 }

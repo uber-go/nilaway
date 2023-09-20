@@ -22,7 +22,7 @@ package globalvars
 var x = 3
 
 // This should throw an error since it is not initialized
-var noInit *int //want "assigned into the global variable"
+var noInit *int //want "assigned into global variable"
 
 // nilable(nilableVar)
 var nilableVar *int

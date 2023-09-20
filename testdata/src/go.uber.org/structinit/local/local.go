@@ -28,11 +28,11 @@ type A struct {
 
 func m() {
 	var b = &A{}
-	// TODO: all errors because of "aptr" unassigned at struct initialization are grouped and reported on the line below,
+	// TODO: all errors because of "aptr" uninitialized are grouped and reported on the line below,
 	// which is not correct. This should be fixed after https://github.com/uber-go/nilaway/issues/29 is implemented,
 	// and struct init producer expressions are updated accordingly with the original AST expressions.
 	// ERR_GROUP: represents a group of errors that are reported on the next line
-	print(b.aptr.ptr) //want "unassigned at struct initialization (.|\n)* potential nil panic\\(s\\) at 6 other place\\(s\\)"
+	print(b.aptr.ptr) //want "uninitialized (.|\n)* potential nil panic\\(s\\) at 6 other place\\(s\\)"
 }
 
 func m2() {
@@ -96,7 +96,7 @@ func m15() {
 // this test checks that we only get error for `b` being nil, and not for its uninitialized fields
 func m16() {
 	var b *A
-	print(b.aptr.ptr) //want "read from a variable that was never assigned to"
+	print(b.aptr.ptr) //want "unassigned variable `b`"
 }
 
 // Testing unnamed struct

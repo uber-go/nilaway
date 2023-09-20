@@ -46,7 +46,7 @@ func foo(a, b *bar, c *bar, d, e *bar) (f, g *bar, h *bar) {
 	myBar.jar = a
 	myBar.karp = a
 	myBar.lug = a
-	myBar.myr = a //want "assigned into the field `myr`"
+	myBar.myr = a //want "assigned into field `myr`"
 
 	myBar.jar = b
 	myBar.karp = b
@@ -56,7 +56,7 @@ func foo(a, b *bar, c *bar, d, e *bar) (f, g *bar, h *bar) {
 	myBar.jar = c
 	myBar.karp = c
 	myBar.lug = c
-	myBar.myr = c //want "assigned into the field `myr`"
+	myBar.myr = c //want "assigned into field `myr`"
 
 	myBar.jar = d
 	myBar.karp = d
@@ -66,19 +66,19 @@ func foo(a, b *bar, c *bar, d, e *bar) (f, g *bar, h *bar) {
 	myBar.jar = e
 	myBar.karp = e
 	myBar.lug = e
-	myBar.myr = e //want "assigned into the field `myr`"
+	myBar.myr = e //want "assigned into field `myr`"
 
 	switch 0 {
 	case 1:
-		return a, a, a //want "returned from the function `foo` in position 1"
+		return a, a, a //want "returned from `foo.*` in position 1"
 	case 2:
 		return b, b, b
 	case 3:
-		return c, c, c //want "returned from the function `foo` in position 1"
+		return c, c, c //want "returned from `foo.*` in position 1"
 	case 4:
 		return d, d, d
 	default:
-		return e, e, e //want "returned from the function `foo` in position 1"
+		return e, e, e //want "returned from `foo.*` in position 1"
 	}
 }
 
@@ -152,8 +152,8 @@ func testMultiStructDecl(m1 *multiStructOne, m2 *multiStructTwo) *A {
 		return b2 //want "returned"
 	default:
 		m1.a = nil
-		m1.b = nil //want "assigned into the field"
-		m2.a = nil //want "assigned into the field"
+		m1.b = nil //want "assigned into field"
+		m2.a = nil //want "assigned into field"
 		m2.b = nil
 		return &A{}
 	}

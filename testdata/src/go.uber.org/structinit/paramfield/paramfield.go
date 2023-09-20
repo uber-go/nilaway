@@ -40,7 +40,7 @@ func callF12() {
 }
 
 func f12(c *A) {
-	print(c.aptr.ptr) //want "field `aptr` of param 0 of `f12`"
+	print(c.aptr.ptr) //want "field `aptr` of argument 0 to `f12.*`"
 }
 
 // Negative test
@@ -86,7 +86,7 @@ func callF14() {
 }
 
 func f14(c *A) {
-	print(c.aptr.ptr) //want "field `aptr` of param 0 of `f14`"
+	print(c.aptr.ptr) //want "field `aptr` of argument 0 to `f14.*`"
 }
 
 // Positive example with direct composite as parameter
@@ -99,7 +99,7 @@ func callF15() {
 }
 
 func f15(c *A) {
-	print(c.aptr.ptr) //want "field `aptr` of argument 0 to call to function `f15`"
+	print(c.aptr.ptr) //want "field `aptr` of argument 0 to `f15.*`"
 }
 
 // Negative example with direct composite as parameter

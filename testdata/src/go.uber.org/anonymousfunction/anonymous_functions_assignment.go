@@ -19,14 +19,14 @@ package anonymousfunction
 func testSimpleAssignment() {
 	var t1 *int
 	a := func() {
-		print(*t1) //want "read from a variable that was never assigned to"
+		print(*t1) //want "unassigned variable `t1`"
 	}
 	a() // at this call t1 is nil
 
 	var t2 *int
 	b := func() {
 		print(*t1)
-		print(*t2) //want "read from the function parameter `t2`"
+		print(*t2) //want "function parameter `t2` dereferenced"
 	}
 
 	i := 1
@@ -39,9 +39,9 @@ func testSimpleAssignment() {
 func testAssignOneToOneAssingments() {
 	var t1 *int
 	a, b := func(t *int) {
-		print(*t) //want "read from a variable that was never assigned to"
+		print(*t) //want "unassigned variable `t1`"
 	}, func(t2 *int) {
-		print(*t2) //want "read from a variable that was never assigned to"
+		print(*t2) //want "unassigned variable `t1`"
 	}
 	a(t1)
 	b(t1)
@@ -52,12 +52,12 @@ func testNestedAnonymousFuncAssignment() {
 	var t1 *int
 	var t2 *int
 	a := func() {
-		print(*t1) //want "read from a variable that was never assigned to"
+		print(*t1) //want "unassigned variable `t1`"
 		var t2 *int
-		print(*t2) //want "read from a variable that was never assigned to"
+		print(*t2) //want "unassigned variable `t2`"
 		b := func() {
-			print(*t1) //want "read from a variable that was never assigned to"
-			print(*t2) //want "read from a variable that was never assigned to"
+			print(*t1) //want "unassigned variable `t1`"
+			print(*t2) //want "unassigned variable `t2`"
 			if t2 != nil {
 				print(*t2) // this is ok
 			}
@@ -74,12 +74,12 @@ func testImplicitAndExplicitArguments() {
 	var t1 *int
 	var t2 *int
 	f := func(t *int) {
-		print(*t) //want "read from a variable that was never assigned to"
+		print(*t) //want "unassigned variable `t2`"
 		// the following erros are for t3 and p2
 		g := func(p *int) {
 			print(*t)
-			print(*p)  //want "read from a variable that was never assigned to"
-			print(*t2) //want "read from a variable that was never assigned to"
+			print(*p)  //want "unassigned variable `t1`"
+			print(*t2) //want "unassigned variable `t2`"
 		}
 		i := 1
 		t = &i
@@ -95,7 +95,7 @@ func testShadowedClosureVariable() {
 	b := &i
 
 	func() {
-		print(*a) //want "read from a variable that was never assigned to"
+		print(*a) //want "unassigned variable `a`"
 		func(a *int) {
 			print(*a) // this is actually ok since `a` is shadowed and we are passing a nonnil argument at the call site.
 		}(b)

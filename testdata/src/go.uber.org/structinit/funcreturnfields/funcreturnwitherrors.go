@@ -47,7 +47,7 @@ func m88() *int {
 		return new(int)
 	}
 	// This should give an error
-	return t.aptr.ptr //want "field `aptr` of return of the function `giveEmptyACompositeWithErr2`"
+	return t.aptr.ptr //want "accessed field `ptr`"
 }
 
 // Testing interaction with error semantics: 3.
@@ -66,7 +66,7 @@ func m78() *int {
 		return new(int)
 	}
 	// This should give an error
-	return t.aptr.ptr //want "field `aptr` of return of the function `giveEmptyACompositeWithErr3`"
+	return t.aptr.ptr //want "accessed field `ptr`"
 }
 
 // Testing interaction with error semantics: 4.
@@ -116,7 +116,7 @@ func m68() *int {
 		return new(int)
 	}
 	// This should give an error
-	return t.aptr.ptr //want "field `aptr` of return of the function `giveEmptyACompositeWithErr6`"
+	return t.aptr.ptr //want "accessed field `ptr`"
 }
 
 // test case for named return
@@ -128,6 +128,6 @@ func m98() (a *A11, e error) {
 func callM98() {
 	t, err := m98()
 	if err == nil {
-		print(t.aptr.ptr) //want "field `aptr` of return of the function `m98`"
+		print(t.aptr.ptr) //want "field `aptr` returned by result 0 of `m98.*`"
 	}
 }

@@ -141,8 +141,8 @@ func (r *RootAssertionNode) getFieldProducersForFuncReturns(calledFuncDecl *type
 			retKey := annotation.NewRetFldAnnKey(calledFuncDecl, retNum, fieldDecl)
 
 			fieldProducer := &annotation.ProduceTrigger{
-				Annotation: annotation.TriggerIfNilable{
-					Ann: retKey,
+				Annotation: annotation.FldReturn{
+					TriggerIfNilable: annotation.TriggerIfNilable{Ann: retKey},
 				},
 			}
 
@@ -411,8 +411,10 @@ func (r *RootAssertionNode) addProductionForFuncCallArgFieldsAtIndex(arg ast.Exp
 			if paramFieldKey != nil {
 				r.AddProduction(
 					&annotation.ProduceTrigger{
-						Annotation: annotation.TriggerIfNilable{
-							Ann: paramFieldKey,
+						Annotation: annotation.ParamFldRead{
+							TriggerIfNilable: annotation.TriggerIfNilable{
+								Ann: paramFieldKey,
+							},
 						},
 						Expr: selExpr})
 			}
@@ -469,7 +471,9 @@ func (r *RootAssertionNode) addConsumptionsForFieldsOfParam(param *types.Var, pa
 				r.AddConsumption(&annotation.ConsumeTrigger{
 					Annotation: annotation.ArgFldPass{
 						TriggerIfNonNil: annotation.TriggerIfNonNil{
-							Ann: paramFieldKey}},
+							Ann: paramFieldKey},
+						IsPassed: true,
+					},
 					Expr:   selExpr,
 					Guards: util.NoGuards(),
 				})

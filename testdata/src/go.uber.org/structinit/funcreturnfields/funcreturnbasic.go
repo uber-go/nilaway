@@ -58,7 +58,7 @@ func giveEmptyA12() *A12 {
 
 func m12() *int {
 	var b = giveEmptyA12()
-	return b.aptr.ptr //want "unassigned at struct initialization"
+	return b.aptr.ptr //want "uninitialized"
 }
 
 // Testing function with multiple returns
@@ -73,7 +73,7 @@ func giveOneEmptyAndOneNonEmptyA12() (*A12, *A12) {
 
 func m123() {
 	var b1, b2 = giveOneEmptyAndOneNonEmptyA12()
-	print(b1.aptr.ptr, b2.aptr.ptr) //want "unassigned at struct initialization"
+	print(b1.aptr.ptr, b2.aptr.ptr) //want "uninitialized"
 }
 
 // Testing function with multiple returns
@@ -84,7 +84,7 @@ func giveTwoEmptyA12() (*A12, *A12) {
 
 func m124() {
 	var b1, b2 = giveTwoEmptyA12()
-	print(b1.aptr.ptr, b2.aptr.ptr) //want "unassigned at struct initialization" "unassigned at struct initialization"
+	print(b1.aptr.ptr, b2.aptr.ptr) //want "uninitialized" "uninitialized"
 }
 
 // Testing function with multiple returns
@@ -107,7 +107,7 @@ func giveEmptyA122(someInt int) *A12 {
 
 func m122(someInt int) *int {
 	var b = giveEmptyA122(someInt)
-	return b.aptr.ptr //want "field `aptr` of return of the function `giveEmptyA122`"
+	return b.aptr.ptr //want "accessed field `ptr`"
 }
 
 // In this test case, B12 is named type
@@ -121,7 +121,7 @@ func giveEmptyB12() *B12 {
 
 func mb12() *int {
 	var b = giveEmptyB12()
-	return b.aptr.ptr //want "field `aptr` of return of the function `giveEmptyB12`"
+	return b.aptr.ptr //want "accessed field `ptr`"
 }
 
 // In this test case, B122 is named type
@@ -135,7 +135,7 @@ func giveEmptyB122() *B122 {
 
 func mb122() *int {
 	var b = giveEmptyB122()
-	return b.aptr.ptr //want "field `aptr` of return of the function `giveEmptyB122`"
+	return b.aptr.ptr //want "accessed field `ptr`"
 }
 
 // In the following test case we have an anonymous field from different package

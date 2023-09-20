@@ -21,7 +21,7 @@ values
 */
 package namedreturn
 
-func foo1() (i *int) { //want "named return value `i` in position 0"
+func foo1() (i *int) { //want "returned from `foo1.*` via named return `i`"
 	return
 }
 
@@ -30,13 +30,13 @@ func foo2() (i *int) {
 	return
 }
 
-func foo3() (i, j *int) { //want "named return value `j` in position 1"
+func foo3() (i, j *int) { //want "returned from `foo3.*` via named return `j`"
 	x := 1
 	i = &x
 	return
 }
 
-func foo4(x int, y string) (k bool, i *int, s *string, a []int) { //want "named return value `s` in position 2" "named return value `i` in position 1" "named return value `i` in position 1" "named return value `s` in position 2" "named return value `i` in position 1" "named return value `s` in position 2"
+func foo4(x int, y string) (k bool, i *int, s *string, a []int) { //want "named return `s`" "named return `i`" "named return `i`" "named return `s`" "named return `i`" "named return `s`"
 	switch x {
 	case 0:
 		return k, i, s, a //want "returned" "returned"
@@ -57,7 +57,7 @@ func foo4(x int, y string) (k bool, i *int, s *string, a []int) { //want "named 
 	return // (error is reported for `i` and `s` at function declaration)
 }
 
-func foo5(n int) (i *int) { //want "named return value `i` in position 0"
+func foo5(n int) (i *int) { //want "named return `i`"
 	if n > 0 {
 		x := 1
 		i := &x
@@ -66,14 +66,14 @@ func foo5(n int) (i *int) { //want "named return value `i` in position 0"
 	return
 }
 
-func foo6() (i, j *int) { //want "named return value `j` in position 1"
+func foo6() (i, j *int) { //want "named return `j`"
 	x := 1
 	i, k := &x, 0
 	func(...any) {}(i, k)
 	return
 }
 
-func foo7() (i, j *int) { //want "named return value `i` in position 0" "named return value `j` in position 1"
+func foo7() (i, j *int) { //want "named return `i`" "named return `j`"
 	x := 1
 	if true {
 		i := &x
@@ -82,7 +82,7 @@ func foo7() (i, j *int) { //want "named return value `i` in position 0" "named r
 	return
 }
 
-func foo8(x string) (_ *int) { //want "named return value `_` in position 0"
+func foo8(x string) (_ *int) { //want "named return `_`"
 	return
 }
 
@@ -101,7 +101,7 @@ func foo10() (x *int, _ error) {
 	return
 }
 
-func foo11() (x *int, _ error) { //want "named return value `x` in position 0"
+func foo11() (x *int, _ error) { //want "named return `x`"
 	return
 }
 
@@ -150,14 +150,14 @@ func retsNonnilNilableWithErr2(x *int, y *int) (r0 *int, r1 *int, e error) {
 }
 
 // nilable(x, r1)
-func retsNonnilNilableWithErr3(x *int, y *int) (r0 *int, r1 *int, e error) { //want "named return value `r0` in position 0"
+func retsNonnilNilableWithErr3(x *int, y *int) (r0 *int, r1 *int, e error) { //want "named return `r0`"
 	// this error case indicates that if we return nil as our error and as a
 	// non-nilable result, that result will be interpreted as an error
 	return
 }
 
 // nilable(x, r1)
-func retsNonnilNilableWithErr4(x *int, y *int) (r0 *int, r1 *int, e error) { //want "named return value `r0` in position 0"
+func retsNonnilNilableWithErr4(x *int, y *int) (r0 *int, r1 *int, e error) { //want "named return `r0`"
 	i := 0
 	switch 0 {
 	case 7:
@@ -177,7 +177,7 @@ func retsNonnilNilableWithErr4(x *int, y *int) (r0 *int, r1 *int, e error) { //w
 }
 
 // nilable(x, r1)
-func retsNonnilNilableWithErr5(x *int, y *int) (r0 *int, r1 *int, e error) { //want "named return value `r0` in position 0"
+func retsNonnilNilableWithErr5(x *int, y *int) (r0 *int, r1 *int, e error) { //want "named return `r0`"
 	// this illustrates that an unassigned local error variable is interpreted as nil based on its zero value
 	var e2 error
 	e = e2
@@ -185,7 +185,7 @@ func retsNonnilNilableWithErr5(x *int, y *int) (r0 *int, r1 *int, e error) { //w
 }
 
 // nilable(x, r1)
-func retsNonnilNilableWithErr6(x *int, y *int) (r0 *int, r1 *int, e error) { //want "named return value `r0` in position 0"
+func retsNonnilNilableWithErr6(x *int, y *int) (r0 *int, r1 *int, e error) { //want "named return `r0`"
 	// this is similar to the above case - but makes sure that computations in non-error results
 	// are not ignored
 	r0 = takesNonnilRetsNilable(nil) //want "passed"

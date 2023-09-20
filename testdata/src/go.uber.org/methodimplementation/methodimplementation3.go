@@ -23,7 +23,7 @@ package methodimplementation
 
 type I3 interface {
 	// nilable(x)
-	foo(x *A3) (*A3, string) //want "could be returned as result"
+	foo(x *A3) (*A3, string) //want "returned as result"
 }
 
 type A3 struct {
@@ -31,7 +31,7 @@ type A3 struct {
 }
 
 // nilable(result 0)
-func (A3) foo(x *A3) (*A3, string) { //want "could be passed as param"
+func (A3) foo(x *A3) (*A3, string) { //want "passed as param"
 	var b *A3
 	return b, x.s
 }

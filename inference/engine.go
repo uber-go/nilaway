@@ -534,4 +534,5 @@ func GobRegister() {
 	gob.RegisterName(nextStr(), annotation.MethodRecvPrestring{})
 	gob.RegisterName(nextStr(), annotation.RecvPassPrestring{})
 	gob.RegisterName(nextStr(), annotation.MethodRecvDeepPrestring{})
+	gob.RegisterName(nextStr(), annotation.FldReturnPrestring{})
 }

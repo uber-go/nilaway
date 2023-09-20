@@ -35,7 +35,7 @@ func m() *A10 {
 
 func m3(a *A10) {
 	// relies on default annotation of field aptr since we don't track field at depth >=2
-	print(a.aptr.aptr.ptr) //want "read from the field `aptr`"
+	print(a.aptr.aptr.ptr) //want "accessed field `ptr`"
 }
 
 // This should give an error since aptr escapes
@@ -46,7 +46,7 @@ type A11 struct {
 }
 
 func m11(c *A11) {
-	print(c.aptr.aptr.ptr) //want "escaped field `aptr`"
+	print(c.aptr.aptr.ptr) //want "field `aptr` escaped"
 }
 
 func callEscape() {
@@ -78,7 +78,7 @@ type A13 struct {
 }
 
 func m13(c *A13) {
-	print(c.aptr.aptr.ptr) //want "escaped field `aptr`"
+	print(c.aptr.aptr.ptr) //want "field `aptr` escaped"
 }
 
 func escape13() *A13 {
@@ -103,7 +103,7 @@ type C14 struct {
 
 func m21(c *A14) {
 	// relies on default annotation of field cptr
-	print(c.bptr.cptr.ptr) //want "escaped field `cptr`"
+	print(c.bptr.cptr.ptr) //want "field `cptr` escaped"
 }
 
 func escape14(a *B14) {

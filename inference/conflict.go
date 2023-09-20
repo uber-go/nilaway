@@ -69,16 +69,19 @@ func newNode(p annotation.Prestring, c annotation.Prestring) node {
 
 func (n *node) String() string {
 	posStr := "<no pos info>"
-	reasonStr := "<no reason info>"
+	reasonStr := ""
 	if n.consumerPosition.IsValid() {
 		posStr = n.consumerPosition.String()
 	}
-	if len(n.producerRepr) > 0 && len(n.consumerRepr) > 0 {
-		reasonStr = n.producerRepr + " " + n.consumerRepr
-	} else if len(n.producerRepr) > 0 {
-		reasonStr = n.producerRepr
-	} else if len(n.consumerRepr) > 0 {
-		reasonStr = n.consumerRepr
+
+	if len(n.producerRepr) > 0 {
+		reasonStr += n.producerRepr
+	}
+	if len(n.consumerRepr) > 0 {
+		if len(n.producerRepr) > 0 {
+			reasonStr += " "
+		}
+		reasonStr += n.consumerRepr
 	}
 
 	return fmt.Sprintf("\t-> %s: %s", posStr, reasonStr)
@@ -103,18 +106,18 @@ func (n *nilFlow) addNonNilPathNode(p annotation.Prestring, c annotation.Prestri
 
 // String converts a nilFlow to a string representation, where each entry is the flow of the form: `<pos>: <reason>`
 func (n *nilFlow) String() string {
+	var allNodes []node
+	allNodes = append(allNodes, n.nilPath...)
+	allNodes = append(allNodes, n.nonnilPath...)
+
 	var flow []string
-	for _, nodes := range [...][]node{n.nilPath, n.nonnilPath} {
-		for _, nodeObj := range nodes {
-			flow = append(flow, nodeObj.String())
-		}
+	for _, nodeObj := range allNodes {
+		flow = append(flow, nodeObj.String())
 	}
 	return "\n" + strings.Join(flow, "\n")
 }
 
 func (c *conflict) String() string {
-	consumerPos := c.flow.nonnilPath[len(c.flow.nonnilPath)-1].consumerPosition
-
 	// build string for similar conflicts (i.e., conflicts with the same nil path)
 	similarConflictsString := ""
 	if len(c.similarConflicts) > 0 {
@@ -133,8 +136,8 @@ func (c *conflict) String() string {
 			"other place(s): %s.)", len(c.similarConflicts), posString)
 	}
 
-	return fmt.Sprintf(" Potential nil panic at \"%s\". Observed nil flow from "+
-		"source to dereference: %s%s", consumerPos.String(), c.flow.String(), similarConflictsString)
+	return fmt.Sprintf("Potential nil panic detected. Observed nil flow from "+
+		"source to dereference point: %s%s\n", c.flow.String(), similarConflictsString)
 }
 
 func (c *conflict) addSimilarConflict(conflict conflict) {
@@ -280,7 +283,7 @@ func groupConflicts(allConflicts []conflict) []conflict {
 		}
 	}
 
-	// update groupedConflicts list with grouped groupedConflicts                                                                                            String         ts
+	// update groupedConflicts list with grouped groupedConflicts
 	var groupedConflicts []conflict
 	for i, c := range allConflicts {
 		if _, ok := indicesToIgnore[i]; !ok {

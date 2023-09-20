@@ -46,7 +46,7 @@ func m12() *int {
 	b := &A{}
 	b.aptr = &A{}
 	populate12(b)
-	print(b.newPtr.ptr) //want "field `newPtr` of argument 0 to call to function `populate12`"
+	print(b.newPtr.ptr) //want "field `newPtr` of argument 0 to `populate12.*`"
 	return b.aptr.ptr
 }
 
@@ -117,7 +117,7 @@ func m14() *int {
 	b := &A{}
 	b.newPtr = &A{}
 	populate14(b)
-	return b.newPtr.ptr //want "field `newPtr` of argument 0 to call to function `populate14`"
+	return b.newPtr.ptr //want "field `newPtr` of argument 0 to `populate14.*`"
 }
 
 // negative case
@@ -144,7 +144,7 @@ func initializeSecond(a1 *A, a2 *A) {
 func caller2() {
 	a := &A{}
 	initializeSecond(a, a)
-	print(a.aptr.ptr) //want "field `aptr` of argument 0 to call to function `initializeSecond`"
+	print(a.aptr.ptr) //want "field `aptr` of argument 0 to `initializeSecond.*`"
 }
 
 // Another case of identical arguments to function call: False negative

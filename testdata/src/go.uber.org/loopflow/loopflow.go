@@ -76,7 +76,7 @@ func infiniteAssertion() {
 		a = a.f
 	}
 	for dummyBool() {
-		a = a.f //want "passed to a field access"
+		a = a.f //want "accessed field `f`"
 	}
 }
 
