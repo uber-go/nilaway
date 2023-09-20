@@ -25,8 +25,8 @@ import (
 )
 
 type conflict struct {
-	pos  token.Pos // stores position where the error should be reported (note that this field is used only within the current, and should NOT be exported)
-	flow nilFlow   // stores nil flow from source to dereference point
+	pos              token.Pos   // stores position where the error should be reported (note that this field is used only within the current, and should NOT be exported)
+	flow             nilFlow     // stores nil flow from source to dereference point
 	similarConflicts []*conflict // stores other conflicts that are similar to this one
 }
 
@@ -99,14 +99,6 @@ func (n *nilFlow) addNilPathNode(p annotation.Prestring, c annotation.Prestring)
 func (n *nilFlow) addNonNilPathNode(p annotation.Prestring, c annotation.Prestring) {
 	nodeObj := newNode(p, c)
 	n.nonnilPath = append(n.nonnilPath, nodeObj)
-}
-
-func pathString(nodes []node) string {
-	path := ""
-	for _, n := range nodes {
-		path += n.String()
-	}
-	return path
 }
 
 // String converts a nilFlow to a string representation, where each entry is the flow of the form: `<pos>: <reason>`
@@ -247,18 +239,26 @@ func (l *conflictList) diagnostics() []analysis.Diagnostic {
 	return diagnostics
 }
 
+func pathString(nodes []node) string {
+	path := ""
+	for _, n := range nodes {
+		path += n.String()
+	}
+	return path
+}
+
 // groupConflicts groups conflicts with the same nil path together and update conflicts list.
 func groupConflicts(allConflicts []conflict) []conflict {
 	conflictsMap := make(map[string]int)  // key: nil path string, value: index in `allConflicts`
 	indicesToIgnore := make(map[int]bool) // indices of conflicts to be ignored from `allConflicts`, since they are grouped with other conflicts
 
 	for i, c := range allConflicts {
-		key := pathString(c.nilFlow.nilPath)
+		key := pathString(c.flow.nilPath)
 
 		// Handle the case of single assertion conflict separately
-		if len(c.nilFlow.nilPath) == 0 && len(c.nilFlow.nonnilPath) == 1 {
+		if len(c.flow.nilPath) == 0 && len(c.flow.nonnilPath) == 1 {
 			// This is the case of single assertion conflict. Use producer position and repr from the non-nil path as the key.
-			if p := c.nilFlow.nonnilPath[0]; p.producerPosition.IsValid() {
+			if p := c.flow.nonnilPath[0]; p.producerPosition.IsValid() {
 				key = p.producerPosition.String() + ": " + p.producerRepr
 			}
 		}
