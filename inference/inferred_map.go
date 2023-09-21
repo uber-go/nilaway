@@ -156,7 +156,7 @@ func (i *InferredMap) Export(pass *analysis.Pass) {
 	}
 
 	if len(exported) > 0 {
-		// We do not need to encode the primitiver since it is just a helper for the analysis of
+		// We do not need to encode the primitivizer since it is just a helper for the analysis of
 		// the current package.
 		m := newInferredMap(nil /* primitive */)
 		m.mapping = exported
