@@ -462,7 +462,7 @@ type LocalVarAnnotationKey struct {
 
 // Lookup looks this key up in the passed map, returning a Val
 // TODO: Add support for local variables with no inference (Currently, only works with inference)
-func (lk LocalVarAnnotationKey) Lookup(annMap Map) (Val, bool) {
+func (lk LocalVarAnnotationKey) Lookup(_ Map) (Val, bool) {
 	return nonAnnotatedDefault, false
 }
 
