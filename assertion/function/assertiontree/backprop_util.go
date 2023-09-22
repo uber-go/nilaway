@@ -578,9 +578,6 @@ func exprAsAssignmentConsumer(rootNode *RootAssertionNode, expr ast.Node, exprRH
 							},
 						},
 					}, nil
-					// return annotation.LocalVarAssignDeep{
-					// 	LocalVar: varObj,
-					// }, nil
 				}
 				return &annotation.DeepAssignPrimitive{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}}, nil
 			}
