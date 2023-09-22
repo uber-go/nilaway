@@ -531,9 +531,16 @@ func exprAsAssignmentConsumer(rootNode *RootAssertionNode, expr ast.Node, exprRH
 				if ident, ok := expr.(*ast.Ident); ok {
 					varObj := rootNode.ObjectOf(ident).(*types.Var)
 					return &annotation.LocalVarAssignDeep{
-						ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{},
-						LocalVar:                varObj,
+						TriggerIfDeepNonNil: &annotation.TriggerIfDeepNonNil{
+							Ann: &annotation.LocalVarAnnotationKey{
+								VarDecl: varObj,
+							},
+						},
+						LocalVar: varObj,
 					}, nil
+					// return annotation.LocalVarAssignDeep{
+					// 	LocalVar: varObj,
+					// }, nil
 				}
 				return &annotation.DeepAssignPrimitive{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}}, nil
 			}
