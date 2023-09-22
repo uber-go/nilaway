@@ -116,7 +116,6 @@ func DeepNilabilityOfVar(fdecl *types.Func, v *types.Var) ProducingAnnotationTri
 					VarDecl: v,
 				},
 			},
-			ReadVar:    v,
 			NeedsGuard: util.TypeIsDeeplyMap(v.Type())}
 	}
 	// otherwise, the deep nilability of this variable is either that of its named type,

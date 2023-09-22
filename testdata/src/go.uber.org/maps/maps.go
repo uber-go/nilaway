@@ -58,9 +58,9 @@ func testMapNilability(nilableMapParam, nonnilMapParam map[int]*int) *int {
 	nonnilMapParam[0] = nil  //want "assigned"
 	nonnilMapParam[1] = &i
 
-	nilableMapResult[0] = nil //want "assigned" "written to at an index"
+	nilableMapResult[0] = nil //want "written to at an index"
 	nilableMapResult[1] = &i  //want "written to at an index"
-	nonnilMapResult[0] = nil  //want "assigned"
+	nonnilMapResult[0] = nil
 	nonnilMapResult[1] = &i
 
 	switch 0 {
