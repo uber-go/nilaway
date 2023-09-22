@@ -42,7 +42,7 @@ func retsNilableNonnilMaps() (map[int]*int, map[int]*int) {
 	}
 }
 
-// nonnil(nonnilMapParam)
+// nonnil(nonnilMapParam, nonnilMapParam[])
 func testMapNilability(nilableMapParam, nonnilMapParam map[int]*int) *int {
 	nilableMapResult, nonnilMapResult := retsNilableNonnilMaps()
 

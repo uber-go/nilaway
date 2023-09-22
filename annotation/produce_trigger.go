@@ -1187,14 +1187,15 @@ func (f FldReadDeepPrestring) String() string {
 // LocalVarReadDeep is when a value is determined to flow deeply from a local variable. It is never nilable
 // if appropriately guarded.
 type LocalVarReadDeep struct {
-	*ProduceTriggerNever
-	ReadVar *types.Var
+	*TriggerIfDeepNilable
+	NeedsGuard bool
+	ReadVar    *types.Var
 }
 
 // equals returns true if the passed ProducingAnnotationTrigger is equal to this one
 func (v *LocalVarReadDeep) equals(other ProducingAnnotationTrigger) bool {
 	if other, ok := other.(*LocalVarReadDeep); ok {
-		return v.ProduceTriggerNever.equals(other.ProduceTriggerNever) &&
+		return v.TriggerIfDeepNilable.equals(other.TriggerIfDeepNilable) &&
 			v.ReadVar == other.ReadVar
 	}
 	return false
@@ -1211,7 +1212,7 @@ type LocalVarReadDeepPrestring struct {
 }
 
 func (v LocalVarReadDeepPrestring) String() string {
-	return fmt.Sprintf("deep read from variable `%s`", v.VarName)
+	return fmt.Sprintf("deep read from local variable `%s`", v.VarName)
 }
 
 // GlobalVarReadDeep is when a value is determined to flow from the deep Annotation of a global variable

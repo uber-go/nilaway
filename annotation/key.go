@@ -455,6 +455,28 @@ func (gk *GlobalVarAnnotationKey) String() string {
 	return fmt.Sprintf("Global Variable %s", gk.VarDecl.Name())
 }
 
+// LocalVarAnnotationKey allows the Lookup of a global variable's annotations in the Annotation Map
+type LocalVarAnnotationKey struct {
+	VarDecl *types.Var
+}
+
+// Lookup looks this key up in the passed map, returning a Val
+func (lk LocalVarAnnotationKey) Lookup(annMap Map) (Val, bool) {
+	// if typeVal, ok := annMap.CheckGlobalVarAnn(lk.VarDecl); ok {
+	// 	return typeVal, true
+	// }
+	return nonAnnotatedDefault, false
+}
+
+// Object returns the types.Object that this annotation can best be interpreted as annotating
+func (lk LocalVarAnnotationKey) Object() types.Object {
+	return lk.VarDecl
+}
+
+func (lk LocalVarAnnotationKey) String() string {
+	return fmt.Sprintf("Local Variable %s", lk.VarDecl.Name())
+}
+
 // RetFieldAnnotationKey allows the Lookup of the Annotation on a specific field within a function's return of struct
 // (or pointer to struct) type, in the Annotation Map. This key is only effective when the struct initialization checking
 // is enabled.
