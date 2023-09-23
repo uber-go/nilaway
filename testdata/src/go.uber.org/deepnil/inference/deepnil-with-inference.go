@@ -16,37 +16,88 @@
 
 package inference
 
-func testLocalDeepAssignNil(i int) {
-	m := make(map[int]*string)
-	sl := make([]*int, 1)
+var dummy bool
 
+var globalNil *int = nil
+
+func retNil() *int {
+	return nil
+}
+
+func retNilSometimes() *int {
+	if dummy {
+		return nil
+	}
+	return new(int)
+}
+
+func testLocalDeepAssignNil(i int) {
 	switch i {
 	case 0:
+		m := make(map[int]*int)
 		m[0] = nil
 		if v, ok := m[0]; ok {
 			_ = *v //want "literal `nil` dereferenced"
 		}
+		if m[0] != nil {
+			_ = *m[0]
+		}
 
 	case 1:
-		m[0] = nil
+		m := make(map[int]*int)
+		m[0] = globalNil
 		if v, ok := m[0]; ok && v != nil {
 			_ = *v
+		} else {
+			_ = *v //want "global variable `globalNil` dereferenced"
 		}
 
 	case 2:
+		m := make(map[int]*int)
 		m[i] = nil
 		if v, ok := m[i]; ok {
-			_ = *v //want "deep read from local variable `m` dereferenced"
+			_ = *v //want "deep read from variable `m` dereferenced"
+		}
+		// m[i] is not recognized as a stable expression, hence an error is reported here.
+		if m[i] != nil {
+			_ = *m[i] //want "deep read from variable `m` lacking guarding"
 		}
 
 	case 3:
-		m[i] = nil
+		m := make(map[int]*int)
+		m[i] = retNilSometimes()
 		if v, ok := m[i]; ok && v != nil {
 			_ = *v
+		} else {
+			_ = *v //want "deep read from variable `m` lacking guarding"
 		}
 
 	case 4:
+		sl := make([]*int, 1)
 		sl[0] = nil
 		_ = *sl[0] //want "literal `nil` dereferenced"
+
+		sl[0] = new(int)
+		_ = *sl[0]
+
+	case 5:
+		sl := make([]*int, 1)
+		sl[i] = nil
+		_ = *sl[i] //want "deep read from variable `sl` dereferenced"
+
+	case 6:
+		sl := make([]*int, 1)
+		sl[0] = retNil()
+		_ = *sl[0] //want "result 0 of `ret.*` dereferenced"
+
+	case 7:
+		sl := make([]*int, 1)
+		sl[i] = retNilSometimes()
+		_ = *sl[i] //want "deep read from variable `sl` dereferenced"
+
+	case 8:
+		ch := make(chan *int)
+		ch <- nil
+		_ = *(<-ch) //want "deep read from variable `ch` dereferenced"
 	}
 }
