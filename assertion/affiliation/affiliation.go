@@ -199,7 +199,9 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysis.Pass, upstre
 								appendTypeToTypeTriggers(valueType, util.TypeOf(pass, kv.Value))
 							}
 						}
-					case *ast.Ident:
+						// TODO: uncomment below piece of code after thorough performance testing, and add "want" strings in
+						// testdata/methodimplementation/embedding/embedding.go.
+						/*case *ast.Ident:
 						// A struct field (embedded or explicit) declared of type interface, and initialized with a struct
 						// e.g., var i I = S{t:&T{}}, where `type S struct { t J }`. (Here I and J are interfaces,
 						// and S and T are structs implementing them, respectively.)
@@ -220,7 +222,7 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysis.Pass, upstre
 							if lhsType != nil && rhsType != nil {
 								appendTypeToTypeTriggers(lhsType, rhsType)
 							}
-						}
+						}*/
 					}
 				case *ast.FuncLit:
 					// TODO: Nilability analysis support for anonymous functions is currently not

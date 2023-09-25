@@ -165,7 +165,7 @@ func testRecursion() *int {
 
 // below test checks embedding of multiple interfaces within a struct, and embedding of interfaces within an interface
 type J interface {
-	bar() *int //want "returned" "returned"
+	bar() *int //want "returned"
 }
 
 type A9 struct {
@@ -175,7 +175,7 @@ type A9 struct {
 
 type B9 struct{}
 
-func (B9) foo(x *int) *int { //want "passed as parameter"
+func (B9) foo(x *int) *int {
 	return x
 }
 
@@ -217,7 +217,7 @@ func testEmbeddingInterfaceInInterface() {
 // below test checks embedding of interface within a struct
 type A8 struct{}
 
-func (*A8) foo(x *int) *int { //want "passed as parameter"
+func (*A8) foo(x *int) *int {
 	return x
 }
 
@@ -242,7 +242,7 @@ type D8 struct {
 
 type E8 struct{}
 
-func (*E8) foo(x *int) *int { //want "passed as parameter"
+func (*E8) foo(x *int) *int {
 	return x
 }
 
@@ -281,7 +281,7 @@ type C10 struct {
 
 type D10 struct{}
 
-func (*D10) foo(x *int) *int { //want "passed as parameter"
+func (*D10) foo(x *int) *int {
 	return x
 }
 
@@ -292,7 +292,7 @@ func testNestedStructs() {
 
 // below test checks a non-trivial case simulated from https://github.com/golang/go/pull/60823
 type Conn interface {
-	RemoteAddr() Addr //want "returned"
+	RemoteAddr() Addr
 }
 
 type Addr interface {
