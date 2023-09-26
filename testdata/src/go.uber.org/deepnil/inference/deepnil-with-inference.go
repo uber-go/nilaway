@@ -56,11 +56,11 @@ func testLocalDeepAssignNil(i int) {
 		m := make(map[int]*int)
 		m[i] = nil
 		if v, ok := m[i]; ok {
-			_ = *v //want "deep read from variable `m` dereferenced"
+			_ = *v //want "deep read from local variable `m` dereferenced"
 		}
 		// m[i] is not recognized as a stable expression, hence an error is reported here.
 		if m[i] != nil {
-			_ = *m[i] //want "deep read from variable `m` lacking guarding"
+			_ = *m[i] //want "deep read from local variable `m` lacking guarding"
 		}
 		// m[i] is not recognized as a stable expression, hence an error is reported here.
 		if m[i] != nil {
