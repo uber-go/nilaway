@@ -1209,7 +1209,7 @@ type LocalVarReadDeepPrestring struct {
 }
 
 func (v LocalVarReadDeepPrestring) String() string {
-	return fmt.Sprintf("deep read from variable `%s`", v.VarName)
+	return fmt.Sprintf("deep read from local variable `%s`", v.VarName)
 }
 
 // GlobalVarReadDeep is when a value is determined to flow from the deep Annotation of a global variable
