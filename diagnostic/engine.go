@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package diagnostic hosts the diagnostic engine, which is responsible for collecting the
+// conflicts from annotation-based checks (no-infer mode) and/or inference (full-infer mode) and
+// generating user-friendly diagnostics from those conflicts.
 package diagnostic
 
 import (
