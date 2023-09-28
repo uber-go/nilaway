@@ -16,10 +16,8 @@
 package util
 
 import (
-	"bytes"
 	"fmt"
 	"go/ast"
-	"go/printer"
 	"go/token"
 	"go/types"
 	"regexp"
@@ -451,16 +449,6 @@ func IsLiteral(expr ast.Expr, literals ...string) bool {
 		}
 	}
 	return false
-}
-
-// ExprToString converts AST expression to string
-func ExprToString(e ast.Expr, pass *analysis.Pass) string {
-	var buf bytes.Buffer
-	err := printer.Fprint(&buf, pass.Fset, e)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to convert AST expression to string: %v\n", err))
-	}
-	return buf.String()
 }
 
 // TruncatePosition truncates the prefix of the filename to keep it at the given depth (config.DirLevelsToPrintForTriggers)
