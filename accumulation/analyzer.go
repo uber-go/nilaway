@@ -135,14 +135,13 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 		// determining local and upstream sites in the process. This is guaranteed not to determine any
 		// sites unless we really have a reason they have to be determined.
 		inferenceEngine.ObservePackage(assertionsResult.FullTriggers)
-		inferredMap = inferenceEngine.InferredMap()
-		diagnostics = diagnosticEngine.Diagnostics(true /* grouping */)
+		inferredMap, diagnostics = inferenceEngine.InferredMap(), diagnosticEngine.Diagnostics(true /* grouping */)
 
 	case inference.NoInfer:
 		// In non-inference case - use the classical assertionNode.CheckErrors method to determine error outputs
 		inferredMap = inferenceEngine.InferredMap()
 		checkErrors(assertionsResult.FullTriggers, inferredMap, diagnosticEngine)
-		// Retrieve the diagnostics from the engine. Note that we should not group the
+		// Retrieve the diagnostics from the engine. Note that we do not need to group the
 		// diagnostics for easier unit testing.
 		diagnostics = diagnosticEngine.Diagnostics(false /* grouping */)
 

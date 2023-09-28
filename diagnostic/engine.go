@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package diagnostic hosts the diagnostic engine, which is responsible for collecting the
-// conflicts from annotation-based checks (no-infer mode) and/or inference (full-infer mode) and
-// generating user-friendly diagnostics from those conflicts.
 package diagnostic
 
 import (
+	"fmt"
+	"go/token"
+	"strings"
+
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/inference"
 	"go.uber.org/nilaway/util"
@@ -36,8 +37,7 @@ func NewEngine(pass *analysis.Pass) *Engine {
 }
 
 // Diagnostics generates diagnostics from the internally-stored conflicts. The grouping parameter
-// controls whether the conflicts with the same nil flow -- the part in the complete nil flow going
-// from a nilable source point to the conflict point -- are grouped together for concise reporting.
+// controls whether the conflicts with the same nil path are grouped together for concise reporting.
 func (e *Engine) Diagnostics(grouping bool) []analysis.Diagnostic {
 	conflicts := e.conflicts
 	if grouping {
@@ -46,7 +46,7 @@ func (e *Engine) Diagnostics(grouping bool) []analysis.Diagnostic {
 	}
 
 	// build diagnostics from conflicts
-	diagnostics := make([]analysis.Diagnostic, 0, len(conflicts))
+	var diagnostics []analysis.Diagnostic
 	for _, c := range conflicts {
 		diagnostics = append(diagnostics, analysis.Diagnostic{
 			Pos:     c.pos,
@@ -114,4 +114,167 @@ func (e *Engine) AddOverconstraintConflict(nilReason, nonnilReason inference.Exp
 	}
 
 	e.conflicts = append(e.conflicts, c)
+}
+
+type conflict struct {
+	pos              token.Pos   // stores position where the error should be reported (note that this field is used only within the current, and should NOT be exported)
+	flow             nilFlow     // stores nil flow from source to dereference point
+	similarConflicts []*conflict // stores other conflicts that are similar to this one
+}
+
+type nilFlow struct {
+	nilPath    []node // stores nil path of the flow from nilable source to conflict point
+	nonnilPath []node // stores non-nil path of the flow from conflict point to dereference point
+}
+
+type node struct {
+	producerPosition token.Position
+	consumerPosition token.Position
+	producerRepr     string
+	consumerRepr     string
+}
+
+// newNode creates a new node object from the given producer and consumer Prestrings.
+// LocatedPrestring contains accurate information about the position and the reason why NilAway deemed that position
+// to be nilable. We use it if available, else we use the raw string representation available from the Prestring.
+func newNode(p annotation.Prestring, c annotation.Prestring) node {
+	nodeObj := node{}
+
+	// get producer representation string
+	if l, ok := p.(annotation.LocatedPrestring); ok {
+		nodeObj.producerPosition = l.Location
+		nodeObj.producerRepr = l.Contained.String()
+	} else if p != nil {
+		nodeObj.producerRepr = p.String()
+	}
+
+	// get consumer representation string
+	if l, ok := c.(annotation.LocatedPrestring); ok {
+		nodeObj.consumerPosition = l.Location
+		nodeObj.consumerRepr = l.Contained.String()
+	} else if c != nil {
+		nodeObj.consumerRepr = c.String()
+	}
+
+	return nodeObj
+}
+
+func (n *node) String() string {
+	posStr := "<no pos info>"
+	reasonStr := ""
+	if n.consumerPosition.IsValid() {
+		posStr = n.consumerPosition.String()
+	}
+
+	if len(n.producerRepr) > 0 {
+		reasonStr += n.producerRepr
+	}
+	if len(n.consumerRepr) > 0 {
+		if len(n.producerRepr) > 0 {
+			reasonStr += " "
+		}
+		reasonStr += n.consumerRepr
+	}
+
+	return fmt.Sprintf("\t-> %s: %s", posStr, reasonStr)
+}
+
+// addNilPathNode adds a new node to the nil path.
+func (n *nilFlow) addNilPathNode(p annotation.Prestring, c annotation.Prestring) {
+	nodeObj := newNode(p, c)
+
+	// Note that in the implication graph, we traverse backwards from the point of conflict to the source of nilability.
+	// Therefore, they are added in reverse order from what the program flow would look like. To account for this we
+	// prepend the new node to nilPath because we want to print the program flow in its correct (forward) order.
+	// TODO: instead of prepending here, we can reverse the nilPath slice while printing.
+	n.nilPath = append([]node{nodeObj}, n.nilPath...)
+}
+
+// addNonNilPathNode adds a new node to the non-nil path
+func (n *nilFlow) addNonNilPathNode(p annotation.Prestring, c annotation.Prestring) {
+	nodeObj := newNode(p, c)
+	n.nonnilPath = append(n.nonnilPath, nodeObj)
+}
+
+// String converts a nilFlow to a string representation, where each entry is the flow of the form: `<pos>: <reason>`
+func (n *nilFlow) String() string {
+	var allNodes []node
+	allNodes = append(allNodes, n.nilPath...)
+	allNodes = append(allNodes, n.nonnilPath...)
+
+	var flow []string
+	for _, nodeObj := range allNodes {
+		flow = append(flow, nodeObj.String())
+	}
+	return "\n" + strings.Join(flow, "\n")
+}
+
+func (c *conflict) String() string {
+	// build string for similar conflicts (i.e., conflicts with the same nil path)
+	similarConflictsString := ""
+	if len(c.similarConflicts) > 0 {
+		similarPos := make([]string, len(c.similarConflicts))
+		for i, s := range c.similarConflicts {
+			similarPos[i] = fmt.Sprintf("\"%s\"", s.flow.nonnilPath[len(s.flow.nonnilPath)-1].consumerPosition.String())
+		}
+
+		posString := strings.Join(similarPos[:len(similarPos)-1], ", ")
+		if len(similarPos) > 1 {
+			posString = posString + ", and "
+		}
+		posString = posString + similarPos[len(similarPos)-1]
+
+		similarConflictsString = fmt.Sprintf("\n\n(Same nil source could also cause potential nil panic(s) at %d "+
+			"other place(s): %s.)", len(c.similarConflicts), posString)
+	}
+
+	return fmt.Sprintf("Potential nil panic detected. Observed nil flow from "+
+		"source to dereference point: %s%s\n", c.flow.String(), similarConflictsString)
+}
+
+func (c *conflict) addSimilarConflict(conflict conflict) {
+	c.similarConflicts = append(c.similarConflicts, &conflict)
+}
+
+func pathString(nodes []node) string {
+	path := ""
+	for _, n := range nodes {
+		path += n.String()
+	}
+	return path
+}
+
+// groupConflicts groups conflicts with the same nil path together and update conflicts list.
+func groupConflicts(allConflicts []conflict) []conflict {
+	conflictsMap := make(map[string]int)  // key: nil path string, value: index in `allConflicts`
+	indicesToIgnore := make(map[int]bool) // indices of conflicts to be ignored from `allConflicts`, since they are grouped with other conflicts
+
+	for i, c := range allConflicts {
+		key := pathString(c.flow.nilPath)
+
+		// Handle the case of single assertion conflict separately
+		if len(c.flow.nilPath) == 0 && len(c.flow.nonnilPath) == 1 {
+			// This is the case of single assertion conflict. Use producer position and repr from the non-nil path as the key.
+			if p := c.flow.nonnilPath[0]; p.producerPosition.IsValid() {
+				key = p.producerPosition.String() + ": " + p.producerRepr
+			}
+		}
+
+		if existingConflictIndex, ok := conflictsMap[key]; ok {
+			// Grouping condition satisfied. Add new conflict to `similarConflicts` in `existingConflict`, and update groupedConflicts map
+			allConflicts[existingConflictIndex].addSimilarConflict(c)
+			indicesToIgnore[i] = true
+		} else {
+			conflictsMap[key] = i
+		}
+	}
+
+	// update groupedConflicts list with grouped groupedConflicts
+	var groupedConflicts []conflict
+	for i, c := range allConflicts {
+		if _, ok := indicesToIgnore[i]; !ok {
+			groupedConflicts = append(groupedConflicts, c)
+		}
+	}
+	return groupedConflicts
 }
