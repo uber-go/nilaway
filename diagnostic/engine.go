@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package inference
+package diagnostic
 
 import (
 	"fmt"
@@ -20,9 +20,101 @@ import (
 	"strings"
 
 	"go.uber.org/nilaway/annotation"
+	"go.uber.org/nilaway/inference"
 	"go.uber.org/nilaway/util"
 	"golang.org/x/tools/go/analysis"
 )
+
+// Engine is the main engine for generating diagnostics from conflicts.
+type Engine struct {
+	pass      *analysis.Pass
+	conflicts []conflict
+}
+
+// NewEngine creates a new diagnostic engine.
+func NewEngine(pass *analysis.Pass) *Engine {
+	return &Engine{pass: pass}
+}
+
+// Diagnostics generates diagnostics from the internally-stored conflicts. The grouping parameter
+// controls whether the conflicts with the same nil path are grouped together for concise reporting.
+func (e *Engine) Diagnostics(grouping bool) []analysis.Diagnostic {
+	conflicts := e.conflicts
+	if grouping {
+		// group conflicts with the same nil path together for concise reporting
+		conflicts = groupConflicts(e.conflicts)
+	}
+
+	// build diagnostics from conflicts
+	var diagnostics []analysis.Diagnostic
+	for _, c := range conflicts {
+		diagnostics = append(diagnostics, analysis.Diagnostic{
+			Pos:     c.pos,
+			Message: c.String(),
+		})
+	}
+	return diagnostics
+}
+
+// AddSingleAssertionConflict adds a new single assertion conflict to the engine.
+func (e *Engine) AddSingleAssertionConflict(trigger annotation.FullTrigger) {
+	producer, consumer := trigger.Prestrings(e.pass)
+	flow := nilFlow{}
+	flow.addNonNilPathNode(producer, consumer)
+
+	e.conflicts = append(e.conflicts, conflict{
+		pos:  trigger.Consumer.Expr.Pos(),
+		flow: flow,
+	})
+}
+
+// AddOverconstraintConflict adds a new overconstraint conflict to the engine.
+func (e *Engine) AddOverconstraintConflict(nilReason, nonnilReason inference.ExplainedBool) {
+	c := conflict{}
+
+	// Build nil path by traversing the inference graph from `nilReason` part of the overconstraint failure.
+	// (Note that this traversal gives us a backward path from point of conflict to the source of nilability. Hence, we
+	// must take this into consideration while printing the flow, which is currently being handled in `addNilPathNode()`.)
+	for r := nilReason; r != nil; r = r.DeeperReason() {
+		producer, consumer := r.TriggerReprs()
+		// We have two cases here:
+		// 1. No annotation present (i.e., full inference): we have producer and consumer explanations available; use them directly
+		// 2: Annotation present (i.e., no inference): we construct the reason from the annotation string
+		if producer != nil && consumer != nil {
+			c.flow.addNilPathNode(producer, consumer)
+		} else {
+			c.flow.addNilPathNode(annotation.LocatedPrestring{
+				Contained: r,
+				Location:  util.TruncatePosition(e.pass.Fset.Position(r.Pos())),
+			}, nil)
+		}
+	}
+
+	// Build nonnil path by traversing the inference graph from `nonnilReason` part of the overconstraint failure.
+	// (Note that this traversal is forward from the point of conflict to dereference. Hence, we don't need to make
+	// any special considerations while printing the flow.)
+	// Different from building the nil path above, here we also want to deduce the position where the error should be reported,
+	// i.e., the point of dereference where the nil panic would occur. In NilAway's context this is the last node
+	// in the non-nil path. Therefore, we keep updating `c.pos` until we reach the end of the non-nil path.
+	for r := nonnilReason; r != nil; r = r.DeeperReason() {
+		producer, consumer := r.TriggerReprs()
+		// Similar to above, we have two cases here:
+		// 1. No annotation present (i.e., full inference): we have producer and consumer explanations available; use them directly
+		// 2: Annotation present (i.e., no inference): we construct the reason from the annotation string
+		if producer != nil && consumer != nil {
+			c.flow.addNonNilPathNode(producer, consumer)
+			c.pos = r.Pos()
+		} else {
+			c.flow.addNonNilPathNode(annotation.LocatedPrestring{
+				Contained: r,
+				Location:  util.TruncatePosition(e.pass.Fset.Position(r.Pos())),
+			}, nil)
+			c.pos = r.Pos()
+		}
+	}
+
+	e.conflicts = append(e.conflicts, c)
+}
 
 type conflict struct {
 	pos              token.Pos   // stores position where the error should be reported (note that this field is used only within the current, and should NOT be exported)
@@ -142,112 +234,6 @@ func (c *conflict) String() string {
 
 func (c *conflict) addSimilarConflict(conflict conflict) {
 	c.similarConflicts = append(c.similarConflicts, &conflict)
-}
-
-// ConflictList stores a list of conflicts.
-type ConflictList struct {
-	conflicts  []conflict
-	NoGrouping bool // if set to true, conflicts are not grouped by nil path. (Example use case: no-infer unit tests)
-}
-
-// AddSingleAssertionConflict adds a new single assertion conflict to the list of conflicts.
-func (l *ConflictList) AddSingleAssertionConflict(pass *analysis.Pass, trigger annotation.FullTrigger) {
-	t := fullTriggerAsPrimitive(pass, trigger)
-	c := conflict{
-		pos:  t.Pos,
-		flow: nilFlow{},
-	}
-
-	c.flow.addNonNilPathNode(t.ProducerRepr, t.ConsumerRepr)
-
-	l.conflicts = append(l.conflicts, c)
-}
-
-// AddOverconstraintConflict adds a new overconstraint conflict to the list of conflicts.
-func (l *ConflictList) AddOverconstraintConflict(nilExplanation ExplainedBool, nonnilExplanation ExplainedBool, pass *analysis.Pass) {
-	c := conflict{}
-
-	// Build nil path by traversing the inference graph from `nilExplanation` part of the overconstraint failure.
-	// (Note that this traversal gives us a backward path from point of conflict to the source of nilability. Hence, we
-	// must take this into consideration while printing the flow, which is currently being handled in `addNilPathNode()`.)
-	var queue []ExplainedBool
-	queue = append(queue, nilExplanation)
-
-	for len(queue) > 0 {
-		e := queue[0]
-		queue = queue[1:]
-
-		t := e.getPrimitiveFullTrigger()
-		// We have two cases here:
-		// 1. No annotation present (i.e., full inference): we have producer and consumer explanations available; use them directly
-		// 2: Annotation present (i.e., no inference): we construct the explanation from the annotation string
-		if t.ConsumerRepr != nil && t.ProducerRepr != nil {
-			c.flow.addNilPathNode(t.ProducerRepr, t.ConsumerRepr)
-		} else {
-			c.flow.addNilPathNode(annotation.LocatedPrestring{
-				Contained: e,
-				Location:  util.TruncatePosition(pass.Fset.Position(t.Pos)),
-			}, nil)
-		}
-
-		if b := e.deeperReason(); b != nil {
-			queue = append(queue, b)
-		}
-	}
-
-	// Build nonnil path by traversing the inference graph from `nonnilExplanation` part of the overconstraint failure.
-	// (Note that this traversal is forward from the point of conflict to dereference. Hence, we don't need to make
-	// any special considerations while printing the flow.)
-	// Different from building the nil path above, here we also want to deduce the position where the error should be reported,
-	// i.e., the point of dereference where the nil panic would occur. In NilAway's context this is the last node
-	// in the non-nil path. Therefore, we keep updating `c.pos` until we reach the end of the non-nil path.
-	queue = make([]ExplainedBool, 0)
-	queue = append(queue, nonnilExplanation)
-	for len(queue) > 0 {
-		e := queue[0]
-		queue = queue[1:]
-
-		t := e.getPrimitiveFullTrigger()
-		// Similar to above, we have two cases here:
-		// 1. No annotation present (i.e., full inference): we have producer and consumer explanations available; use them directly
-		// 2: Annotation present (i.e., no inference): we construct the explanation from the annotation string
-		if t.ConsumerRepr != nil && t.ProducerRepr != nil {
-			c.flow.addNonNilPathNode(t.ProducerRepr, t.ConsumerRepr)
-			c.pos = t.Pos
-		} else {
-			c.flow.addNonNilPathNode(annotation.LocatedPrestring{
-				Contained: e,
-				Location:  util.TruncatePosition(pass.Fset.Position(t.Pos)),
-			}, nil)
-			c.pos = t.Pos
-		}
-
-		if b := e.deeperReason(); b != nil {
-			queue = append(queue, b)
-		}
-	}
-
-	l.conflicts = append(l.conflicts, c)
-}
-
-// Diagnostics returns a list of diagnostics for the conflicts in the list.
-func (l *ConflictList) Diagnostics() []analysis.Diagnostic {
-	var diagnostics []analysis.Diagnostic
-
-	conflicts := l.conflicts
-	if !l.NoGrouping {
-		// group conflicts with the same nil path together for concise reporting
-		conflicts = groupConflicts(l.conflicts)
-	}
-
-	// build diagnostics from conflicts
-	for _, c := range conflicts {
-		diagnostics = append(diagnostics, analysis.Diagnostic{
-			Pos:     c.pos,
-			Message: c.String(),
-		})
-	}
-	return diagnostics
 }
 
 func pathString(nodes []node) string {

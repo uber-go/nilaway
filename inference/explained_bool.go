@@ -28,10 +28,12 @@ import (
 // - <Val>BecauseDeepConstraint: Applied to site X when X was half of an assertion where the other half was fixed, but through a deeper chain of assertions
 // - <Val>BecauseAnnotation: Applied to site X when a syntactic annotation was discovered on X
 type ExplainedBool interface {
+	fmt.Stringer
+
 	Val() bool
-	String() string
-	getPrimitiveFullTrigger() primitiveFullTrigger
-	deeperReason() ExplainedBool
+	Pos() token.Pos
+	TriggerReprs() (producer fmt.Stringer, consumer fmt.Stringer)
+	DeeperReason() ExplainedBool
 }
 
 // ExplainedTrue is a common embedding in all instances of ExplainedBool that wrap the value `true`
@@ -67,11 +69,15 @@ func (t TrueBecauseShallowConstraint) String() string {
 		t.ExternalAssertion.ConsumerRepr, t.ExternalAssertion.ProducerRepr)
 }
 
-func (t TrueBecauseShallowConstraint) getPrimitiveFullTrigger() primitiveFullTrigger {
-	return t.ExternalAssertion
+func (t TrueBecauseShallowConstraint) Pos() token.Pos {
+	return t.ExternalAssertion.Pos
 }
 
-func (t TrueBecauseShallowConstraint) deeperReason() ExplainedBool {
+func (t TrueBecauseShallowConstraint) TriggerReprs() (fmt.Stringer, fmt.Stringer) {
+	return t.ExternalAssertion.ProducerRepr, t.ExternalAssertion.ConsumerRepr
+}
+
+func (t TrueBecauseShallowConstraint) DeeperReason() ExplainedBool {
 	return nil
 }
 
@@ -92,11 +98,15 @@ func (f FalseBecauseShallowConstraint) String() string {
 		f.ExternalAssertion.ProducerRepr, f.ExternalAssertion.ConsumerRepr)
 }
 
-func (f FalseBecauseShallowConstraint) getPrimitiveFullTrigger() primitiveFullTrigger {
-	return f.ExternalAssertion
+func (f FalseBecauseShallowConstraint) Pos() token.Pos {
+	return f.ExternalAssertion.Pos
 }
 
-func (f FalseBecauseShallowConstraint) deeperReason() ExplainedBool {
+func (f FalseBecauseShallowConstraint) TriggerReprs() (fmt.Stringer, fmt.Stringer) {
+	return f.ExternalAssertion.ProducerRepr, f.ExternalAssertion.ConsumerRepr
+}
+
+func (f FalseBecauseShallowConstraint) DeeperReason() ExplainedBool {
 	return nil
 }
 
@@ -116,11 +126,15 @@ func (t TrueBecauseDeepConstraint) String() string {
 		t.InternalAssertion.ConsumerRepr, t.InternalAssertion.ProducerRepr, t.DeeperExplanation.String())
 }
 
-func (t TrueBecauseDeepConstraint) getPrimitiveFullTrigger() primitiveFullTrigger {
-	return t.InternalAssertion
+func (t TrueBecauseDeepConstraint) Pos() token.Pos {
+	return t.InternalAssertion.Pos
 }
 
-func (t TrueBecauseDeepConstraint) deeperReason() ExplainedBool {
+func (t TrueBecauseDeepConstraint) TriggerReprs() (fmt.Stringer, fmt.Stringer) {
+	return t.InternalAssertion.ProducerRepr, t.InternalAssertion.ConsumerRepr
+}
+
+func (t TrueBecauseDeepConstraint) DeeperReason() ExplainedBool {
 	return t.DeeperExplanation
 }
 
@@ -140,11 +154,15 @@ func (f FalseBecauseDeepConstraint) String() string {
 		f.InternalAssertion.ProducerRepr, f.InternalAssertion.ConsumerRepr, f.DeeperExplanation.String())
 }
 
-func (f FalseBecauseDeepConstraint) getPrimitiveFullTrigger() primitiveFullTrigger {
-	return f.InternalAssertion
+func (f FalseBecauseDeepConstraint) Pos() token.Pos {
+	return f.InternalAssertion.Pos
 }
 
-func (f FalseBecauseDeepConstraint) deeperReason() ExplainedBool {
+func (f FalseBecauseDeepConstraint) TriggerReprs() (fmt.Stringer, fmt.Stringer) {
+	return f.InternalAssertion.ProducerRepr, f.InternalAssertion.ConsumerRepr
+}
+
+func (f FalseBecauseDeepConstraint) DeeperReason() ExplainedBool {
 	return f.DeeperExplanation
 }
 
@@ -152,18 +170,22 @@ func (f FalseBecauseDeepConstraint) deeperReason() ExplainedBool {
 // has been discovered - forcing that site to be nilable.
 type TrueBecauseAnnotation struct {
 	ExplainedTrue
-	Pos token.Pos
+	AnnotationPos token.Pos
 }
 
 func (TrueBecauseAnnotation) String() string {
 	return "NILABLE because it is annotated as so"
 }
 
-func (t TrueBecauseAnnotation) getPrimitiveFullTrigger() primitiveFullTrigger {
-	return primitiveFullTrigger{Pos: t.Pos}
+func (t TrueBecauseAnnotation) Pos() token.Pos {
+	return t.AnnotationPos
 }
 
-func (t TrueBecauseAnnotation) deeperReason() ExplainedBool {
+func (TrueBecauseAnnotation) TriggerReprs() (fmt.Stringer, fmt.Stringer) {
+	return nil, nil
+}
+
+func (TrueBecauseAnnotation) DeeperReason() ExplainedBool {
 	return nil
 }
 
@@ -171,17 +193,21 @@ func (t TrueBecauseAnnotation) deeperReason() ExplainedBool {
 // has been discovered - forcing that site to be nonnil.
 type FalseBecauseAnnotation struct {
 	ExplainedFalse
-	Pos token.Pos
+	AnnotationPos token.Pos
 }
 
 func (FalseBecauseAnnotation) String() string {
 	return "NONNIL because it is annotated as so"
 }
 
-func (f FalseBecauseAnnotation) getPrimitiveFullTrigger() primitiveFullTrigger {
-	return primitiveFullTrigger{Pos: f.Pos}
+func (f FalseBecauseAnnotation) Pos() token.Pos {
+	return f.AnnotationPos
 }
 
-func (f FalseBecauseAnnotation) deeperReason() ExplainedBool {
+func (FalseBecauseAnnotation) TriggerReprs() (fmt.Stringer, fmt.Stringer) {
+	return nil, nil
+}
+
+func (f FalseBecauseAnnotation) DeeperReason() ExplainedBool {
 	return nil
 }
