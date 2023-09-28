@@ -37,9 +37,9 @@ import (
 // static type information necessary to format that minimal information into a full string
 // representation without needing to encode it all when using Gob encodings through the Facts mechanism
 type primitiveFullTrigger struct {
+	Position     token.Position
 	ProducerRepr annotation.Prestring
 	ConsumerRepr annotation.Prestring
-	Pos          token.Pos
 }
 
 // A primitiveSite represents an atomic choice that may be made about annotations. It is
@@ -93,13 +93,6 @@ func (s *primitiveSite) String() string {
 	return deepStr + s.Repr
 }
 
-// fileInfo bundles the token.File object and auxiliary information about it, e.g., whether it is
-// a fake file (i.e., imported from archive), for uses in primitivizer.
-type fileInfo struct {
-	file   *token.File
-	isFake bool
-}
-
 // primitivizer is able to convert full triggers and annotation sites to their primitive forms. It
 // is useful for getting the correct primitive sites and positions for upstream objects due to the
 // lack of complete position information in downstream analysis in incremental build systems (e.g.,
@@ -133,10 +126,7 @@ type primitivizer struct {
 	pass *analysis.Pass
 	// upstreamObjPositions maps "<pkg repr>.<object path>" to the correct position.
 	upstreamObjPositions map[string]token.Position
-	// files maps the file name (modulo the possible build-system prefix) to the token.File object
-	// for faster lookup when converting correct upstream position back to local token.Pos for
-	// reporting purposes.
-	files map[string]fileInfo
+
 	// curDir is the current working directory, which is used to trim the prefix (e.g., bazel
 	// random sandbox prefix) from the file names for cross-package references.
 	curDir string
@@ -181,46 +171,9 @@ func newPrimitivizer(pass *analysis.Pass) *primitivizer {
 		panic(fmt.Sprintf("cannot get current working directory: %v", err))
 	}
 
-	// Iterate all files within the Fset (which includes upstream and current-package files), and
-	// store the mapping between its file name (modulo the possible build-system prefix) and the
-	// token.File object. This is needed for converting correct upstream position back to local
-	// incorrect token.Pos for error reporting purposes.
-	files := make(map[string]fileInfo)
-	pass.Fset.Iterate(func(file *token.File) bool {
-		name, err := filepath.Rel(cwd, file.Name())
-		if err != nil {
-			// For files that are not in the execroot (e.g., stdlib files start with "$GOROOT", and
-			// upstream files that do not have the build-system prefix), we can simply use the
-			// original file name.
-			name = file.Name()
-		}
-
-		// The file will be fake (conceptually "\n" * 65535) if it is imported from archive. So we
-		// check if there are any gaps between the line starts to determine if the file is fake.
-		// TODO: Go 1.21 introduced a new "token.File.Lines()" API to directly get the underlying
-		//  lines slice, which should allow faster checks since calling "token.File.LineStart"
-		//  repeatedly is slow due to locks/unlocks.
-		isFake := true
-		var prev token.Pos
-		for i := 1; i <= file.LineCount(); i++ {
-			p := file.LineStart(i)
-			if prev.IsValid() && p-prev > 1 {
-				isFake = false
-				break
-			}
-			prev = p
-		}
-		files[name] = fileInfo{
-			file:   file,
-			isFake: isFake,
-		}
-		return true
-	})
-
 	return &primitivizer{
 		pass:                 pass,
 		upstreamObjPositions: upstreamObjPositions,
-		files:                files,
 		curDir:               cwd,
 	}
 }
@@ -235,6 +188,7 @@ func (p *primitivizer) fullTrigger(trigger annotation.FullTrigger) primitiveFull
 
 	producer, consumer := trigger.Prestrings(p.pass)
 	return primitiveFullTrigger{
+		Position:     p.toPosition(trigger.Consumer.Expr.Pos()),
 		ProducerRepr: producer,
 		ConsumerRepr: consumer,
 	}
@@ -268,15 +222,7 @@ func (p *primitivizer) site(key annotation.Key, isDeep bool) primitiveSite {
 	// their Object.Pos() and retrieve the position information. However, we must trim the possible
 	// build-system sandbox prefix from the filenames for cross-package references.
 	if !position.IsValid() {
-		// Generated files contain "//line" directives that point back to the original source file
-		// for better error reporting, and PositionFor supports reading that information and adjust
-		// the position accordingly. However, those source files are never truly analyzed, meaning
-		// the downstream analysis will try to look for the generated files instead of the source
-		// files. Therefore, here we use the unadjusted position instead.
-		position = p.pass.Fset.PositionFor(key.Object().Pos(), false /* adjusted */)
-		if name, err := filepath.Rel(p.curDir, position.Filename); err == nil {
-			position.Filename = name
-		}
+		position = p.toPosition(key.Object().Pos())
 	}
 
 	return primitiveSite{
@@ -289,53 +235,16 @@ func (p *primitivizer) site(key annotation.Key, isDeep bool) primitiveSite {
 	}
 }
 
-// _fakeFileMaxLines is the maximum number of lines that the archive importer will add to a (fake)
-// file when it imports a package. See [the importer code] for more details. We use this to create
-// more fake files when necessary (see [primitivizer.sitePos]).
-// [the importer code]: https://cs.opensource.google/go/x/tools/+/master:internal/gcimporter/bimport.go;l=34;bpv=0;bpt=1
-const _fakeFileMaxLines = 64 * 1024
-
-// sitePos takes the primitive site (with accurate position information) and converts it to a
-// token.Pos that is relative to local Fset for reporting purposes _only_.
-func (p *primitivizer) sitePos(site primitiveSite) token.Pos {
-	info, ok := p.files[site.Position.Filename]
-	if !ok {
-		// For incremental build systems like bazel, the pass.Fset contains only the files in
-		// current and _directly_ imported packages (see [gcexportdata] for more details). However,
-		// analyzer facts are imported transitively from all imported packages, and NilAway is able
-		// to operate across all those packages. As a result, if NilAway ever needs to report an
-		// error on a file from a transitively imported package, we need to create a fake file in
-		// the file set.
-		// [gcexportdata]: https://pkg.go.dev/golang.org/x/tools/go/gcexportdata
-		file := p.pass.Fset.AddFile(site.Position.Filename, p.pass.Fset.Base(), _fakeFileMaxLines)
-		// Set up fake lines for the fake file.
-		fakeLines := make([]int, site.Position.Line)
-		for i := range fakeLines {
-			fakeLines[i] = i
-		}
-		file.SetLines(fakeLines)
-		info = fileInfo{file: file, isFake: true}
-		p.files[site.Position.Filename] = info
+func (p *primitivizer) toPosition(pos token.Pos) token.Position {
+	// Generated files contain "//line" directives that point back to the original source file
+	// for better error reporting, and PositionFor supports reading that information and adjust
+	// the position accordingly. However, those source files are never truly analyzed, meaning
+	// the downstream analysis will try to look for the generated files instead of the source
+	// files. Therefore, here we use the unadjusted position instead.
+	position := p.pass.Fset.PositionFor(pos, false /* adjusted */)
+	if name, err := filepath.Rel(p.curDir, position.Filename); err == nil {
+		position.Filename = name
 	}
 
-	if info.isFake {
-		// If the file is fake (imported from archive), it may not contain fake lines for unexported
-		// objects (as an "optimization", see [importer code]). However, NilAway may report errors
-		// on unexported objects due to multi-package inference. In such cases, we pad the file with
-		// more fake lines.
-		// [importer code]: https://cs.opensource.google/go/x/tools/+/refs/tags/v0.12.0:internal/gcimporter/bimport.go;l=36-69;drc=ad74ff6345e3663a8f1a4ba5c6e85d54a6fd5615
-		if site.Position.Line > info.file.LineCount() {
-			// We are adding offsets to fake lines here, and offset == fake line number - 1. So we
-			// can start from the current max line number to the desired line number - 1.
-			for i := info.file.LineCount(); i < site.Position.Line; i++ {
-				info.file.AddLine(i)
-			}
-		}
-
-		// For fake files, we can only report accurate line number but not column number.
-		return info.file.LineStart(site.Position.Line)
-	}
-
-	// For non-fake files, the position is accurate.
-	return info.file.Pos(site.Position.Offset)
+	return position
 }

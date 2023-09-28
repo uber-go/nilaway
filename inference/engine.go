@@ -58,9 +58,9 @@ type Engine struct {
 func NewEngine(pass *analysis.Pass, diagnosticEngine conflictHandler) *Engine {
 	primitive := newPrimitivizer(pass)
 	return &Engine{
-		pass:        pass,
-		primitive: primitive,
-		inferredMap: newInferredMap(primitive),
+		pass:             pass,
+		primitive:        primitive,
+		inferredMap:      newInferredMap(primitive),
 		diagnosticEngine: diagnosticEngine,
 	}
 }
@@ -123,9 +123,9 @@ func (e *Engine) ObserveAnnotations(pkgAnnotations *annotation.ObservedMap, mode
 	pkgAnnotations.Range(func(key annotation.Key, isDeep bool, val bool) {
 		site := e.primitive.site(key, isDeep)
 		if val {
-			e.observeSiteExplanation(site, TrueBecauseAnnotation{AnnotationPos: site.Pos})
+			e.observeSiteExplanation(site, TrueBecauseAnnotation{AnnotationPos: site.Position})
 		} else {
-			e.observeSiteExplanation(site, FalseBecauseAnnotation{AnnotationPos: site.Pos})
+			e.observeSiteExplanation(site, FalseBecauseAnnotation{AnnotationPos: site.Position})
 		}
 	}, mode != NoInfer)
 }

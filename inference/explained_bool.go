@@ -31,7 +31,7 @@ type ExplainedBool interface {
 	fmt.Stringer
 
 	Val() bool
-	Pos() token.Pos
+	Position() token.Position
 	TriggerReprs() (producer fmt.Stringer, consumer fmt.Stringer)
 	DeeperReason() ExplainedBool
 }
@@ -69,9 +69,9 @@ func (t TrueBecauseShallowConstraint) String() string {
 		t.ExternalAssertion.ConsumerRepr, t.ExternalAssertion.ProducerRepr)
 }
 
-// Pos is the position of underlying site.
-func (t TrueBecauseShallowConstraint) Pos() token.Pos {
-	return t.ExternalAssertion.Pos
+// Position is the position of underlying site.
+func (t TrueBecauseShallowConstraint) Position() token.Position {
+	return t.ExternalAssertion.Position
 }
 
 // TriggerReprs returns the compact representation structs for the producer and consumer.
@@ -102,9 +102,9 @@ func (f FalseBecauseShallowConstraint) String() string {
 		f.ExternalAssertion.ProducerRepr, f.ExternalAssertion.ConsumerRepr)
 }
 
-// Pos is the position of underlying site.
-func (f FalseBecauseShallowConstraint) Pos() token.Pos {
-	return f.ExternalAssertion.Pos
+// Position is the position of underlying site.
+func (f FalseBecauseShallowConstraint) Position() token.Position {
+	return f.ExternalAssertion.Position
 }
 
 // TriggerReprs returns the compact representation structs for the producer and consumer.
@@ -134,9 +134,9 @@ func (t TrueBecauseDeepConstraint) String() string {
 		t.InternalAssertion.ConsumerRepr, t.InternalAssertion.ProducerRepr, t.DeeperExplanation.String())
 }
 
-// Pos is the position of underlying site.
-func (t TrueBecauseDeepConstraint) Pos() token.Pos {
-	return t.InternalAssertion.Pos
+// Position is the position of underlying site.
+func (t TrueBecauseDeepConstraint) Position() token.Position {
+	return t.InternalAssertion.Position
 }
 
 // TriggerReprs returns the compact representation structs for the producer and consumer.
@@ -166,9 +166,9 @@ func (f FalseBecauseDeepConstraint) String() string {
 		f.InternalAssertion.ProducerRepr, f.InternalAssertion.ConsumerRepr, f.DeeperExplanation.String())
 }
 
-// Pos is the position of underlying site.
-func (f FalseBecauseDeepConstraint) Pos() token.Pos {
-	return f.InternalAssertion.Pos
+// Position is the position of underlying site.
+func (f FalseBecauseDeepConstraint) Position() token.Position {
+	return f.InternalAssertion.Position
 }
 
 // TriggerReprs returns the compact representation structs for the producer and consumer.
@@ -186,15 +186,15 @@ func (f FalseBecauseDeepConstraint) DeeperReason() ExplainedBool {
 // has been discovered - forcing that site to be nilable.
 type TrueBecauseAnnotation struct {
 	ExplainedTrue
-	AnnotationPos token.Pos
+	AnnotationPos token.Position
 }
 
 func (TrueBecauseAnnotation) String() string {
 	return "NILABLE because it is annotated as so"
 }
 
-// Pos is the position of underlying site.
-func (t TrueBecauseAnnotation) Pos() token.Pos {
+// Position is the position of underlying site.
+func (t TrueBecauseAnnotation) Position() token.Position {
 	return t.AnnotationPos
 }
 
@@ -213,15 +213,15 @@ func (TrueBecauseAnnotation) DeeperReason() ExplainedBool {
 // has been discovered - forcing that site to be nonnil.
 type FalseBecauseAnnotation struct {
 	ExplainedFalse
-	AnnotationPos token.Pos
+	AnnotationPos token.Position
 }
 
 func (FalseBecauseAnnotation) String() string {
 	return "NONNIL because it is annotated as so"
 }
 
-// Pos is the position of underlying site.
-func (f FalseBecauseAnnotation) Pos() token.Pos {
+// Position is the position of underlying site.
+func (f FalseBecauseAnnotation) Position() token.Position {
 	return f.AnnotationPos
 }
 
