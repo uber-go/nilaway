@@ -240,8 +240,6 @@ func (e *Engine) buildPkgInferenceMap(triggers []annotation.FullTrigger) {
 }
 
 func (e *Engine) buildFromSingleFullTrigger(trigger annotation.FullTrigger) {
-	primitiveAssertion := e.primitive.fullTrigger(trigger)
-
 	pKind, cKind := trigger.Producer.Annotation.Kind(), trigger.Consumer.Annotation.Kind()
 	pSite, cSite := trigger.Producer.Annotation.UnderlyingSite(), trigger.Consumer.Annotation.UnderlyingSite()
 	// NilAway does not know that (kind == Conditional || DeepConditional) => (site != nil),
@@ -261,7 +259,7 @@ func (e *Engine) buildFromSingleFullTrigger(trigger annotation.FullTrigger) {
 		}
 		site := e.primitive.site(cSite, cKind == annotation.DeepConditional)
 		e.observeSiteExplanation(site, TrueBecauseShallowConstraint{
-			ExternalAssertion: primitiveAssertion,
+			ExternalAssertion: e.primitive.fullTrigger(trigger),
 		})
 
 	case (pKind == annotation.Conditional || pKind == annotation.DeepConditional) && (cKind == annotation.Always):
@@ -272,7 +270,7 @@ func (e *Engine) buildFromSingleFullTrigger(trigger annotation.FullTrigger) {
 		}
 		site := e.primitive.site(pSite, pKind == annotation.DeepConditional)
 		e.observeSiteExplanation(site, FalseBecauseShallowConstraint{
-			ExternalAssertion: primitiveAssertion,
+			ExternalAssertion: e.primitive.fullTrigger(trigger),
 		})
 
 	case (pKind == annotation.Conditional || pKind == annotation.DeepConditional) &&
@@ -285,7 +283,7 @@ func (e *Engine) buildFromSingleFullTrigger(trigger annotation.FullTrigger) {
 		producer := e.primitive.site(pSite, pKind == annotation.DeepConditional)
 		consumer := e.primitive.site(cSite, cKind == annotation.DeepConditional)
 
-		e.observeImplication(producer, consumer, primitiveAssertion)
+		e.observeImplication(producer, consumer, e.primitive.fullTrigger(trigger))
 	}
 }
 
