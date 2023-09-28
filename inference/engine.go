@@ -60,7 +60,8 @@ func NewEngine(pass *analysis.Pass, diagnosticEngine conflictHandler) *Engine {
 	}
 }
 
-// InferredMap returns the current inferred annotation map.
+// InferredMap returns the current inferred annotation map, callers must treat this map as
+// read-only and do not directly modify it. Any further updates must be made via the Engine.
 func (e *Engine) InferredMap() *InferredMap {
 	return e.inferredMap
 }
