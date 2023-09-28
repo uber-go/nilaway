@@ -46,7 +46,7 @@ func (e *Engine) Diagnostics(grouping bool) []analysis.Diagnostic {
 	}
 
 	// build diagnostics from conflicts
-	var diagnostics []analysis.Diagnostic
+	diagnostics := make([]analysis.Diagnostic, 0, len(conflicts))
 	for _, c := range conflicts {
 		diagnostics = append(diagnostics, analysis.Diagnostic{
 			Pos:     c.pos,
