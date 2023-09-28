@@ -114,19 +114,14 @@ func (s *primitiveSite) String() string {
 // correct, but not others). This leads to mismatches in our inference engine: we cannot find
 // nilabilities of upstream sites in the imported InferredMap since the positions of the primitive
 // sites are different. The primitivizer here contains logic to fix such discrepancies.
-// Note that this fix (mapping) is two-ways:
-// (1) Local incorrect upstream position to correct one for matching upstream sites in the
-// inferred map (such that all position information in primitiveSite is always correct). This is
-// done via primitivizer.site.
-// (2) Correct upstream position to local incorrect one for error reporting purposes (the analysis
-// framework only allows reporting via local token.Pos). This is done via primitivizer.sitePos.
+// Specifically, local incorrect upstream position will be fixed to match the upstream sites in the
+// inferred map (such that all position information in primitiveSite is always correct).
 //
 // [archive importer]: https://github.com/golang/tools/blob/fa12f34b4218307705bf0365ab7df7c119b3653a/internal/gcimporter/bimport.go#L59-L69
 type primitivizer struct {
 	pass *analysis.Pass
 	// upstreamObjPositions maps "<pkg repr>.<object path>" to the correct position.
 	upstreamObjPositions map[string]token.Position
-
 	// curDir is the current working directory, which is used to trim the prefix (e.g., bazel
 	// random sandbox prefix) from the file names for cross-package references.
 	curDir string
@@ -235,6 +230,8 @@ func (p *primitivizer) site(key annotation.Key, isDeep bool) primitiveSite {
 	}
 }
 
+// toPosition returns the correct position information for the given pos, removing sandbox prefix
+// if any.
 func (p *primitivizer) toPosition(pos token.Pos) token.Position {
 	// Generated files contain "//line" directives that point back to the original source file
 	// for better error reporting, and PositionFor supports reading that information and adjust
