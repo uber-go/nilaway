@@ -58,12 +58,6 @@ type primitiveFullTrigger struct {
 // encoded into `Fact`s so frequently that artifact sizes would explode if these got too large.
 // This means no extensive string representations, and no deep structs.
 type primitiveSite struct {
-	// PkgRepr is the string representation of the package this site resides in.
-	PkgRepr string
-	// Repr is the string representation of the site itself.
-	Repr string
-	// IsDeep is used to differentiate shallow and deep nilabilities of the same sites.
-	IsDeep bool
 	// Position stores the complete position information (filename, offset, line, column) of the
 	// site. It is essential in maintaining the injectivities of the sites since Repr only encodes
 	// minimal information for error printing purposes. For example, the first return value of two
@@ -71,6 +65,12 @@ type primitiveSite struct {
 	// "Result 0 of function foo"). Note that any random filename prefixes added by the build
 	// system (e.g., bazel sandbox prefix) must be trimmed for cross-package reference.
 	Position token.Position
+	// PkgRepr is the string representation of the package this site resides in.
+	PkgRepr string
+	// Repr is the string representation of the site itself.
+	Repr string
+	// IsDeep is used to differentiate shallow and deep nilabilities of the same sites.
+	IsDeep bool
 	// Exported indicates whether this site is exported in the package or not.
 	Exported bool
 	// ObjectPath is an opaque name that identifies a types.Object relative to its package (see
