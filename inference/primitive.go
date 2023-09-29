@@ -65,8 +65,8 @@ type primitiveSite struct {
 	// "Result 0 of function foo"). Note that any random filename prefixes added by the build
 	// system (e.g., bazel sandbox prefix) must be trimmed for cross-package reference.
 	Position token.Position
-	// PkgRepr is the string representation of the package this site resides in.
-	PkgRepr string
+	// PkgPath is the string representation of the package this site resides in.
+	PkgPath string
 	// Repr is the string representation of the site itself.
 	Repr string
 	// IsDeep is used to differentiate shallow and deep nilabilities of the same sites.
@@ -149,7 +149,7 @@ func newPrimitivizer(pass *analysis.Pass) *primitivizer {
 				return true
 			}
 
-			objRepr := site.PkgRepr + "." + string(site.ObjectPath)
+			objRepr := site.PkgPath + "." + string(site.ObjectPath)
 			if existing, ok := upstreamObjPositions[objRepr]; ok && existing != site.Position {
 				panic(fmt.Sprintf(
 					"conflicting position information on upstream object %q: existing: %v, got: %v",
@@ -221,7 +221,7 @@ func (p *primitivizer) site(key annotation.Key, isDeep bool) primitiveSite {
 	}
 
 	return primitiveSite{
-		PkgRepr:    pkgRepr,
+		PkgPath:    pkgRepr,
 		Repr:       key.String(),
 		IsDeep:     isDeep,
 		Exported:   key.Object().Exported(),
