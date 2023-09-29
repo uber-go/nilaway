@@ -147,23 +147,11 @@ func computeAndConsumeResults(rootNode *RootAssertionNode, node *ast.ReturnStmt)
 
 			// below is the normal handling for named return variables
 			for i, retVariable := range results {
-				consumer := &annotation.ConsumeTrigger{
-					Annotation: &annotation.UseAsReturn{
-						TriggerIfNonNil: &annotation.TriggerIfNonNil{
-							Ann: annotation.RetKeyFromRetNum(
-								rootNode.ObjectOf(rootNode.FuncNameIdent()).(*types.Func),
-								i,
-							)},
-						IsNamedReturn: true,
-						RetStmt:       node,
-					},
-					Expr:   retVariable,
-					Guards: util.NoGuards(),
-				}
+				retKey := annotation.RetKeyFromRetNum(rootNode.ObjectOf(rootNode.FuncNameIdent()).(*types.Func), i)
 
 				// default handling if retVariable is not a blank identifier (e.g., i *int)
 				if !util.IsEmptyExpr(retVariable) {
-					rootNode.AddConsumption(consumer)
+					addReturnConsumers(rootNode, node, retVariable, retKey, true /* isNamedReturn */)
 
 					if rootNode.functionContext.functionConfig.EnableStructInitCheck {
 						rootNode.addConsumptionsForFieldsOfReturns(results[i], i)
@@ -177,7 +165,16 @@ func computeAndConsumeResults(rootNode *RootAssertionNode, node *ast.ReturnStmt)
 						}
 						fullTrigger := annotation.FullTrigger{
 							Producer: producer,
-							Consumer: consumer,
+							Consumer: &annotation.ConsumeTrigger{
+								Annotation: &annotation.UseAsReturn{
+									TriggerIfNonNil: &annotation.TriggerIfNonNil{
+										Ann: retKey},
+									IsNamedReturn: true,
+									RetStmt:       node,
+								},
+								Expr:   retVariable,
+								Guards: util.NoGuards(),
+							},
 						}
 						rootNode.AddNewTriggers(fullTrigger)
 					}
@@ -213,43 +210,8 @@ func computeAndConsumeResults(rootNode *RootAssertionNode, node *ast.ReturnStmt)
 
 	// we've excluded all abnormal cases - here, just really consume each result as a return value
 	for i := range node.Results {
-		rootNode.AddConsumption(&annotation.ConsumeTrigger{
-			Annotation: &annotation.UseAsReturn{
-				TriggerIfNonNil: &annotation.TriggerIfNonNil{
-					Ann: annotation.RetKeyFromRetNum(
-						rootNode.ObjectOf(rootNode.FuncNameIdent()).(*types.Func),
-						i,
-					)},
-				RetStmt: node},
-			Expr:   node.Results[i],
-			Guards: util.NoGuards(),
-		})
-
-		if util.TypeIsDeep(util.TypeOf(rootNode.Pass(), node.Results[i])) {
-			if ident, ok := node.Results[i].(*ast.Ident); ok {
-				v := rootNode.ObjectOf(ident).(*types.Var)
-				producer := &annotation.ProduceTrigger{
-					Annotation: annotation.DeepNilabilityOfVar(rootNode.FuncObj(), v),
-					Expr:       node.Results[i],
-				}
-				consumer := &annotation.ConsumeTrigger{
-					Annotation: &annotation.UseAsReturnDeep{
-						TriggerIfDeepNonNil: &annotation.TriggerIfDeepNonNil{
-							Ann: annotation.RetKeyFromRetNum(
-								rootNode.ObjectOf(rootNode.FuncNameIdent()).(*types.Func),
-								i,
-							)},
-						RetStmt: node},
-					Expr:   node.Results[i],
-					Guards: util.NoGuards(),
-				}
-
-				rootNode.AddNewTriggers(annotation.FullTrigger{
-					Producer: producer,
-					Consumer: consumer,
-				})
-			}
-		}
+		retKey := annotation.RetKeyFromRetNum(rootNode.ObjectOf(rootNode.FuncNameIdent()).(*types.Func), i)
+		addReturnConsumers(rootNode, node, node.Results[i], retKey, false /* isNamedReturn */)
 
 		if rootNode.functionContext.functionConfig.EnableStructInitCheck {
 			rootNode.addConsumptionsForFieldsOfReturns(node.Results[i], i)
@@ -840,4 +802,41 @@ func addAssignmentToConsumer(lhs, rhs ast.Expr, pass *analysis.Pass, consumer an
 	})
 
 	return nil
+}
+
+func addReturnConsumers(rootNode *RootAssertionNode, node *ast.ReturnStmt, expr ast.Expr, retKey *annotation.RetAnnotationKey, isNamedReturn bool) {
+	// add shallow consumer
+	rootNode.AddConsumption(&annotation.ConsumeTrigger{
+		Annotation: &annotation.UseAsReturn{
+			TriggerIfNonNil: &annotation.TriggerIfNonNil{
+				Ann: retKey},
+			IsNamedReturn: isNamedReturn,
+			RetStmt:       node},
+		Expr:   expr,
+		Guards: util.NoGuards(),
+	})
+
+	// If expr is a deep type, then directly add a full trigger for it. The reason for this being that the if add as a consumer,
+	// then it gets added to the same assertion node in the assertion tree as for the shallow consumer above. This is a problem
+	// since a producer actually meant for the shallow consumer also incorrectly matches the deep consumer.
+	if util.TypeIsDeep(util.TypeOf(rootNode.Pass(), expr)) {
+		producer := &annotation.ProduceTrigger{
+			Annotation: exprAsDeepProducer(rootNode, expr),
+			Expr:       expr,
+		}
+		consumer := &annotation.ConsumeTrigger{
+			Annotation: &annotation.UseAsReturnDeep{
+				TriggerIfDeepNonNil: annotation.TriggerIfDeepNonNil{
+					Ann: &retKey},
+				IsNamedReturn: isNamedReturn,
+				RetStmt:       node},
+			Expr:   expr,
+			Guards: util.NoGuards(),
+		}
+
+		rootNode.AddNewTriggers(annotation.FullTrigger{
+			Producer: producer,
+			Consumer: consumer,
+		})
+	}
 }

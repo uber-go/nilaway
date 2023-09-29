@@ -864,6 +864,54 @@ func (a ArgPassPrestring) String() string {
 	return sb.String()
 }
 
+// ArgPassDeep is when a value deeply flows to a point where it is passed as an argument to a function
+type ArgPassDeep struct {
+	TriggerIfDeepNonNil
+}
+
+func (a ArgPassDeep) String() string {
+	return a.Prestring().String()
+}
+
+// Prestring returns this ArgPassDeep as a Prestring
+func (a ArgPassDeep) Prestring() Prestring {
+	switch key := a.Ann.(type) {
+	case ParamAnnotationKey:
+		return ArgPassPrestring{
+			ParamName: key.MinimalString(),
+			FuncName:  key.FuncDecl.Name(),
+			Location:  "",
+		}
+	case CallSiteParamAnnotationKey:
+		return ArgPassPrestring{
+			ParamName: key.MinimalString(),
+			FuncName:  key.FuncDecl.Name(),
+			Location:  key.Location.String(),
+		}
+	default:
+		panic(fmt.Sprintf(
+			"Expected ParamAnnotationKey or CallSiteParamAnnotationKey but got: %T", key))
+	}
+}
+
+// ArgPassDeepPrestring is a Prestring storing the needed information to compactly encode a ArgPassDeep
+type ArgPassDeepPrestring struct {
+	ParamName string
+	FuncName  string
+	// Location points to the code location of the argument pass at the call site for a ArgPass
+	// enclosing CallSiteParamAnnotationKey; Location is empty for a ArgPass enclosing ParamAnnotationKey.
+	Location string
+}
+
+func (a ArgPassDeepPrestring) String() string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("passed deeply as %s to `%s()`", a.ParamName, a.FuncName))
+	if a.Location != "" {
+		sb.WriteString(fmt.Sprintf(" at %s", a.Location))
+	}
+	return sb.String()
+}
+
 // RecvPass is when a receiver value flows to a point where it is used to invoke a method.
 // E.g., `s.foo()`, here `s` is a receiver and forms the RecvPass Consumer
 type RecvPass struct {
@@ -1148,9 +1196,9 @@ type UseAsReturnDeepPrestring struct {
 func (u UseAsReturnDeepPrestring) String() string {
 	via := ""
 	if u.IsNamedReturn {
-		via = fmt.Sprintf(" via the named return value `%s`", u.RetName)
+		via = fmt.Sprintf(" via named return `%s`", u.RetName)
 	}
-	return fmt.Sprintf("returned deeply from the function `%s`%s in position %d", u.FuncName, via, u.RetNum)
+	return fmt.Sprintf("returned deeply from `%s()`%s in position %d", u.FuncName, via, u.RetNum)
 }
 
 // overriding position value to point to the raw return statement, which is the source of the potential error
