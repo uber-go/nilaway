@@ -120,7 +120,7 @@ func (s *primitiveSite) String() string {
 // [archive importer]: https://github.com/golang/tools/blob/fa12f34b4218307705bf0365ab7df7c119b3653a/internal/gcimporter/bimport.go#L59-L69
 type primitivizer struct {
 	pass *analysis.Pass
-	// upstreamObjPositions maps "<pkg repr>.<object path>" to the correct position.
+	// upstreamObjPositions maps "<pkg path>.<object path>" to the correct position.
 	upstreamObjPositions map[string]token.Position
 	// curDir is the current working directory, which is used to trim the prefix (e.g., bazel
 	// random sandbox prefix) from the file names for cross-package references.
