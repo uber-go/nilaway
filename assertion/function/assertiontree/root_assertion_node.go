@@ -673,6 +673,28 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 						Guards: util.NoGuards(),
 					}
 					r.AddConsumption(&consumer)
+
+					if util.TypeIsDeep(util.TypeOf(r.Pass(), arg)) {
+						if ident, ok := arg.(*ast.Ident); ok {
+							v := r.ObjectOf(ident).(*types.Var)
+							deepProducer := &annotation.ProduceTrigger{
+								Annotation: annotation.DeepNilabilityOfVar(r.FuncObj(), v),
+								Expr:       arg,
+							}
+							deepConsumer := &annotation.ConsumeTrigger{
+								Annotation: annotation.ArgPassDeep{
+									TriggerIfDeepNonNil: annotation.TriggerIfDeepNonNil{
+										Ann: paramKey,
+									}},
+								Expr:   arg,
+								Guards: util.NoGuards(),
+							}
+							r.AddNewTriggers(annotation.FullTrigger{
+								Producer: deepProducer,
+								Consumer: deepConsumer,
+							})
+						}
+					}
 				}
 			}
 		}
