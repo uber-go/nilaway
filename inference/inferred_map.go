@@ -21,6 +21,7 @@ import (
 	"go/types"
 
 	"go.uber.org/nilaway/annotation"
+	"go.uber.org/nilaway/util/orderedmap"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -59,17 +60,19 @@ func (*InferredMap) AFact() {}
 func (i *InferredMap) String() string {
 
 	valStr := func(val InferredVal) string {
-		switch val := val.(type) {
+		switch v := val.(type) {
 		case *DeterminedVal:
-			return fmt.Sprintf("%T", val.Bool)
+			return fmt.Sprintf("%T", v.Bool)
 		case *UndeterminedVal:
 			implicants, implicates := "", ""
-			for implicant := range val.Implicants {
+			v.Implicants.OrderedRange(func(implicant primitiveSite, assertion primitiveFullTrigger) bool {
 				implicants += fmt.Sprintf("%s-> ", implicant.String())
-			}
-			for implicate := range val.Implicates {
+				return true
+			})
+			v.Implicates.OrderedRange(func(implicate primitiveSite, assertion primitiveFullTrigger) bool {
 				implicates += fmt.Sprintf("->%s ", implicate.String())
-			}
+				return true
+			})
 			return fmt.Sprintf("[%s && %s]", implicants, implicates)
 		}
 		return ""
@@ -101,14 +104,14 @@ func (i *InferredMap) StoreImplication(from primitiveSite, to primitiveSite, ass
 	for _, site := range [...]primitiveSite{from, to} {
 		if _, ok := i.mapping[site]; !ok {
 			i.mapping[site] = &UndeterminedVal{
-				Implicates: newSitesWithAssertions(),
-				Implicants: newSitesWithAssertions(),
+				Implicates: orderedmap.New[primitiveSite, primitiveFullTrigger](),
+				Implicants: orderedmap.New[primitiveSite, primitiveFullTrigger](),
 			}
 		}
 	}
 
-	i.mapping[from].(*UndeterminedVal).Implicates.addSiteWithAssertion(to, assertion)
-	i.mapping[to].(*UndeterminedVal).Implicants.addSiteWithAssertion(from, assertion)
+	i.mapping[from].(*UndeterminedVal).Implicates.Store(to, assertion)
+	i.mapping[to].(*UndeterminedVal).Implicants.Store(from, assertion)
 }
 
 // Len returns the number of annotation sites currently stored in the map.
@@ -198,31 +201,33 @@ func (i *InferredMap) chooseSitesToExport() map[primitiveSite]bool {
 
 	var markReachableFromExported func(site primitiveSite)
 	markReachableFromExported = func(site primitiveSite) {
-		if val, isUndetermined := i.mapping[site].(*UndeterminedVal); isUndetermined && !site.Exported && !toExport[site] && !reachableFromExported[site] {
+		if v, isUndetermined := i.mapping[site].(*UndeterminedVal); isUndetermined && !site.Exported && !toExport[site] && !reachableFromExported[site] {
 			if reachesExported[site] {
 				toExport[site] = true
 			} else {
 				reachableFromExported[site] = true
 			}
 
-			for implicate := range val.Implicates {
+			v.Implicates.OrderedRange(func(implicate primitiveSite, assertion primitiveFullTrigger) bool {
 				markReachableFromExported(implicate)
-			}
+				return true
+			})
 		}
 	}
 
 	var markReachesExported func(site primitiveSite)
 	markReachesExported = func(site primitiveSite) {
-		if val, isUndetermined := i.mapping[site].(*UndeterminedVal); isUndetermined && !site.Exported && !toExport[site] && !reachesExported[site] {
+		if v, isUndetermined := i.mapping[site].(*UndeterminedVal); isUndetermined && !site.Exported && !toExport[site] && !reachesExported[site] {
 			if reachableFromExported[site] {
 				toExport[site] = true
 			} else {
 				reachesExported[site] = true
 			}
 
-			for implicant := range val.Implicants {
+			v.Implicants.OrderedRange(func(implicant primitiveSite, assertion primitiveFullTrigger) bool {
 				markReachesExported(implicant)
-			}
+				return true
+			})
 		}
 	}
 
@@ -235,13 +240,15 @@ func (i *InferredMap) chooseSitesToExport() map[primitiveSite]bool {
 
 		// For UndeterminedVal, we visit the implicants and implicates recursively and mark
 		// them as to be exported as well.
-		if val, ok := i.mapping[site].(*UndeterminedVal); ok {
-			for implicant := range val.Implicants {
+		if v, ok := i.mapping[site].(*UndeterminedVal); ok {
+			v.Implicants.OrderedRange(func(implicant primitiveSite, _ primitiveFullTrigger) bool {
 				markReachesExported(implicant)
-			}
-			for implicate := range val.Implicates {
+				return true
+			})
+			v.Implicates.OrderedRange(func(implicate primitiveSite, _ primitiveFullTrigger) bool {
 				markReachableFromExported(implicate)
-			}
+				return true
+			})
 		}
 	}
 	return toExport

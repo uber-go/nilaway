@@ -85,21 +85,23 @@ func (e *Engine) ObserveUpstream() {
 			continue
 		}
 		importedMap.Range(func(site primitiveSite, val InferredVal) bool {
-			switch val := val.(type) {
+			switch v := val.(type) {
 			case *DeterminedVal:
 				// Fix as an Explained site any sites that `otherMap` knows are explained
 				// This can yield an overconstrainedConflict if the current map disagrees on the
 				// value of the site.
-				e.observeSiteExplanation(site, val.Bool)
+				e.observeSiteExplanation(site, v.Bool)
 			case *UndeterminedVal:
 				// Observe all forward implications from this site
-				for implicateSite, implicateAssertion := range val.Implicates {
-					e.observeImplication(site, implicateSite, implicateAssertion)
-				}
+				v.Implicates.OrderedRange(func(implicateSite primitiveSite, assertion primitiveFullTrigger) bool {
+					e.observeImplication(site, implicateSite, assertion)
+					return true
+				})
 				// Observe all backward implications from this site
-				for implicantSite, implicantAssertion := range val.Implicants {
-					e.observeImplication(implicantSite, site, implicantAssertion)
-				}
+				v.Implicants.OrderedRange(func(implicantSite primitiveSite, assertion primitiveFullTrigger) bool {
+					e.observeImplication(implicantSite, site, assertion)
+					return true
+				})
 			}
 			return true
 		})
@@ -345,21 +347,22 @@ func (e *Engine) observeSiteExplanation(site primitiveSite, siteExplained Explai
 		// Propagate the nilability of this site to its downstream constraints (for nilable value)
 		// or its upstream constraints (for nonnil value).
 		if siteExplained.Val() {
-			for implicateSite, implicateAssertion := range v.Implicates {
+			v.Implicates.OrderedRange(func(implicateSite primitiveSite, assertion primitiveFullTrigger) bool {
 				e.observeSiteExplanation(implicateSite, TrueBecauseDeepConstraint{
-					InternalAssertion: implicateAssertion,
+					InternalAssertion: assertion,
 					DeeperExplanation: siteExplained,
 				})
-			}
+				return true
+			})
 		} else {
-			for implicantSite, implicantAssertion := range v.Implicants {
+			v.Implicants.OrderedRange(func(implicantSite primitiveSite, assertion primitiveFullTrigger) bool {
 				e.observeSiteExplanation(implicantSite, FalseBecauseDeepConstraint{
-					InternalAssertion: implicantAssertion,
+					InternalAssertion: assertion,
 					DeeperExplanation: siteExplained,
 				})
-			}
+				return true
+			})
 		}
-
 	}
 }
 

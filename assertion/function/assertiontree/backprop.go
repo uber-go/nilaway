@@ -286,7 +286,7 @@ func backpropAcrossAssignment(rootNode *RootAssertionNode, lhs, rhs []ast.Expr) 
 			return backpropAcrossTypeSwitch(rootNode, lhsIdent, r.X)
 		}
 
-		// Range statement of the form `for x := range y`, which is not overly complex to
+		// OrderedRange statement of the form `for x := range y`, which is not overly complex to
 		// handle but does involve distinct semantics.
 		if r, ok := rhsNode.(*ast.UnaryExpr); ok && r.Op == token.RANGE {
 			return backpropAcrossRange(rootNode, lhs, r.X)
