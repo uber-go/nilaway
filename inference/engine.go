@@ -88,15 +88,8 @@ func (e *Engine) ObserveUpstream() {
 		}
 	}
 
-	slices.SortFunc(facts, func(i, j analysis.PackageFact) int {
-		iPath, jPath := i.Package.Path(), j.Package.Path()
-		if iPath == jPath {
-			return 0
-		}
-		if iPath < jPath {
-			return -1
-		}
-		return 1
+	slices.SortFunc(facts, func(i, j analysis.PackageFact) bool {
+		return i.Package.Path() < j.Package.Path()
 	})
 
 	for _, f := range facts {
