@@ -91,6 +91,9 @@ func (m *OrderedMap[K, V]) GobEncode() ([]byte, error) {
 
 // GobDecode decodes the map using gob encoding.
 func (m *OrderedMap[K, V]) GobDecode(b []byte) error {
+	m.inner = make(map[K]V)
+	m.keys = nil
+
 	dec := gob.NewDecoder(bytes.NewBuffer(b))
 	for {
 		var k K

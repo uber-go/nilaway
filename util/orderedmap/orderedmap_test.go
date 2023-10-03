@@ -114,7 +114,11 @@ func TestGobEncoding(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, b)
 
-	decodedMap := orderedmap.New[A, I]()
+	// Now, we decode the map. Note that the decoding logic is usually invoked by library or
+	// frameworks, meaning the map will be constructed via plain Go composite literals instead of
+	// via our manually-defined constructor (i.e., orderedmap.New). Here, we mimic this behavior
+	// and test our decoding logic for graceful handling of such cases.
+	decodedMap := &orderedmap.OrderedMap[A, I]{}
 	err = decodedMap.GobDecode(b)
 	require.NoError(t, err)
 
