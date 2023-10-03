@@ -23,6 +23,7 @@ import (
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/assertion/function/assertiontree"
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -79,12 +80,27 @@ func (e *Engine) InferredMap() *InferredMap {
 // added to Mapping but not UpstreamMapping, then, on a call to Export, only the information
 // present in Mapping but not UpstreamMapping is exported to ensure minimization of output.
 func (e *Engine) ObserveUpstream() {
+	var facts []analysis.PackageFact
 	for _, packageFact := range e.pass.AllPackageFacts() {
-		importedMap, ok := packageFact.Fact.(*InferredMap)
-		if !ok {
-			continue
+		// We only care about NilAway-related facts here.
+		if _, ok := packageFact.Fact.(*InferredMap); ok {
+			facts = append(facts, packageFact)
 		}
-		importedMap.OrderedRange(func(site primitiveSite, val InferredVal) bool {
+	}
+
+	slices.SortFunc(facts, func(i, j analysis.PackageFact) int {
+		iPath, jPath := i.Package.Path(), j.Package.Path()
+		if iPath == jPath {
+			return 0
+		}
+		if iPath < jPath {
+			return -1
+		}
+		return 1
+	})
+
+	for _, f := range facts {
+		f.Fact.(*InferredMap).OrderedRange(func(site primitiveSite, val InferredVal) bool {
 			switch v := val.(type) {
 			case *DeterminedVal:
 				// Fix as an Explained site any sites that `otherMap` knows are explained
