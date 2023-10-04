@@ -59,7 +59,7 @@ func (m *OrderedMap[K, V]) Len() int {
 }
 
 // OrderedRange iterates over the map in insertion order, calling the passed function for each
-// key/value pair.
+// key/value pair. The iteration stops if f returns false.
 func (m *OrderedMap[K, V]) OrderedRange(f func(key K, value V) bool) {
 	for _, k := range m.keys {
 		if !f(k, m.inner[k]) {
@@ -72,8 +72,9 @@ func (m *OrderedMap[K, V]) OrderedRange(f func(key K, value V) bool) {
 func (m *OrderedMap[K, V]) GobEncode() ([]byte, error) {
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
-	// For each pair, we encode the key and then the value.
+
 	for _, k := range m.keys {
+		// We encode the map as a stream of key/value pair.
 		if err := enc.Encode(&k); err != nil {
 			return nil, err
 		}
@@ -99,7 +100,7 @@ func (m *OrderedMap[K, V]) GobDecode(b []byte) error {
 		var k K
 		if err := dec.Decode(&k); err == io.EOF {
 			// The map is encoded as a stream of key/value pairs. So if we ever hit EOF when decoding
-			// K, we know we're done.
+			// K, we know we are done.
 			break
 		} else if err != nil {
 			return err
