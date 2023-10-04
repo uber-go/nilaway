@@ -86,7 +86,7 @@ whenever `bar` is called. NilAway is able to catch this potential nil flow and r
 the nilness flow across function boundaries: 
 
 ```
-go.uber.org/example.go:19:6: error: Potential nil panic detected. Observed nil flow from source to dereference point:
+go.uber.org/example.go:23:13: error: Potential nil panic detected. Observed nil flow from source to dereference point:
     -> go.uber.org/example.go:20:14: literal `nil` returned from `foo()` in position 0
     -> go.uber.org/example.go:23:13: result 0 of `foo()` dereferenced
 ```
