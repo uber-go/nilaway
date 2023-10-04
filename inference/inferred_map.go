@@ -69,25 +69,18 @@ func (i *InferredMap) StoreDetermined(site primitiveSite, value ExplainedBool) {
 // StoreImplication stores an implication edge between the `from` and `to` annotation sites in the
 // graph with the assertion for error reporting.
 func (i *InferredMap) StoreImplication(from primitiveSite, to primitiveSite, assertion primitiveFullTrigger) {
-	v, ok := i.mapping.Load(from)
-	if !ok {
-		v = &UndeterminedVal{
-			Implicates: orderedmap.New[primitiveSite, primitiveFullTrigger](),
-			Implicants: orderedmap.New[primitiveSite, primitiveFullTrigger](),
+	// First create UndeterminedVal in the map if it does not exist yet.
+	for _, site := range [...]primitiveSite{from, to} {
+		if _, ok := i.mapping.Load(site); !ok {
+			i.mapping.Store(site, &UndeterminedVal{
+				Implicates: orderedmap.New[primitiveSite, primitiveFullTrigger](),
+				Implicants: orderedmap.New[primitiveSite, primitiveFullTrigger](),
+			})
 		}
-		i.mapping.Store(from, v)
 	}
-	v.(*UndeterminedVal).Implicates.Store(to, assertion)
 
-	v, ok = i.mapping.Load(to)
-	if !ok {
-		v = &UndeterminedVal{
-			Implicates: orderedmap.New[primitiveSite, primitiveFullTrigger](),
-			Implicants: orderedmap.New[primitiveSite, primitiveFullTrigger](),
-		}
-		i.mapping.Store(to, v)
-	}
-	v.(*UndeterminedVal).Implicants.Store(from, assertion)
+	i.mapping.Value(from).(*UndeterminedVal).Implicates.Store(to, assertion)
+	i.mapping.Value(to).(*UndeterminedVal).Implicants.Store(from, assertion)
 }
 
 // Len returns the number of annotation sites currently stored in the map.
@@ -95,8 +88,8 @@ func (i *InferredMap) Len() int {
 	return len(i.mapping.Pairs)
 }
 
-// OrderedRange calls f sequentially for each annotation site and inferred value present in the map.
-// If f returns false, range stops the iteration.
+// OrderedRange calls f sequentially for each annotation site and inferred value present in the map
+// in insertion order. If f returns false, range stops the iteration.
 func (i *InferredMap) OrderedRange(f func(primitiveSite, InferredVal) bool) {
 	for _, p := range i.mapping.Pairs {
 		if !f(p.Key, p.Value) {
