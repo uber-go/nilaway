@@ -1,6 +1,8 @@
 package inference
 
 import (
+	"bytes"
+	"encoding/gob"
 	"go/token"
 	"testing"
 
@@ -15,9 +17,10 @@ func BenchmarkGobEncoding(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		out, err := m.GobEncode()
+		var buf bytes.Buffer
+		err := gob.NewEncoder(&buf).Encode(m)
 		require.NoError(b, err)
-		require.NotEmpty(b, out)
+		require.NotEmpty(b, buf.Bytes())
 	}
 }
 
@@ -25,8 +28,11 @@ func TestEncoding_Size(t *testing.T) {
 	t.Parallel()
 
 	m := newBigInferredMap()
-	out, err := m.GobEncode()
+	var buf bytes.Buffer
+	err := gob.NewEncoder(&buf).Encode(m)
 	require.NoError(t, err)
+
+	out := buf.Bytes()
 	require.NotEmpty(t, out)
 	require.Less(t, len(out), 250_000,
 		"The gob encoding of a test inferred map is too large. We expect the encoded "+
