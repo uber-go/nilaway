@@ -111,9 +111,10 @@ func (i *InferredMap) Export(pass *analysis.Pass) {
 	// like to export.
 	exported := orderedmap.New[primitiveSite, InferredVal]()
 	sitesToExport := i.chooseSitesToExport()
-	i.mapping.OrderedRange(func(site primitiveSite, val InferredVal) bool {
+	for _, p := range i.mapping.Pairs {
+		site, val := p.Key, p.Value
 		if !sitesToExport[site] {
-			return true
+			continue
 		}
 
 		if upstreamVal, upstreamPresent := i.upstreamMapping[site]; upstreamPresent {
@@ -124,8 +125,7 @@ func (i *InferredMap) Export(pass *analysis.Pass) {
 		} else {
 			exported.Store(site, val)
 		}
-		return true
-	})
+	}
 
 	if len(exported.Pairs) > 0 {
 		// We do not need to encode the primitivizer since it is just a helper for the analysis of
@@ -138,7 +138,6 @@ func (i *InferredMap) Export(pass *analysis.Pass) {
 
 // GobEncode encodes the inferred map via gob encoding.
 func (i *InferredMap) GobEncode() ([]byte, error) {
-	// Then, just encode the slim version of the map.
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
 	if err := enc.Encode(i.mapping); err != nil {
