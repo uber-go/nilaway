@@ -18,9 +18,9 @@
 package diagnostic
 
 import (
+	"fmt"
 	"go/token"
 	"os"
-	"fmt"
 	"path/filepath"
 
 	"go.uber.org/nilaway/annotation"
