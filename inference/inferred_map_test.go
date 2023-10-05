@@ -21,7 +21,7 @@ func BenchmarkGobEncoding(b *testing.B) {
 	}
 }
 
-func TestEncodingSize(t *testing.T) {
+func TestEncoding_Size(t *testing.T) {
 	t.Parallel()
 
 	m := newBigInferredMap()
