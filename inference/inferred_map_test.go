@@ -41,6 +41,34 @@ func TestEncoding_Size(t *testing.T) {
 	)
 }
 
+func TestDecoding(t *testing.T) {
+	t.Parallel()
+
+	m := newInferredMap(nil /* primitive */)
+	site := primitiveSite{
+		Position: token.Position{
+			Filename: "foo.go",
+			Line:     1,
+			Column:   2,
+		},
+	}
+	value := TrueBecauseAnnotation{AnnotationPos: token.Position{Filename: "foo.go", Line: 1, Column: 2}}
+	m.StoreDetermined(site, value)
+
+	var buf bytes.Buffer
+	err := gob.NewEncoder(&buf).Encode(m)
+	require.NoError(t, err)
+	var decodedMap InferredMap
+	err = gob.NewDecoder(&buf).Decode(&decodedMap)
+	require.NoError(t, err)
+
+	require.Equal(t, m.Len(), decodedMap.Len())
+	v, ok := decodedMap.Load(site)
+	require.True(t, ok)
+	require.IsType(t, &DeterminedVal{}, v)
+	require.Equal(t, value, v.(*DeterminedVal).Bool)
+}
+
 // newBigInferredMap creates an inferred map with 3000 sites, where the first 1000 are determined,
 // and the next 2000 with implications between them for stress testing.
 func newBigInferredMap() *InferredMap {
@@ -56,7 +84,7 @@ func newBigInferredMap() *InferredMap {
 	for i := 0; i < 1000; i++ {
 		site1 := siteTemplate
 		site1.Position.Line = i
-		m.StoreDetermined(site1, &TrueBecauseAnnotation{AnnotationPos: token.Position{Filename: "foo.go", Line: 1, Column: 2}})
+		m.StoreDetermined(site1, TrueBecauseAnnotation{AnnotationPos: token.Position{Filename: "foo.go", Line: 1, Column: 2}})
 
 		site2 := siteTemplate
 		site2.Position.Line = 1000 + i
