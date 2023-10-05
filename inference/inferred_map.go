@@ -65,14 +65,12 @@ func (i *InferredMap) String() string {
 			return fmt.Sprintf("%T", v.Bool)
 		case *UndeterminedVal:
 			implicants, implicates := "", ""
-			v.Implicants.OrderedRange(func(implicant primitiveSite, assertion primitiveFullTrigger) bool {
-				implicants += fmt.Sprintf("%s-> ", implicant.String())
-				return true
-			})
-			v.Implicates.OrderedRange(func(implicate primitiveSite, assertion primitiveFullTrigger) bool {
-				implicates += fmt.Sprintf("->%s ", implicate.String())
-				return true
-			})
+			for _, p := range v.Implicants.Pairs {
+				implicants += fmt.Sprintf("%s-> ", p.Key.String())
+			}
+			for _, p := range v.Implicates.Pairs {
+				implicates += fmt.Sprintf("->%s ", p.Key.String())
+			}
 			return fmt.Sprintf("[%s && %s]", implicants, implicates)
 		}
 		return ""
@@ -208,10 +206,9 @@ func (i *InferredMap) chooseSitesToExport() map[primitiveSite]bool {
 				reachableFromExported[site] = true
 			}
 
-			v.Implicates.OrderedRange(func(implicate primitiveSite, assertion primitiveFullTrigger) bool {
-				markReachableFromExported(implicate)
-				return true
-			})
+			for _, p := range v.Implicates.Pairs {
+				markReachableFromExported(p.Key)
+			}
 		}
 	}
 
@@ -224,10 +221,9 @@ func (i *InferredMap) chooseSitesToExport() map[primitiveSite]bool {
 				reachesExported[site] = true
 			}
 
-			v.Implicants.OrderedRange(func(implicant primitiveSite, assertion primitiveFullTrigger) bool {
-				markReachesExported(implicant)
-				return true
-			})
+			for _, p := range v.Implicants.Pairs {
+				markReachesExported(p.Key)
+			}
 		}
 	}
 
@@ -241,14 +237,12 @@ func (i *InferredMap) chooseSitesToExport() map[primitiveSite]bool {
 		// For UndeterminedVal, we visit the implicants and implicates recursively and mark
 		// them as to be exported as well.
 		if v, ok := i.mapping[site].(*UndeterminedVal); ok {
-			v.Implicants.OrderedRange(func(implicant primitiveSite, _ primitiveFullTrigger) bool {
-				markReachesExported(implicant)
-				return true
-			})
-			v.Implicates.OrderedRange(func(implicate primitiveSite, _ primitiveFullTrigger) bool {
-				markReachableFromExported(implicate)
-				return true
-			})
+			for _, p := range v.Implicants.Pairs {
+				markReachesExported(p.Key)
+			}
+			for _, p := range v.Implicates.Pairs {
+				markReachableFromExported(p.Key)
+			}
 		}
 	}
 	return toExport

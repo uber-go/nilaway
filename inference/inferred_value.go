@@ -76,10 +76,10 @@ type UndeterminedVal struct {
 func (e *UndeterminedVal) copy() InferredVal {
 	copySitesWithAssertions := func(s *orderedmap.OrderedMap[primitiveSite, primitiveFullTrigger]) *orderedmap.OrderedMap[primitiveSite, primitiveFullTrigger] {
 		out := orderedmap.New[primitiveSite, primitiveFullTrigger]()
-		s.OrderedRange(func(site primitiveSite, trigger primitiveFullTrigger) bool {
+		for _, p := range s.Pairs {
+			site, trigger := p.Key, p.Value
 			out.Store(site, trigger)
-			return true
-		})
+		}
 		return out
 	}
 
@@ -115,13 +115,13 @@ func inferredValDiff(newVal, oldVal InferredVal) (InferredVal, bool) {
 	sitesWithAssertionsDiff := func(new, old *orderedmap.OrderedMap[primitiveSite, primitiveFullTrigger]) (*orderedmap.OrderedMap[primitiveSite, primitiveFullTrigger], bool) {
 		diff := orderedmap.New[primitiveSite, primitiveFullTrigger]()
 		diffNonempty := false
-		new.OrderedRange(func(site primitiveSite, trigger primitiveFullTrigger) bool {
+		for _, p := range new.Pairs {
+			site, trigger := p.Key, p.Value
 			if _, oldPresent := old.Load(site); !oldPresent {
 				diff.Store(site, trigger)
 				diffNonempty = true
 			}
-			return true
-		})
+		}
 		return diff, diffNonempty
 	}
 

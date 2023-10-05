@@ -92,16 +92,16 @@ func (e *Engine) ObserveUpstream() {
 				// value of the site.
 				e.observeSiteExplanation(site, v.Bool)
 			case *UndeterminedVal:
-				// Observe all forward implications from this site
-				v.Implicates.OrderedRange(func(implicateSite primitiveSite, assertion primitiveFullTrigger) bool {
-					e.observeImplication(site, implicateSite, assertion)
-					return true
-				})
-				// Observe all backward implications from this site
-				v.Implicants.OrderedRange(func(implicantSite primitiveSite, assertion primitiveFullTrigger) bool {
+				// Observe all forward implications from this site.
+				for _, p := range v.Implicates.Pairs {
+					implicantSite, assertion := p.Key, p.Value
+					e.observeImplication(site, implicantSite, assertion)
+				}
+				// Observe all backward implications from this site.
+				for _, p := range v.Implicants.Pairs {
+					implicantSite, assertion := p.Key, p.Value
 					e.observeImplication(implicantSite, site, assertion)
-					return true
-				})
+				}
 			}
 			return true
 		})
@@ -347,21 +347,21 @@ func (e *Engine) observeSiteExplanation(site primitiveSite, siteExplained Explai
 		// Propagate the nilability of this site to its downstream constraints (for nilable value)
 		// or its upstream constraints (for nonnil value).
 		if siteExplained.Val() {
-			v.Implicates.OrderedRange(func(implicateSite primitiveSite, assertion primitiveFullTrigger) bool {
+			for _, p := range v.Implicates.Pairs {
+				implicateSite, assertion := p.Key, p.Value
 				e.observeSiteExplanation(implicateSite, TrueBecauseDeepConstraint{
 					InternalAssertion: assertion,
 					DeeperExplanation: siteExplained,
 				})
-				return true
-			})
+			}
 		} else {
-			v.Implicants.OrderedRange(func(implicantSite primitiveSite, assertion primitiveFullTrigger) bool {
+			for _, p := range v.Implicants.Pairs {
+				implicantSite, assertion := p.Key, p.Value
 				e.observeSiteExplanation(implicantSite, FalseBecauseDeepConstraint{
 					InternalAssertion: assertion,
 					DeeperExplanation: siteExplained,
 				})
-				return true
-			})
+			}
 		}
 	}
 }

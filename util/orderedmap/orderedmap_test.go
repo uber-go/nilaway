@@ -1,6 +1,7 @@
 package orderedmap_test
 
 import (
+	"bytes"
 	"encoding/gob"
 	"fmt"
 	"testing"
@@ -32,10 +33,10 @@ func TestLoadStore(t *testing.T) {
 	require.Empty(t, m.Value(-1))
 
 	// Test Len.
-	require.Equal(t, len(pairs), m.Len())
+	require.Equal(t, len(pairs), len(m.Pairs))
 }
 
-func TestOrderedRange(t *testing.T) {
+func TestRange(t *testing.T) {
 	t.Parallel()
 
 	// Create a map with 100 <i, i+1> pairs to have better chance of breaking ordered range.
@@ -63,14 +64,16 @@ func TestOrderedRange(t *testing.T) {
 			t.Parallel()
 
 			keys := make([]int, 0, len(pairs))
-			m.OrderedRange(func(key int, value int) bool {
-				keys = append(keys, key)
-				return true
-			})
+			for _, p := range m.Pairs {
+				keys = append(keys, p.Key)
+			}
 			require.Equal(t, expectedKeys, keys)
 		})
 	}
 }
+
+// Define an interface and two structs that implement it for testing the ability to encode/decode
+// from and to Go interfaces.
 
 type I interface {
 	Foo()
@@ -103,23 +106,24 @@ func TestStoringInterfaces(t *testing.T) {
 	require.IsType(t, &B{}, v)
 }
 
-func TestGobEncoding(t *testing.T) {
+func TestEncoding(t *testing.T) {
 	t.Parallel()
 
 	m := orderedmap.New[A, I]()
 	m.Store(A{Number: 1}, &A{})
 	m.Store(A{Number: 2}, &B{})
 
-	b, err := m.GobEncode()
+	var buf bytes.Buffer
+	err := gob.NewEncoder(&buf).Encode(m)
 	require.NoError(t, err)
-	require.NotEmpty(t, b)
+	require.NotEmpty(t, buf.Bytes())
 
 	// Now, we decode the map. Note that the decoding logic is usually invoked by library or
 	// frameworks, meaning the map will be constructed via plain Go composite literals instead of
 	// via our manually-defined constructor (i.e., orderedmap.New). Here, we mimic this behavior
 	// and test our decoding logic for graceful handling of such cases.
 	decodedMap := &orderedmap.OrderedMap[A, I]{}
-	err = decodedMap.GobDecode(b)
+	err = gob.NewDecoder(&buf).Decode(&decodedMap)
 	require.NoError(t, err)
 
 	// Ensure our decoded map is equal to the encoded one.
@@ -131,36 +135,45 @@ func TestGobEncoding(t *testing.T) {
 	require.True(t, ok)
 	require.NotNil(t, v)
 	require.IsType(t, &B{}, v)
+
+	// Use the decoded map as a regular ordered map.
+	decodedMap.Store(A{Number: 3}, &A{Number: 4})
+	v = decodedMap.Value(A{Number: 3})
+	require.NotNil(t, v)
+	require.IsType(t, &A{}, v)
+	require.Equal(t, 4, v.(*A).Number)
 }
 
-func TestGobEncoding_Deterministic(t *testing.T) {
+func TestEncoding_Deterministic(t *testing.T) {
 	t.Parallel()
 
 	m := orderedmap.New[A, I]()
 	m.Store(A{Number: 1}, &A{})
 	m.Store(A{Number: 2}, &B{})
 
-	// We encode the map 5 times and check that the result is always the same.
-	var encoded []byte
-	for i := 0; i < 5; i++ {
-		b, err := m.GobEncode()
+	// We encode the map 10 times and check that the result is always the same.
+	var previous []byte
+	for i := 0; i < 10; i++ {
+		var buf bytes.Buffer
+		err := gob.NewEncoder(&buf).Encode(m)
 		require.NoError(t, err)
-		require.NotEmpty(t, b)
-		if len(encoded) == 0 {
-			encoded = b
+		require.NotEmpty(t, buf.Bytes())
+		if len(previous) == 0 {
+			previous = buf.Bytes()
 			continue
 		}
-		require.Equal(t, encoded, b)
+		require.Equal(t, previous, buf.Bytes())
 	}
 }
 
-func TestGobEncode_Empty(t *testing.T) {
+func TestEncode_Empty(t *testing.T) {
 	t.Parallel()
 
 	m := orderedmap.New[int, int]()
-	b, err := m.GobEncode()
+	var buf bytes.Buffer
+	err := gob.NewEncoder(&buf).Encode(m)
 	require.NoError(t, err)
-	require.Empty(t, b)
+	// Gob encodes type information even for empty maps, so the result is non-empty.
 }
 
 func TestMain(m *testing.M) {
