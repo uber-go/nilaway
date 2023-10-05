@@ -32,7 +32,7 @@ type Pair[K comparable, V any] struct {
 // the encoder is shared). See [gob encoding] for more details.
 // [gob encoding]: https://pkg.go.dev/encoding/gob
 
-// OrderedMap is an ordered map that supports iteration in insertion order. It is an internal
+// OrderedMap is an ordered map that supports iteration in insertion order. It is an _internal_
 // helper struct for NilAway and lacks some of the features of a full map.
 type OrderedMap[K comparable, V any] struct {
 	// Pairs is the list of pairs in insertion order. It should _never_ be modified directly (use
