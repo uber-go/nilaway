@@ -124,7 +124,7 @@ func getGlobalProducer(pass *analysis.Pass, valspec *ast.ValueSpec, lid int, rid
 func getProducerForVar(pass *analysis.Pass, rhs *ast.Ident) *annotation.ProduceTrigger {
 	rhsVar, ok := pass.TypesInfo.ObjectOf(rhs).(*types.Var)
 	if !ok || !annotation.VarIsGlobal(rhsVar) {
-		// If rhs is not a global variable, we ignore it.
+		// If rhs is not a global variable (e.g., a constant), we ignore it.
 		return nil
 	}
 
