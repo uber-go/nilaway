@@ -19,6 +19,8 @@ These tests check if the nonnil global variables are initialized
 */
 package globalvars
 
+import "go.uber.org/globalvars/upstream"
+
 var x = 3
 
 // This should throw an error since it is not initialized
@@ -97,13 +99,11 @@ func foo() *int {
 
 // Now we test a corner case where a constant is assigned to a global variable.
 
-// ErrorNo is an uint32 type that implements error interface.
-type ErrorNo uint32
-
-func (e ErrorNo) Error() string { return "error!" }
-
 // ErrorNoFailure is a constant marking a failure.
-const ErrorNoFailure = ErrorNo(42)
+const ErrorNoFailure = upstream.ErrorNo(42)
 
 // Now, we can assign the (nonnil) constant ErrorNoFailure to a global variable.
 var invalidSyscall error = ErrorNoFailure
+
+// Assign it again, but from an upstream package.
+var invalidSyscallUpstream error = upstream.ErrorNoFailure

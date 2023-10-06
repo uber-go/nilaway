@@ -139,7 +139,11 @@ func getProducerForVar(pass *analysis.Pass, rhs *ast.Ident) *annotation.ProduceT
 }
 
 func getProducerForField(pass *analysis.Pass, rhs *ast.Ident) *annotation.ProduceTrigger {
-	rhsVar := pass.TypesInfo.ObjectOf(rhs).(*types.Var)
+	rhsVar, ok := pass.TypesInfo.ObjectOf(rhs).(*types.Var)
+	if !ok {
+		// If rhs is not a variable (e.g., a constant from an upstream package), we ignore it.
+		return nil
+	}
 	return &annotation.ProduceTrigger{
 		Annotation: annotation.FldRead{
 			TriggerIfNilable: annotation.TriggerIfNilable{
