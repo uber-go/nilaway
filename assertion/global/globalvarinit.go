@@ -109,10 +109,9 @@ func getGlobalProducer(pass *analysis.Pass, valspec *ast.ValueSpec, lid int, rid
 				Annotation: annotation.ConstNil{},
 				Expr:       rhs,
 			}
-		} else {
-			// if rhs is another global
-			return getProducerForVar(pass, rhs)
 		}
+		// if rhs is another global
+		return getProducerForVar(pass, rhs)
 	case *ast.SelectorExpr:
 		// Struct field access
 		return getProducerForField(pass, rhs.Sel)
