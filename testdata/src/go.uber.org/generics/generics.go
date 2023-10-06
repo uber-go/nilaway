@@ -109,3 +109,18 @@ func defineInFunc(p1 any, p2 fooT1) {
 	// underlying type is the same.
 	_ = GenericStruct[*A, int64, *int](p2)
 }
+
+// Test for a case where we have a generic slice.
+func GenericSlice[S ~[]*E, E any](s S) int {
+	for _, element := range s {
+		// TODO: we do not really handle generics for now, so the elements inside any
+		//  generic slices are considered nonnil. We should handle that properly.
+		print(*element) // False negative.
+	}
+	return -1
+}
+
+func callGenericSlice() {
+	a := []*int{nil, nil, nil}
+	GenericSlice(a)
+}
