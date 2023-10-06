@@ -72,11 +72,11 @@ func TypeIsSlice(t types.Type) bool {
 // TypeIsDeeplyArray returns true if `t` is of array type, including
 // transitively through Named types
 func TypeIsDeeplyArray(t types.Type) bool {
-	if _, ok := t.(*types.Array); ok {
+	switch tt := UnwrapPtr(t).(type) {
+	case *types.Array:
 		return true
-	}
-	if t, ok := t.(*types.Named); ok {
-		return TypeIsDeeplyArray(t.Underlying())
+	case *types.Named:
+		return TypeIsDeeplyArray(tt.Underlying())
 	}
 	return false
 }

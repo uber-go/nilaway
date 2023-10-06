@@ -155,3 +155,32 @@ func test2dArrayAssignment() *int {
 	twodArr = nilableTwodArr // TODO: an error should be reported here since we are assigning a (default) deeply nilable array 'nilableTwodArr' into a declared deeply nonnil array 'twodArr'
 	return twodArr[0][0]     //want "returned"
 }
+
+// Test a case where we declare a type alias for an array and then range over it.
+
+type blocks [42]int
+
+type blockSlice []int
+
+// nonnil(aPtr) nonnil(a) nonnil(bPtr) nonnil(b)
+func testArrayAliasPtr(aPtr *blocks, a blocks, bPtr *blockSlice, b blockSlice) {
+	// blocks is an alias for arrays, and the [language specs] states that it is possible to range
+	// over an array or a pointer to an array. Interestingly, you cannot range over a pointer to
+	// a slice.
+	// [language specs]: https://go.dev/ref/spec#RangeClause
+
+	// Range over a pointer to array alias. OK
+	for range aPtr {
+	}
+
+	// Range over an array alias. OK
+	for range a {
+	}
+
+	// Range over a pointer to slice alias. Disallowed!
+	// for range bPtr {}
+
+	// Range over a slice alias. OK
+	for range b {
+	}
+}
