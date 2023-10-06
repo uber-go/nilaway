@@ -94,3 +94,16 @@ func foo() *int {
 	print(multiNonNil, multiNil, nonnilMethod, assignedNilable)
 	return nil
 }
+
+// Now we test a corner case where a constant is assigned to a global variable.
+
+// ErrorNo is an uint32 type that implements error interface.
+type ErrorNo uint32
+
+func (e ErrorNo) Error() string { return "error!" }
+
+// ErrorNoFailure is a constant marking a failure.
+const ErrorNoFailure = ErrorNo(42)
+
+// Now, we can assign the (nonnil) constant ErrorNoFailure to a global variable.
+var invalidSyscall error = ErrorNoFailure

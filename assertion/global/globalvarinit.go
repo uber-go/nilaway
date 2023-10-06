@@ -86,8 +86,8 @@ func getGlobalConsumers(pass *analysis.Pass, valspec *ast.ValueSpec) []*annotati
 }
 
 // Returns a producer in the cases: 1) func call 2) literal nil 3) another global var 4) struct field/method.
+// In all other cases, it returns nil.
 func getGlobalProducer(pass *analysis.Pass, valspec *ast.ValueSpec, lid int, rid int) *annotation.ProduceTrigger {
-	var prod *annotation.ProduceTrigger
 	switch rhs := valspec.Values[rid].(type) {
 	case *ast.CallExpr:
 		if ident, ok := rhs.Fun.(*ast.Ident); ok {
@@ -95,49 +95,52 @@ func getGlobalProducer(pass *analysis.Pass, valspec *ast.ValueSpec, lid int, rid
 			if _, ok := pass.TypesInfo.ObjectOf(ident).(*types.Builtin); ok {
 				return nil
 			}
-			prod = getProducerForFuncCall(pass, ident, lid, rid, rhs)
+			return getProducerForFuncCall(pass, ident, lid, rid, rhs)
 		}
 		// Method call
 		if methCall, ok := rhs.Fun.(*ast.SelectorExpr); ok {
 			methName := methCall.Sel
-			prod = getProducerForMethodCall(pass, methName, lid, rid, rhs)
+			return getProducerForMethodCall(pass, methName, lid, rid, rhs)
 		}
 	case *ast.Ident:
 		// if rhs is literal nil
 		if rhs.Name == "nil" {
-			prod = &annotation.ProduceTrigger{
+			return &annotation.ProduceTrigger{
 				Annotation: annotation.ConstNil{},
 				Expr:       rhs,
 			}
 		} else {
 			// if rhs is another global
-			prod = getProducerForVar(pass, rhs, prod)
+			return getProducerForVar(pass, rhs)
 		}
 	case *ast.SelectorExpr:
 		// Struct field access
-		prod = getProducerForField(pass, rhs.Sel)
+		return getProducerForField(pass, rhs.Sel)
 	}
-	return prod
+
+	return nil
 }
 
-func getProducerForVar(pass *analysis.Pass, rhs *ast.Ident, prod *annotation.ProduceTrigger) *annotation.ProduceTrigger {
-	rhsVar := pass.TypesInfo.ObjectOf(rhs).(*types.Var)
-	if annotation.VarIsGlobal(rhsVar) {
-		prod = &annotation.ProduceTrigger{
-			Annotation: annotation.GlobalVarRead{
-				TriggerIfNilable: annotation.TriggerIfNilable{
-					Ann: annotation.GlobalVarAnnotationKey{
-						VarDecl: rhsVar,
-					}}},
-			Expr: rhs,
-		}
+func getProducerForVar(pass *analysis.Pass, rhs *ast.Ident) *annotation.ProduceTrigger {
+	rhsVar, ok := pass.TypesInfo.ObjectOf(rhs).(*types.Var)
+	if !ok || !annotation.VarIsGlobal(rhsVar) {
+		// If rhs is not a global variable, we ignore it.
+		return nil
 	}
-	return prod
+
+	return &annotation.ProduceTrigger{
+		Annotation: annotation.GlobalVarRead{
+			TriggerIfNilable: annotation.TriggerIfNilable{
+				Ann: annotation.GlobalVarAnnotationKey{
+					VarDecl: rhsVar,
+				}}},
+		Expr: rhs,
+	}
 }
 
 func getProducerForField(pass *analysis.Pass, rhs *ast.Ident) *annotation.ProduceTrigger {
 	rhsVar := pass.TypesInfo.ObjectOf(rhs).(*types.Var)
-	prod := &annotation.ProduceTrigger{
+	return &annotation.ProduceTrigger{
 		Annotation: annotation.FldRead{
 			TriggerIfNilable: annotation.TriggerIfNilable{
 				Ann: annotation.FieldAnnotationKey{
@@ -145,7 +148,6 @@ func getProducerForField(pass *analysis.Pass, rhs *ast.Ident) *annotation.Produc
 				}}},
 		Expr: rhs,
 	}
-	return prod
 }
 
 func getProducerForFuncCall(pass *analysis.Pass, methName *ast.Ident, lid int, rid int, rhs ast.Expr) *annotation.ProduceTrigger {
