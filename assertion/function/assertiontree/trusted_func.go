@@ -180,71 +180,90 @@ var requireComparators action = func(call *ast.CallExpr, startIndex int, pass *a
 	}
 	funcName := sel.Sel.Name
 
-	// The slice expression and the length expression can be at either places (i.e., both
-	// `Equal(len(s), 1)` and `Equal(1, len(s))` are allowed), so we search for the slice expression, the
-	// other will be treated as length expression.
+	// We now find the actual and expected expressions, where expected is the constant value that actual expression is
+	// compared against. For example, in `Equal(1, len(s))`, expected is 1, and actual is `len(s)`. However, the position
+	// pf the actual and expected expressions can be swapped, e.g., `Equal(len(s), 1)`. We handle both cases below,
+	// searching for the slice expression, the other will be treated as length expression.
+
+	// The constant (enum) values below represent the possible values of the expected expression
+	const (
+		_unknown = iota
+		_zero
+		_greaterThanZero
+	)
+
+	var actualExpr ast.Expr
+	var actualExprIndex int
+	expectedExprValue := _unknown
+
 	for argIndex, expr := range call.Args[startIndex : startIndex+2] {
-		// Check if the expression is `len(<slice_expr>)`.
-		callExpr, ok := expr.(*ast.CallExpr)
-		if !ok {
-			continue
-		}
-		wrapperFunc, ok := callExpr.Fun.(*ast.Ident)
-		if !ok {
-			continue
-		}
-		if pass.TypesInfo.ObjectOf(wrapperFunc) != util.BuiltinLen || len(callExpr.Args) != 1 {
-			continue
-		}
+		switch expr := expr.(type) {
+		case *ast.CallExpr:
+			// Check if the expression is `len(<slice_expr>)`.
+			if f, ok := expr.Fun.(*ast.Ident); ok && pass.TypesInfo.ObjectOf(f) == util.BuiltinLen && len(expr.Args) == 1 {
+				// Check if `<slice_expr>` is of slice type.
+				sliceExpr, lenExpr := expr.Args[0], call.Args[startIndex+1-argIndex]
+				_, ok = pass.TypesInfo.TypeOf(sliceExpr).Underlying().(*types.Slice)
+				if !ok {
+					continue
+				}
 
-		// Check if `<slice_expr>` is of slice type.
-		sliceExpr, lenExpr := callExpr.Args[0], call.Args[startIndex+1-argIndex]
-		_, ok = pass.TypesInfo.TypeOf(sliceExpr).Underlying().(*types.Slice)
-		if !ok {
-			continue
-		}
+				// Then, we can treat the other argument as the length expression and check its
+				// compile-time value.
+				typeAndValue, ok := pass.TypesInfo.Types[lenExpr]
+				if !ok {
+					continue
+				}
 
-		// Then, we can treat the other argument as the length expression and check its
-		// compile-time value.
-		typeAndValue, ok := pass.TypesInfo.Types[lenExpr]
-		if !ok {
-			continue
-		}
+				v, ok := constant.Val(typeAndValue.Value).(int64)
+				if !ok {
+					continue
+				}
 
-		v, ok := constant.Val(typeAndValue.Value).(int64)
-		if !ok {
-			continue
+				actualExpr = sliceExpr
+				actualExprIndex = argIndex
+				if v == 0 {
+					expectedExprValue = _zero
+				} else if v > 0 {
+					expectedExprValue = _greaterThanZero
+				}
+			}
 		}
+	}
 
-		// Now, based on the semantics of the function, we can create artificial nonnil checks for
-		// the following cases.
-		switch funcName {
-		case "Equal", "Equalf": // len(s) == [positive_int]
-			if v > 0 {
-				return newNilBinaryExpr(sliceExpr, token.NEQ)
-			}
-		case "NotEqual", "NotEqualf": // len(s) != [zero]
-			if v == 0 {
-				return newNilBinaryExpr(sliceExpr, token.NEQ)
-			}
-		// Note the check for `argIndex` in the following cases, we need to make sure the slice expr
-		// is at the correct position since these are inequality checks.
-		case "Greater", "Greaterf": // len(s) > [non_negative_int]
-			if argIndex == 0 && v >= 0 {
-				return newNilBinaryExpr(sliceExpr, token.NEQ)
-			}
-		case "GreaterOrEqual", "GreaterOrEqualf": // len(s) >= [positive_int]
-			if argIndex == 0 && v > 0 {
-				return newNilBinaryExpr(sliceExpr, token.NEQ)
-			}
-		case "Less", "Lessf": // [non_negative_int] < len(s)
-			if argIndex == 1 && v >= 0 {
-				return newNilBinaryExpr(sliceExpr, token.NEQ)
-			}
-		case "LessOrEqual", "LessOrEqualf": // [positive_int] <= len(s)
-			if argIndex == 1 && v > 0 {
-				return newNilBinaryExpr(sliceExpr, token.NEQ)
-			}
+	// likely represents a case that we don't support.
+	if expectedExprValue == _unknown {
+		return nil
+	}
+
+	// Now, based on the semantics of the function, we can create artificial nonnil checks for
+	// the following cases.
+	switch funcName {
+	case "Equal", "Equalf": // len(s) == [positive_int]
+		if expectedExprValue == _greaterThanZero {
+			return newNilBinaryExpr(actualExpr, token.NEQ)
+		}
+	case "NotEqual", "NotEqualf": // len(s) != [zero]
+		if expectedExprValue == _zero {
+			return newNilBinaryExpr(actualExpr, token.NEQ)
+		}
+	// Note the check for `argIndex` in the following cases, we need to make sure the slice expr
+	// is at the correct position since these are inequality checks.
+	case "Greater", "Greaterf": // len(s) > [non_negative_int]
+		if actualExprIndex == 0 && (expectedExprValue == _zero || expectedExprValue == _greaterThanZero) {
+			return newNilBinaryExpr(actualExpr, token.NEQ)
+		}
+	case "GreaterOrEqual", "GreaterOrEqualf": // len(s) >= [positive_int]
+		if actualExprIndex == 0 && expectedExprValue == _greaterThanZero {
+			return newNilBinaryExpr(actualExpr, token.NEQ)
+		}
+	case "Less", "Lessf": // [non_negative_int] < len(s)
+		if actualExprIndex == 1 && (expectedExprValue == _zero || expectedExprValue == _greaterThanZero) {
+			return newNilBinaryExpr(actualExpr, token.NEQ)
+		}
+	case "LessOrEqual", "LessOrEqualf": // [positive_int] <= len(s)
+		if actualExprIndex == 1 && expectedExprValue == _greaterThanZero {
+			return newNilBinaryExpr(actualExpr, token.NEQ)
 		}
 	}
 

@@ -775,3 +775,26 @@ func testLen(t *testing.T, i int, a []int) {
 		print(a[0]) //want "sliced into"
 	}
 }
+
+// import "go.uber.org/testing/github.com/stretchr/testify/suite"
+//
+// type S struct {
+// 	suite.Suite
+// }
+//
+// type myErr struct{}
+//
+// func (myErr) Error() string { return "myErr message" }
+//
+// func ret() (*int, error) {
+// 	if false {
+// 		return nil, &myErr{}
+// 	}
+// 	return new(int), nil
+// }
+//
+// func (s *S) test() {
+// 	v, err := ret()
+// 	s.Equal(nil, err)
+// 	_ = *v // False positive reported here
+// }
