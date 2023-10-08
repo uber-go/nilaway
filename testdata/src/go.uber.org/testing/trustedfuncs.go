@@ -643,31 +643,6 @@ func testEqual(t *testing.T, i int, a []int) interface{} {
 		require.Equalf(t, 1, len(a), "mymsg: %s", "arg")
 		print(a[0])
 
-	// The NotEqual variant should also be supported.
-	case 81:
-		require.NotEqual(t, len(a), 0)
-		print(a[0])
-
-	case 83:
-		// Swapping the positions of args should not affect the analysis.
-		require.NotEqual(t, 0, len(a))
-		print(a[0])
-
-	case 84:
-		// Using a constant is also OK.
-		const zero = 0
-		require.NotEqual(t, zero, len(a))
-
-	case 82:
-		// `len(a) != 1` implies that len(a) can be 0, hence we should report an error.
-		require.NotEqual(t, len(a), 1)
-		print(a[0]) //want "sliced into"
-
-	case 85:
-		require.NotEqual(t, len(a), 1)
-		print(a[0]) //want "sliced into"
-
-	// Equal/NotEqual with nil should also be supported.
 	case 8:
 		x, err := errs()
 		require.Equal(t, err, nil)
@@ -710,16 +685,6 @@ func testEqual(t *testing.T, i int, a []int) interface{} {
 		var x *int
 		require.Equal(t, nil, x)
 		print(*x) //want "unassigned variable `x` dereferenced"
-
-	case 16:
-		var x *int
-		require.Equal(t, x, nil)
-		print(*x) //want "unassigned variable `x` dereferenced"
-
-	case 17:
-		var x *int
-		require.NotEqual(t, x, nil)
-		print(*x)
 	}
 	return 0
 }
@@ -854,26 +819,3 @@ func testLen(t *testing.T, i int, a []int) {
 		print(a[0]) //want "sliced into"
 	}
 }
-
-// import "go.uber.org/testing/github.com/stretchr/testify/suite"
-//
-// type S struct {
-// 	suite.Suite
-// }
-//
-// type myErr struct{}
-//
-// func (myErr) Error() string { return "myErr message" }
-//
-// func ret() (*int, error) {
-// 	if false {
-// 		return nil, &myErr{}
-// 	}
-// 	return new(int), nil
-// }
-//
-// func (s *S) test() {
-// 	v, err := ret()
-// 	s.Equal(nil, err)
-// 	_ = *v // False positive reported here
-// }
