@@ -166,6 +166,7 @@ func newNilBinaryExpr(arg ast.Expr, op token.Token) *ast.BinaryExpr {
 
 // requireComparators handles a slightly more sophisticated case for asserting the length of a
 // slice, e.g., length of a slice is greater than 0 implies the slice is not nil.
+// We currently support slice lenth comparison and nil comparison.
 var requireComparators action = func(call *ast.CallExpr, startIndex int, pass *analysis.Pass) any {
 	// Comparator function calls must have at least two arguments.
 	if len(call.Args[startIndex:]) < 2 {
@@ -190,6 +191,7 @@ var requireComparators action = func(call *ast.CallExpr, startIndex int, pass *a
 		_unknown = iota
 		_zero
 		_greaterThanZero
+		_nil
 	)
 
 	var actualExpr ast.Expr
@@ -228,6 +230,13 @@ var requireComparators action = func(call *ast.CallExpr, startIndex int, pass *a
 					expectedExprValue = _greaterThanZero
 				}
 			}
+		case *ast.Ident:
+			// Check if the expression is `nil`.
+			if expr.Name == "nil" {
+				actualExpr = call.Args[startIndex+1-argIndex]
+				actualExprIndex = argIndex
+				expectedExprValue = _nil
+			}
 		}
 	}
 
@@ -239,14 +248,17 @@ var requireComparators action = func(call *ast.CallExpr, startIndex int, pass *a
 	// Now, based on the semantics of the function, we can create artificial nonnil checks for
 	// the following cases.
 	switch funcName {
-	case "Equal", "Equalf": // len(s) == [positive_int]
+	case "Equal", "Equalf": // len(s) == [positive_int], expr == nil
 		if expectedExprValue == _greaterThanZero {
 			return newNilBinaryExpr(actualExpr, token.NEQ)
+		} else if expectedExprValue == _nil {
+			return newNilBinaryExpr(actualExpr, token.EQL)
 		}
-	case "NotEqual", "NotEqualf": // len(s) != [zero]
-		if expectedExprValue == _zero {
+	case "NotEqual", "NotEqualf": // len(s) != [zero], expr != nil
+		if expectedExprValue == _zero || expectedExprValue == _nil {
 			return newNilBinaryExpr(actualExpr, token.NEQ)
 		}
+
 	// Note the check for `argIndex` in the following cases, we need to make sure the slice expr
 	// is at the correct position since these are inequality checks.
 	case "Greater", "Greaterf": // len(s) > [non_negative_int]
@@ -330,7 +342,7 @@ var trustedFuncs = map[trustedFuncSig]trustedFuncAction{
 	{
 		kind:           _method,
 		enclosingRegex: regexp.MustCompile(`github\.com/stretchr/testify/(suite\.Suite|assert\.Assertions|require\.Assertions)$`),
-		funcNameRegex:  regexp.MustCompile(`^(Greater(f)?|Less(f)?|(GreaterOr|LessOr)?Equal(f)?)$`),
+		funcNameRegex:  regexp.MustCompile(`^(Greater(f)?|Less(f)?|(GreaterOr|LessOr)?Equal(f)?|NotEqual(f)?)$`),
 	}: {action: requireComparators, argIndex: 0},
 	{
 		kind:           _method,
@@ -362,7 +374,7 @@ var trustedFuncs = map[trustedFuncSig]trustedFuncAction{
 	{
 		kind:           _func,
 		enclosingRegex: regexp.MustCompile(`github\.com/stretchr/testify/(assert|require)$`),
-		funcNameRegex:  regexp.MustCompile(`^(Greater(f)?|Less(f)?|(GreaterOr|LessOr)?Equal(f)?)$`),
+		funcNameRegex:  regexp.MustCompile(`^(Greater(f)?|Less(f)?|(GreaterOr|LessOr)?Equal(f)?|NotEqual(f)?)$`),
 	}: {action: requireComparators, argIndex: 1},
 	{
 		kind:           _func,

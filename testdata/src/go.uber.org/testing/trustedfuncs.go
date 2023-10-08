@@ -605,7 +605,7 @@ func testLongerAccessPath(w *W) any {
 }
 
 // nilable(a)
-func testEqual(t *testing.T, i int, a []int) {
+func testEqual(t *testing.T, i int, a []int) interface{} {
 	switch i {
 	case 0:
 		require.Equal(t, len(a), 1)
@@ -642,7 +642,51 @@ func testEqual(t *testing.T, i int, a []int) {
 	case 7:
 		require.Equalf(t, 1, len(a), "mymsg: %s", "arg")
 		print(a[0])
+
+	case 8:
+		x, err := errs()
+		require.Equal(t, err, nil)
+		return x
+
+	case 9:
+		x, err := errs()
+		require.Equal(t, nil, err)
+		return x
+
+	case 10:
+		x, err := errs()
+		require.NotEqual(t, err, nil)
+		return x //want "result 0 of `errs.*` lacking guarding"
+
+	case 11:
+		x, err := errs()
+		require.NotEqual(t, nil, err)
+		return x //want "result 0 of `errs.*` lacking guarding"
+
+	// test with suite.Suite
+	case 12:
+		x, err := errs()
+		s := &testSetupEmbeddedDepth1{}
+		s.Equal(nil, err)
+		return x
+
+	case 13:
+		x, err := errs()
+		s := &testSetupEmbeddedDepth1{}
+		s.NotEqual(err, nil)
+		return x //want "result 0 of `errs.*` lacking guarding"
+
+	case 14:
+		var x *int
+		require.NotEqual(t, nil, x)
+		print(*x)
+
+	case 15:
+		var x *int
+		require.Equal(t, nil, x)
+		print(*x) //want "unassigned variable `x` dereferenced"
 	}
+	return 0
 }
 
 // nilable(a)
@@ -775,26 +819,3 @@ func testLen(t *testing.T, i int, a []int) {
 		print(a[0]) //want "sliced into"
 	}
 }
-
-// import "go.uber.org/testing/github.com/stretchr/testify/suite"
-//
-// type S struct {
-// 	suite.Suite
-// }
-//
-// type myErr struct{}
-//
-// func (myErr) Error() string { return "myErr message" }
-//
-// func ret() (*int, error) {
-// 	if false {
-// 		return nil, &myErr{}
-// 	}
-// 	return new(int), nil
-// }
-//
-// func (s *S) test() {
-// 	v, err := ret()
-// 	s.Equal(nil, err)
-// 	_ = *v // False positive reported here
-// }
