@@ -166,7 +166,9 @@ func newNilBinaryExpr(arg ast.Expr, op token.Token) *ast.BinaryExpr {
 
 // requireComparators handles a slightly more sophisticated case for asserting the length of a
 // slice, e.g., length of a slice is greater than 0 implies the slice is not nil.
-// We currently support slice lenth comparison and nil comparison.
+// We currently support:
+// - slice length comparison (e.g., `Equal(1, len(s))`) and
+// - nil comparison (e.g., `Equal(nil, err)`).
 var requireComparators action = func(call *ast.CallExpr, startIndex int, pass *analysis.Pass) any {
 	// Comparator function calls must have at least two arguments.
 	if len(call.Args[startIndex:]) < 2 {
@@ -183,8 +185,8 @@ var requireComparators action = func(call *ast.CallExpr, startIndex int, pass *a
 
 	// We now find the actual and expected expressions, where expected is the constant value that actual expression is
 	// compared against. For example, in `Equal(1, len(s))`, expected is 1, and actual is `len(s)`. However, the position
-	// of the actual and expected expressions can be swapped, e.g., `Equal(len(s), 1)`. We handle both cases below,
-	// searching for the slice expression, the other will be treated as length expression.
+	// of the actual and expected expressions can be swapped, e.g., `Equal(len(s), 1)`. We handle both cases below. For
+	// example, for length comparison, we search for the slice expression, the other will be treated as length expression.
 
 	// The constant (enum) values below represent the possible values of the expected expression
 	const (
@@ -202,36 +204,42 @@ var requireComparators action = func(call *ast.CallExpr, startIndex int, pass *a
 		switch expr := expr.(type) {
 		case *ast.CallExpr:
 			// Check if the expression is `len(<slice_expr>)`.
-			if f, ok := expr.Fun.(*ast.Ident); ok && pass.TypesInfo.ObjectOf(f) == util.BuiltinLen && len(expr.Args) == 1 {
-				// Check if `<slice_expr>` is of slice type.
-				sliceExpr, lenExpr := expr.Args[0], call.Args[startIndex+1-argIndex]
-				_, ok = pass.TypesInfo.TypeOf(sliceExpr).Underlying().(*types.Slice)
-				if !ok {
-					continue
-				}
-
-				// Then, we can treat the other argument as the length expression and check its
-				// compile-time value.
-				typeAndValue, ok := pass.TypesInfo.Types[lenExpr]
-				if !ok {
-					continue
-				}
-
-				v, ok := constant.Val(typeAndValue.Value).(int64)
-				if !ok {
-					continue
-				}
-
-				actualExpr = sliceExpr
-				actualExprIndex = argIndex
-				if v == 0 {
-					expectedExprValue = _zero
-				} else if v > 0 {
-					expectedExprValue = _greaterThanZero
-				}
+			wrapperFunc, ok := expr.Fun.(*ast.Ident)
+			if !ok {
+				continue
 			}
+			if pass.TypesInfo.ObjectOf(wrapperFunc) != util.BuiltinLen || len(expr.Args) != 1 {
+				continue
+			}
+			// Check if `<slice_expr>` is of slice type.
+			sliceExpr, lenExpr := expr.Args[0], call.Args[startIndex+1-argIndex]
+			_, ok = pass.TypesInfo.TypeOf(sliceExpr).Underlying().(*types.Slice)
+			if !ok {
+				continue
+			}
+
+			// Then, we can treat the other argument as the length expression and check its
+			// compile-time value.
+			typeAndValue, ok := pass.TypesInfo.Types[lenExpr]
+			if !ok {
+				continue
+			}
+
+			v, ok := constant.Val(typeAndValue.Value).(int64)
+			if !ok {
+				continue
+			}
+
+			actualExpr = sliceExpr
+			actualExprIndex = argIndex
+			if v == 0 {
+				expectedExprValue = _zero
+			} else if v > 0 {
+				expectedExprValue = _greaterThanZero
+			}
+
 		case *ast.Ident:
-			// Check if the expression is `nil`.
+			// Check if the expected expression is `nil`.
 			if expr.Name == "nil" {
 				actualExpr = call.Args[startIndex+1-argIndex]
 				actualExprIndex = argIndex
