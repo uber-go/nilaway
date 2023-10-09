@@ -243,13 +243,6 @@ var requireComparators action = func(call *ast.CallExpr, startIndex int, pass *a
 				actualExprIndex = argIndex
 				expectedExprValue = _nil
 			}
-		case *ast.Ident:
-			// Check if the expression is `nil`.
-			if expr.Name == "nil" {
-				actualExpr = call.Args[startIndex+1-argIndex]
-				actualExprIndex = argIndex
-				expectedExprValue = _nil
-			}
 		}
 	}
 
