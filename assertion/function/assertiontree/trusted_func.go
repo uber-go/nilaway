@@ -164,10 +164,8 @@ func newNilBinaryExpr(arg ast.Expr, op token.Token) *ast.BinaryExpr {
 	}
 }
 
-// requireComparators handles a slightly more sophisticated case for asserting the length of a
-// slice, e.g., length of a slice is greater than 0 implies the slice is not nil.
-// We currently support:
-// - slice length comparison (e.g., `Equal(1, len(s))`) and
+// requireComparators handles slightly more sophisticated cases of comparisons. We currently support:
+// - slice length comparison (e.g., `Equal(1, len(s))`, implying len(s) > 0, meaning s is nonnil)
 // - nil comparison (e.g., `Equal(nil, err)`).
 var requireComparators action = func(call *ast.CallExpr, startIndex int, pass *analysis.Pass) any {
 	// Comparator function calls must have at least two arguments.
