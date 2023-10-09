@@ -183,7 +183,7 @@ var requireComparators action = func(call *ast.CallExpr, startIndex int, pass *a
 
 	// We now find the actual and expected expressions, where expected is the constant value that actual expression is
 	// compared against. For example, in `Equal(1, len(s))`, expected is 1, and actual is `len(s)`. However, the position
-	// pf the actual and expected expressions can be swapped, e.g., `Equal(len(s), 1)`. We handle both cases below,
+	// of the actual and expected expressions can be swapped, e.g., `Equal(len(s), 1)`. We handle both cases below,
 	// searching for the slice expression, the other will be treated as length expression.
 
 	// The constant (enum) values below represent the possible values of the expected expression
