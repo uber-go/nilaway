@@ -854,3 +854,15 @@ func testLen(t *testing.T, i int, a []int) {
 		print(a[0]) //want "sliced into"
 	}
 }
+
+// nilable(a)
+func testEmpty(t *testing.T, i int, a []int) {
+	switch i {
+	case 0:
+		require.Empty(t, 0, len(a))
+		print(a[0]) //want "sliced into"
+	case 1:
+		require.NotEmpty(t, 0, len(a))
+		print(a[0])
+	}
+}

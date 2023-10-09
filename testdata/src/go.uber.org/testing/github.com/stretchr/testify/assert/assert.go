@@ -175,3 +175,15 @@ func (*Assertions) Len(object interface{}, length int, msgAndArgs ...interface{}
 
 // nilable(object)
 func (*Assertions) Lenf(object interface{}, length int, msg string, args ...interface{}) {}
+
+// nilable(object)
+func Empty(object interface{}, msgAndArgs ...interface{}) bool { return true }
+
+// nilable(object)
+func Emptyf(object interface{}, msg string, args ...interface{}) bool { return true }
+
+// nilable(object)
+func NotEmpty(object interface{}, msgAndArgs ...interface{}) bool { return true }
+
+// nilable(object)
+func NotEmptyf(object interface{}, msg string, args ...interface{}) bool { return true }
