@@ -164,6 +164,19 @@ func newNilBinaryExpr(arg ast.Expr, op token.Token) *ast.BinaryExpr {
 	}
 }
 
+// The constant (enum) values below represent the possible values of an expected expression in a comparison
+// E.g., `Equal(1, len(s))`, where `1` is the expected expression and is assigned the value `_greaterThanZero`.
+// E.g., `Equal(nil, err)`, where `nil` is the expected expression and is assigned the value `_nil`.
+type expectedValue int
+
+const (
+	_unknown expectedValue = iota // init value when the expected expression value is yet to be determined
+	_zero
+	_greaterThanZero
+	_nil
+	_false
+)
+
 // requireComparators handles slightly more sophisticated cases of comparisons. We currently support:
 // - slice length comparison (e.g., `Equal(1, len(s))`, implying len(s) > 0, meaning s is nonnil)
 // - nil comparison (e.g., `Equal(nil, err)`).
@@ -173,26 +186,10 @@ var requireComparators action = func(call *ast.CallExpr, startIndex int, pass *a
 		return nil
 	}
 
-	// We handle multiple comparator functions here, so we store the function name to do different
-	// actions depending on their semantics.
-	sel, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok {
-		return nil
-	}
-	funcName := sel.Sel.Name
-
 	// We now find the actual and expected expressions, where expected is the constant value that actual expression is
 	// compared against. For example, in `Equal(1, len(s))`, expected is 1, and actual is `s`. However, the position
 	// of the actual and expected expressions can be swapped, e.g., `Equal(len(s), 1)`. We handle both cases below. For
 	// example, for length comparison, we search for the slice expression, the other will be treated as length expression.
-
-	// The constant (enum) values below represent the possible values of the expected expression
-	const (
-		_unknown = iota
-		_zero
-		_greaterThanZero
-		_nil
-	)
 
 	var actualExpr ast.Expr
 	var actualExprIndex int
@@ -251,6 +248,18 @@ var requireComparators action = func(call *ast.CallExpr, startIndex int, pass *a
 		return nil
 	}
 
+	// we now generate the comparators based on the semantics of the function.
+	return generateComparators(call, actualExpr, actualExprIndex, expectedExprValue)
+}
+
+// generateComparators generates comparators based on the semantics of the function.
+func generateComparators(call *ast.CallExpr, actualExpr ast.Expr, actualExprIndex int, expectedVal expectedValue) any {
+	sel, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return nil
+	}
+	funcName := sel.Sel.Name
+
 	// Now, based on the semantics of the function, we can create artificial nonnil checks for
 	// the following cases.
 	// - slice length comparison. E.g., `Equal(1, len(s))`, implying len(s) > 0, meaning s is nonnil.
@@ -259,33 +268,39 @@ var requireComparators action = func(call *ast.CallExpr, startIndex int, pass *a
 	// - nil comparison. E.g., `Equal(nil, err)`, where actualExpr is `err` and expectedExprValue is `_nil`, which
 	//   translates to the binary expression `err == nil` being added to the CFG.
 	switch funcName {
-	case "Equal", "Equalf": // len(s) == [positive_int], expr == nil
-		if expectedExprValue == _greaterThanZero {
+	case "Equal", "Equalf", "Empty", "Emptyf": // len(s) == [positive_int], expr == nil
+		switch expectedVal {
+		case _greaterThanZero:
 			return newNilBinaryExpr(actualExpr, token.NEQ)
-		} else if expectedExprValue == _nil {
+		case _nil:
 			return newNilBinaryExpr(actualExpr, token.EQL)
+		case _false:
+			return negatedSelfExpr(call, actualExprIndex, nil)
 		}
-	case "NotEqual", "NotEqualf": // len(s) != [zero], expr != nil
-		if expectedExprValue == _zero || expectedExprValue == _nil {
+	case "NotEqual", "NotEqualf", "NotEmpty", "NotEmptyf": // len(s) != [zero], expr != nil
+		switch expectedVal {
+		case _zero, _nil:
 			return newNilBinaryExpr(actualExpr, token.NEQ)
+		case _false:
+			return selfExpr(call, actualExprIndex, nil)
 		}
 
 	// Note the check for `actualExprIndex` in the following cases, we need to make sure the slice expr
 	// is at the correct position since these are inequality checks.
 	case "Greater", "Greaterf": // len(s) > [non_negative_int]
-		if actualExprIndex == 0 && (expectedExprValue == _zero || expectedExprValue == _greaterThanZero) {
+		if actualExprIndex == 0 && (expectedVal == _zero || expectedVal == _greaterThanZero) {
 			return newNilBinaryExpr(actualExpr, token.NEQ)
 		}
 	case "GreaterOrEqual", "GreaterOrEqualf": // len(s) >= [positive_int]
-		if actualExprIndex == 0 && expectedExprValue == _greaterThanZero {
+		if actualExprIndex == 0 && expectedVal == _greaterThanZero {
 			return newNilBinaryExpr(actualExpr, token.NEQ)
 		}
 	case "Less", "Lessf": // [non_negative_int] < len(s)
-		if actualExprIndex == 1 && (expectedExprValue == _zero || expectedExprValue == _greaterThanZero) {
+		if actualExprIndex == 1 && (expectedVal == _zero || expectedVal == _greaterThanZero) {
 			return newNilBinaryExpr(actualExpr, token.NEQ)
 		}
 	case "LessOrEqual", "LessOrEqualf": // [positive_int] <= len(s)
-		if actualExprIndex == 1 && expectedExprValue == _greaterThanZero {
+		if actualExprIndex == 1 && expectedVal == _greaterThanZero {
 			return newNilBinaryExpr(actualExpr, token.NEQ)
 		}
 	}
@@ -322,6 +337,32 @@ var requireLen action = func(call *ast.CallExpr, startIndex int, pass *analysis.
 	// Len(sliceExpr, [positive_int]) implies that the slice is nonnil.
 	if v > 0 {
 		return newNilBinaryExpr(sliceExpr, token.NEQ)
+	}
+
+	return nil
+}
+
+// requireZeroComparators handles a special case of comparators checking for zero values (e.g., `Empty(err)`, i.e. err == nil).
+// We currently support the following cases of zero comparators:
+// - `nil` for pointers
+// - `false` for booleans
+// - `len == 0` for slices, maps, and channels
+var requireZeroComparators action = func(call *ast.CallExpr, index int, pass *analysis.Pass) any {
+	expr := call.Args[index]
+	if expr == nil {
+		return nil
+	}
+
+	exprType := util.TypeOf(pass, expr)
+
+	if util.TypeIsDeeplyPtr(exprType) || util.TypeIsErrorType(exprType) {
+		return generateComparators(call, expr, index, _nil)
+	}
+	if util.TypeIsDeeplySlice(exprType) || util.TypeIsDeeplyMap(exprType) || util.TypeIsDeeplyChan(exprType) {
+		return generateComparators(call, expr, index, _zero)
+	}
+	if b, ok := exprType.(*types.Basic); ok && b.Kind() == types.Bool {
+		return generateComparators(call, expr, index, _false)
 	}
 
 	return nil
@@ -418,6 +459,16 @@ var trustedFuncs = map[trustedFuncSig]trustedFuncAction{
 		enclosingRegex: regexp.MustCompile(`github\.com/pkg/errors$`),
 		funcNameRegex:  regexp.MustCompile(`^New$`),
 	}: {action: nonnilProducer, argIndex: -1},
+	{
+		kind:           _func,
+		enclosingRegex: regexp.MustCompile(`github\.com/stretchr/testify/(assert|require)$`),
+		funcNameRegex:  regexp.MustCompile(`^(Empty(f)?|NotEmpty(f)?)$`),
+	}: {action: requireZeroComparators, argIndex: 1},
+	{
+		kind:           _method,
+		enclosingRegex: regexp.MustCompile(`github\.com/stretchr/testify/(suite\.Suite|assert\.Assertions|require\.Assertions)$`),
+		funcNameRegex:  regexp.MustCompile(`^(Empty(f)?|NotEmpty(f)?)$`),
+	}: {action: requireZeroComparators, argIndex: 0},
 }
 
 // BuiltinAppend is used to check the builtin append method for slice

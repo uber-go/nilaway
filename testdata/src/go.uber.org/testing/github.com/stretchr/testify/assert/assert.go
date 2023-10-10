@@ -101,6 +101,18 @@ func Len(t TestingT, object interface{}, length int, msgAndArgs ...interface{}) 
 func Lenf(t TestingT, object interface{}, length int, msg string, args ...interface{}) {}
 
 // nilable(object)
+func Empty(t TestingT, object interface{}, msgAndArgs ...interface{}) bool { return true }
+
+// nilable(object)
+func Emptyf(t TestingT, object interface{}, msg string, args ...interface{}) bool { return true }
+
+// nilable(object)
+func NotEmpty(t TestingT, object interface{}, msgAndArgs ...interface{}) bool { return true }
+
+// nilable(object)
+func NotEmptyf(t TestingT, object interface{}, msg string, args ...interface{}) bool { return true }
+
+// nilable(object)
 func (*Assertions) NotNil(object interface{}, msgAndArgs ...interface{}) bool { return true }
 
 // nilable(object)
@@ -177,13 +189,13 @@ func (*Assertions) Len(object interface{}, length int, msgAndArgs ...interface{}
 func (*Assertions) Lenf(object interface{}, length int, msg string, args ...interface{}) {}
 
 // nilable(object)
-func Empty(object interface{}, msgAndArgs ...interface{}) bool { return true }
+func (*Assertions) Empty(object interface{}, msgAndArgs ...interface{}) bool { return true }
 
 // nilable(object)
-func Emptyf(object interface{}, msg string, args ...interface{}) bool { return true }
+func (*Assertions) Emptyf(object interface{}, msg string, args ...interface{}) bool { return true }
 
 // nilable(object)
-func NotEmpty(object interface{}, msgAndArgs ...interface{}) bool { return true }
+func (*Assertions) NotEmpty(object interface{}, msgAndArgs ...interface{}) bool { return true }
 
 // nilable(object)
-func NotEmptyf(object interface{}, msg string, args ...interface{}) bool { return true }
+func (*Assertions) NotEmptyf(object interface{}, msg string, args ...interface{}) bool { return true }
