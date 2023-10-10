@@ -97,7 +97,7 @@ func foo() *int {
 	return nil
 }
 
-// Now we test a corner case where a constant is assigned to a global variable.
+// Below test checks when a constant is assigned to a global variable.
 
 // ErrorNoFailure is a constant marking a failure.
 const ErrorNoFailure = upstream.ErrorNo(42)
