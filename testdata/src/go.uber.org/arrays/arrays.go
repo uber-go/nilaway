@@ -162,7 +162,7 @@ type blocks [42]int
 
 type blockSlice []int
 
-// nonnil(aPtr) nonnil(a) nonnil(bPtr) nonnil(b)
+// nonnil(aPtr, a, bPtr, b)
 func testArrayAliasPtr(aPtr *blocks, a blocks, bPtr *blockSlice, b blockSlice) {
 	// blocks is an alias for arrays, and the [language specs] states that it is possible to range
 	// over an array or a pointer to an array. Interestingly, you cannot range over a pointer to
