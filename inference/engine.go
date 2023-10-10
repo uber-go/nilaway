@@ -244,7 +244,7 @@ func (e *Engine) buildFromSingleFullTrigger(trigger annotation.FullTrigger) {
 	pSite, cSite := trigger.Producer.Annotation.UnderlyingSite(), trigger.Consumer.Annotation.UnderlyingSite()
 	// NilAway does not know that (kind == Conditional || DeepConditional) => (site != nil),
 	// so we have to add some redundant checks in the corresponding cases to give some hints.
-	// TODO: remove this redundant check.
+	// TODO: remove those redundant nilness checks for sites.
 	switch {
 	case pKind == annotation.Always && cKind == annotation.Always:
 		// Producer always produces nilable value -> consumer always consumes nonnil value.
