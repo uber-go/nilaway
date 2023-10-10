@@ -17,7 +17,6 @@ package inference
 import (
 	"bytes"
 	"encoding/gob"
-	"fmt"
 	"go/types"
 
 	"go.uber.org/nilaway/annotation"
@@ -55,33 +54,6 @@ func newInferredMap(primitive *primitivizer) *InferredMap {
 
 // AFact allows InferredAnnotationMaps to be imported and exported via the Facts mechanism.
 func (*InferredMap) AFact() {}
-
-// String returns a string representation of the InferredMap for debugging purposes.
-func (i *InferredMap) String() string {
-
-	valStr := func(val InferredVal) string {
-		switch v := val.(type) {
-		case *DeterminedVal:
-			return fmt.Sprintf("%T", v.Bool)
-		case *UndeterminedVal:
-			implicants, implicates := "", ""
-			for _, p := range v.Implicants.Pairs {
-				implicants += fmt.Sprintf("%s-> ", p.Key.String())
-			}
-			for _, p := range v.Implicates.Pairs {
-				implicates += fmt.Sprintf("->%s ", p.Key.String())
-			}
-			return fmt.Sprintf("[%s && %s]", implicants, implicates)
-		}
-		return ""
-	}
-
-	out := "{"
-	for site, val := range i.mapping {
-		out += fmt.Sprintf("%s: %s, ", site.String(), valStr(val))
-	}
-	return out + "}"
-}
 
 // Load returns the value stored in the map for an annotation site, or nil if no value is present.
 // The ok result indicates whether value was found in the map.
