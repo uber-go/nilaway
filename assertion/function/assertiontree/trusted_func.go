@@ -353,16 +353,16 @@ var requireZeroComparators action = func(call *ast.CallExpr, index int, pass *an
 		return nil
 	}
 
-	exprType := util.TypeOf(pass, expr)
-
-	if util.TypeIsDeeplyPtr(exprType) || util.TypeIsErrorType(exprType) {
+	exprType := pass.TypesInfo.TypeOf(expr).Underlying()
+	switch t := exprType.(type) {
+	case *types.Pointer, *types.Interface:
 		return generateComparators(call, expr, index, _nil)
-	}
-	if util.TypeIsDeeplySlice(exprType) || util.TypeIsDeeplyMap(exprType) || util.TypeIsDeeplyChan(exprType) {
+	case *types.Slice, *types.Map, *types.Chan:
 		return generateComparators(call, expr, index, _zero)
-	}
-	if b, ok := exprType.(*types.Basic); ok && b.Kind() == types.Bool {
-		return generateComparators(call, expr, index, _false)
+	case *types.Basic:
+		if t.Kind() == types.Bool {
+			return generateComparators(call, expr, index, _false)
+		}
 	}
 
 	return nil
