@@ -462,16 +462,23 @@ type LocalVarAnnotationKey struct {
 
 // Lookup looks this key up in the passed map, returning a Val
 // TODO: Add support for local variables with no inference (Currently, only works with inference)
-func (lk LocalVarAnnotationKey) Lookup(_ Map) (Val, bool) {
+func (lk *LocalVarAnnotationKey) Lookup(_ Map) (Val, bool) {
 	return nonAnnotatedDefault, false
 }
 
 // Object returns the types.Object that this annotation can best be interpreted as annotating
-func (lk LocalVarAnnotationKey) Object() types.Object {
+func (lk *LocalVarAnnotationKey) Object() types.Object {
 	return lk.VarDecl
 }
 
-func (lk LocalVarAnnotationKey) String() string {
+func (lk *LocalVarAnnotationKey) equals(other Key) bool {
+	if other, ok := other.(*LocalVarAnnotationKey); ok {
+		return *lk == *other
+	}
+	return false
+}
+
+func (lk *LocalVarAnnotationKey) String() string {
 	return fmt.Sprintf("Local Variable %s", lk.VarDecl.Name())
 }
 
