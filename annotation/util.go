@@ -115,8 +115,9 @@ func DeepNilabilityOfVar(fdecl *types.Func, v *types.Var) ProducingAnnotationTri
 				Ann: &LocalVarAnnotationKey{
 					VarDecl: v,
 				},
+				NeedsGuard: util.TypeIsDeeplyMap(v.Type()),
 			},
-			NeedsGuard: util.TypeIsDeeplyMap(v.Type())}
+		}
 	}
 	// otherwise, the deep nilability of this variable is either that of its named type,
 	// or not deeply nilable - a logical split captured in the method DeepNilabilityAsNamedType

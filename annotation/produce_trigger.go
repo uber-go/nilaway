@@ -1184,34 +1184,22 @@ func (f FldReadDeepPrestring) String() string {
 	return fmt.Sprintf("deep read from field `%s`", f.FieldName)
 }
 
-// NeedsGuardMatch for a FldReadDeep reads the field NeedsGuard of the
-// struct - set to indicate whether the field read is of type `map` or `channel`
-func (f FldReadDeep) NeedsGuardMatch() bool { return f.NeedsGuard }
-
-// SetNeedsGuard for a FldReadDeep sets its underlying field NeedsGuard
-func (f FldReadDeep) SetNeedsGuard(b bool) ProducingAnnotationTrigger {
-	f.NeedsGuard = b
-	return f
-}
-
 // LocalVarReadDeep is when a value is determined to flow deeply from a local variable.
 type LocalVarReadDeep struct {
 	*TriggerIfDeepNilable
-	NeedsGuard bool
 }
 
 // equals returns true if the passed ProducingAnnotationTrigger is equal to this one
 func (v *LocalVarReadDeep) equals(other ProducingAnnotationTrigger) bool {
 	if other, ok := other.(*LocalVarReadDeep); ok {
-		return v.TriggerIfDeepNilable.equals(other.TriggerIfDeepNilable) &&
-			v.NeedsGuard == other.NeedsGuard
+		return v.TriggerIfDeepNilable.equals(other.TriggerIfDeepNilable)
 	}
 	return false
 }
 
 // Prestring returns this LocalVarReadDeep as a Prestring
 func (v LocalVarReadDeep) Prestring() Prestring {
-	varAnn := v.Ann.(LocalVarAnnotationKey)
+	varAnn := v.Ann.(*LocalVarAnnotationKey)
 	return LocalVarReadDeepPrestring{varAnn.VarDecl.Name()}
 }
 
