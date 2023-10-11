@@ -26,19 +26,25 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
+// conflictHandler defines the interface that handles the conflicts encountered during inference.
+// This makes the inference engine independent of the diagnostic generation logic.
+type conflictHandler interface {
+	AddSingleAssertionConflict(trigger annotation.FullTrigger)
+	AddOverconstraintConflict(nilExplanation, nonnilExplanation ExplainedBool)
+}
+
 // Engine is the structure responsible for running the inference: it contains methods to run
 // various tasks for the inference and stores an internal map that can be obtained by calling
-// Engine.InferredMapWithDiagnostics.
+// Engine.InferredMap.
 type Engine struct {
 	pass *analysis.Pass
 	// inferredMap is the internal inferred map that the engine writes to, it is initialized on the
 	// construction of the engine and populated by the "Observe*" methods of the engine. Users
-	// should use the Engine.InferredMapWithDiagnostics() method to obtain the current inferred map.
+	// should use the Engine.InferredMap() method to obtain the current inferred map.
 	inferredMap *InferredMap
-	// conflicts stores conflicts encountered during the observations. It will be
-	// converted to diagnostics and returned along with the current inferred map whenever users
-	// request it.
-	conflicts *ConflictList
+	// diagnosticEngine receives all encountered conflicts during inference and eventually
+	// generates proper diagnostics from those conflicts.
+	diagnosticEngine conflictHandler
 	// controlledTriggersBySite stores the set of controlled triggers for each site if the site
 	// controls any triggers. This field is for internal use in the struct only and should not be
 	// accessed elsewhere.
@@ -46,18 +52,18 @@ type Engine struct {
 }
 
 // NewEngine constructs an inference engine that is ready to run inference.
-func NewEngine(pass *analysis.Pass) *Engine {
+func NewEngine(pass *analysis.Pass, diagnosticEngine conflictHandler) *Engine {
 	return &Engine{
-		pass:        pass,
-		inferredMap: newInferredMap(),
-		conflicts:   &ConflictList{},
+		pass:             pass,
+		inferredMap:      newInferredMap(),
+		diagnosticEngine: diagnosticEngine,
 	}
 }
 
-// InferredMapWithDiagnostics returns the current inferred annotation map and a slice of diagnostics
-// generated during inference.
-func (e *Engine) InferredMapWithDiagnostics() (*InferredMap, []analysis.Diagnostic) {
-	return e.inferredMap, e.conflicts.Diagnostics()
+// InferredMap returns the current inferred annotation map, callers must treat this map as
+// read-only and do not directly modify it. Any further updates must be made via the Engine.
+func (e *Engine) InferredMap() *InferredMap {
+	return e.inferredMap
 }
 
 // ObserveUpstream imports all information from upstream dependencies. Specifically, it iterates
@@ -112,9 +118,9 @@ func (e *Engine) ObserveAnnotations(pkgAnnotations *annotation.ObservedMap, mode
 	pkgAnnotations.Range(func(key annotation.Key, isDeep bool, val bool) {
 		site := newPrimitiveSite(key, isDeep)
 		if val {
-			e.observeSiteExplanation(site, TrueBecauseAnnotation{Pos: site.Pos})
+			e.observeSiteExplanation(site, TrueBecauseAnnotation{AnnotationPos: site.Pos})
 		} else {
-			e.observeSiteExplanation(site, FalseBecauseAnnotation{Pos: site.Pos})
+			e.observeSiteExplanation(site, FalseBecauseAnnotation{AnnotationPos: site.Pos})
 		}
 	}, mode != NoInfer)
 }
@@ -240,7 +246,7 @@ func (e *Engine) buildFromSingleFullTrigger(trigger annotation.FullTrigger) {
 	case pKind == annotation.Always && cKind == annotation.Always:
 		// Producer always produces nilable value -> consumer always consumes nonnil value.
 		// We simply generate a failure for this case.
-		e.conflicts.AddSingleAssertionConflict(e.pass, trigger)
+		e.diagnosticEngine.AddSingleAssertionConflict(trigger)
 
 	case pKind == annotation.Always && (cKind == annotation.Conditional || cKind == annotation.DeepConditional):
 		// Producer always produces nilable value -> consumer unknown.
@@ -281,7 +287,7 @@ func (e *Engine) buildFromSingleFullTrigger(trigger annotation.FullTrigger) {
 // observeSiteExplanation augments inferred map with a definite value for the passed
 // site `site` - the definite value being given as the ExplainedBool `siteExplained`. Any conflicts
 // encountered during the inference are stored internally and will be available when the inferred
-// map is retrieved via `Engine.InferredMapWithDiagnostics`.There are three cases for what can happen when this
+// map is retrieved via `Engine.InferredMap`.There are three cases for what can happen when this
 // call is made. If the site is not already mapped to an InferredVal of any kind, then a mapping to
 // an DeterminedVal for the passed ExplainedBool is simply added - indicating that we now we have
 // fixed the value of this site. If the site is already mapped to an DeterminedVal, then we check
@@ -323,7 +329,7 @@ func (e *Engine) observeSiteExplanation(site primitiveSite, siteExplained Explai
 		if !v.Bool.Val() {
 			trueExplanation, falseExplanation = falseExplanation, trueExplanation
 		}
-		e.conflicts.AddOverconstraintConflict(trueExplanation, falseExplanation, e.pass)
+		e.diagnosticEngine.AddOverconstraintConflict(trueExplanation, falseExplanation)
 
 		// Even though we have a conflict, we still need to make sure to activate any controlled
 		// triggers that are waiting on this site, so that we would not miss processing any
