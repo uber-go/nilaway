@@ -589,8 +589,8 @@ buildShadowMask:
 						// Add assignment entries to the consumers of lhsNode for informative printing of errors
 						for _, c := range lhsNode.ConsumeTriggers() {
 							c.Annotation.AddAssignment(annotation.AssignmentEntry{
-								Expr: util.ExprToString(lhsVal, rootNode.Pass()),
-								Pos:  util.TruncatePosition(util.PosToLocation(lhsVal.Pos(), rootNode.Pass())),
+								LhsExpr:  util.ExprToString(lhsVal, rootNode.Pass()),
+								Position: util.TruncatePosition(util.PosToLocation(lhsVal.Pos(), rootNode.Pass())),
 							})
 						}
 
@@ -630,8 +630,8 @@ buildShadowMask:
 						// Update consumers of newly added triggers with assignment entries for informative printing of errors
 						for _, t := range rootNode.triggers[beforeLastIndex:afterLastIndex] {
 							t.Consumer.Annotation.AddAssignment(annotation.AssignmentEntry{
-								Expr: util.ExprToString(lhsVal, rootNode.Pass()),
-								Pos:  util.TruncatePosition(util.PosToLocation(lhsVal.Pos(), rootNode.Pass())),
+								LhsExpr:  util.ExprToString(lhsVal, rootNode.Pass()),
+								Position: util.TruncatePosition(util.PosToLocation(lhsVal.Pos(), rootNode.Pass())),
 							})
 						}
 					default:
