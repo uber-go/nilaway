@@ -16,8 +16,10 @@
 package util
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
+	"go/printer"
 	"go/token"
 	"go/types"
 	"regexp"
@@ -478,4 +480,14 @@ func truncatePosition(position token.Position) token.Position {
 // PosToLocation converts a token.Pos as a real code location, of token.Position.
 func PosToLocation(pos token.Pos, pass *analysis.Pass) token.Position {
 	return truncatePosition(pass.Fset.Position(pos))
+}
+
+// ExprToString converts AST expression to string
+func ExprToString(e ast.Expr, pass *analysis.Pass) string {
+	var buf bytes.Buffer
+	err := printer.Fprint(&buf, pass.Fset, e)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to convert AST expression to string: %v\n", err))
+	}
+	return buf.String()
 }
