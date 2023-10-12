@@ -586,6 +586,14 @@ buildShadowMask:
 
 					lhsNode, ok := rootNode.LiftFromPath(lpath)
 					if ok {
+						// Add assignment entries to the consumers of lhsNode for informative printing of errors
+						for _, c := range lhsNode.ConsumeTriggers() {
+							c.Annotation.AddAssignment(annotation.AssignmentEntry{
+								Expr: util.ExprToString(lhsVal, rootNode.Pass()),
+								Pos:  util.TruncatePosition(util.PosToLocation(lhsVal.Pos(), rootNode.Pass())),
+							})
+						}
+
 						// If the lhsVal path is not only trackable but tracked, we add it as
 						// a deferred landing
 						landings = append(landings, deferredLanding{
@@ -609,10 +617,23 @@ buildShadowMask:
 							rootNode.addProductionsForAssignmentFields(fieldProducers, lhsVal)
 						}
 
+						// beforeLastIndex and afterLastIndex are used to find the newly added triggers
+						beforeLastIndex := len(rootNode.triggers)
+
 						rootNode.AddProduction(&annotation.ProduceTrigger{
 							Annotation: rproducers[0].GetShallow().Annotation,
 							Expr:       lhsVal,
 						}, rproducers[0].GetDeepSlice()...)
+
+						afterLastIndex := len(rootNode.triggers)
+
+						// Update consumers of newly added triggers with assignment entries for informative printing of errors
+						for _, t := range rootNode.triggers[beforeLastIndex:afterLastIndex] {
+							t.Consumer.Annotation.AddAssignment(annotation.AssignmentEntry{
+								Expr: util.ExprToString(lhsVal, rootNode.Pass()),
+								Pos:  util.TruncatePosition(util.PosToLocation(lhsVal.Pos(), rootNode.Pass())),
+							})
+						}
 					default:
 						return errors.New("rhs expression in a 1-1 assignment was multiply returning - " +
 							"this certainly indicates an error in control flow")
