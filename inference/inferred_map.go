@@ -17,6 +17,7 @@ package inference
 import (
 	"bytes"
 	"encoding/gob"
+	"errors"
 	"go/types"
 
 	"github.com/klauspost/compress/s2"
@@ -138,17 +139,23 @@ func (i *InferredMap) Export(pass *analysis.Pass) {
 }
 
 // GobEncode encodes the inferred map via gob encoding.
-func (i *InferredMap) GobEncode() ([]byte, error) {
+func (i *InferredMap) GobEncode() (b []byte, err error) {
 	var buf bytes.Buffer
 	writer := s2.NewWriter(&buf)
-	defer writer.Close()
+	defer func() {
+		if cerr := writer.Close(); cerr != nil {
+			err = errors.Join(err, cerr)
+		}
+	}()
 
 	if err := gob.NewEncoder(writer).Encode(i.mapping); err != nil {
 		return nil, err
 	}
 
 	// Close the s2 writer before getting the bytes such that we have complete information.
-	writer.Close()
+	if err := writer.Close(); err != nil {
+		return nil, err
+	}
 	return buf.Bytes(), nil
 }
 
