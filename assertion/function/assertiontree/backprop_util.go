@@ -225,6 +225,32 @@ func computeAndConsumeResults(rootNode *RootAssertionNode, node *ast.ReturnStmt)
 			Guards: util.NoGuards(),
 		})
 
+		if util.TypeIsDeep(util.TypeOf(rootNode.Pass(), node.Results[i])) {
+			if ident, ok := node.Results[i].(*ast.Ident); ok {
+				v := rootNode.ObjectOf(ident).(*types.Var)
+				producer := &annotation.ProduceTrigger{
+					Annotation: annotation.DeepNilabilityOfVar(rootNode.FuncObj(), v),
+					Expr:       node.Results[i],
+				}
+				consumer := &annotation.ConsumeTrigger{
+					Annotation: &annotation.UseAsReturnDeep{
+						TriggerIfDeepNonNil: &annotation.TriggerIfDeepNonNil{
+							Ann: annotation.RetKeyFromRetNum(
+								rootNode.ObjectOf(rootNode.FuncNameIdent()).(*types.Func),
+								i,
+							)},
+						RetStmt: node},
+					Expr:   node.Results[i],
+					Guards: util.NoGuards(),
+				}
+
+				rootNode.AddNewTriggers(annotation.FullTrigger{
+					Producer: producer,
+					Consumer: consumer,
+				})
+			}
+		}
+
 		if rootNode.functionContext.functionConfig.EnableStructInitCheck {
 			rootNode.addConsumptionsForFieldsOfReturns(node.Results[i], i)
 		}

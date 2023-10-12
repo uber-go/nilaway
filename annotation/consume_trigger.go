@@ -1115,6 +1115,52 @@ func (u *UseAsReturn) customPos() (token.Pos, bool) {
 	return 0, false
 }
 
+// UseAsReturnDeep is when a deep value flows to a point where it is returned from a function.
+type UseAsReturnDeep struct {
+	TriggerIfDeepNonNil
+	IsNamedReturn bool
+	RetStmt       *ast.ReturnStmt
+}
+
+func (u UseAsReturnDeep) String() string {
+	return u.Prestring().String()
+}
+
+// Prestring returns this UseAsReturn as a Prestring
+func (u UseAsReturnDeep) Prestring() Prestring {
+	key := u.Ann.(RetAnnotationKey)
+	return UseAsReturnDeepPrestring{
+		key.FuncDecl.Name(),
+		key.RetNum,
+		u.IsNamedReturn,
+		key.FuncDecl.Type().(*types.Signature).Results().At(key.RetNum).Name(),
+	}
+}
+
+// UseAsReturnDeepPrestring is a Prestring storing the needed information to compactly encode a UseAsReturnDeep
+type UseAsReturnDeepPrestring struct {
+	FuncName      string
+	RetNum        int
+	IsNamedReturn bool
+	RetName       string
+}
+
+func (u UseAsReturnDeepPrestring) String() string {
+	via := ""
+	if u.IsNamedReturn {
+		via = fmt.Sprintf(" via the named return value `%s`", u.RetName)
+	}
+	return fmt.Sprintf("returned deeply from the function `%s`%s in position %d", u.FuncName, via, u.RetNum)
+}
+
+// overriding position value to point to the raw return statement, which is the source of the potential error
+func (u UseAsReturnDeep) customPos() (token.Pos, bool) {
+	if u.IsNamedReturn {
+		return u.RetStmt.Pos(), true
+	}
+	return 0, false
+}
+
 // UseAsFldOfReturn is when a struct field value (A.f) flows to a point where it is returned from a function with the
 // return expression of the same struct type (A)
 type UseAsFldOfReturn struct {
