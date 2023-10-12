@@ -19,6 +19,7 @@ import (
 	"encoding/gob"
 	"go/types"
 
+	"github.com/klauspost/compress/s2"
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/util/orderedmap"
 	"golang.org/x/tools/go/analysis"
@@ -139,23 +140,25 @@ func (i *InferredMap) Export(pass *analysis.Pass) {
 // GobEncode encodes the inferred map via gob encoding.
 func (i *InferredMap) GobEncode() ([]byte, error) {
 	var buf bytes.Buffer
-	enc := gob.NewEncoder(&buf)
-	if err := enc.Encode(i.mapping); err != nil {
+	writer := s2.NewWriter(&buf)
+	defer writer.Close()
+
+	if err := gob.NewEncoder(writer).Encode(i.mapping); err != nil {
 		return nil, err
 	}
 
+	// Close the s2 writer before getting the bytes such that we have complete information.
+	writer.Close()
 	return buf.Bytes(), nil
 }
 
 // GobDecode decodes the InferredMap from buffer.
 func (i *InferredMap) GobDecode(input []byte) error {
-	buf := bytes.NewBuffer(input)
-	dec := gob.NewDecoder(buf)
-
 	i.mapping = orderedmap.New[primitiveSite, InferredVal]()
 	i.upstreamMapping = make(map[primitiveSite]InferredVal)
 
-	return dec.Decode(&i.mapping)
+	buf := bytes.NewBuffer(input)
+	return gob.NewDecoder(s2.NewReader(buf)).Decode(&i.mapping)
 }
 
 // chooseSitesToExport returns the set of AnnotationSites mapped by this InferredMap that are both

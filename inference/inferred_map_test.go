@@ -34,9 +34,9 @@ func TestEncoding_Size(t *testing.T) {
 
 	out := buf.Bytes()
 	require.NotEmpty(t, out)
-	require.Less(t, len(out), 250_000,
+	require.Less(t, len(out), 30_000,
 		"The gob encoding of a test inferred map is too large. We expect the encoded "+
-			"map to be less than 250KB. This heavily affects the artifact sizes of the facts NilAway "+
+			"map to be less than 30KB. This heavily affects the artifact sizes of the facts NilAway "+
 			"produces, so the cap should only be increased with justification and thorough testing.",
 	)
 }
