@@ -222,8 +222,11 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 
 		if recv, _ := r.ParseExprAsProducer(expr.X, false); recv != nil {
 			// trackable access to a field
-			return append(recv, &fldAssertionNode{decl: r.ObjectOf(expr.Sel).(*types.Var),
-				functionContext: r.functionContext}), nil
+			return append(recv, &fldAssertionNode{
+				decl:                r.ObjectOf(expr.Sel).(*types.Var),
+				functionContext:     r.functionContext,
+				assertionNodeCommon: assertionNodeCommon{originalExpr: expr}},
+			), nil
 		}
 		// non-trackable access to a field - just return a produce trigger for that field
 		return nil, fldReadProduce()
@@ -283,7 +286,9 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 			// non-builtin funcs
 			if !doNotTrack && litArgs() {
 				return TrackableExpr{&funcAssertionNode{
-					decl: r.ObjectOf(fun).(*types.Func), args: expr.Args}}, nil
+					decl:                r.ObjectOf(fun).(*types.Func),
+					assertionNodeCommon: assertionNodeCommon{originalExpr: expr}},
+				}, nil
 			}
 			// function call has non-literal args, so is not literal, use its return annotation
 			// alternatively, doNotTrack was set
@@ -300,11 +305,15 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 			if litArgs() {
 				if r.isPkgName(fun.X) {
 					return TrackableExpr{&funcAssertionNode{
-						decl: r.ObjectOf(fun.Sel).(*types.Func), args: expr.Args}}, nil
+						decl:                r.ObjectOf(fun.Sel).(*types.Func),
+						assertionNodeCommon: assertionNodeCommon{originalExpr: expr}},
+					}, nil
 				}
 				if recv, _ := r.ParseExprAsProducer(fun.X, false); recv != nil {
 					return append(recv, &funcAssertionNode{
-						decl: r.ObjectOf(fun.Sel).(*types.Func), args: expr.Args}), nil
+						decl:                r.ObjectOf(fun.Sel).(*types.Func),
+						assertionNodeCommon: assertionNodeCommon{originalExpr: expr}},
+					), nil
 				}
 				// receiver is not trackable, use its return annotation
 				return nil, r.getFuncReturnProducers(fun.Sel, expr)
@@ -330,9 +339,8 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 			if r.isStable(expr.Index) {
 				// receiver is trackable and index is stable, so return an augmented path
 				return append(recv, &indexAssertionNode{
-					index:    expr.Index,
-					valType:  r.Pass().TypesInfo.Types[expr].Type,
-					recvType: r.Pass().TypesInfo.Types[expr.X].Type,
+					valType:             r.Pass().TypesInfo.Types[expr].Type,
+					assertionNodeCommon: assertionNodeCommon{originalExpr: expr},
 				}), nil
 			}
 			// index is non-literal, so the expression is not trackable, just return nilable for index without check
