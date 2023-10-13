@@ -19,8 +19,11 @@
 // <nilaway no inference>
 package errormessage
 
+<<<<<<< HEAD
 import "errors"
 
+=======
+>>>>>>> 1c734c1ce6ec0 (new test case)
 var dummy bool
 
 func test1(x *int) {
