@@ -63,3 +63,14 @@ func test5() {
 		x = z
 	}
 }
+
+func test6() *int {
+	var x *int = nil
+	y := x
+	z := y
+	return z
+}
+
+func callTest6() {
+	print(*test6())
+}
