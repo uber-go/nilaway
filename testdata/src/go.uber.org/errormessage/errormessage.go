@@ -18,6 +18,8 @@
 
 package errormessage
 
+var dummy bool
+
 func test1(x *int) {
 	x = nil
 	print(*x)
@@ -73,4 +75,13 @@ func test6() *int {
 
 func callTest6() {
 	print(*test6())
+}
+
+func test7() {
+	var x *int
+	if dummy {
+		y := new(int)
+		x = y
+	}
+	print(*x)
 }
