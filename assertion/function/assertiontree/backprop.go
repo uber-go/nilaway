@@ -628,6 +628,7 @@ buildShadowMask:
 						}, rproducers[0].GetDeepSlice()...)
 
 						// Update consumers of newly added triggers with assignment entries for informative printing of errors
+<<<<<<< HEAD
 						// TODO: the below check `len(rootNode.triggers) == 0` should not be needed, however, it is added to
 						//  satisfy NilAway's analysis
 						if len(rootNode.triggers) == 0 {
