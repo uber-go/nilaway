@@ -50,6 +50,9 @@ type ConsumingAnnotationTrigger interface {
 
 	// equals returns true if the passed ConsumingAnnotationTrigger is equal to this one
 	equals(ConsumingAnnotationTrigger) bool
+
+	// Copy returns a deep copy of this ConsumingAnnotationTrigger
+	Copy() ConsumingAnnotationTrigger
 }
 
 // customPos has the below default implementations, in which case ConsumeTrigger.Pos() will return a default value.
@@ -90,6 +93,13 @@ func (t *TriggerIfNonNil) equals(other ConsumingAnnotationTrigger) bool {
 	return false
 }
 
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (t *TriggerIfNonNil) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *t
+	t.Ann = t.Ann.copy()
+	return &copyConsumer
+}
+
 // Prestring returns this Prestring as a Prestring
 func (*TriggerIfNonNil) Prestring() Prestring {
 	return TriggerIfNonNilPrestring{}
@@ -127,6 +137,13 @@ func (t *TriggerIfDeepNonNil) equals(other ConsumingAnnotationTrigger) bool {
 	return false
 }
 
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (t *TriggerIfDeepNonNil) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *t
+	t.Ann = t.Ann.copy()
+	return &copyConsumer
+}
+
 // Prestring returns this Prestring as a Prestring
 func (*TriggerIfDeepNonNil) Prestring() Prestring {
 	return TriggerIfDeepNonNilPrestring{}
@@ -157,6 +174,12 @@ func (*ConsumeTriggerTautology) equals(other ConsumingAnnotationTrigger) bool {
 	return ok
 }
 
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (t *ConsumeTriggerTautology) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *t
+	return &copyConsumer
+}
+
 // Prestring returns this Prestring as a Prestring
 func (*ConsumeTriggerTautology) Prestring() Prestring {
 	return ConsumeTriggerTautologyPrestring{}
@@ -180,6 +203,13 @@ func (p *PtrLoad) equals(other ConsumingAnnotationTrigger) bool {
 		return p.ConsumeTriggerTautology.equals(other.ConsumeTriggerTautology)
 	}
 	return false
+}
+
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (p *PtrLoad) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *p
+	copyConsumer.ConsumeTriggerTautology = p.ConsumeTriggerTautology.Copy().(*ConsumeTriggerTautology)
+	return &copyConsumer
 }
 
 // Prestring returns this PtrLoad as a Prestring
@@ -209,6 +239,13 @@ func (i *MapAccess) equals(other ConsumingAnnotationTrigger) bool {
 	return false
 }
 
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (i *MapAccess) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *i
+	copyConsumer.ConsumeTriggerTautology = i.ConsumeTriggerTautology.Copy().(*ConsumeTriggerTautology)
+	return &copyConsumer
+}
+
 // Prestring returns this MapAccess as a Prestring
 func (i *MapAccess) Prestring() Prestring {
 	return MapAccessPrestring{}
@@ -233,6 +270,13 @@ func (m *MapWrittenTo) equals(other ConsumingAnnotationTrigger) bool {
 		return m.ConsumeTriggerTautology.equals(other.ConsumeTriggerTautology)
 	}
 	return false
+}
+
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (m *MapWrittenTo) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *m
+	copyConsumer.ConsumeTriggerTautology = m.ConsumeTriggerTautology.Copy().(*ConsumeTriggerTautology)
+	return &copyConsumer
 }
 
 // Prestring returns this MapWrittenTo as a Prestring
@@ -260,6 +304,13 @@ func (s *SliceAccess) equals(other ConsumingAnnotationTrigger) bool {
 	return false
 }
 
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (s *SliceAccess) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *s
+	copyConsumer.ConsumeTriggerTautology = s.ConsumeTriggerTautology.Copy().(*ConsumeTriggerTautology)
+	return &copyConsumer
+}
+
 // Prestring returns this SliceAccess as a Prestring
 func (s *SliceAccess) Prestring() Prestring {
 	return SliceAccessPrestring{}
@@ -285,6 +336,13 @@ func (f *FldAccess) equals(other ConsumingAnnotationTrigger) bool {
 		return f.ConsumeTriggerTautology.equals(other.ConsumeTriggerTautology) && f.Sel == other.Sel
 	}
 	return false
+}
+
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (f *FldAccess) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *f
+	copyConsumer.ConsumeTriggerTautology = f.ConsumeTriggerTautology.Copy().(*ConsumeTriggerTautology)
+	return &copyConsumer
 }
 
 // Prestring returns this FldAccess as a Prestring
@@ -336,6 +394,13 @@ func (u *UseAsErrorResult) equals(other ConsumingAnnotationTrigger) bool {
 	return false
 }
 
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (u *UseAsErrorResult) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *u
+	copyConsumer.TriggerIfNonNil = u.TriggerIfNonNil.Copy().(*TriggerIfNonNil)
+	return &copyConsumer
+}
+
 // Prestring returns this UseAsErrorResult as a Prestring
 func (u *UseAsErrorResult) Prestring() Prestring {
 	retAnn := u.Ann.(*RetAnnotationKey)
@@ -383,6 +448,13 @@ func (f *FldAssign) equals(other ConsumingAnnotationTrigger) bool {
 	return false
 }
 
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (f *FldAssign) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *f
+	copyConsumer.TriggerIfNonNil = f.TriggerIfNonNil.Copy().(*TriggerIfNonNil)
+	return &copyConsumer
+}
+
 // Prestring returns this FldAssign as a Prestring
 func (f *FldAssign) Prestring() Prestring {
 	fldAnn := f.Ann.(*FieldAnnotationKey)
@@ -413,6 +485,13 @@ func (f *ArgFldPass) equals(other ConsumingAnnotationTrigger) bool {
 		return f.TriggerIfNonNil.equals(other.TriggerIfNonNil) && f.IsPassed == other.IsPassed
 	}
 	return false
+}
+
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (f *ArgFldPass) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *f
+	copyConsumer.TriggerIfNonNil = f.TriggerIfNonNil.Copy().(*TriggerIfNonNil)
+	return &copyConsumer
 }
 
 // Prestring returns this ArgFldPass as a Prestring
@@ -466,6 +545,13 @@ func (g *GlobalVarAssign) equals(other ConsumingAnnotationTrigger) bool {
 	return false
 }
 
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (g *GlobalVarAssign) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *g
+	copyConsumer.TriggerIfNonNil = g.TriggerIfNonNil.Copy().(*TriggerIfNonNil)
+	return &copyConsumer
+}
+
 // Prestring returns this GlobalVarAssign as a Prestring
 func (g *GlobalVarAssign) Prestring() Prestring {
 	varAnn := g.Ann.(*GlobalVarAnnotationKey)
@@ -499,6 +585,13 @@ func (a *ArgPass) equals(other ConsumingAnnotationTrigger) bool {
 		return a.TriggerIfNonNil.equals(other.TriggerIfNonNil)
 	}
 	return false
+}
+
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (a *ArgPass) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *a
+	copyConsumer.TriggerIfNonNil = a.TriggerIfNonNil.Copy().(*TriggerIfNonNil)
+	return &copyConsumer
 }
 
 // Prestring returns this ArgPass as a Prestring
@@ -554,6 +647,13 @@ func (a *RecvPass) equals(other ConsumingAnnotationTrigger) bool {
 	return false
 }
 
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (a *RecvPass) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *a
+	copyConsumer.TriggerIfNonNil = a.TriggerIfNonNil.Copy().(*TriggerIfNonNil)
+	return &copyConsumer
+}
+
 // Prestring returns this RecvPass as a Prestring
 func (a *RecvPass) Prestring() Prestring {
 	recvAnn := a.Ann.(*RecvAnnotationKey)
@@ -585,6 +685,13 @@ func (i *InterfaceResultFromImplementation) equals(other ConsumingAnnotationTrig
 			i.AffiliationPair.ImplementingMethod == other.AffiliationPair.ImplementingMethod
 	}
 	return false
+}
+
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (i *InterfaceResultFromImplementation) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *i
+	copyConsumer.TriggerIfNonNil = i.TriggerIfNonNil.Copy().(*TriggerIfNonNil)
+	return &copyConsumer
 }
 
 // Prestring returns this InterfaceResultFromImplementation as a Prestring
@@ -623,6 +730,13 @@ func (m *MethodParamFromInterface) equals(other ConsumingAnnotationTrigger) bool
 			m.AffiliationPair.ImplementingMethod == other.AffiliationPair.ImplementingMethod
 	}
 	return false
+}
+
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (m *MethodParamFromInterface) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *m
+	copyConsumer.TriggerIfNonNil = m.TriggerIfNonNil.Copy().(*TriggerIfNonNil)
+	return &copyConsumer
 }
 
 // Prestring returns this MethodParamFromInterface as a Prestring
@@ -684,6 +798,13 @@ func (u *UseAsReturn) equals(other ConsumingAnnotationTrigger) bool {
 			u.RetStmt == other.RetStmt
 	}
 	return false
+}
+
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (u *UseAsReturn) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *u
+	copyConsumer.TriggerIfNonNil = u.TriggerIfNonNil.Copy().(*TriggerIfNonNil)
+	return &copyConsumer
 }
 
 // Prestring returns this UseAsReturn as a Prestring
@@ -758,6 +879,13 @@ func (u *UseAsFldOfReturn) equals(other ConsumingAnnotationTrigger) bool {
 	return false
 }
 
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (u *UseAsFldOfReturn) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *u
+	copyConsumer.TriggerIfNonNil = u.TriggerIfNonNil.Copy().(*TriggerIfNonNil)
+	return &copyConsumer
+}
+
 // Prestring returns this UseAsFldOfReturn as a Prestring
 func (u *UseAsFldOfReturn) Prestring() Prestring {
 	retAnn := u.Ann.(*RetFieldAnnotationKey)
@@ -828,6 +956,13 @@ func (f *SliceAssign) equals(other ConsumingAnnotationTrigger) bool {
 	return false
 }
 
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (f *SliceAssign) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *f
+	copyConsumer.TriggerIfDeepNonNil = f.TriggerIfDeepNonNil.Copy().(*TriggerIfDeepNonNil)
+	return &copyConsumer
+}
+
 // Prestring returns this SliceAssign as a Prestring
 func (f *SliceAssign) Prestring() Prestring {
 	fldAnn := f.Ann.(*TypeNameAnnotationKey)
@@ -856,6 +991,13 @@ func (a *ArrayAssign) equals(other ConsumingAnnotationTrigger) bool {
 		return a.TriggerIfDeepNonNil.equals(other.TriggerIfDeepNonNil)
 	}
 	return false
+}
+
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (a *ArrayAssign) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *a
+	copyConsumer.TriggerIfDeepNonNil = a.TriggerIfDeepNonNil.Copy().(*TriggerIfDeepNonNil)
+	return &copyConsumer
 }
 
 // Prestring returns this ArrayAssign as a Prestring
@@ -888,6 +1030,13 @@ func (f *PtrAssign) equals(other ConsumingAnnotationTrigger) bool {
 	return false
 }
 
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (f *PtrAssign) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *f
+	copyConsumer.TriggerIfDeepNonNil = f.TriggerIfDeepNonNil.Copy().(*TriggerIfDeepNonNil)
+	return &copyConsumer
+}
+
 // Prestring returns this PtrAssign as a Prestring
 func (f *PtrAssign) Prestring() Prestring {
 	fldAnn := f.Ann.(*TypeNameAnnotationKey)
@@ -916,6 +1065,13 @@ func (f *MapAssign) equals(other ConsumingAnnotationTrigger) bool {
 		return f.TriggerIfDeepNonNil.equals(other.TriggerIfDeepNonNil)
 	}
 	return false
+}
+
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (f *MapAssign) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *f
+	copyConsumer.TriggerIfDeepNonNil = f.TriggerIfDeepNonNil.Copy().(*TriggerIfDeepNonNil)
+	return &copyConsumer
 }
 
 // Prestring returns this MapAssign as a Prestring
@@ -949,6 +1105,13 @@ func (d *DeepAssignPrimitive) equals(other ConsumingAnnotationTrigger) bool {
 	return false
 }
 
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (d *DeepAssignPrimitive) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *d
+	copyConsumer.ConsumeTriggerTautology = d.ConsumeTriggerTautology.Copy().(*ConsumeTriggerTautology)
+	return &copyConsumer
+}
+
 // Prestring returns this Prestring as a Prestring
 func (*DeepAssignPrimitive) Prestring() Prestring {
 	return DeepAssignPrimitivePrestring{}
@@ -972,6 +1135,13 @@ func (p *ParamAssignDeep) equals(other ConsumingAnnotationTrigger) bool {
 		return p.TriggerIfDeepNonNil.equals(other.TriggerIfDeepNonNil)
 	}
 	return false
+}
+
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (p *ParamAssignDeep) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *p
+	copyConsumer.TriggerIfDeepNonNil = p.TriggerIfDeepNonNil.Copy().(*TriggerIfDeepNonNil)
+	return &copyConsumer
 }
 
 // Prestring returns this ParamAssignDeep as a Prestring
@@ -999,6 +1169,13 @@ func (f *FuncRetAssignDeep) equals(other ConsumingAnnotationTrigger) bool {
 		return f.TriggerIfDeepNonNil.equals(other.TriggerIfDeepNonNil)
 	}
 	return false
+}
+
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (f *FuncRetAssignDeep) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *f
+	copyConsumer.TriggerIfDeepNonNil = f.TriggerIfDeepNonNil.Copy().(*TriggerIfDeepNonNil)
+	return &copyConsumer
 }
 
 // Prestring returns this FuncRetAssignDeep as a Prestring
@@ -1034,6 +1211,13 @@ func (v *VariadicParamAssignDeep) equals(other ConsumingAnnotationTrigger) bool 
 	return false
 }
 
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (v *VariadicParamAssignDeep) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *v
+	copyConsumer.TriggerIfNonNil = v.TriggerIfNonNil.Copy().(*TriggerIfNonNil)
+	return &copyConsumer
+}
+
 // Prestring returns this VariadicParamAssignDeep as a Prestring
 func (v *VariadicParamAssignDeep) Prestring() Prestring {
 	paramAnn := v.Ann.(*ParamAnnotationKey)
@@ -1064,6 +1248,13 @@ func (f *FieldAssignDeep) equals(other ConsumingAnnotationTrigger) bool {
 	return false
 }
 
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (f *FieldAssignDeep) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *f
+	copyConsumer.TriggerIfDeepNonNil = f.TriggerIfDeepNonNil.Copy().(*TriggerIfDeepNonNil)
+	return &copyConsumer
+}
+
 // Prestring returns this FieldAssignDeep as a Prestring
 func (f *FieldAssignDeep) Prestring() Prestring {
 	fldAnn := f.Ann.(*FieldAnnotationKey)
@@ -1090,6 +1281,13 @@ func (g *GlobalVarAssignDeep) equals(other ConsumingAnnotationTrigger) bool {
 		return g.TriggerIfDeepNonNil.equals(other.TriggerIfDeepNonNil)
 	}
 	return false
+}
+
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (g *GlobalVarAssignDeep) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *g
+	copyConsumer.TriggerIfDeepNonNil = g.TriggerIfDeepNonNil.Copy().(*TriggerIfDeepNonNil)
+	return &copyConsumer
 }
 
 // Prestring returns this GlobalVarAssignDeep as a Prestring
@@ -1120,6 +1318,13 @@ func (c *ChanAccess) equals(other ConsumingAnnotationTrigger) bool {
 	return false
 }
 
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (c *ChanAccess) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *c
+	copyConsumer.ConsumeTriggerTautology = c.ConsumeTriggerTautology.Copy().(*ConsumeTriggerTautology)
+	return &copyConsumer
+}
+
 // Prestring returns this MapWrittenTo as a Prestring
 func (c *ChanAccess) Prestring() Prestring {
 	return ChanAccessPrestring{}
@@ -1144,6 +1349,13 @@ func (l *LocalVarAssignDeep) equals(other ConsumingAnnotationTrigger) bool {
 		return l.ConsumeTriggerTautology.equals(other.ConsumeTriggerTautology) && l.LocalVar == other.LocalVar
 	}
 	return false
+}
+
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (l *LocalVarAssignDeep) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *l
+	copyConsumer.ConsumeTriggerTautology = l.ConsumeTriggerTautology.Copy().(*ConsumeTriggerTautology)
+	return &copyConsumer
 }
 
 // Prestring returns this LocalVarAssignDeep as a Prestring
@@ -1171,6 +1383,13 @@ func (c *ChanSend) equals(other ConsumingAnnotationTrigger) bool {
 		return c.TriggerIfDeepNonNil.equals(other.TriggerIfDeepNonNil)
 	}
 	return false
+}
+
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (c *ChanSend) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *c
+	copyConsumer.TriggerIfDeepNonNil = c.TriggerIfDeepNonNil.Copy().(*TriggerIfDeepNonNil)
+	return &copyConsumer
 }
 
 // Prestring returns this ChanSend as a Prestring
@@ -1208,6 +1427,13 @@ func (f *FldEscape) equals(other ConsumingAnnotationTrigger) bool {
 	return false
 }
 
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (f *FldEscape) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *f
+	copyConsumer.TriggerIfNonNil = f.TriggerIfNonNil.Copy().(*TriggerIfNonNil)
+	return &copyConsumer
+}
+
 // Prestring returns this FldEscape as a Prestring
 func (f *FldEscape) Prestring() Prestring {
 	ann := f.Ann.(*EscapeFieldAnnotationKey)
@@ -1241,6 +1467,13 @@ func (u *UseAsNonErrorRetDependentOnErrorRetNilability) equals(other ConsumingAn
 			u.RetStmt == other.RetStmt
 	}
 	return false
+}
+
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (u *UseAsNonErrorRetDependentOnErrorRetNilability) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *u
+	copyConsumer.TriggerIfNonNil = u.TriggerIfNonNil.Copy().(*TriggerIfNonNil)
+	return &copyConsumer
 }
 
 // Prestring returns this UseAsNonErrorRetDependentOnErrorRetNilability as a Prestring
@@ -1298,6 +1531,13 @@ func (u *UseAsErrorRetWithNilabilityUnknown) equals(other ConsumingAnnotationTri
 			u.RetStmt == other.RetStmt
 	}
 	return false
+}
+
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (u *UseAsErrorRetWithNilabilityUnknown) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *u
+	copyConsumer.TriggerIfNonNil = u.TriggerIfNonNil.Copy().(*TriggerIfNonNil)
+	return &copyConsumer
 }
 
 // Prestring returns this UseAsErrorRetWithNilabilityUnknown as a Prestring
@@ -1398,6 +1638,14 @@ func (c *ConsumeTrigger) equals(c2 *ConsumeTrigger) bool {
 
 }
 
+// Copy returns a deep copy of the ConsumeTrigger
+func (c *ConsumeTrigger) Copy() *ConsumeTrigger {
+	copyTrigger := *c
+	copyTrigger.Annotation = c.Annotation.Copy()
+	copyTrigger.Guards = c.Guards.Copy()
+	return &copyTrigger
+}
+
 // Pos returns the source position (e.g., line) of the consumer's expression. In special cases, such as named return, it
 // returns the position of the stored return AST node
 func (c *ConsumeTrigger) Pos() token.Pos {
@@ -1420,7 +1668,8 @@ func MergeConsumeTriggerSlices(left, right []*ConsumeTrigger) []*ConsumeTrigger 
 				// intersect guard sets - if a guard isn't present in both branches it can't
 				// be considered present before the branch
 				out[i] = &ConsumeTrigger{
-					Annotation:   outTrigger.Annotation,
+					// Annotation: outTrigger.Annotation,
+					Annotation:   outTrigger.Annotation.Copy(),
 					Expr:         outTrigger.Expr,
 					Guards:       outTrigger.Guards.Intersection(trigger.Guards),
 					GuardMatched: outTrigger.GuardMatched && trigger.GuardMatched,
@@ -1448,7 +1697,8 @@ func ConsumeTriggerSliceAsGuarded(slice []*ConsumeTrigger, guards ...util.GuardN
 	var out []*ConsumeTrigger
 	for _, trigger := range slice {
 		out = append(out, &ConsumeTrigger{
-			Annotation: trigger.Annotation,
+			// Annotation: trigger.Annotation,
+			Annotation: trigger.Annotation.Copy(),
 			Expr:       trigger.Expr,
 			Guards:     trigger.Guards.Copy().Add(guards...),
 		})
