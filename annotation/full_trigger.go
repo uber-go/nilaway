@@ -175,12 +175,18 @@ func MergeFullTriggers(left []FullTrigger, right ...FullTrigger) []FullTrigger {
 
 	for i, l := range left {
 		for j, r := range right {
-			if l.equalsModuloGuardMatched(r) {
-				if l.Consumer.GuardMatched && !r.Consumer.GuardMatched {
-					updateLeftGuard[i] = true
-				}
-				skipRight[j] = true
+			if !l.equalsModuloGuardMatched(r) {
+				continue
 			}
+
+			// Now we know that the two triggers are equal modulo GuardMatched. We should skip adding the right trigger
+			// to `out`. In case of a mismatch in GuardMatched, we update the left trigger to set GuardMatched = false,
+			// because right now, there is no use for guards in FullTriggers. If this changes, then make sure the merged
+			// trigger gets the intersection of the prior guard sets
+			if l.Consumer.GuardMatched && !r.Consumer.GuardMatched {
+				updateLeftGuard[i] = true
+			}
+			skipRight[j] = true
 		}
 	}
 
