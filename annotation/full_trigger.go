@@ -178,9 +178,8 @@ func MergeFullTriggers(left []FullTrigger, right ...FullTrigger) []FullTrigger {
 			if l.equalsModuloGuardMatched(r) {
 				if l.Consumer.GuardMatched && !r.Consumer.GuardMatched {
 					updateLeftGuard[i] = true
-				} else {
-					skipRight[j] = true
 				}
+				skipRight[j] = true
 			}
 		}
 	}
