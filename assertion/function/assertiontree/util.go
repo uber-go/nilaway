@@ -389,7 +389,12 @@ func CopyNode(node AssertionNode) AssertionNode {
 		fresh.SetChildren(append(fresh.Children(), freshChild))
 	}
 
-	fresh.SetConsumeTriggers(append(make([]*annotation.ConsumeTrigger, 0, len(node.ConsumeTriggers())), node.ConsumeTriggers()...))
+	// fresh.SetConsumeTriggers(append(make([]*annotation.ConsumeTrigger, 0, len(node.ConsumeTriggers())), node.ConsumeTriggers()...))
+	copyConsumers := make([]*annotation.ConsumeTrigger, 0, len(node.ConsumeTriggers()))
+	for _, c := range node.ConsumeTriggers() {
+		copyConsumers = append(copyConsumers, c.Copy())
+	}
+	fresh.SetConsumeTriggers(copyConsumers)
 
 	return fresh
 }
