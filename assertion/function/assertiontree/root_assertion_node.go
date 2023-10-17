@@ -166,12 +166,6 @@ func (r *RootAssertionNode) ObjectOf(ident *ast.Ident) types.Object {
 	return r.functionContext.findFakeIdent(ident)
 }
 
-func (r *RootAssertionNode) String() string {
-	// TODO: deep print
-	return fmt.Sprintf("{RootAssertionNode:\n\tFullTriggers:%s\n",
-		annotation.TriggerSlicesString(r.triggers))
-}
-
 // funcArgsFromCallExpr returns the set of arguments that are passed to the method at the call site. If the method
 // is an anonymous function, it expands the argument set with the closure variables collected for that function
 func (r *RootAssertionNode) funcArgsFromCallExpr(expr *ast.CallExpr) []ast.Expr {

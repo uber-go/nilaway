@@ -40,7 +40,6 @@ type ConsumingAnnotationTrigger interface {
 	// for example - an `ArgPass` trigger triggers iff the corresponding function arg has
 	// nonNil type
 	CheckConsume(Map) bool
-	String() string
 	Prestring() Prestring
 
 	// Kind returns the kind of the trigger.
@@ -119,10 +118,6 @@ type PtrLoad struct {
 	ConsumeTriggerTautology
 }
 
-func (p PtrLoad) String() string {
-	return p.Prestring().String()
-}
-
 // Prestring returns this PtrLoad as a Prestring
 func (p PtrLoad) Prestring() Prestring {
 	return PtrLoadPrestring{}
@@ -140,10 +135,6 @@ func (PtrLoadPrestring) String() string {
 // note: this trigger is produced only if config.ErrorOnNilableMapRead == true
 type MapAccess struct {
 	ConsumeTriggerTautology
-}
-
-func (i MapAccess) String() string {
-	return i.Prestring().String()
 }
 
 // Prestring returns this MapAccess as a Prestring
@@ -164,10 +155,6 @@ type MapWrittenTo struct {
 	ConsumeTriggerTautology
 }
 
-func (m MapWrittenTo) String() string {
-	return m.Prestring().String()
-}
-
 // Prestring returns this MapWrittenTo as a Prestring
 func (m MapWrittenTo) Prestring() Prestring {
 	return MapWrittenToPrestring{}
@@ -183,10 +170,6 @@ func (MapWrittenToPrestring) String() string {
 // SliceAccess is when a slice value flows to a point where it is sliced, and thus must be non-nil
 type SliceAccess struct {
 	ConsumeTriggerTautology
-}
-
-func (s SliceAccess) String() string {
-	return s.Prestring().String()
 }
 
 // Prestring returns this SliceAccess as a Prestring
@@ -206,10 +189,6 @@ type FldAccess struct {
 	ConsumeTriggerTautology
 
 	Sel types.Object
-}
-
-func (f FldAccess) String() string {
-	return f.Prestring().String()
 }
 
 // Prestring returns this FldAccess as a Prestring
@@ -251,10 +230,6 @@ type UseAsErrorResult struct {
 	IsNamedReturn bool
 }
 
-func (u UseAsErrorResult) String() string {
-	return u.Prestring().String()
-}
-
 // Prestring returns this UseAsErrorResult as a Prestring
 func (u UseAsErrorResult) Prestring() Prestring {
 	retAnn := u.Ann.(RetAnnotationKey)
@@ -294,10 +269,6 @@ type FldAssign struct {
 	TriggerIfNonNil
 }
 
-func (f FldAssign) String() string {
-	return f.Prestring().String()
-}
-
 // Prestring returns this FldAssign as a Prestring
 func (f FldAssign) Prestring() Prestring {
 	fldAnn := f.Ann.(FieldAnnotationKey)
@@ -320,10 +291,6 @@ func (f FldAssignPrestring) String() string {
 type ArgFldPass struct {
 	TriggerIfNonNil
 	IsPassed bool
-}
-
-func (f ArgFldPass) String() string {
-	return f.Prestring().String()
 }
 
 // Prestring returns this ArgFldPass as a Prestring
@@ -369,10 +336,6 @@ type GlobalVarAssign struct {
 	TriggerIfNonNil
 }
 
-func (g GlobalVarAssign) String() string {
-	return g.Prestring().String()
-}
-
 // Prestring returns this GlobalVarAssign as a Prestring
 func (g GlobalVarAssign) Prestring() Prestring {
 	varAnn := g.Ann.(GlobalVarAnnotationKey)
@@ -398,10 +361,6 @@ func (g GlobalVarAssignPrestring) String() string {
 // duplicate the sites for context sensitivity.
 type ArgPass struct {
 	TriggerIfNonNil
-}
-
-func (a ArgPass) String() string {
-	return a.Prestring().String()
 }
 
 // Prestring returns this ArgPass as a Prestring
@@ -449,10 +408,6 @@ type RecvPass struct {
 	TriggerIfNonNil
 }
 
-func (a RecvPass) String() string {
-	return a.Prestring().String()
-}
-
 // Prestring returns this RecvPass as a Prestring
 func (a RecvPass) Prestring() Prestring {
 	recvAnn := a.Ann.(RecvAnnotationKey)
@@ -474,10 +429,6 @@ func (a RecvPassPrestring) String() string {
 type InterfaceResultFromImplementation struct {
 	TriggerIfNonNil
 	AffiliationPair
-}
-
-func (i InterfaceResultFromImplementation) String() string {
-	return i.Prestring().String()
 }
 
 // Prestring returns this InterfaceResultFromImplementation as a Prestring
@@ -506,10 +457,6 @@ func (i InterfaceResultFromImplementationPrestring) String() string {
 type MethodParamFromInterface struct {
 	TriggerIfNonNil
 	AffiliationPair
-}
-
-func (m MethodParamFromInterface) String() string {
-	return m.Prestring().String()
 }
 
 // Prestring returns this MethodParamFromInterface as a Prestring
@@ -561,10 +508,6 @@ type UseAsReturn struct {
 	TriggerIfNonNil
 	IsNamedReturn bool
 	RetStmt       *ast.ReturnStmt
-}
-
-func (u UseAsReturn) String() string {
-	return u.Prestring().String()
 }
 
 // Prestring returns this UseAsReturn as a Prestring
@@ -631,10 +574,6 @@ type UseAsFldOfReturn struct {
 	TriggerIfNonNil
 }
 
-func (u UseAsFldOfReturn) String() string {
-	return u.Prestring().String()
-}
-
 // Prestring returns this UseAsFldOfReturn as a Prestring
 func (u UseAsFldOfReturn) Prestring() Prestring {
 	retAnn := u.Ann.(RetFieldAnnotationKey)
@@ -697,10 +636,6 @@ type SliceAssign struct {
 	TriggerIfDeepNonNil
 }
 
-func (f SliceAssign) String() string {
-	return f.Prestring().String()
-}
-
 // Prestring returns this SliceAssign as a Prestring
 func (f SliceAssign) Prestring() Prestring {
 	fldAnn := f.Ann.(TypeNameAnnotationKey)
@@ -721,10 +656,6 @@ func (f SliceAssignPrestring) String() string {
 // ArrayAssign is when a value flows to a point where it is assigned into an array
 type ArrayAssign struct {
 	TriggerIfDeepNonNil
-}
-
-func (a ArrayAssign) String() string {
-	return a.Prestring().String()
 }
 
 // Prestring returns this ArrayAssign as a Prestring
@@ -749,10 +680,6 @@ type PtrAssign struct {
 	TriggerIfDeepNonNil
 }
 
-func (f PtrAssign) String() string {
-	return f.Prestring().String()
-}
-
 // Prestring returns this PtrAssign as a Prestring
 func (f PtrAssign) Prestring() Prestring {
 	fldAnn := f.Ann.(TypeNameAnnotationKey)
@@ -773,10 +700,6 @@ func (f PtrAssignPrestring) String() string {
 // MapAssign is when a value flows to a point where it is assigned into an annotated map
 type MapAssign struct {
 	TriggerIfDeepNonNil
-}
-
-func (f MapAssign) String() string {
-	return f.Prestring().String()
 }
 
 // Prestring returns this MapAssign as a Prestring
@@ -802,10 +725,6 @@ type DeepAssignPrimitive struct {
 	ConsumeTriggerTautology
 }
 
-func (d DeepAssignPrimitive) String() string {
-	return d.Prestring().String()
-}
-
 // Prestring returns this Prestring as a Prestring
 func (DeepAssignPrimitive) Prestring() Prestring {
 	return DeepAssignPrimitivePrestring{}
@@ -821,10 +740,6 @@ func (DeepAssignPrimitivePrestring) String() string {
 // ParamAssignDeep is when a value flows to a point where it is assigned deeply into a function parameter
 type ParamAssignDeep struct {
 	TriggerIfDeepNonNil
-}
-
-func (p ParamAssignDeep) String() string {
-	return p.Prestring().String()
 }
 
 // Prestring returns this ParamAssignDeep as a Prestring
@@ -844,10 +759,6 @@ func (p ParamAssignDeepPrestring) String() string {
 // FuncRetAssignDeep is when a value flows to a point where it is assigned deeply into a function return
 type FuncRetAssignDeep struct {
 	TriggerIfDeepNonNil
-}
-
-func (f FuncRetAssignDeep) String() string {
-	return f.Prestring().String()
 }
 
 // Prestring returns this FuncRetAssignDeep as a Prestring
@@ -875,10 +786,6 @@ type VariadicParamAssignDeep struct {
 	TriggerIfNonNil
 }
 
-func (v VariadicParamAssignDeep) String() string {
-	return v.Prestring().String()
-}
-
 // Prestring returns this VariadicParamAssignDeep as a Prestring
 func (v VariadicParamAssignDeep) Prestring() Prestring {
 	paramAnn := v.Ann.(ParamAnnotationKey)
@@ -901,10 +808,6 @@ type FieldAssignDeep struct {
 	TriggerIfDeepNonNil
 }
 
-func (f FieldAssignDeep) String() string {
-	return f.Prestring().String()
-}
-
 // Prestring returns this FieldAssignDeep as a Prestring
 func (f FieldAssignDeep) Prestring() Prestring {
 	fldAnn := f.Ann.(FieldAnnotationKey)
@@ -923,10 +826,6 @@ func (f FieldAssignDeepPrestring) String() string {
 // GlobalVarAssignDeep is when a value flows to a point where it is assigned deeply into a global variable
 type GlobalVarAssignDeep struct {
 	TriggerIfDeepNonNil
-}
-
-func (g GlobalVarAssignDeep) String() string {
-	return g.Prestring().String()
 }
 
 // Prestring returns this GlobalVarAssignDeep as a Prestring
@@ -949,10 +848,6 @@ type ChanAccess struct {
 	ConsumeTriggerTautology
 }
 
-func (c ChanAccess) String() string {
-	return c.Prestring().String()
-}
-
 // Prestring returns this MapWrittenTo as a Prestring
 func (c ChanAccess) Prestring() Prestring {
 	return ChanAccessPrestring{}
@@ -969,10 +864,6 @@ func (ChanAccessPrestring) String() string {
 type LocalVarAssignDeep struct {
 	ConsumeTriggerTautology
 	LocalVar *types.Var
-}
-
-func (l LocalVarAssignDeep) String() string {
-	return l.Prestring().String()
 }
 
 // Prestring returns this LocalVarAssignDeep as a Prestring
@@ -992,10 +883,6 @@ func (l LocalVarAssignDeepPrestring) String() string {
 // ChanSend is when a value flows to a point where it is sent to a channel
 type ChanSend struct {
 	TriggerIfDeepNonNil
-}
-
-func (c ChanSend) String() string {
-	return c.Prestring().String()
 }
 
 // Prestring returns this ChanSend as a Prestring
@@ -1025,10 +912,6 @@ type FldEscape struct {
 	TriggerIfNonNil
 }
 
-func (f FldEscape) String() string {
-	return f.Prestring().String()
-}
-
 // Prestring returns this FldEscape as a Prestring
 func (f FldEscape) Prestring() Prestring {
 	ann := f.Ann.(EscapeFieldAnnotationKey)
@@ -1052,10 +935,6 @@ type UseAsNonErrorRetDependentOnErrorRetNilability struct {
 
 	IsNamedReturn bool
 	RetStmt       *ast.ReturnStmt
-}
-
-func (u UseAsNonErrorRetDependentOnErrorRetNilability) String() string {
-	return u.Prestring().String()
 }
 
 // Prestring returns this UseAsNonErrorRetDependentOnErrorRetNilability as a Prestring
@@ -1103,10 +982,6 @@ type UseAsErrorRetWithNilabilityUnknown struct {
 
 	IsNamedReturn bool
 	RetStmt       *ast.ReturnStmt
-}
-
-func (u UseAsErrorRetWithNilabilityUnknown) String() string {
-	return u.Prestring().String()
 }
 
 // Prestring returns this UseAsErrorRetWithNilabilityUnknown as a Prestring
@@ -1214,15 +1089,6 @@ func (c *ConsumeTrigger) Pos() token.Pos {
 		return pos
 	}
 	return c.Expr.Pos()
-}
-
-func (c *ConsumeTrigger) String() string {
-	guarded := ""
-	if !c.Guards.IsEmpty() {
-		guarded = fmt.Sprintf("%s-GuardMatched ", c.Guards)
-	}
-	return fmt.Sprintf("{(%s%T@%d-%d %s)}",
-		guarded, c.Expr, c.Expr.Pos(), c.Expr.End(), c.Annotation.String())
 }
 
 // MergeConsumeTriggerSlices merges two slices of `ConsumeTrigger`s

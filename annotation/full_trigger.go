@@ -54,24 +54,6 @@ func (t *FullTrigger) Pos() token.Pos {
 	return t.Consumer.Pos()
 }
 
-func (t *FullTrigger) String() string {
-	str := fmt.Sprintf("%T -> (%T@%d %s)",
-		t.Producer.Annotation, t.Consumer.Expr, t.Pos(), t.Consumer.Annotation.String())
-	if t.Controller != nil {
-		str += " if " + t.Controller.String() + " is nilable"
-	}
-	return "[" + str + "]"
-}
-
-// TriggerSlicesString returns a string representation of a slice of `FullTrigger`s
-func TriggerSlicesString(triggers []FullTrigger) string {
-	out := fmt.Sprintf("FullTriggers len %d: {\n", len(triggers))
-	for _, trigger := range triggers {
-		out += fmt.Sprintf("\t%s\n", trigger.String())
-	}
-	return out + "}"
-}
-
 // Check is a boolean test that determines whether this FullTrigger should be triggered against the Annotation map `annMap`
 func (t *FullTrigger) Check(annMap Map) bool {
 	return t.Producer.Annotation.CheckProduce(annMap) &&
