@@ -710,6 +710,16 @@ func testEqual(t *testing.T, i int, a []int) interface{} {
 		var x *int
 		require.Equal(t, nil, x)
 		print(*x) //want "unassigned variable `x` dereferenced"
+
+	case 16:
+		var x *int
+		require.Equal(t, x, nil)
+		print(*x) //want "unassigned variable `x` dereferenced"
+
+	case 17:
+		var x *int
+		require.NotEqual(t, x, nil)
+		print(*x)
 	}
 	return 0
 }

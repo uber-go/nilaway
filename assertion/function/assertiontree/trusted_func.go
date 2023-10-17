@@ -182,7 +182,7 @@ var requireComparators action = func(call *ast.CallExpr, startIndex int, pass *a
 	funcName := sel.Sel.Name
 
 	// We now find the actual and expected expressions, where expected is the constant value that actual expression is
-	// compared against. For example, in `Equal(1, len(s))`, expected is 1, and actual is `len(s)`. However, the position
+	// compared against. For example, in `Equal(1, len(s))`, expected is 1, and actual is `s`. However, the position
 	// of the actual and expected expressions can be swapped, e.g., `Equal(len(s), 1)`. We handle both cases below. For
 	// example, for length comparison, we search for the slice expression, the other will be treated as length expression.
 
@@ -253,6 +253,11 @@ var requireComparators action = func(call *ast.CallExpr, startIndex int, pass *a
 
 	// Now, based on the semantics of the function, we can create artificial nonnil checks for
 	// the following cases.
+	// - slice length comparison. E.g., `Equal(1, len(s))`, implying len(s) > 0, meaning s is nonnil.
+	//   Here, actualExpr is `s` and expectedExprValue is `_greaterThanZero`, which translates to the binary expression
+	//   `s != nil` being added to the CFG. Similarly, for `Equal(len(s), 0)`, we add `s == nil` to the CFG.
+	// - nil comparison. E.g., `Equal(nil, err)`, where actualExpr is `err` and expectedExprValue is `_nil`, which
+	//   translates to the binary expression `err == nil` being added to the CFG.
 	switch funcName {
 	case "Equal", "Equalf": // len(s) == [positive_int], expr == nil
 		if expectedExprValue == _greaterThanZero {
@@ -265,7 +270,7 @@ var requireComparators action = func(call *ast.CallExpr, startIndex int, pass *a
 			return newNilBinaryExpr(actualExpr, token.NEQ)
 		}
 
-	// Note the check for `argIndex` in the following cases, we need to make sure the slice expr
+	// Note the check for `actualExprIndex` in the following cases, we need to make sure the slice expr
 	// is at the correct position since these are inequality checks.
 	case "Greater", "Greaterf": // len(s) > [non_negative_int]
 		if actualExprIndex == 0 && (expectedExprValue == _zero || expectedExprValue == _greaterThanZero) {
@@ -348,7 +353,7 @@ var trustedFuncs = map[trustedFuncSig]trustedFuncAction{
 	{
 		kind:           _method,
 		enclosingRegex: regexp.MustCompile(`github\.com/stretchr/testify/(suite\.Suite|assert\.Assertions|require\.Assertions)$`),
-		funcNameRegex:  regexp.MustCompile(`^(Greater(f)?|Less(f)?|(GreaterOr|LessOr)?Equal(f)?|NotEqual(f)?)$`),
+		funcNameRegex:  regexp.MustCompile(`^(Greater(f)?|Less(f)?|Equal(f)?|GreaterOrEqual(f)?|LessOrEqual(f)?|NotEqual(f)?)$`),
 	}: {action: requireComparators, argIndex: 0},
 	{
 		kind:           _method,
@@ -380,7 +385,7 @@ var trustedFuncs = map[trustedFuncSig]trustedFuncAction{
 	{
 		kind:           _func,
 		enclosingRegex: regexp.MustCompile(`github\.com/stretchr/testify/(assert|require)$`),
-		funcNameRegex:  regexp.MustCompile(`^(Greater(f)?|Less(f)?|(GreaterOr|LessOr)?Equal(f)?|NotEqual(f)?)$`),
+		funcNameRegex:  regexp.MustCompile(`^(Greater(f)?|Less(f)?|Equal(f)?|GreaterOrEqual(f)?|LessOrEqual(f)?|NotEqual(f)?)$`),
 	}: {action: requireComparators, argIndex: 1},
 	{
 		kind:           _func,
