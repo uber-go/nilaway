@@ -605,7 +605,7 @@ func testLongerAccessPath(w *W) any {
 }
 
 // nilable(a)
-func testEqual(t *testing.T, i int, a []int) {
+func testEqual(t *testing.T, i int, a []int) interface{} {
 	switch i {
 	case 0:
 		require.Equal(t, len(a), 1)
@@ -642,7 +642,86 @@ func testEqual(t *testing.T, i int, a []int) {
 	case 7:
 		require.Equalf(t, 1, len(a), "mymsg: %s", "arg")
 		print(a[0])
+
+	// The NotEqual variant should also be supported.
+	case 81:
+		require.NotEqual(t, len(a), 0)
+		print(a[0])
+
+	case 83:
+		// Swapping the positions of args should not affect the analysis.
+		require.NotEqual(t, 0, len(a))
+		print(a[0])
+
+	case 84:
+		// Using a constant is also OK.
+		const zero = 0
+		require.NotEqual(t, zero, len(a))
+
+	case 82:
+		// `len(a) != 1` implies that len(a) can be 0, hence we should report an error.
+		require.NotEqual(t, len(a), 1)
+		print(a[0]) //want "sliced into"
+
+	case 85:
+		require.NotEqual(t, len(a), 1)
+		print(a[0]) //want "sliced into"
+
+	// Equal/NotEqual with nil should also be supported.
+	case 8:
+		x, err := errs()
+		require.Equal(t, err, nil)
+		return x
+
+	case 9:
+		x, err := errs()
+		require.Equal(t, nil, err)
+		return x
+
+	case 10:
+		x, err := errs()
+		require.NotEqual(t, err, nil)
+		return x //want "result 0 of `errs.*` lacking guarding"
+
+	case 11:
+		x, err := errs()
+		require.NotEqual(t, nil, err)
+		return x //want "result 0 of `errs.*` lacking guarding"
+
+	// test with suite.Suite
+	case 12:
+		x, err := errs()
+		s := &testSetupEmbeddedDepth1{}
+		s.Equal(nil, err)
+		return x
+
+	case 13:
+		x, err := errs()
+		s := &testSetupEmbeddedDepth1{}
+		s.NotEqual(err, nil)
+		return x //want "result 0 of `errs.*` lacking guarding"
+
+	case 14:
+		var x *int
+		require.NotEqual(t, nil, x)
+		print(*x)
+
+	case 15:
+		var x *int
+		require.Equal(t, nil, x)
+		print(*x) //want "unassigned variable `x` dereferenced"
+
+	case 16:
+		var x *int
+		require.Equal(t, x, nil)
+		print(*x) //want "unassigned variable `x` dereferenced"
+
+	case 17:
+		var x *int
+		require.NotEqual(t, x, nil)
+		print(*x)
 	}
+	return 0
 }
 
 // nilable(a)
