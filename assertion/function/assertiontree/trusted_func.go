@@ -252,6 +252,32 @@ var requireComparators action = func(call *ast.CallExpr, startIndex int, pass *a
 	return generateComparators(call, actualExpr, actualExprIndex, expectedExprValue)
 }
 
+// requireZeroComparators handles a special case of comparators checking for zero values (e.g., `Empty(err)`, i.e. err == nil).
+// We currently support the following cases of zero comparators:
+// - `nil` for pointers
+// - `false` for booleans
+// - `len == 0` for slices, maps, and channels
+var requireZeroComparators action = func(call *ast.CallExpr, index int, pass *analysis.Pass) any {
+	expr := call.Args[index]
+	if expr == nil {
+		return nil
+	}
+
+	exprType := pass.TypesInfo.TypeOf(expr).Underlying()
+	switch t := exprType.(type) {
+	case *types.Pointer, *types.Interface:
+		return generateComparators(call, expr, index, _nil)
+	case *types.Slice, *types.Map, *types.Chan:
+		return generateComparators(call, expr, index, _zero)
+	case *types.Basic:
+		if t.Kind() == types.Bool {
+			return generateComparators(call, expr, index, _false)
+		}
+	}
+
+	return nil
+}
+
 // generateComparators generates comparators based on the semantics of the function.
 func generateComparators(call *ast.CallExpr, actualExpr ast.Expr, actualExprIndex int, expectedVal expectedValue) any {
 	sel, ok := call.Fun.(*ast.SelectorExpr)
@@ -337,32 +363,6 @@ var requireLen action = func(call *ast.CallExpr, startIndex int, pass *analysis.
 	// Len(sliceExpr, [positive_int]) implies that the slice is nonnil.
 	if v > 0 {
 		return newNilBinaryExpr(sliceExpr, token.NEQ)
-	}
-
-	return nil
-}
-
-// requireZeroComparators handles a special case of comparators checking for zero values (e.g., `Empty(err)`, i.e. err == nil).
-// We currently support the following cases of zero comparators:
-// - `nil` for pointers
-// - `false` for booleans
-// - `len == 0` for slices, maps, and channels
-var requireZeroComparators action = func(call *ast.CallExpr, index int, pass *analysis.Pass) any {
-	expr := call.Args[index]
-	if expr == nil {
-		return nil
-	}
-
-	exprType := pass.TypesInfo.TypeOf(expr).Underlying()
-	switch t := exprType.(type) {
-	case *types.Pointer, *types.Interface:
-		return generateComparators(call, expr, index, _nil)
-	case *types.Slice, *types.Map, *types.Chan:
-		return generateComparators(call, expr, index, _zero)
-	case *types.Basic:
-		if t.Kind() == types.Bool {
-			return generateComparators(call, expr, index, _false)
-		}
 	}
 
 	return nil
