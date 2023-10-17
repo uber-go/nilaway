@@ -854,3 +854,75 @@ func testLen(t *testing.T, i int, a []int) {
 		print(a[0]) //want "sliced into"
 	}
 }
+
+// nilable(a)
+func testEmpty(t *testing.T, i int, a []int, mp map[int]*int) interface{} {
+	switch i {
+	// zero value with slice len check should be supported
+	case 0:
+		require.Empty(t, a)
+		print(a[0]) //want "sliced into"
+	case 1:
+		require.NotEmpty(t, a)
+		print(a[0])
+
+	// zero value of pointer check should be supported
+	case 2:
+		var x *int
+		require.NotEmpty(t, x)
+		print(*x)
+	case 3:
+		var x *int
+		require.Empty(t, x)
+		print(*x) //want "unassigned variable `x` dereferenced"
+	case 4:
+		x, err := errs()
+		require.Empty(t, err)
+		return x
+	case 5:
+		x, err := errs()
+		require.NotEmpty(t, err)
+		return x //want "result 0 of `errs.*` lacking guarding"
+
+	// zero value of boolean check should be supported
+	case 6:
+		v, ok := mp[0]
+		require.NotEmpty(t, ok)
+		print(*v)
+	case 7:
+		v, ok := mp[0]
+		require.Empty(t, ok)
+		print(*v) //want "deep read from parameter `mp` lacking guarding"
+
+	// The f variants should also be supported.
+	case 8:
+		require.Emptyf(t, a, "mymsg: %s", "arg")
+		print(a[0]) //want "sliced into"
+	case 9:
+		require.NotEmptyf(t, a, "mymsg: %s", "arg")
+		print(a[0])
+
+	// Calls with `suite.Suite` should also be supported.
+	case 10:
+		x, err := errs()
+		s := &testSetupEmbeddedDepth1{}
+		s.Empty(err)
+		return x
+	case 11:
+		var x *int
+		s := &testSetupEmbeddedDepth1{}
+		s.Empty(x)
+		print(*x) //want "unassigned variable `x` dereferenced"
+	case 12:
+		v, ok := mp[0]
+		s := &testSetupEmbeddedDepth1{}
+		s.Empty(ok)
+		print(*v) //want "deep read from parameter `mp` lacking guarding"
+	case 13:
+		s := &testSetupEmbeddedDepth1{}
+		s.Empty(a)
+		print(a[0]) //want "sliced into"
+	}
+
+	return 0
+}
