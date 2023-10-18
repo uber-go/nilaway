@@ -1684,7 +1684,7 @@ func (l *LocalVarAssignDeep) equals(other ConsumingAnnotationTrigger) bool {
 // Copy returns a deep copy of this ConsumingAnnotationTrigger
 func (l *LocalVarAssignDeep) Copy() ConsumingAnnotationTrigger {
 	copyConsumer := *l
-	copyConsumer.ConsumeTriggerTautology = l.ConsumeTriggerTautology.Copy().(*ConsumeTriggerTautology)
+	copyConsumer.TriggerIfDeepNonNil = l.TriggerIfDeepNonNil.Copy().(*TriggerIfDeepNonNil)
 	return &copyConsumer
 }
 
