@@ -19,6 +19,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"slices"
 	"strings"
 
 	"go.uber.org/nilaway/util"
@@ -315,24 +316,6 @@ func (c ConsumeTriggerTautologyPrestring) String() string {
 	sb.WriteString("must be nonnil")
 	sb.WriteString(c.AssignmentStr)
 	return sb.String()
-}
-
-// equals returns true if the passed ConsumingAnnotationTrigger is equal to this one
-func (*ConsumeTriggerTautology) equals(other ConsumingAnnotationTrigger) bool {
-	_, ok := other.(*ConsumeTriggerTautology)
-	return ok
-}
-
-// Prestring returns this Prestring as a Prestring
-func (*ConsumeTriggerTautology) Prestring() Prestring {
-	return ConsumeTriggerTautologyPrestring{}
-}
-
-// ConsumeTriggerTautologyPrestring is a Prestring storing the needed information to compactly encode a ConsumeTriggerTautology
-type ConsumeTriggerTautologyPrestring struct{}
-
-func (ConsumeTriggerTautologyPrestring) String() string {
-	return "must be nonnil"
 }
 
 // PtrLoad is when a value flows to a point where it is loaded as a pointer
