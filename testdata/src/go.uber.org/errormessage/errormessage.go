@@ -352,3 +352,12 @@ func test25(a A) {
 	print(*a[0]) //want "`retMultiple\\(\\)` to `a\\[0\\]`"
 	print(*a[1])
 }
+
+func test8(i int) {
+	x := new(int)
+	if dummy {
+		var y *int
+		x = y
+	}
+	print(*x)
+}
