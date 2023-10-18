@@ -262,13 +262,6 @@ func test20() {
 func test21() {
 	var 世界 *int = nil
 	print(*世界) //want "`nil` to `世界`"
-=======
-	return z
-}
-
-func callTest6() {
-	print(*test6())
->>>>>>> 9b6aa309482fc (initial implementation of assignment printing)
 }
 
 // below tests check assignment flow tracking across many-to-one assignments
