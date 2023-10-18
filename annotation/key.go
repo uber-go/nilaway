@@ -478,6 +478,11 @@ func (lk *LocalVarAnnotationKey) equals(other Key) bool {
 	return false
 }
 
+func (lk *LocalVarAnnotationKey) copy() Key {
+	copyKey := *lk
+	return &copyKey
+}
+
 func (lk *LocalVarAnnotationKey) String() string {
 	return fmt.Sprintf("Local Variable %s", lk.VarDecl.Name())
 }
