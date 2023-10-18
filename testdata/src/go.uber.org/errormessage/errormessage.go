@@ -85,3 +85,12 @@ func test7() {
 	}
 	print(*x)
 }
+
+func test8(i int) {
+	x := new(int)
+	if dummy {
+		var y *int
+		x = y
+	}
+	print(*x)
+}
