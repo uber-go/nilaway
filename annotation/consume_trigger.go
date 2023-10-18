@@ -1668,7 +1668,6 @@ func MergeConsumeTriggerSlices(left, right []*ConsumeTrigger) []*ConsumeTrigger 
 				// intersect guard sets - if a guard isn't present in both branches it can't
 				// be considered present before the branch
 				out[i] = &ConsumeTrigger{
-					// Annotation: outTrigger.Annotation,
 					Annotation:   outTrigger.Annotation.Copy(),
 					Expr:         outTrigger.Expr,
 					Guards:       outTrigger.Guards.Intersection(trigger.Guards),
@@ -1697,7 +1696,6 @@ func ConsumeTriggerSliceAsGuarded(slice []*ConsumeTrigger, guards ...util.GuardN
 	var out []*ConsumeTrigger
 	for _, trigger := range slice {
 		out = append(out, &ConsumeTrigger{
-			// Annotation: trigger.Annotation,
 			Annotation: trigger.Annotation.Copy(),
 			Expr:       trigger.Expr,
 			Guards:     trigger.Guards.Copy().Add(guards...),
