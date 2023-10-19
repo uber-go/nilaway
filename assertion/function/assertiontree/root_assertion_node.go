@@ -896,8 +896,6 @@ func getFuncLitFromAssignment(ident *ast.Ident) *ast.FuncLit {
 //	}
 //
 // ```
-//
-// nilable(path, result 0)
 func (r *RootAssertionNode) LiftFromPath(path TrackableExpr) (AssertionNode, bool) {
 	if path != nil {
 		node, whichChild := r.lookupPath(path)

@@ -19,7 +19,6 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
-	"slices"
 	"strings"
 
 	"go.uber.org/nilaway/util"
@@ -77,13 +76,13 @@ type Prestring interface {
 
 // Assignment is a struct that represents an assignment to an expression
 type Assignment struct {
-	LhsExprStr string
-	RhsExprStr string
+	LHSExprStr string
+	RHSExprStr string
 	Position   token.Position
 }
 
 func (a *Assignment) String() string {
-	return fmt.Sprintf("`%s` to `%s` at %s", a.RhsExprStr, a.LhsExprStr, a.Position)
+	return fmt.Sprintf("`%s` to `%s` at %s", a.RHSExprStr, a.LHSExprStr, a.Position)
 }
 
 // assignmentFlow is a struct that represents a flow of assignments
@@ -111,7 +110,9 @@ func (a *assignmentFlow) String() string {
 	}
 
 	// backprop algorithm populates assignment entries in backward order. Reverse entries to get forward order of assignments.
-	slices.Reverse(entries)
+	for i, j := 0, len(entries)-1; i < j; i, j = i+1, j-1 {
+		entries[i], entries[j] = entries[j], entries[i]
+	}
 
 	// build string slice
 	strs := make([]string, len(entries))
@@ -267,14 +268,14 @@ func (t *ConsumeTriggerTautology) Copy() ConsumingAnnotationTrigger {
 }
 
 // AddAssignment adds an assignment to the trigger.
-func (c *ConsumeTriggerTautology) AddAssignment(e Assignment) {
-	c.assignmentFlow.addEntry(e)
+func (t *ConsumeTriggerTautology) AddAssignment(e Assignment) {
+	t.assignmentFlow.addEntry(e)
 }
 
 // Prestring returns this Prestring as a Prestring
-func (c *ConsumeTriggerTautology) Prestring() Prestring {
+func (t *ConsumeTriggerTautology) Prestring() Prestring {
 	return ConsumeTriggerTautologyPrestring{
-		AssignmentStr: c.assignmentFlow.String(),
+		AssignmentStr: t.assignmentFlow.String(),
 	}
 }
 
