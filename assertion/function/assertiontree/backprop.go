@@ -585,7 +585,9 @@ buildShadowMask:
 					}
 
 					lhsNode, ok := rootNode.LiftFromPath(lpath)
-					if ok {
+					// TODO: below check for `lhsNode != nil` should not be needed when NilAway supports Ok form for
+					//  used-defined functions (tracked issue #77)
+					if ok && lhsNode != nil {
 						// Add assignment entries to the consumers of lhsNode for informative printing of errors
 						for _, c := range lhsNode.ConsumeTriggers() {
 							c.Annotation.AddAssignment(annotation.Assignment{
@@ -629,12 +631,14 @@ buildShadowMask:
 						afterLastIndex := len(rootNode.triggers)
 
 						// Update consumers of newly added triggers with assignment entries for informative printing of errors
-						for _, t := range rootNode.triggers[beforeLastIndex:afterLastIndex] {
-							t.Consumer.Annotation.AddAssignment(annotation.Assignment{
-								LHSExprStr: util.ExprToString(lhsVal, rootNode.Pass()),
-								RHSExprStr: util.ExprToString(rhsVal, rootNode.Pass()),
-								Position:   util.TruncatePosition(util.PosToLocation(lhsVal.Pos(), rootNode.Pass())),
-							})
+						if len(rootNode.triggers) > beforeLastIndex && len(rootNode.triggers) <= afterLastIndex {
+							for _, t := range rootNode.triggers[beforeLastIndex:afterLastIndex] {
+								t.Consumer.Annotation.AddAssignment(annotation.Assignment{
+									LHSExprStr: util.ExprToString(lhsVal, rootNode.Pass()),
+									RHSExprStr: util.ExprToString(rhsVal, rootNode.Pass()),
+									Position:   util.TruncatePosition(util.PosToLocation(lhsVal.Pos(), rootNode.Pass())),
+								})
+							}
 						}
 					default:
 						return errors.New("rhs expression in a 1-1 assignment was multiply returning - " +
