@@ -22,25 +22,25 @@ var dummy bool
 
 func test1(x *int) {
 	x = nil
-	print(*x)
+	print(*x) //want "`nil` to `x`"
 }
 
 func test2(x *int) {
 	x = nil
 	y := x
 	z := y
-	print(*z)
+	print(*z) //want "`y` to `z`"
 }
 
 func test3(x *int) {
-	if true {
+	if dummy {
 		x = nil
 	} else {
 		x = new(int)
 	}
 	y := x
 	z := y
-	print(*z)
+	print(*z) //want "`nil` to `x`"
 }
 
 type S struct {
@@ -53,13 +53,13 @@ func test4(x *int) {
 	y := x
 	z := y
 	s.f = z
-	print(*s.f)
+	print(*s.f) //want "`z` to `s.f`"
 }
 
 func test5() {
 	x := new(int)
 	for i := 0; i < 10; i++ {
-		print(*x)
+		print(*x) //want "`nil` to `y`"
 		var y *int = nil
 		z := y
 		x = z
@@ -74,7 +74,7 @@ func test6() *int {
 }
 
 func callTest6() {
-	print(*test6())
+	print(*test6()) //want "`nil` to `x`"
 }
 
 func test7() {
@@ -83,7 +83,7 @@ func test7() {
 		y := new(int)
 		x = y
 	}
-	print(*x)
+	print(*x) //want "unassigned variable `x` dereferenced"
 }
 
 func test8(i int) {
@@ -92,5 +92,5 @@ func test8(i int) {
 		var y *int
 		x = y
 	}
-	print(*x)
+	print(*x) //want "`y` to `x`"
 }
