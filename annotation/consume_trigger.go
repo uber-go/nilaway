@@ -337,14 +337,14 @@ func (t *ConsumeTriggerTautology) Copy() ConsumingAnnotationTrigger {
 }
 
 // AddAssignment adds an assignment to the trigger.
-func (t *ConsumeTriggerTautology) AddAssignment(e Assignment) {
-	t.assignmentFlow.addEntry(e)
+func (c *ConsumeTriggerTautology) AddAssignment(e Assignment) {
+	c.assignmentFlow.addEntry(e)
 }
 
 // Prestring returns this Prestring as a Prestring
-func (t *ConsumeTriggerTautology) Prestring() Prestring {
+func (c *ConsumeTriggerTautology) Prestring() Prestring {
 	return ConsumeTriggerTautologyPrestring{
-		AssignmentStr: t.assignmentFlow.String(),
+		AssignmentStr: c.assignmentFlow.String(),
 	}
 }
 
