@@ -833,6 +833,7 @@ func addReturnConsumers(rootNode *RootAssertionNode, node *ast.ReturnStmt, expr 
 			Expr:   expr,
 			Guards: util.NoGuards(),
 		}
+		consumer.Annotation.SetNeedsGuard(false)
 
 		rootNode.AddNewTriggers(annotation.FullTrigger{
 			Producer: producer,

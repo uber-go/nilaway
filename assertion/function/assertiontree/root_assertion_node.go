@@ -689,6 +689,8 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 								Expr:   arg,
 								Guards: util.NoGuards(),
 							}
+							deepConsumer.Annotation.SetNeedsGuard(false)
+
 							r.AddNewTriggers(annotation.FullTrigger{
 								Producer: deepProducer,
 								Consumer: deepConsumer,
