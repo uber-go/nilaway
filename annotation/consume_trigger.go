@@ -866,23 +866,34 @@ func (a ArgPassPrestring) String() string {
 
 // ArgPassDeep is when a value deeply flows to a point where it is passed as an argument to a function
 type ArgPassDeep struct {
-	TriggerIfDeepNonNil
+	*TriggerIfDeepNonNil
 }
 
-func (a ArgPassDeep) String() string {
-	return a.Prestring().String()
+// equals returns true if the passed ConsumingAnnotationTrigger is equal to this one
+func (a *ArgPassDeep) equals(other ConsumingAnnotationTrigger) bool {
+	if other, ok := other.(*ArgPassDeep); ok {
+		return a.TriggerIfDeepNonNil.equals(other.TriggerIfDeepNonNil)
+	}
+	return false
+}
+
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (a *ArgPassDeep) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *a
+	copyConsumer.TriggerIfDeepNonNil = a.TriggerIfDeepNonNil.Copy().(*TriggerIfDeepNonNil)
+	return &copyConsumer
 }
 
 // Prestring returns this ArgPassDeep as a Prestring
-func (a ArgPassDeep) Prestring() Prestring {
+func (a *ArgPassDeep) Prestring() Prestring {
 	switch key := a.Ann.(type) {
-	case ParamAnnotationKey:
+	case *ParamAnnotationKey:
 		return ArgPassPrestring{
 			ParamName: key.MinimalString(),
 			FuncName:  key.FuncDecl.Name(),
 			Location:  "",
 		}
-	case CallSiteParamAnnotationKey:
+	case *CallSiteParamAnnotationKey:
 		return ArgPassPrestring{
 			ParamName: key.MinimalString(),
 			FuncName:  key.FuncDecl.Name(),
@@ -1165,18 +1176,31 @@ func (u *UseAsReturn) customPos() (token.Pos, bool) {
 
 // UseAsReturnDeep is when a deep value flows to a point where it is returned from a function.
 type UseAsReturnDeep struct {
-	TriggerIfDeepNonNil
+	*TriggerIfDeepNonNil
 	IsNamedReturn bool
 	RetStmt       *ast.ReturnStmt
 }
 
-func (u UseAsReturnDeep) String() string {
-	return u.Prestring().String()
+// equals returns true if the passed ConsumingAnnotationTrigger is equal to this one
+func (u *UseAsReturnDeep) equals(other ConsumingAnnotationTrigger) bool {
+	if other, ok := other.(*UseAsReturnDeep); ok {
+		return u.TriggerIfDeepNonNil.equals(other.TriggerIfDeepNonNil) &&
+			u.IsNamedReturn == other.IsNamedReturn &&
+			u.RetStmt == other.RetStmt
+	}
+	return false
+}
+
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (u *UseAsReturnDeep) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *u
+	copyConsumer.TriggerIfDeepNonNil = u.TriggerIfDeepNonNil.Copy().(*TriggerIfDeepNonNil)
+	return &copyConsumer
 }
 
 // Prestring returns this UseAsReturn as a Prestring
-func (u UseAsReturnDeep) Prestring() Prestring {
-	key := u.Ann.(RetAnnotationKey)
+func (u *UseAsReturnDeep) Prestring() Prestring {
+	key := u.Ann.(*RetAnnotationKey)
 	return UseAsReturnDeepPrestring{
 		key.FuncDecl.Name(),
 		key.RetNum,

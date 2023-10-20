@@ -682,8 +682,8 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 								Expr:       arg,
 							}
 							deepConsumer := &annotation.ConsumeTrigger{
-								Annotation: annotation.ArgPassDeep{
-									TriggerIfDeepNonNil: annotation.TriggerIfDeepNonNil{
+								Annotation: &annotation.ArgPassDeep{
+									TriggerIfDeepNonNil: &annotation.TriggerIfDeepNonNil{
 										Ann: paramKey,
 									}},
 								Expr:   arg,
