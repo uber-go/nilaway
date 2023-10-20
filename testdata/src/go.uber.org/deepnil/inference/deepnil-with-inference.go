@@ -248,7 +248,7 @@ func testDeepNilChain() {
 }
 
 // below test checks for deep nilability of a parameter
-func deepNilParam(m map[int]*int) {
+func readDeepParam(m map[int]*int) {
 	i := 0
 	if v, ok := m[i]; ok {
 		_ = *v //want "deep read from parameter `m` dereferenced"
@@ -258,7 +258,7 @@ func deepNilParam(m map[int]*int) {
 func testDeepNilParam() {
 	m := make(map[int]*int)
 	m[0] = nil
-	deepNilParam(m)
+	readDeepParam(m)
 }
 
 // below test checks for deep nilabililty of a variadic parameter
@@ -272,4 +272,16 @@ func testNilVariadicParam() {
 	s := make([]*int, 1)
 	s[0] = nil
 	nilVariadicParam(s...)
+}
+
+// below test checks for deep nilability of a global variable
+var globalS []*string = make([]*string, 1)
+
+func deepGlobal() []*string {
+	globalS[0] = nil
+	return globalS
+}
+
+func testDeepGlobal() {
+	_ = *deepGlobal()[0] //want "deep read from global variable `globalS`"
 }
