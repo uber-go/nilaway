@@ -160,8 +160,8 @@ func computeAndConsumeResults(rootNode *RootAssertionNode, node *ast.ReturnStmt)
 						fullTrigger := annotation.FullTrigger{
 							Producer: producer,
 							Consumer: &annotation.ConsumeTrigger{
-								Annotation: annotation.UseAsReturn{
-									TriggerIfNonNil: annotation.TriggerIfNonNil{
+								Annotation: &annotation.UseAsReturn{
+									TriggerIfNonNil: &annotation.TriggerIfNonNil{
 										Ann: retKey},
 									IsNamedReturn: true,
 									RetStmt:       node,
@@ -741,11 +741,11 @@ func CheckGuardOnFullTrigger(trigger annotation.FullTrigger) annotation.FullTrig
 	return trigger
 }
 
-func addReturnConsumers(rootNode *RootAssertionNode, node *ast.ReturnStmt, expr ast.Expr, retKey annotation.RetAnnotationKey, isNamedReturn bool) {
+func addReturnConsumers(rootNode *RootAssertionNode, node *ast.ReturnStmt, expr ast.Expr, retKey *annotation.RetAnnotationKey, isNamedReturn bool) {
 	// add shallow consumer
 	rootNode.AddConsumption(&annotation.ConsumeTrigger{
-		Annotation: annotation.UseAsReturn{
-			TriggerIfNonNil: annotation.TriggerIfNonNil{
+		Annotation: &annotation.UseAsReturn{
+			TriggerIfNonNil: &annotation.TriggerIfNonNil{
 				Ann: retKey},
 			IsNamedReturn: isNamedReturn,
 			RetStmt:       node},
@@ -762,8 +762,8 @@ func addReturnConsumers(rootNode *RootAssertionNode, node *ast.ReturnStmt, expr 
 			Expr:       expr,
 		}
 		consumer := &annotation.ConsumeTrigger{
-			Annotation: annotation.UseAsReturnDeep{
-				TriggerIfDeepNonNil: annotation.TriggerIfDeepNonNil{
+			Annotation: &annotation.UseAsReturnDeep{
+				TriggerIfDeepNonNil: &annotation.TriggerIfDeepNonNil{
 					Ann: retKey},
 				IsNamedReturn: isNamedReturn,
 				RetStmt:       node},
