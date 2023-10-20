@@ -72,10 +72,6 @@ type assertionNodeCommon struct {
 	parent          AssertionNode // this should be nil for the root
 	children        []AssertionNode
 	consumeTriggers []*annotation.ConsumeTrigger
-
-	// originalExpr stores the original call expression that prompted the creation of this assertion node
-	originalExpr ast.Expr // this should be nil for the root
-
 }
 
 func (n *assertionNodeCommon) Parent() AssertionNode { return n.parent }
@@ -107,8 +103,4 @@ func (n *assertionNodeCommon) Size() int {
 		size += child.Size()
 	}
 	return size
-}
-
-func (n *assertionNodeCommon) BuildExpr(pass *analysis.Pass, expr ast.Expr) ast.Expr {
-	return n.originalExpr
 }
