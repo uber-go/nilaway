@@ -246,3 +246,30 @@ func retDeepNil() []*int {
 func testDeepNilChain() {
 	_ = *retDeepNilChain()[0] //want "deep read from result 0 of `retDeepNil.*` returned deeply from `retDeepNilChain.*`"
 }
+
+// below test checks for deep nilability of a parameter
+func deepNilParam(m map[int]*int) {
+	i := 0
+	if v, ok := m[i]; ok {
+		_ = *v //want "deep read from parameter `m` dereferenced"
+	}
+}
+
+func testDeepNilParam() {
+	m := make(map[int]*int)
+	m[0] = nil
+	deepNilParam(m)
+}
+
+// below test checks for deep nilabililty of a variadic parameter
+func nilVariadicParam(s ...*int) {
+	for _, v := range s {
+		_ = *v //want "index of variadic parameter `s` dereferenced"
+	}
+}
+
+func testNilVariadicParam() {
+	s := make([]*int, 1)
+	s[0] = nil
+	nilVariadicParam(s...)
+}
