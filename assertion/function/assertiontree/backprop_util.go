@@ -816,9 +816,13 @@ func addReturnConsumers(rootNode *RootAssertionNode, node *ast.ReturnStmt, expr 
 		Guards: util.NoGuards(),
 	})
 
-	// If expr is a deep type, then directly add a full trigger for it. The reason for this being that the if add as a consumer,
-	// then it gets added to the same assertion node in the assertion tree as for the shallow consumer above. This is a problem
-	// since a producer actually meant for the shallow consumer also incorrectly matches the deep consumer.
+	// If expr is a deep type, then we track its deep nilability as well.
+	// ```
+	// E.g., func foo(s []*int) []*int {
+	//   s[0] = nil
+	//   return s  // <-- track shallow and deep nilability of `s` here
+	// }
+	// ```
 	if util.TypeIsDeep(util.TypeOf(rootNode.Pass(), expr)) {
 		producer := &annotation.ProduceTrigger{
 			Annotation: exprAsDeepProducer(rootNode, expr),
@@ -833,8 +837,13 @@ func addReturnConsumers(rootNode *RootAssertionNode, node *ast.ReturnStmt, expr 
 			Expr:   expr,
 			Guards: util.NoGuards(),
 		}
+		// since this is an implicit tracking of the deep nilability of expr, we don't need to
+		// check for its guarding.
 		consumer.Annotation.SetNeedsGuard(false)
 
+		// We add a full trigger here directly because if we add only a deep consumer here, then it gets added
+		// to the same assertion node in the assertion tree as for the shallow consumer above. This is a problem
+		// since a producer actually meant for the shallow consumer also incorrectly matches the deep consumer.
 		rootNode.AddNewTriggers(annotation.FullTrigger{
 			Producer: producer,
 			Consumer: consumer,
