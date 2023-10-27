@@ -27,13 +27,10 @@ import (
 // A ConsumingAnnotationTrigger indicated a possible reason that a nil flow to this site would indicate
 // an error
 //
-// All ConsumingAnnotationTriggers must embed one of the following 4 structs:
+// All ConsumingAnnotationTriggers must embed one of the following 3 structs:
 // -TriggerIfNonnil
 // -TriggerIfDeepNonnil
 // -ConsumeTriggerTautology
-//
-// This is because there are interfaces, such as AdmitsPrimitive, that are implemented only for those
-// structs, and to which a ConsumingAnnotationTrigger must be able to be cast
 type ConsumingAnnotationTrigger interface {
 	// CheckConsume can be called to determined whether this trigger should be triggered
 	// given a particular Annotation map
@@ -152,9 +149,7 @@ func (*ConsumeTriggerTautology) Kind() TriggerKind { return Always }
 func (*ConsumeTriggerTautology) UnderlyingSite() Key { return nil }
 
 // CheckConsume returns true
-func (*ConsumeTriggerTautology) CheckConsume(Map) bool {
-	return true
-}
+func (*ConsumeTriggerTautology) CheckConsume(Map) bool { return true }
 
 // equals returns true if the passed ConsumingAnnotationTrigger is equal to this one
 func (*ConsumeTriggerTautology) equals(other ConsumingAnnotationTrigger) bool {
@@ -208,7 +203,7 @@ type MapAccess struct {
 
 // equals returns true if the passed ConsumingAnnotationTrigger is equal to this one
 func (i *MapAccess) equals(other ConsumingAnnotationTrigger) bool {
-	if other, ok := other.(*PtrLoad); ok {
+	if other, ok := other.(*MapAccess); ok {
 		return i.ConsumeTriggerTautology.equals(other.ConsumeTriggerTautology)
 	}
 	return false
