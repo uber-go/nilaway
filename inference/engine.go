@@ -46,7 +46,7 @@ type Engine struct {
 	// generates proper diagnostics from those conflicts.
 	diagnosticEngine conflictHandler
 	// primitive is the primitivizer that is able to convert full triggers and annotation sites to
-	// their primitive forms.
+	// their primitive forms (see primitive.go).
 	primitive *primitivizer
 	// controlledTriggersBySite stores the set of controlled triggers for each site if the site
 	// controls any triggers. This field is for internal use in the struct only and should not be

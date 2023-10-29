@@ -48,7 +48,8 @@ type Engine struct {
 
 // NewEngine creates a new diagnostic engine.
 func NewEngine(pass *analysis.Pass) *Engine {
-	// Find the current working directory (e.g., random sandbox prefix) for trimming the file names.
+	// Find the current working directory (e.g., random sandbox prefix if using bazel) for trimming
+	// the file names.
 	cwd, err := os.Getwd()
 	if err != nil {
 		panic(fmt.Sprintf("cannot get current working directory: %v", err))
@@ -57,7 +58,8 @@ func NewEngine(pass *analysis.Pass) *Engine {
 	// Iterate all files within the Fset (which includes upstream and current-package files), and
 	// store the mapping between its file name (modulo the possible build-system prefix) and the
 	// token.File object. This is needed for converting correct upstream position back to local
-	// incorrect token.Pos for error reporting purposes.
+	// incorrect token.Pos for error reporting purposes. Also see
+	// [inference.primitivizer.toPosition] for more detailed explanations.
 	files := make(map[string]fileInfo)
 	pass.Fset.Iterate(func(file *token.File) bool {
 		name, err := filepath.Rel(cwd, file.Name())

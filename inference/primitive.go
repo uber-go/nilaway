@@ -122,8 +122,8 @@ type primitivizer struct {
 	pass *analysis.Pass
 	// upstreamObjPositions maps "<pkg path>.<object path>" to the correct position.
 	upstreamObjPositions map[string]token.Position
-	// curDir is the current working directory, which is used to trim the prefix (e.g., bazel
-	// random sandbox prefix) from the file names for cross-package references.
+	// curDir is the current working directory, which is used to trim the prefix (e.g.,  random
+	// sandbox prefix if using bazel) from the file names for cross-package references.
 	curDir string
 }
 
@@ -161,7 +161,8 @@ func newPrimitivizer(pass *analysis.Pass) *primitivizer {
 		})
 	}
 
-	// Find the current working directory (e.g., random sandbox prefix) for trimming the file names.
+	// Find the current working directory (e.g., random sandbox prefix if using bazel) for
+	// trimming the file names.
 	cwd, err := os.Getwd()
 	if err != nil {
 		panic(fmt.Sprintf("cannot get current working directory: %v", err))
@@ -236,10 +237,25 @@ func (p *primitivizer) site(key annotation.Key, isDeep bool) primitiveSite {
 func (p *primitivizer) toPosition(pos token.Pos) token.Position {
 	// Generated files contain "//line" directives that point back to the original source file
 	// for better error reporting, and PositionFor supports reading that information and adjust
-	// the position accordingly. However, those source files are never truly analyzed, meaning
-	// the downstream analysis will try to look for the generated files instead of the source
-	// files. Therefore, here we use the unadjusted position instead.
+	// the position accordingly (i.e., returning a position that points back to the original source
+	// file). However, since we are using the precise position information for correctly
+	// identifying upstream objects in our cross-package inference, such adjustment will break it
+	// the inference (downstream analysis knows nothing about the "original source file").
+	// Therefore, here we explicitly disable the adjustment.
 	position := p.pass.Fset.PositionFor(pos, false /* adjusted */)
+
+	// For build systems that employ sandboxing (e.g., bazel), the file names in the `Fset` may
+	// contain a random prefix. For example:
+	//   <SANDBOX_PREFIX>/<WORKSPACE_UUID>/src/mypkg/mysrc1.go
+	//   <SANDBOX_PREFIX>/<WORKSPACE_UUID>/src/mypkg/mysrc2.go
+	//   src/upstream/mysrc1.go
+	//   src/upstream/mysrc2.go
+	// Notice that the upstream files do not have this prefix, since this information is loaded
+	// from archive file (that stores the symbol information etc.), but not from the sandbox.
+	// So, we trim the `<SANDBOX_PREFIX>/<WORKSPACE_UUID>/` here, which is CWD set by bazel build.
+	// For other drivers (standard or golangci-lint), we won't even have this prefix prepended,
+	// since the file paths will always be in the form of the relative paths (e.g.,
+	// `src/mypkg/mysrc1.go`). Trimming the prefixes here for them is simply a no-op.
 	if name, err := filepath.Rel(p.curDir, position.Filename); err == nil {
 		position.Filename = name
 	}
