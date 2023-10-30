@@ -61,8 +61,8 @@ func (s *ProducingAnnotationTriggerTestSuite) SetupTest() {
 		&FldReturn{TriggerIfNilable: &TriggerIfNilable{Ann: mockedKey}},
 		&FuncReturn{TriggerIfNilable: &TriggerIfNilable{Ann: mockedKey}},
 		&MethodReturn{TriggerIfNilable: &TriggerIfNilable{Ann: mockedKey}},
-		&MethodResultReachesInterface{TriggerIfNilable: &TriggerIfNilable{Ann: mockedKey}, AffiliationPair: &AffiliationPair{}},
-		&InterfaceParamReachesImplementation{TriggerIfNilable: &TriggerIfNilable{Ann: mockedKey}, AffiliationPair: &AffiliationPair{}},
+		&MethodResultReachesInterface{TriggerIfNilable: &TriggerIfNilable{Ann: mockedKey}},
+		&InterfaceParamReachesImplementation{TriggerIfNilable: &TriggerIfNilable{Ann: mockedKey}},
 		&GlobalVarRead{TriggerIfNilable: &TriggerIfNilable{Ann: mockedKey}},
 		&MapRead{TriggerIfDeepNilable: &TriggerIfDeepNilable{Ann: mockedKey}},
 		&ArrayRead{TriggerIfDeepNilable: &TriggerIfDeepNilable{Ann: mockedKey}},
@@ -82,5 +82,6 @@ func (s *ProducingAnnotationTriggerTestSuite) SetupTest() {
 // TestProducingAnnotationTriggerEqualsSuite runs the test suite for the `equals` method of all the structs that implement
 // the `ProducingAnnotationTrigger` interface.
 func TestProducingAnnotationTriggerEqualsSuite(t *testing.T) {
+	t.Parallel()
 	suite.Run(t, new(ProducingAnnotationTriggerTestSuite))
 }

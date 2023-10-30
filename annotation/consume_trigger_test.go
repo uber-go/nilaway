@@ -47,8 +47,8 @@ func (s *ConsumingAnnotationTriggerTestSuite) SetupTest() {
 		&GlobalVarAssign{TriggerIfNonNil: &TriggerIfNonNil{Ann: mockedKey}},
 		&ArgPass{TriggerIfNonNil: &TriggerIfNonNil{Ann: mockedKey}},
 		&RecvPass{TriggerIfNonNil: &TriggerIfNonNil{Ann: mockedKey}},
-		&InterfaceResultFromImplementation{TriggerIfNonNil: &TriggerIfNonNil{Ann: mockedKey}, AffiliationPair: &AffiliationPair{}},
-		&MethodParamFromInterface{TriggerIfNonNil: &TriggerIfNonNil{Ann: mockedKey}, AffiliationPair: &AffiliationPair{}},
+		&InterfaceResultFromImplementation{TriggerIfNonNil: &TriggerIfNonNil{Ann: mockedKey}},
+		&MethodParamFromInterface{TriggerIfNonNil: &TriggerIfNonNil{Ann: mockedKey}},
 		&UseAsReturn{TriggerIfNonNil: &TriggerIfNonNil{Ann: mockedKey}},
 		&UseAsFldOfReturn{TriggerIfNonNil: &TriggerIfNonNil{Ann: mockedKey}},
 		&SliceAssign{TriggerIfDeepNonNil: &TriggerIfDeepNonNil{Ann: mockedKey}},
@@ -73,5 +73,6 @@ func (s *ConsumingAnnotationTriggerTestSuite) SetupTest() {
 // TestConsumingAnnotationTriggerEqualsSuite runs the test suite for the `equals` method of all the structs that implement
 // the `ConsumingAnnotationTrigger` interface.
 func TestConsumingAnnotationTriggerEqualsSuite(t *testing.T) {
+	t.Parallel()
 	suite.Run(t, new(ConsumingAnnotationTriggerTestSuite))
 }

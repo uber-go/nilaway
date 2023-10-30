@@ -574,7 +574,7 @@ func (a RecvPassPrestring) String() string {
 // InterfaceResultFromImplementation is when a result is determined to flow from a concrete method to an interface method via implementation
 type InterfaceResultFromImplementation struct {
 	*TriggerIfNonNil
-	*AffiliationPair
+	AffiliationPair
 }
 
 // equals returns true if the passed ConsumingAnnotationTrigger is equal to this one
@@ -612,7 +612,7 @@ func (i InterfaceResultFromImplementationPrestring) String() string {
 // MethodParamFromInterface is when a param flows from an interface method to a concrete method via implementation
 type MethodParamFromInterface struct {
 	*TriggerIfNonNil
-	*AffiliationPair
+	AffiliationPair
 }
 
 // equals returns true if the passed ConsumingAnnotationTrigger is equal to this one
@@ -1389,7 +1389,7 @@ type ConsumeTrigger struct {
 	GuardMatched bool
 }
 
-// Eq compares two ConsumeTrigger pointers for equality
+// equals compares two ConsumeTrigger pointers for equality
 func (c *ConsumeTrigger) equals(c2 *ConsumeTrigger) bool {
 	return c.Annotation.equals(c2.Annotation) &&
 		c.Expr == c2.Expr &&

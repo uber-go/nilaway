@@ -90,16 +90,10 @@ func (t *TriggerIfNilable) CheckProduce(annMap Map) bool {
 	return ok && ann.IsNilable
 }
 
-// NeedsGuardMatch for a `TriggerIfNilable` is default false, as guarding
-// applies mostly to deep reads, but this behavior is overriden
-// for `VariadicFuncParamDeep`s, which have the semantics of
-// deep reads despite consulting shallow annotations
+// NeedsGuardMatch returns true if this trigger needs to be matched with a guarded consumer
 func (t *TriggerIfNilable) NeedsGuardMatch() bool { return t.NeedsGuard }
 
-// SetNeedsGuard for a `TriggerIfNilable` is, by default, a noop, as guarding
-// applies mostly to deep reads, but this behavior is overriden
-// for `VariadicFuncParamDeep`s, which have the semantics of
-// deep reads despite consulting shallow annotations
+// SetNeedsGuard sets the underlying Guard-Neediness of this ProduceTrigger, if present
 func (t *TriggerIfNilable) SetNeedsGuard(b bool) { t.NeedsGuard = b }
 
 // Kind returns Conditional.
@@ -141,13 +135,10 @@ func (t *TriggerIfDeepNilable) CheckProduce(annMap Map) bool {
 	return ok && ann.IsDeepNilable
 }
 
-// NeedsGuardMatch for a `TriggerIfDeepNilable` is default false,
-// but overridden for most concrete triggers to read a boolean
-// field
+// NeedsGuardMatch returns true if this trigger needs to be matched with a guarded consumer
 func (t *TriggerIfDeepNilable) NeedsGuardMatch() bool { return t.NeedsGuard }
 
-// SetNeedsGuard for a `TriggerIfDeepNilable` is, by default, a noop,
-// but overridden for most concrete triggers to set an underlying field
+// SetNeedsGuard sets the underlying Guard-Neediness of this ProduceTrigger, if present
 func (t *TriggerIfDeepNilable) SetNeedsGuard(b bool) { t.NeedsGuard = b }
 
 // Kind returns DeepConditional.
@@ -174,12 +165,12 @@ func (*ProduceTriggerTautology) CheckProduce(Map) bool {
 	return true
 }
 
-// NeedsGuardMatch for a ProduceTriggerTautology is false - there is no wiggle room with these
+// NeedsGuardMatch returns true if this trigger needs to be matched with a guarded consumer
 func (p *ProduceTriggerTautology) NeedsGuardMatch() bool {
 	return p.NeedsGuard
 }
 
-// SetNeedsGuard for a ProduceTriggerTautology is a noop
+// SetNeedsGuard sets the underlying Guard-Neediness of this ProduceTrigger, if present
 func (p *ProduceTriggerTautology) SetNeedsGuard(b bool) { p.NeedsGuard = b }
 
 // Prestring returns this Prestring as a Prestring
@@ -230,10 +221,10 @@ func (*ProduceTriggerNever) CheckProduce(Map) bool {
 	return false
 }
 
-// NeedsGuardMatch for a ProduceTriggerNever is false, like ProduceTriggerTautology
+// NeedsGuardMatch returns true if this trigger needs to be matched with a guarded consumer
 func (p *ProduceTriggerNever) NeedsGuardMatch() bool { return p.NeedsGuard }
 
-// SetNeedsGuard for a ProduceTriggerNever is a noop, like ProduceTriggerTautology
+// SetNeedsGuard sets the underlying Guard-Neediness of this ProduceTrigger, if present
 func (p *ProduceTriggerNever) SetNeedsGuard(b bool) { p.NeedsGuard = b }
 
 // Kind returns Never.
@@ -835,7 +826,7 @@ func (m MethodReturnPrestring) String() string {
 // MethodResultReachesInterface is used when a result of a method is determined to flow into a result of an interface using inheritance
 type MethodResultReachesInterface struct {
 	*TriggerIfNilable
-	*AffiliationPair
+	AffiliationPair
 }
 
 // equals returns true if the passed ProducingAnnotationTrigger is equal to this one
@@ -872,7 +863,7 @@ func (m MethodResultReachesInterfacePrestring) String() string {
 // InterfaceParamReachesImplementation is used when a param of a method is determined to flow into the param of an implementing method
 type InterfaceParamReachesImplementation struct {
 	*TriggerIfNilable
-	*AffiliationPair
+	AffiliationPair
 }
 
 // equals returns true if the passed ProducingAnnotationTrigger is equal to this one

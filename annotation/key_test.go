@@ -46,5 +46,6 @@ func (s *KeyTestSuite) SetupTest() {
 // TestKeyEqualsSuite runs the test suite for the `equals` method of all the structs that implement
 // the `Key` interface.
 func TestKeyEqualsSuite(t *testing.T) {
+	t.Parallel()
 	suite.Run(t, new(KeyTestSuite))
 }
