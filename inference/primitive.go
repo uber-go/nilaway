@@ -144,7 +144,7 @@ func newPrimitivizer(pass *analysis.Pass) *primitivizer {
 			continue
 		}
 
-		importedMap.Range(func(site primitiveSite, _ InferredVal) bool {
+		importedMap.OrderedRange(func(site primitiveSite, _ InferredVal) bool {
 			if site.ObjectPath == "" {
 				return true
 			}

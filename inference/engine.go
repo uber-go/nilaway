@@ -84,7 +84,7 @@ func (e *Engine) ObserveUpstream() {
 		if !ok {
 			continue
 		}
-		importedMap.Range(func(site primitiveSite, val InferredVal) bool {
+		importedMap.OrderedRange(func(site primitiveSite, val InferredVal) bool {
 			switch v := val.(type) {
 			case *DeterminedVal:
 				// Fix as an Explained site any sites that `otherMap` knows are explained
@@ -108,7 +108,7 @@ func (e *Engine) ObserveUpstream() {
 	}
 
 	// copy imported maps into upstreamMapping field
-	e.inferredMap.Range(func(site primitiveSite, val InferredVal) bool {
+	e.inferredMap.OrderedRange(func(site primitiveSite, val InferredVal) bool {
 		e.inferredMap.upstreamMapping[site] = val.copy()
 		return true
 	})

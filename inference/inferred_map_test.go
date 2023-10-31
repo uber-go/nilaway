@@ -41,6 +41,27 @@ func TestEncoding_Size(t *testing.T) {
 	)
 }
 
+func TestEncoding_Deterministic(t *testing.T) {
+	t.Parallel()
+
+	m := newBigInferredMap()
+	var previous []byte
+
+	// Encode the inferred map 10 times and check that the result is always the same.
+	for i := 0; i < 10; i++ {
+		var buf bytes.Buffer
+		err := gob.NewEncoder(&buf).Encode(m)
+		require.NoError(t, err)
+		require.NotEmpty(t, buf.Bytes())
+
+		if len(previous) == 0 {
+			previous = buf.Bytes()
+			continue
+		}
+		require.Equal(t, previous, buf.Bytes())
+	}
+}
+
 func TestDecoding(t *testing.T) {
 	t.Parallel()
 
