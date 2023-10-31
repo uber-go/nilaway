@@ -88,6 +88,10 @@ func (e *Engine) ObserveUpstream() {
 		}
 	}
 
+	// `pass.AllPackageFacts()` returns the slice of package facts in _unspecified_ order. Here
+	// we sort the facts by package path to ensure deterministic iteration order, which is
+	// important for determinism in NilAway since our inference algorithm depends on the order of
+	// trigger / site nilability applications.
 	slices.SortFunc(facts, func(i, j analysis.PackageFact) bool {
 		return i.Package.Path() < j.Package.Path()
 	})
