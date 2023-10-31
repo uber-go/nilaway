@@ -45,6 +45,9 @@ type Engine struct {
 	// diagnosticEngine receives all encountered conflicts during inference and eventually
 	// generates proper diagnostics from those conflicts.
 	diagnosticEngine conflictHandler
+	// primitive is the primitivizer that is able to convert full triggers and annotation sites to
+	// their primitive forms (see primitive.go).
+	primitive *primitivizer
 	// controlledTriggersBySite stores the set of controlled triggers for each site if the site
 	// controls any triggers. This field is for internal use in the struct only and should not be
 	// accessed elsewhere.
@@ -53,9 +56,11 @@ type Engine struct {
 
 // NewEngine constructs an inference engine that is ready to run inference.
 func NewEngine(pass *analysis.Pass, diagnosticEngine conflictHandler) *Engine {
+	primitive := newPrimitivizer(pass)
 	return &Engine{
 		pass:             pass,
-		inferredMap:      newInferredMap(),
+		primitive:        primitive,
+		inferredMap:      newInferredMap(primitive),
 		diagnosticEngine: diagnosticEngine,
 	}
 }
@@ -116,11 +121,11 @@ func (e *Engine) ObserveUpstream() {
 // annotation sites, because they're all already determined, but they can yield failures.
 func (e *Engine) ObserveAnnotations(pkgAnnotations *annotation.ObservedMap, mode ModeOfInference) {
 	pkgAnnotations.Range(func(key annotation.Key, isDeep bool, val bool) {
-		site := newPrimitiveSite(key, isDeep)
+		site := e.primitive.site(key, isDeep)
 		if val {
-			e.observeSiteExplanation(site, TrueBecauseAnnotation{AnnotationPos: site.Pos})
+			e.observeSiteExplanation(site, TrueBecauseAnnotation{AnnotationPos: site.Position})
 		} else {
-			e.observeSiteExplanation(site, FalseBecauseAnnotation{AnnotationPos: site.Pos})
+			e.observeSiteExplanation(site, FalseBecauseAnnotation{AnnotationPos: site.Position})
 		}
 	}, mode != NoInfer)
 }
@@ -168,7 +173,7 @@ func (e *Engine) ObservePackage(pkgFullTriggers []annotation.FullTrigger) {
 				}
 
 				isDeep := kind == annotation.DeepConditional
-				primitive := newPrimitiveSite(site, isDeep)
+				primitive := e.primitive.site(site, isDeep)
 				if val, ok := e.inferredMap.Load(primitive); ok {
 					switch vType := val.(type) {
 					case *DeterminedVal:
@@ -213,7 +218,7 @@ func (e *Engine) buildPkgInferenceMap(triggers []annotation.FullTrigger) {
 		// controller is an CallSiteParamAnnotationKey, which must be enclosed in a ArgPass
 		// consumer, which Kind() method returns Conditional which is not deep. Thus, we pass false
 		// here.
-		site := newPrimitiveSite(*trigger.Controller, false)
+		site := e.primitive.site(*trigger.Controller, false)
 		ts, ok := controlledTgsBySite[site]
 		if !ok {
 			ts = map[annotation.FullTrigger]bool{}
@@ -235,13 +240,11 @@ func (e *Engine) buildPkgInferenceMap(triggers []annotation.FullTrigger) {
 }
 
 func (e *Engine) buildFromSingleFullTrigger(trigger annotation.FullTrigger) {
-	primitiveAssertion := fullTriggerAsPrimitive(e.pass, trigger)
-
 	pKind, cKind := trigger.Producer.Annotation.Kind(), trigger.Consumer.Annotation.Kind()
 	pSite, cSite := trigger.Producer.Annotation.UnderlyingSite(), trigger.Consumer.Annotation.UnderlyingSite()
 	// NilAway does not know that (kind == Conditional || DeepConditional) => (site != nil),
 	// so we have to add some redundant checks in the corresponding cases to give some hints.
-	// TODO: remove this redundant check .
+	// TODO: remove those redundant nilness checks for sites.
 	switch {
 	case pKind == annotation.Always && cKind == annotation.Always:
 		// Producer always produces nilable value -> consumer always consumes nonnil value.
@@ -254,9 +257,9 @@ func (e *Engine) buildFromSingleFullTrigger(trigger annotation.FullTrigger) {
 		if cSite == nil {
 			panic("trigger is conditional but the underlying site is nil")
 		}
-		site := newPrimitiveSite(cSite, cKind == annotation.DeepConditional)
+		site := e.primitive.site(cSite, cKind == annotation.DeepConditional)
 		e.observeSiteExplanation(site, TrueBecauseShallowConstraint{
-			ExternalAssertion: primitiveAssertion,
+			ExternalAssertion: e.primitive.fullTrigger(trigger),
 		})
 
 	case (pKind == annotation.Conditional || pKind == annotation.DeepConditional) && (cKind == annotation.Always):
@@ -265,9 +268,9 @@ func (e *Engine) buildFromSingleFullTrigger(trigger annotation.FullTrigger) {
 		if pSite == nil {
 			panic("trigger is conditional but the underlying site is nil")
 		}
-		site := newPrimitiveSite(pSite, pKind == annotation.DeepConditional)
+		site := e.primitive.site(pSite, pKind == annotation.DeepConditional)
 		e.observeSiteExplanation(site, FalseBecauseShallowConstraint{
-			ExternalAssertion: primitiveAssertion,
+			ExternalAssertion: e.primitive.fullTrigger(trigger),
 		})
 
 	case (pKind == annotation.Conditional || pKind == annotation.DeepConditional) &&
@@ -277,10 +280,10 @@ func (e *Engine) buildFromSingleFullTrigger(trigger annotation.FullTrigger) {
 		if pSite == nil || cSite == nil {
 			panic("trigger is conditional but the underlying site is nil")
 		}
-		producer := newPrimitiveSite(pSite, pKind == annotation.DeepConditional)
-		consumer := newPrimitiveSite(cSite, cKind == annotation.DeepConditional)
+		producer := e.primitive.site(pSite, pKind == annotation.DeepConditional)
+		consumer := e.primitive.site(cSite, cKind == annotation.DeepConditional)
 
-		e.observeImplication(producer, consumer, primitiveAssertion)
+		e.observeImplication(producer, consumer, e.primitive.fullTrigger(trigger))
 	}
 }
 

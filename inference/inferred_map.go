@@ -38,13 +38,15 @@ import (
 // inferredValDiff on shared keys is used to ensure that only
 // information present in `Mapping` but not `UpstreamMapping` is exported.
 type InferredMap struct {
+	primitive       *primitivizer
 	upstreamMapping map[primitiveSite]InferredVal
 	mapping         map[primitiveSite]InferredVal
 }
 
 // newInferredMap returns a new, empty InferredMap.
-func newInferredMap() *InferredMap {
+func newInferredMap(primitive *primitivizer) *InferredMap {
 	return &InferredMap{
+		primitive:       primitive,
 		upstreamMapping: make(map[primitiveSite]InferredVal),
 		mapping:         make(map[primitiveSite]InferredVal),
 	}
@@ -154,7 +156,9 @@ func (i *InferredMap) Export(pass *analysis.Pass) {
 	}
 
 	if len(exported) > 0 {
-		m := newInferredMap()
+		// We do not need to encode the primitivizer since it is just a helper for the analysis of
+		// the current package.
+		m := newInferredMap(nil /* primitive */)
 		m.mapping = exported
 		pass.ExportPackageFact(m)
 	}
@@ -289,8 +293,8 @@ func (i *InferredMap) CheckFuncCallSiteRetAnn(key annotation.CallSiteRetAnnotati
 }
 
 func (i *InferredMap) checkAnnotationKey(key annotation.Key) (annotation.Val, bool) {
-	shallowKey := newPrimitiveSite(key, false)
-	deepKey := newPrimitiveSite(key, true)
+	shallowKey := i.primitive.site(key, false)
+	deepKey := i.primitive.site(key, true)
 
 	shallowVal, shallowOk := i.mapping[shallowKey]
 	deepVal, deepOk := i.mapping[deepKey]
