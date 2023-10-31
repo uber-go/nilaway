@@ -85,20 +85,22 @@ func (e *Engine) ObserveUpstream() {
 			continue
 		}
 		importedMap.Range(func(site primitiveSite, val InferredVal) bool {
-			switch val := val.(type) {
+			switch v := val.(type) {
 			case *DeterminedVal:
 				// Fix as an Explained site any sites that `otherMap` knows are explained
 				// This can yield an overconstrainedConflict if the current map disagrees on the
 				// value of the site.
-				e.observeSiteExplanation(site, val.Bool)
+				e.observeSiteExplanation(site, v.Bool)
 			case *UndeterminedVal:
-				// Observe all forward implications from this site
-				for implicateSite, implicateAssertion := range val.Implicates {
-					e.observeImplication(site, implicateSite, implicateAssertion)
+				// Observe all forward implications from this site.
+				for _, p := range v.Implicates.Pairs {
+					implicantSite, assertion := p.Key, p.Value
+					e.observeImplication(site, implicantSite, assertion)
 				}
-				// Observe all backward implications from this site
-				for implicantSite, implicantAssertion := range val.Implicants {
-					e.observeImplication(implicantSite, site, implicantAssertion)
+				// Observe all backward implications from this site.
+				for _, p := range v.Implicants.Pairs {
+					implicantSite, assertion := p.Key, p.Value
+					e.observeImplication(implicantSite, site, assertion)
 				}
 			}
 			return true
@@ -345,21 +347,22 @@ func (e *Engine) observeSiteExplanation(site primitiveSite, siteExplained Explai
 		// Propagate the nilability of this site to its downstream constraints (for nilable value)
 		// or its upstream constraints (for nonnil value).
 		if siteExplained.Val() {
-			for implicateSite, implicateAssertion := range v.Implicates {
+			for _, p := range v.Implicates.Pairs {
+				implicateSite, assertion := p.Key, p.Value
 				e.observeSiteExplanation(implicateSite, TrueBecauseDeepConstraint{
-					InternalAssertion: implicateAssertion,
+					InternalAssertion: assertion,
 					DeeperExplanation: siteExplained,
 				})
 			}
 		} else {
-			for implicantSite, implicantAssertion := range v.Implicants {
+			for _, p := range v.Implicants.Pairs {
+				implicantSite, assertion := p.Key, p.Value
 				e.observeSiteExplanation(implicantSite, FalseBecauseDeepConstraint{
-					InternalAssertion: implicantAssertion,
+					InternalAssertion: assertion,
 					DeeperExplanation: siteExplained,
 				})
 			}
 		}
-
 	}
 }
 

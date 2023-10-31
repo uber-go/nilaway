@@ -17,10 +17,10 @@ package inference
 import (
 	"bytes"
 	"encoding/gob"
-	"fmt"
 	"go/types"
 
 	"go.uber.org/nilaway/annotation"
+	"go.uber.org/nilaway/util/orderedmap"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -55,33 +55,6 @@ func newInferredMap(primitive *primitivizer) *InferredMap {
 // AFact allows InferredAnnotationMaps to be imported and exported via the Facts mechanism.
 func (*InferredMap) AFact() {}
 
-// String returns a string representation of the InferredMap for debugging purposes.
-func (i *InferredMap) String() string {
-
-	valStr := func(val InferredVal) string {
-		switch val := val.(type) {
-		case *DeterminedVal:
-			return fmt.Sprintf("%T", val.Bool)
-		case *UndeterminedVal:
-			implicants, implicates := "", ""
-			for implicant := range val.Implicants {
-				implicants += fmt.Sprintf("%s-> ", implicant.String())
-			}
-			for implicate := range val.Implicates {
-				implicates += fmt.Sprintf("->%s ", implicate.String())
-			}
-			return fmt.Sprintf("[%s && %s]", implicants, implicates)
-		}
-		return ""
-	}
-
-	out := "{"
-	for site, val := range i.mapping {
-		out += fmt.Sprintf("%s: %s, ", site.String(), valStr(val))
-	}
-	return out + "}"
-}
-
 // Load returns the value stored in the map for an annotation site, or nil if no value is present.
 // The ok result indicates whether value was found in the map.
 func (i *InferredMap) Load(site primitiveSite) (value InferredVal, ok bool) {
@@ -101,14 +74,14 @@ func (i *InferredMap) StoreImplication(from primitiveSite, to primitiveSite, ass
 	for _, site := range [...]primitiveSite{from, to} {
 		if _, ok := i.mapping[site]; !ok {
 			i.mapping[site] = &UndeterminedVal{
-				Implicates: newSitesWithAssertions(),
-				Implicants: newSitesWithAssertions(),
+				Implicates: orderedmap.New[primitiveSite, primitiveFullTrigger](),
+				Implicants: orderedmap.New[primitiveSite, primitiveFullTrigger](),
 			}
 		}
 	}
 
-	i.mapping[from].(*UndeterminedVal).Implicates.addSiteWithAssertion(to, assertion)
-	i.mapping[to].(*UndeterminedVal).Implicants.addSiteWithAssertion(from, assertion)
+	i.mapping[from].(*UndeterminedVal).Implicates.Store(to, assertion)
+	i.mapping[to].(*UndeterminedVal).Implicants.Store(from, assertion)
 }
 
 // Len returns the number of annotation sites currently stored in the map.
@@ -198,30 +171,30 @@ func (i *InferredMap) chooseSitesToExport() map[primitiveSite]bool {
 
 	var markReachableFromExported func(site primitiveSite)
 	markReachableFromExported = func(site primitiveSite) {
-		if val, isUndetermined := i.mapping[site].(*UndeterminedVal); isUndetermined && !site.Exported && !toExport[site] && !reachableFromExported[site] {
+		if v, isUndetermined := i.mapping[site].(*UndeterminedVal); isUndetermined && !site.Exported && !toExport[site] && !reachableFromExported[site] {
 			if reachesExported[site] {
 				toExport[site] = true
 			} else {
 				reachableFromExported[site] = true
 			}
 
-			for implicate := range val.Implicates {
-				markReachableFromExported(implicate)
+			for _, p := range v.Implicates.Pairs {
+				markReachableFromExported(p.Key)
 			}
 		}
 	}
 
 	var markReachesExported func(site primitiveSite)
 	markReachesExported = func(site primitiveSite) {
-		if val, isUndetermined := i.mapping[site].(*UndeterminedVal); isUndetermined && !site.Exported && !toExport[site] && !reachesExported[site] {
+		if v, isUndetermined := i.mapping[site].(*UndeterminedVal); isUndetermined && !site.Exported && !toExport[site] && !reachesExported[site] {
 			if reachableFromExported[site] {
 				toExport[site] = true
 			} else {
 				reachesExported[site] = true
 			}
 
-			for implicant := range val.Implicants {
-				markReachesExported(implicant)
+			for _, p := range v.Implicants.Pairs {
+				markReachesExported(p.Key)
 			}
 		}
 	}
@@ -235,12 +208,12 @@ func (i *InferredMap) chooseSitesToExport() map[primitiveSite]bool {
 
 		// For UndeterminedVal, we visit the implicants and implicates recursively and mark
 		// them as to be exported as well.
-		if val, ok := i.mapping[site].(*UndeterminedVal); ok {
-			for implicant := range val.Implicants {
-				markReachesExported(implicant)
+		if v, ok := i.mapping[site].(*UndeterminedVal); ok {
+			for _, p := range v.Implicants.Pairs {
+				markReachesExported(p.Key)
 			}
-			for implicate := range val.Implicates {
-				markReachableFromExported(implicate)
+			for _, p := range v.Implicates.Pairs {
+				markReachableFromExported(p.Key)
 			}
 		}
 	}

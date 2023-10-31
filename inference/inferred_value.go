@@ -14,7 +14,11 @@
 
 package inference
 
-import "fmt"
+import (
+	"fmt"
+
+	"go.uber.org/nilaway/util/orderedmap"
+)
 
 // An InferredVal is the information that we export about an annotation site after having
 // witnessed an assertion about that site. If that assertion, and any other we've observed here and
@@ -64,16 +68,17 @@ func (e *DeterminedVal) copy() InferredVal { return &DeterminedVal{Bool: e.Bool}
 // false (nonnil) to every site discovered.
 type UndeterminedVal struct {
 	// Implicants stores upstream constraints to this site.
-	Implicants SitesWithAssertions
+	Implicants *orderedmap.OrderedMap[primitiveSite, primitiveFullTrigger]
 	// Implicates stores downstream constraints from this site.
-	Implicates SitesWithAssertions
+	Implicates *orderedmap.OrderedMap[primitiveSite, primitiveFullTrigger]
 }
 
 func (e *UndeterminedVal) copy() InferredVal {
-	copySitesWithAssertions := func(s SitesWithAssertions) SitesWithAssertions {
-		out := make(SitesWithAssertions)
-		for site, trigger := range s {
-			out[site] = trigger
+	copySitesWithAssertions := func(s *orderedmap.OrderedMap[primitiveSite, primitiveFullTrigger]) *orderedmap.OrderedMap[primitiveSite, primitiveFullTrigger] {
+		out := orderedmap.New[primitiveSite, primitiveFullTrigger]()
+		for _, p := range s.Pairs {
+			site, trigger := p.Key, p.Value
+			out.Store(site, trigger)
 		}
 		return out
 	}
@@ -82,19 +87,6 @@ func (e *UndeterminedVal) copy() InferredVal {
 		Implicants: copySitesWithAssertions(e.Implicants),
 		Implicates: copySitesWithAssertions(e.Implicates),
 	}
-}
-
-// SitesWithAssertions is a type that allows us to encode a set of annotation sites annotated with
-// an assertion for each one. This is used in an UndeterminedVal to specify the implicants and
-// implicates of a site along with the triggers that brought about those implications.
-type SitesWithAssertions map[primitiveSite]primitiveFullTrigger
-
-func newSitesWithAssertions() SitesWithAssertions {
-	return make(SitesWithAssertions)
-}
-
-func (s SitesWithAssertions) addSiteWithAssertion(site primitiveSite, assertion primitiveFullTrigger) {
-	s[site] = assertion
 }
 
 func (e *UndeterminedVal) isInferredVal() {}
@@ -120,12 +112,13 @@ func inferredValDiff(newVal, oldVal InferredVal) (InferredVal, bool) {
 		panic(fmt.Sprintf("ERROR: new value %s does not supersede old value %s", newVal, oldVal))
 	}
 
-	sitesWithAssertionsDiff := func(new, old SitesWithAssertions) (SitesWithAssertions, bool) {
-		diff := make(SitesWithAssertions)
+	sitesWithAssertionsDiff := func(new, old *orderedmap.OrderedMap[primitiveSite, primitiveFullTrigger]) (*orderedmap.OrderedMap[primitiveSite, primitiveFullTrigger], bool) {
+		diff := orderedmap.New[primitiveSite, primitiveFullTrigger]()
 		diffNonempty := false
-		for site, trigger := range new {
-			if _, oldPresent := old[site]; !oldPresent {
-				diff[site] = trigger
+		for _, p := range new.Pairs {
+			site, trigger := p.Key, p.Value
+			if _, oldPresent := old.Load(site); !oldPresent {
+				diff.Store(site, trigger)
 				diffNonempty = true
 			}
 		}
