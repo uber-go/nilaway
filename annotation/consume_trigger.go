@@ -96,7 +96,7 @@ func (t *TriggerIfNonNil) equals(other ConsumingAnnotationTrigger) bool {
 // Copy returns a deep copy of this ConsumingAnnotationTrigger
 func (t *TriggerIfNonNil) Copy() ConsumingAnnotationTrigger {
 	copyConsumer := *t
-	t.Ann = t.Ann.copy()
+	copyConsumer.Ann = t.Ann.copy()
 	return &copyConsumer
 }
 
@@ -140,7 +140,7 @@ func (t *TriggerIfDeepNonNil) equals(other ConsumingAnnotationTrigger) bool {
 // Copy returns a deep copy of this ConsumingAnnotationTrigger
 func (t *TriggerIfDeepNonNil) Copy() ConsumingAnnotationTrigger {
 	copyConsumer := *t
-	t.Ann = t.Ann.copy()
+	copyConsumer.Ann = t.Ann.copy()
 	return &copyConsumer
 }
 
