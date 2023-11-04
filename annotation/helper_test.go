@@ -15,10 +15,12 @@
 package annotation
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"go/types"
+	"reflect"
 
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/nilaway/util"
@@ -49,6 +51,19 @@ func (m *mockKey) equals(other Key) bool {
 func (m *mockKey) copy() Key {
 	args := m.Called()
 	return args.Get(0).(Key)
+}
+
+func newMockKey() *mockKey {
+	mockedKey := new(mockKey)
+	mockedKey.ExpectedCalls = nil
+	mockedKey.On("equals", mock.Anything).Return(true)
+
+	copiedMockKey := new(mockKey)
+	mockedKey.ExpectedCalls = nil
+	mockedKey.On("equals", mock.Anything).Return(true)
+
+	mockedKey.On("copy").Return(copiedMockKey)
+	return mockedKey
 }
 
 // mockProducingAnnotationTrigger is a mock implementation of the ProducingAnnotationTrigger interface
@@ -211,4 +226,25 @@ func structsImplementingInterface(interfaceName string, packageName ...string) m
 		}
 	}
 	return structs
+}
+
+func structsCheckedTestHelper(interfaceName string, packagePath string, initStructs []any) []string {
+	expected := structsImplementingInterface(interfaceName, packagePath)
+	if len(expected) == 0 {
+		panic(fmt.Sprintf("no structs found implementing `%s` interface", interfaceName))
+	}
+
+	actual := make(map[string]bool)
+	for _, initStruct := range initStructs {
+		actual[reflect.TypeOf(initStruct).Elem().Name()] = true
+	}
+
+	// compare expected and actual, and find structs that were not tested
+	var missedStructs []string
+	for structName := range expected {
+		if !actual[structName] {
+			missedStructs = append(missedStructs, structName)
+		}
+	}
+	return missedStructs
 }

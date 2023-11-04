@@ -15,7 +15,6 @@
 package annotation
 
 import (
-	"reflect"
 	"strings"
 
 	"github.com/stretchr/testify/suite"
@@ -88,21 +87,6 @@ func (s *EqualsTestSuite) TestEqualsFalse() {
 // using `structsImplementingInterface()`, and finds the actual list of consumer structs that are tested in the
 // governing test case. The test fails if there are any structs that are missing from the expected list.
 func (s *EqualsTestSuite) TestStructsChecked() {
-	expected := structsImplementingInterface(s.interfaceName, s.packagePath)
-	s.NotEmpty(expected, "no structs found implementing `%s` interface", s.interfaceName)
-
-	actual := make(map[string]bool)
-	for _, initStruct := range s.initStructs {
-		actual[reflect.TypeOf(initStruct).Elem().Name()] = true
-	}
-
-	// compare expected and actual, and find structs that were not tested
-	var missedStructs []string
-	for structName := range expected {
-		if !actual[structName] {
-			missedStructs = append(missedStructs, structName)
-		}
-	}
-	// if there are any structs that were not tested, fail the test and print the list of structs
+	missedStructs := structsCheckedTestHelper(s.interfaceName, s.packagePath, s.initStructs)
 	s.Equalf(0, len(missedStructs), "the following structs were not tested: [`%s`]", strings.Join(missedStructs, "`, `"))
 }
