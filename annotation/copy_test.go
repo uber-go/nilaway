@@ -77,19 +77,19 @@ func getObjInfo(obj any) map[string]objInfo {
 // - number of fields
 // - pointer address (if the field is a struct and has at least one field)
 func (s *CopyTestSuite) TestCopy() {
-	expectedObjs := make(map[string]objInfo)
-	actualObjs := make(map[string]objInfo)
+	var expectedObjs, actualObjs map[string]objInfo
 
 	for _, initStruct := range s.initStructs {
+		var copied any
 		expectedObjs = getObjInfo(initStruct)
 
 		switch t := initStruct.(type) {
 		case ConsumingAnnotationTrigger:
-			tCopied := t.Copy()
-			actualObjs = getObjInfo(tCopied)
+			copied = t.Copy()
+			actualObjs = getObjInfo(copied)
 		case Key:
-			kCopied := t.copy()
-			actualObjs = getObjInfo(kCopied)
+			copied = t.copy()
+			actualObjs = getObjInfo(copied)
 		default:
 			s.Failf("unknown type", "unknown type %T", t)
 		}
