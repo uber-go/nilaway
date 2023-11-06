@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/util/orderedmap"
 )
 
 // A ConsumingAnnotationTrigger indicated a possible reason that a nil flow to this site would indicate
@@ -85,39 +86,61 @@ func (a *Assignment) String() string {
 	return fmt.Sprintf("`%s` to `%s` at %s", a.RHSExprStr, a.LHSExprStr, a.Position)
 }
 
-// assignmentFlow is a struct that represents a flow of assignments
+// assignmentFlow is a struct that represents a flow of assignments.
+// Note that we implement a copy method for this struct, since we want to deep copy the assignments map when we copy
+// ConsumerTriggers. However, we don't implement an `equals` method for this struct, since it would incur a performance
+// penalty in situations where multiple nilable flows reach a dereference site by creating more full triggers and possibly
+// more rounds through backpropagation fix point. Consider the following example:
+//
+//	func f(m map[int]*int) {
+//	  var v *int
+//	  var ok1, ok2 bool
+//	  if cond {
+//	    v, ok1 = m[0] // nilable flow 1, ok1 is false
+//	  } else {
+//	    v, ok2 = m[1] // nilable flow 2, ok2 is false
+//	  }
+//	  _, _ = ok1, ok2
+//	  _ = *v // nil panic!
+//	}
+//
+// Here `v` can be potentiall nilable from two flows: ok1 or ok2 is false. We would like to print only one error message
+// for this situation with one repreative flow printed in the error message. However, with an `equals` method, we would
+// report multiple error messages, one for each flow, by creating multiple full triggers, thereby affecting performance.
 type assignmentFlow struct {
-	assignments []Assignment
+	// We use ordered map for `assignments` to maintain the order of assignments in the flow, and also to avoid
+	// duplicates that can get introduced due to fix point convergence in backpropagation.
+	assignments *orderedmap.OrderedMap[Assignment, bool]
 }
 
 func (a *assignmentFlow) addEntry(entry Assignment) {
-	a.assignments = append(a.assignments, entry)
+	if a.assignments == nil {
+		a.assignments = orderedmap.New[Assignment, bool]()
+	}
+	a.assignments.Store(entry, true)
+}
+
+func (a *assignmentFlow) copy() assignmentFlow {
+	if a.assignments == nil {
+		return assignmentFlow{}
+	}
+	assignments := orderedmap.New[Assignment, bool]()
+	for _, p := range a.assignments.Pairs {
+		assignments.Store(p.Key, true)
+	}
+	return assignmentFlow{assignments: assignments}
 }
 
 func (a *assignmentFlow) String() string {
-	if len(a.assignments) == 0 {
+	if a.assignments == nil || len(a.assignments.Pairs) == 0 {
 		return ""
 	}
 
-	// fix point convergence in backprop could mean duplicate entries in this slice, hence we filter out the duplicates here
-	entries := make([]Assignment, 0, len(a.assignments))
-	seen := make(map[string]bool)
-	for _, entry := range a.assignments {
-		if !seen[entry.String()] {
-			seen[entry.String()] = true
-			entries = append(entries, entry)
-		}
-	}
-
-	// backprop algorithm populates assignment entries in backward order. Reverse entries to get forward order of assignments.
-	for i, j := 0, len(entries)-1; i < j; i, j = i+1, j-1 {
-		entries[i], entries[j] = entries[j], entries[i]
-	}
-
-	// build string slice
-	strs := make([]string, len(entries))
-	for i, entry := range entries {
-		strs[i] = entry.String()
+	// backprop algorithm populates assignment entries in backward order. Reverse entries to get forward order of
+	// assignments, and store in `strs` slice.
+	strs := make([]string, 0, len(a.assignments.Pairs))
+	for i := len(a.assignments.Pairs) - 1; i >= 0; i-- {
+		strs = append(strs, a.assignments.Pairs[i].Key.String())
 	}
 
 	// build the informative print string tracking the assignments
@@ -157,6 +180,7 @@ func (t *TriggerIfNonNil) equals(other ConsumingAnnotationTrigger) bool {
 func (t *TriggerIfNonNil) Copy() ConsumingAnnotationTrigger {
 	copyConsumer := *t
 	copyConsumer.Ann = t.Ann.copy()
+	copyConsumer.assignmentFlow = t.assignmentFlow.copy()
 	return &copyConsumer
 }
 
@@ -214,6 +238,7 @@ func (t *TriggerIfDeepNonNil) equals(other ConsumingAnnotationTrigger) bool {
 func (t *TriggerIfDeepNonNil) Copy() ConsumingAnnotationTrigger {
 	copyConsumer := *t
 	copyConsumer.Ann = t.Ann.copy()
+	copyConsumer.assignmentFlow = t.assignmentFlow.copy()
 	return &copyConsumer
 }
 
@@ -264,6 +289,7 @@ func (*ConsumeTriggerTautology) equals(other ConsumingAnnotationTrigger) bool {
 // Copy returns a deep copy of this ConsumingAnnotationTrigger
 func (t *ConsumeTriggerTautology) Copy() ConsumingAnnotationTrigger {
 	copyConsumer := *t
+	copyConsumer.assignmentFlow = t.assignmentFlow.copy()
 	return &copyConsumer
 }
 

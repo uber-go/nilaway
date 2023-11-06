@@ -620,25 +620,27 @@ buildShadowMask:
 							rootNode.addProductionsForAssignmentFields(fieldProducers, lhsVal)
 						}
 
-						// beforeLastIndex and afterLastIndex are used to find the newly added triggers
-						beforeLastIndex := len(rootNode.triggers)
+						// beforeTriggersLastIndex is used to find the newly added triggers on the next line
+						beforeTriggersLastIndex := len(rootNode.triggers)
+						if beforeTriggersLastIndex > 0 {
+							beforeTriggersLastIndex--
+						}
 
 						rootNode.AddProduction(&annotation.ProduceTrigger{
 							Annotation: rproducers[0].GetShallow().Annotation,
 							Expr:       lhsVal,
 						}, rproducers[0].GetDeepSlice()...)
 
-						afterLastIndex := len(rootNode.triggers)
-
 						// Update consumers of newly added triggers with assignment entries for informative printing of errors
-						if len(rootNode.triggers) > beforeLastIndex && len(rootNode.triggers) <= afterLastIndex {
-							for _, t := range rootNode.triggers[beforeLastIndex:afterLastIndex] {
-								t.Consumer.Annotation.AddAssignment(annotation.Assignment{
-									LHSExprStr: util.ExprToString(lhsVal, rootNode.Pass()),
-									RHSExprStr: util.ExprToString(rhsVal, rootNode.Pass()),
-									Position:   util.TruncatePosition(util.PosToLocation(lhsVal.Pos(), rootNode.Pass())),
-								})
-							}
+						if len(rootNode.triggers) == 0 {
+							continue
+						}
+						for _, t := range rootNode.triggers[beforeTriggersLastIndex:len(rootNode.triggers)] {
+							t.Consumer.Annotation.AddAssignment(annotation.Assignment{
+								LHSExprStr: util.ExprToString(lhsVal, rootNode.Pass()),
+								RHSExprStr: util.ExprToString(rhsVal, rootNode.Pass()),
+								Position:   util.TruncatePosition(util.PosToLocation(lhsVal.Pos(), rootNode.Pass())),
+							})
 						}
 					default:
 						return errors.New("rhs expression in a 1-1 assignment was multiply returning - " +

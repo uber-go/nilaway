@@ -86,11 +86,38 @@ func test7() {
 	print(*x) //want "unassigned variable `x` dereferenced"
 }
 
-func test8(i int) {
+func test8() {
 	x := new(int)
 	if dummy {
 		var y *int
 		x = y
 	}
 	print(*x) //want "`y` to `x`"
+}
+
+func test9(m map[int]*int) {
+	x, _ := m[0]
+	y := x
+	print(*y) //want "`m\\[0\\]` to `x`"
+}
+func test10(ch chan *int) {
+	x := <-ch //want "nil channel accessed"
+	y := x
+	print(*y)
+}
+
+func callTest10() {
+	var ch chan *int
+	test10(ch)
+}
+
+func test11(s []*int) {
+	x := s[0] //want "`s` sliced into"
+	y := x
+	print(*y)
+}
+
+func callTest11() {
+	var s []*int
+	test11(s)
 }
