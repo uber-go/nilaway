@@ -105,7 +105,7 @@ func (a *Assignment) String() string {
 //	}
 //
 // Here `v` can be potentiall nilable from two flows: ok1 or ok2 is false. We would like to print only one error message
-// for this situation with one repreative flow printed in the error message. However, with an `equals` method, we would
+// for this situation with one representative flow printed in the error message. However, with an `equals` method, we would
 // report multiple error messages, one for each flow, by creating multiple full triggers, thereby affecting performance.
 type assignmentFlow struct {
 	// We use ordered map for `assignments` to maintain the order of assignments in the flow, and also to avoid
