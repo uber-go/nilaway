@@ -13,6 +13,7 @@
 // limitations under the License.
 
 // This package aims to test deep nilability in the inference mode.
+
 package inference
 
 var dummy bool
