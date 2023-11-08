@@ -19,7 +19,6 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
-	"slices"
 	"strings"
 
 	"go.uber.org/nilaway/util"
