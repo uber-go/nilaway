@@ -19,7 +19,6 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
-	"slices"
 	"strings"
 
 	"go.uber.org/nilaway/util"
@@ -330,9 +329,9 @@ func (c *ConsumeTriggerTautology) equals(other ConsumingAnnotationTrigger) bool 
 }
 
 // Copy returns a deep copy of this ConsumingAnnotationTrigger
-func (t *ConsumeTriggerTautology) Copy() ConsumingAnnotationTrigger {
-	copyConsumer := *t
-	copyConsumer.assignmentFlow = t.assignmentFlow.copy()
+func (c *ConsumeTriggerTautology) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *c
+	copyConsumer.assignmentFlow = c.assignmentFlow.copy()
 	return &copyConsumer
 }
 
