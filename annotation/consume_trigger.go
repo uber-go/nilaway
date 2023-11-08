@@ -889,15 +889,17 @@ func (a *ArgPassDeep) Prestring() Prestring {
 	switch key := a.Ann.(type) {
 	case *ParamAnnotationKey:
 		return ArgPassPrestring{
-			ParamName: key.MinimalString(),
-			FuncName:  key.FuncDecl.Name(),
-			Location:  "",
+			ParamName:     key.MinimalString(),
+			FuncName:      key.FuncDecl.Name(),
+			Location:      "",
+			AssignmentStr: a.assignmentFlow.String(),
 		}
 	case *CallSiteParamAnnotationKey:
 		return ArgPassPrestring{
-			ParamName: key.MinimalString(),
-			FuncName:  key.FuncDecl.Name(),
-			Location:  key.Location.String(),
+			ParamName:     key.MinimalString(),
+			FuncName:      key.FuncDecl.Name(),
+			Location:      key.Location.String(),
+			AssignmentStr: a.assignmentFlow.String(),
 		}
 	default:
 		panic(fmt.Sprintf(
@@ -911,7 +913,8 @@ type ArgPassDeepPrestring struct {
 	FuncName  string
 	// Location points to the code location of the argument pass at the call site for a ArgPass
 	// enclosing CallSiteParamAnnotationKey; Location is empty for a ArgPass enclosing ParamAnnotationKey.
-	Location string
+	Location      string
+	AssignmentStr string
 }
 
 func (a ArgPassDeepPrestring) String() string {
@@ -920,6 +923,7 @@ func (a ArgPassDeepPrestring) String() string {
 	if a.Location != "" {
 		sb.WriteString(fmt.Sprintf(" at %s", a.Location))
 	}
+	sb.WriteString(a.AssignmentStr)
 	return sb.String()
 }
 
@@ -1206,6 +1210,7 @@ func (u *UseAsReturnDeep) Prestring() Prestring {
 		key.RetNum,
 		u.IsNamedReturn,
 		key.FuncDecl.Type().(*types.Signature).Results().At(key.RetNum).Name(),
+		u.assignmentFlow.String(),
 	}
 }
 
@@ -1215,14 +1220,18 @@ type UseAsReturnDeepPrestring struct {
 	RetNum        int
 	IsNamedReturn bool
 	RetName       string
+	AssignmentStr string
 }
 
 func (u UseAsReturnDeepPrestring) String() string {
+	var sb strings.Builder
 	via := ""
 	if u.IsNamedReturn {
 		via = fmt.Sprintf(" via named return `%s`", u.RetName)
 	}
-	return fmt.Sprintf("returned deeply from `%s()`%s in position %d", u.FuncName, via, u.RetNum)
+	sb.WriteString(fmt.Sprintf("returned deeply from `%s()`%s in position %d", u.FuncName, via, u.RetNum))
+	sb.WriteString(u.AssignmentStr)
+	return sb.String()
 }
 
 // overriding position value to point to the raw return statement, which is the source of the potential error

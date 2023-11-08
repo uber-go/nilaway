@@ -57,6 +57,8 @@ var initStructsConsumingAnnotationTrigger = []any{
 	&FldEscape{TriggerIfNonNil: &TriggerIfNonNil{Ann: newMockKey()}},
 	&UseAsNonErrorRetDependentOnErrorRetNilability{TriggerIfNonNil: &TriggerIfNonNil{Ann: newMockKey()}},
 	&UseAsErrorRetWithNilabilityUnknown{TriggerIfNonNil: &TriggerIfNonNil{Ann: newMockKey()}},
+	&ArgPassDeep{TriggerIfDeepNonNil: &TriggerIfDeepNonNil{Ann: newMockKey()}},
+	&UseAsReturnDeep{TriggerIfDeepNonNil: &TriggerIfDeepNonNil{Ann: newMockKey()}},
 }
 
 // ConsumingAnnotationTriggerEqualsTestSuite tests for the `equals` method of all the structs that implement
