@@ -97,6 +97,41 @@ func TestTimeout(t *testing.T) {
 	}
 }
 
+func TestAnalyzeFuncPanic(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	resultChan := make(chan functionResult)
+	var wg sync.WaitGroup
+	funcContext := assertiontree.FunctionContext{}
+	// Intentionally give bad input data to cause a panic. We should convert the panic to an error
+	// and send it back to the original channel.
+	wg.Add(1)
+	go analyzeFunc(ctx,
+		nil,         /* pass */
+		nil,         /* funcDecl */
+		funcContext, /* funcContext */
+		nil,         /* graph */
+		0,           /* index */
+		resultChan,
+		&wg,
+	)
+	// Fire up another goroutine that waits for the work to be done and closes the result channel.
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
+
+	select {
+	case res := <-resultChan:
+		require.Equal(t, res.index, 0)
+		require.ErrorContains(t, res.err, "panic")
+	case <-time.After(10 * time.Second):
+		require.Fail(t, "analyzeFun did not return within 10 seconds.")
+	}
+}
+
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
 }
