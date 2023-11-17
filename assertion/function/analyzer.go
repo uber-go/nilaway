@@ -450,6 +450,13 @@ func analyzeFunc(
 	funcChan chan functionResult,
 	wg *sync.WaitGroup,
 ) {
+	// Deferred statements are pushed to a stack, which are executed in LIFO order. Calling
+	// wg.Done() would signal the main process that this goroutine is done, and the main process
+	// will close the result channel. However, our panic recovery handler still needs access to
+	// the result channel to send the error back. Therefore, we _must_ call `wg.Done()` after the
+	// panic recovery handler (meaning we defer it first).
+	defer wg.Done()
+
 	// As a last resort, convert the panics into errors and return.
 	defer func() {
 		if r := recover(); r != nil {
@@ -457,7 +464,6 @@ func analyzeFunc(
 			funcChan <- functionResult{err: e, index: index, funcDecl: funcDecl}
 		}
 	}()
-	defer wg.Done()
 
 	// Do the actual backpropagation.
 	funcTriggers, err := assertiontree.BackpropAcrossFunc(ctx, pass, funcDecl, funcContext, graph)
