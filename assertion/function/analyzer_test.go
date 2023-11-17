@@ -28,8 +28,10 @@ import (
 	"go.uber.org/nilaway/assertion/function/assertiontree"
 	"go.uber.org/nilaway/assertion/function/functioncontracts"
 	"go.uber.org/nilaway/config"
+	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
 	"golang.org/x/tools/go/analysis/passes/ctrlflow"
+	"golang.org/x/tools/go/cfg"
 )
 
 func TestTimeout(t *testing.T) {
@@ -104,16 +106,16 @@ func TestAnalyzeFuncPanic(t *testing.T) {
 
 	resultChan := make(chan functionResult)
 	var wg sync.WaitGroup
-	funcContext := assertiontree.FunctionContext{}
+	wg.Add(1)
+
 	// Intentionally give bad input data to cause a panic. We should convert the panic to an error
 	// and send it back to the original channel.
-	wg.Add(1)
 	go analyzeFunc(ctx,
-		nil,         /* pass */
-		nil,         /* funcDecl */
-		funcContext, /* funcContext */
-		nil,         /* graph */
-		0,           /* index */
+		&analysis.Pass{},                /* pass */
+		&ast.FuncDecl{},                 /* funcDecl */
+		assertiontree.FunctionContext{}, /* funcContext */
+		&cfg.CFG{},                      /* graph */
+		0,                               /* index */
 		resultChan,
 		&wg,
 	)
