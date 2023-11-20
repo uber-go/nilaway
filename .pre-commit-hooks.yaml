@@ -1,0 +1,7 @@
+- id: nilaway
+  name: nilaway
+  description: Static Analysis tool to detect potential Nil panics in Go code
+  entry: nilaway .
+  types: [go]
+  language: golang
+  pass_filenames: false
