@@ -11,6 +11,10 @@ all: build lint test
 build:
 	go install go.uber.org/nilaway/cmd/nilaway
 
+.PHONY: run
+run:
+	go run cmd/nilaway/main.go ./...
+
 .PHONY: test
 test:
 	go test -v -race ./...
