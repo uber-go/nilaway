@@ -53,8 +53,6 @@ type RichCheckEffect interface {
 	// isNoop returns whether this effect is a noop (i.e. placeholder value)
 	isNoop() bool
 
-	String() string
-
 	// equals returns true iff this effect should be considered equal to another
 	// correctness of these `equals` functions is vital to correctness (and termination) of the propagation
 	// in `propagateRichChecks`.
@@ -91,11 +89,6 @@ func (f *FuncErrRet) effectIfFalse(*RootAssertionNode) {
 }
 
 func (f *FuncErrRet) isNoop() bool { return false }
-
-func (f *FuncErrRet) String() string {
-	return fmt.Sprintf("<FuncErrRet: {err: %s, ret: %s}>",
-		f.err.MinimalString(), f.ret.MinimalString())
-}
 
 func (f *FuncErrRet) equals(effect RichCheckEffect) bool {
 	otherFuncErrRet, ok := effect.(*FuncErrRet)
@@ -138,11 +131,6 @@ func (r *okRead) effectIfFalse(*RootAssertionNode) {
 
 func (*okRead) isNoop() bool { return false }
 
-func (r *okRead) String() string {
-	return fmt.Sprintf("<okRead: {value: %s, ok: %s}>",
-		r.value.MinimalString(), r.ok.MinimalString())
-}
-
 func (r *okRead) equals(effect RichCheckEffect) bool {
 	other, ok := effect.(*okRead)
 	if !ok {
@@ -162,20 +150,10 @@ type MapOkRead struct {
 	okRead
 }
 
-func (r *MapOkRead) String() string {
-	return fmt.Sprintf("<MapOkRead: {val: %s, ok: %s}>",
-		r.value.MinimalString(), r.ok.MinimalString())
-}
-
 // A MapOkReadRefl indicates that a map was read in a `v, ok := m[k]` assignment, and now
 // if `ok` is checked it should produce non-nil for `m` because it cannot be nil if `ok` is true.
 type MapOkReadRefl struct {
 	okRead
-}
-
-func (r *MapOkReadRefl) String() string {
-	return fmt.Sprintf("<MapOkReadRefl: {mapVal: %s, ok: %s}>",
-		r.value.MinimalString(), r.ok.MinimalString())
 }
 
 // A ChannelOkRecv is a RichCheckEffect for the `ok` in `v, ok := <-chan` assignment. To match such an assignment,
@@ -189,20 +167,10 @@ type ChannelOkRecv struct {
 	okRead
 }
 
-func (r *ChannelOkRecv) String() string {
-	return fmt.Sprintf("<ChannelOkRecv: {val: %s, ok: %s}>",
-		r.value.MinimalString(), r.ok.MinimalString())
-}
-
 // A ChannelOkRecvRefl indicates that a channel receive was encountered with a `v, ok := <-chan` assignment, and now
 // if `ok` is checked it should produce non-nil for `chan` because it cannot be nil if `ok` is true.
 type ChannelOkRecvRefl struct {
 	okRead
-}
-
-func (r *ChannelOkRecvRefl) String() string {
-	return fmt.Sprintf("<ChannelOkRecvRefl: {chanValue: %s, ok: %s}>",
-		r.value.MinimalString(), r.ok.MinimalString())
 }
 
 // A RichCheckNoop is a placeholder instance of RichCheckEffect that functions as a total noop.
@@ -218,8 +186,6 @@ func (RichCheckNoop) effectIfTrue(*RootAssertionNode) {}
 func (RichCheckNoop) effectIfFalse(*RootAssertionNode) {}
 
 func (RichCheckNoop) isNoop() bool { return true }
-
-func (RichCheckNoop) String() string { return "<RichCheckNoop>" }
 
 func (RichCheckNoop) equals(effect RichCheckEffect) bool {
 	_, isNoop := effect.(RichCheckNoop)

@@ -15,9 +15,7 @@
 package util
 
 import (
-	"fmt"
 	"go/ast"
-	"sort"
 )
 
 // A GuardNonce is a unique token used to identify contracts that arise through the RichCheckEffect
@@ -154,16 +152,6 @@ func (g GuardNonceSet) Eq(other GuardNonceSet) bool {
 // nonnil(result 0)
 func (g GuardNonceSet) Copy() GuardNonceSet {
 	return g.Union(nil)
-}
-
-// String returns a string representation of the passed GuardNonceSet
-func (g GuardNonceSet) String() string {
-	list := make([]string, 0, len(g))
-	for item := range g {
-		list = append(list, fmt.Sprint(item))
-	}
-	sort.Strings(list)
-	return fmt.Sprintf("{%s}", list)
 }
 
 // NoGuards returns an empty GuardNonceSet - to be used to indicate no guards
