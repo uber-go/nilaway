@@ -411,6 +411,7 @@ func (r *RootAssertionNode) getFuncReturnProducers(ident *ast.Ident, expr *ast.C
 
 	numResults := util.FuncNumResults(funcObj)
 	isErrReturning := util.FuncIsErrReturning(funcObj)
+	isOkReturning := util.FuncIsOkReturning(funcObj)
 
 	producers := make([]producer.ParsedProducer, numResults)
 
@@ -436,11 +437,11 @@ func (r *RootAssertionNode) getFuncReturnProducers(ident *ast.Ident, expr *ast.C
 				Annotation: &annotation.FuncReturn{
 					TriggerIfNilable: &annotation.TriggerIfNilable{
 						Ann: retKey,
-						// for an error-returning function, all but the last result are guarded
-						// TODO: add an annotation that allows more results to escape from guarding
-						// such as "error-nonnil" or "always-nonnil"
-						NeedsGuard: isErrReturning && i != numResults-1,
 					},
+					// for an error-returning function, all but the last result are guarded
+					// TODO: add an annotation that allows more results to escape from guarding
+					// such as "error-nonnil" or "always-nonnil"
+					NeedsGuard: (isErrReturning || isOkReturning) && i != numResults-1,
 				},
 				Expr: expr,
 			},
