@@ -19,6 +19,7 @@ package inference
 import (
 	"encoding/gob"
 	"fmt"
+	"strings"
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/assertion/function/assertiontree"
@@ -92,8 +93,8 @@ func (e *Engine) ObserveUpstream() {
 	// we sort the facts by package path to ensure deterministic iteration order, which is
 	// important for determinism in NilAway since our inference algorithm depends on the order of
 	// trigger / site nilability applications.
-	slices.SortFunc(facts, func(i, j analysis.PackageFact) bool {
-		return i.Package.Path() < j.Package.Path()
+	slices.SortFunc(facts, func(i, j analysis.PackageFact) int {
+		return strings.Compare(i.Package.Path(), j.Package.Path())
 	})
 
 	for _, f := range facts {
