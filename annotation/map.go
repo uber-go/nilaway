@@ -627,7 +627,7 @@ func newObservedMap(pass *analysis.Pass, files []*ast.File) *ObservedMap {
 
 	// Parse inline annotations at call sites.
 	for _, file := range files {
-		if !conf.IsFileInScope(file) || !util.DocContainsFunctionContractsCheck(file.Doc) {
+		if !conf.IsFileInScope(file) {
 			continue
 		}
 		// Store a mapping between single comment's line number to its text.

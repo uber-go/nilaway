@@ -2,7 +2,6 @@
 This package aims to test function contracts.
 
 <nilaway no inference>
-<nilaway contract enable>
 */
 package functioncontracts
 

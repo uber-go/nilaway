@@ -22,7 +22,6 @@ import (
 	"strings"
 
 	"go.uber.org/nilaway/config"
-	"go.uber.org/nilaway/util"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -89,7 +88,7 @@ func collectFunctionContracts(pass *analysis.Pass) Map {
 
 	m := Map{}
 	for _, file := range pass.Files {
-		if !conf.IsFileInScope(file) || !util.DocContainsFunctionContractsCheck(file.Doc) {
+		if !conf.IsFileInScope(file) {
 			continue
 		}
 		for _, decl := range file.Decls {
