@@ -125,6 +125,9 @@ type primitivizer struct {
 	// curDir is the current working directory, which is used to trim the prefix (e.g.,  random
 	// sandbox prefix if using bazel) from the file names for cross-package references.
 	curDir string
+	// objPathEncoder is used to encode object paths, which amortizes the cost of encoding the
+	// paths of multiple objects.
+	objPathEncoder *objectpath.Encoder
 }
 
 // newPrimitivizer returns a new and properly-initialized primitivizer.
@@ -172,6 +175,7 @@ func newPrimitivizer(pass *analysis.Pass) *primitivizer {
 		pass:                 pass,
 		upstreamObjPositions: upstreamObjPositions,
 		curDir:               cwd,
+		objPathEncoder:       &objectpath.Encoder{},
 	}
 }
 
@@ -193,7 +197,7 @@ func (p *primitivizer) fullTrigger(trigger annotation.FullTrigger) primitiveFull
 
 // site returns the primitive version of the annotation site.
 func (p *primitivizer) site(key annotation.Key, isDeep bool) primitiveSite {
-	objPath, err := objectpath.For(key.Object())
+	objPath, err := p.objPathEncoder.For(key.Object())
 	if err != nil {
 		// An error will occur when trying to get object path for unexported objects, in which case
 		// we simply assign an empty object path.
