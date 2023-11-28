@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// <nilaway contract enable>
 package functioncontracts
 
 // contract(nonnil -> nonnil)
