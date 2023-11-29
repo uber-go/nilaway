@@ -63,10 +63,6 @@ const NilAwayStructInitCheckString = "<nilaway struct enable>"
 // force NilAway to enable anonymous func checking
 const NilAwayAnonymousFuncCheckString = "<nilaway anonymous function enable>"
 
-// NilAwayFunctionContractsCheckString is the string that may be inserted into the docstring for a
-// package to force NilAway to enable function contracts.
-const NilAwayFunctionContractsCheckString = "<nilaway contract enable>"
-
 func maxRoundsFromBlocks(numBlocks int) int {
 	return numBlocks * numBlocks * 2
 }

@@ -419,12 +419,6 @@ func DocContainsAnonymousFuncCheck(group *ast.CommentGroup) bool {
 	return docContainsString(config.NilAwayAnonymousFuncCheckString)(group)
 }
 
-// DocContainsFunctionContractsCheck is used by analyzers to check if the function contracts check
-// enabling string is present.
-func DocContainsFunctionContractsCheck(group *ast.CommentGroup) bool {
-	return docContainsString(config.NilAwayFunctionContractsCheckString)(group)
-}
-
 // docContainsString is used to check if the file comments contain a string s.
 func docContainsString(s string) func(*ast.CommentGroup) bool {
 	return func(group *ast.CommentGroup) bool {
