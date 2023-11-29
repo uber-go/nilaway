@@ -39,19 +39,6 @@ func GetDeclaringPath(pass *analysis.Pass, start, end token.Pos) ([]ast.Node, bo
 	return nil, false
 }
 
-// RootNodeSlicesString returns a slice of RootAssertionNodes as a string representation
-func RootNodeSlicesString(name string, rootNodes []*RootAssertionNode) string {
-	out := fmt.Sprintf("%s len %d: {\n", name, len(rootNodes))
-	for i, rootNode := range rootNodes {
-		repr := "nil"
-		if rootNode != nil {
-			repr = rootNode.String()
-		}
-		out += fmt.Sprintf("\t%s[%d]: %s\n", name, i, repr)
-	}
-	return out + "}"
-}
-
 // each of the following deepNilabilityOf... functions serves to inspect an object for possible sites
 // that could grant it a deep nilability annotation. Every case defaults to just introspecting the
 // type itself - as named types can be declared with annotations; this is the call to `DeepNilabilityAsNamedType`
@@ -61,6 +48,10 @@ func RootNodeSlicesString(name string, rootNodes []*RootAssertionNode) string {
 // this combines each of the special-cased deep nilability introspectors to give a method that
 // determines a deep nilability trigger for an arbitrary assertion node
 func deepNilabilityTriggerOf(node AssertionNode) annotation.ProducingAnnotationTrigger {
+	if node == nil {
+		panic("deepNilabilityTriggerOf should not be called on nil node")
+	}
+
 	switch node := node.(type) {
 	case *varAssertionNode:
 		if node.Root() == nil {
@@ -109,6 +100,9 @@ func (t TrackableExpr) MinimalString() string {
 }
 
 func detachFromParent(node AssertionNode, whichChild int) {
+	if node.Parent() == nil {
+		panic("passed assertion node has no parent - cannot detach")
+	}
 	if len(node.Parent().Children()) <= whichChild {
 		panic(fmt.Sprintf("passed assertion node only has %d children - "+
 			"cannot remove child %d", len(node.Parent().Children()), whichChild))

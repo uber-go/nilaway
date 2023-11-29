@@ -41,23 +41,23 @@ var nonNilnonNilSl [][]int = [][]int{{1, 2}}
 func testGlobals() int {
 	switch 0 {
 	case 1:
-		return nilableSl[0] //want "nilable value sliced into"
+		return nilableSl[0] //want "sliced into"
 	case 2:
 		return nonNilSl[0]
 	case 3:
-		return nilablenilableSl[0][0] //want "nilable value sliced into" "nilable value sliced into"
+		return nilablenilableSl[0][0] //want "sliced into" "sliced into"
 	case 4:
-		local := nilablenilableSl[0] //want "nilable value sliced into"
-		return local[0]              //want "nilable value sliced into"
+		local := nilablenilableSl[0] //want "sliced into"
+		return local[0]              //want "sliced into"
 	case 5:
-		return nonNilnilableSl[0][0] //want "nilable value sliced into"
+		return nonNilnilableSl[0][0] //want "sliced into"
 	case 6:
 		local := nonNilnilableSl[0]
-		return local[0] //want "nilable value sliced into"
+		return local[0] //want "sliced into"
 	case 7:
-		return nilablenonNilSl[0][0] //want "nilable value sliced into"
+		return nilablenonNilSl[0][0] //want "sliced into"
 	case 8:
-		local := nilablenonNilSl[0] //want "nilable value sliced into"
+		local := nilablenonNilSl[0] //want "sliced into"
 		return local[0]
 	case 9:
 		return nonNilnonNilSl[0][0]
@@ -73,7 +73,7 @@ type simpleWrap []int
 // nonnil(nonNilWrap)
 func testSimpleWrap(nilableWrap, nonNilWrap simpleWrap) int {
 	if aBool {
-		return nilableWrap[0] //want "nilable value sliced into"
+		return nilableWrap[0] //want "sliced into"
 	} else {
 		return nonNilWrap[0]
 	}
@@ -94,23 +94,23 @@ func testTypedParams(
 ) int {
 	switch 0 {
 	case 1:
-		return nilableSl[0] //want "nilable value sliced into"
+		return nilableSl[0] //want "sliced into"
 	case 2:
 		return nonNilSl[0]
 	case 3:
-		return nilablenilableSl[0][0] //want "nilable value sliced into" "nilable value sliced into"
+		return nilablenilableSl[0][0] //want "sliced into" "sliced into"
 	case 4:
-		local := nilablenilableSl[0] //want "nilable value sliced into"
-		return local[0]              //want "nilable value sliced into"
+		local := nilablenilableSl[0] //want "sliced into"
+		return local[0]              //want "sliced into"
 	case 5:
-		return nonNilnilableSl[0][0] //want "nilable value sliced into"
+		return nonNilnilableSl[0][0] //want "sliced into"
 	case 6:
 		local := nonNilnilableSl[0]
-		return local[0] //want "nilable value sliced into"
+		return local[0] //want "sliced into"
 	case 7:
-		return nilablenonNilSl[0][0] //want "nilable value sliced into"
+		return nilablenonNilSl[0][0] //want "sliced into"
 	case 8:
-		local := nilablenonNilSl[0] //want "nilable value sliced into"
+		local := nilablenonNilSl[0] //want "sliced into"
 		return local[0]
 	case 9:
 		return nonNilnonNilSl[0][0]
@@ -124,14 +124,14 @@ func testTypedParams(
 func lengthCheckAsNilCheckTest(a []int) int {
 	switch 0 {
 	case 1:
-		return a[0] //want "nilable value sliced into"
+		return a[0] //want "sliced into"
 	case 2:
 		if a != nil {
 			return a[0]
 		}
 	case 3:
 		if a == nil {
-			return a[0] //want "nilable value sliced into"
+			return a[0] //want "sliced into"
 		}
 	case 4:
 		if len(a) != 0 {
@@ -139,7 +139,7 @@ func lengthCheckAsNilCheckTest(a []int) int {
 		}
 	case 5:
 		if len(a) == 0 {
-			return a[0] //want "nilable value sliced into"
+			return a[0] //want "sliced into"
 		}
 	case 6:
 		if len(a) > 0 {
@@ -147,20 +147,20 @@ func lengthCheckAsNilCheckTest(a []int) int {
 		}
 	case 7:
 		if len(a) >= 0 {
-			return a[0] //want "nilable value sliced into"
+			return a[0] //want "sliced into"
 		}
 	case 8:
 		if len(a) <= 0 {
-			return a[0] //want "nilable value sliced into"
+			return a[0] //want "sliced into"
 		}
 	case 9:
 		if len(a) < 0 {
 			// this can never occur - so just treated as a no-op
-			return a[0] //want "nilable value sliced into"
+			return a[0] //want "sliced into"
 		}
 	case 10:
 		if len(a) != 1 {
-			return a[0] //want "nilable value sliced into"
+			return a[0] //want "sliced into"
 		}
 	case 11:
 		if len(a) == 1 {
@@ -176,11 +176,11 @@ func lengthCheckAsNilCheckTest(a []int) int {
 		}
 	case 14:
 		if len(a) <= 1 {
-			return a[0] //want "nilable value sliced into"
+			return a[0] //want "sliced into"
 		}
 	case 15:
 		if len(a) < 1 {
-			return a[0] //want "nilable value sliced into"
+			return a[0] //want "sliced into"
 		}
 
 		// the following cases are the same as above - but flipped
@@ -191,7 +191,7 @@ func lengthCheckAsNilCheckTest(a []int) int {
 		}
 	case 17:
 		if nil == a {
-			return a[0] //want "nilable value sliced into"
+			return a[0] //want "sliced into"
 		}
 	case 18:
 		if 0 != len(a) {
@@ -199,7 +199,7 @@ func lengthCheckAsNilCheckTest(a []int) int {
 		}
 	case 19:
 		if 0 == len(a) {
-			return a[0] //want "nilable value sliced into"
+			return a[0] //want "sliced into"
 		}
 	case 20:
 		if 0 < len(a) {
@@ -207,20 +207,20 @@ func lengthCheckAsNilCheckTest(a []int) int {
 		}
 	case 21:
 		if 0 <= len(a) {
-			return a[0] //want "nilable value sliced into"
+			return a[0] //want "sliced into"
 		}
 	case 22:
 		if 0 >= len(a) {
-			return a[0] //want "nilable value sliced into"
+			return a[0] //want "sliced into"
 		}
 	case 23:
 		if 0 > len(a) {
 			// this can never occur - so just treated as a no-op
-			return a[0] //want "nilable value sliced into"
+			return a[0] //want "sliced into"
 		}
 	case 24:
 		if 1 != len(a) {
-			return a[0] //want "nilable value sliced into"
+			return a[0] //want "sliced into"
 		}
 	case 25:
 		if 1 == len(a) {
@@ -236,11 +236,11 @@ func lengthCheckAsNilCheckTest(a []int) int {
 		}
 	case 28:
 		if 1 >= len(a) {
-			return a[0] //want "nilable value sliced into"
+			return a[0] //want "sliced into"
 		}
 	case 29:
 		if 1 > len(a) {
-			return a[0] //want "nilable value sliced into"
+			return a[0] //want "sliced into"
 		}
 	}
 	return 0
@@ -251,7 +251,7 @@ func lengthCheckByIntExprTest(a []int, i int) int {
 	k := 7
 	switch 0 {
 	case 1:
-		return a[0] //want "nilable value sliced into"
+		return a[0] //want "sliced into"
 	case 2:
 		if len(a) > i {
 			return a[0]
@@ -278,27 +278,27 @@ func lengthCheckByIntExprTest(a []int, i int) int {
 		}
 	case 8:
 		if len(a) < i {
-			return a[0] //want "nilable value sliced into"
+			return a[0] //want "sliced into"
 		}
 	case 9:
 		if len(a) < j {
-			return a[0] //want "nilable value sliced into"
+			return a[0] //want "sliced into"
 		}
 	case 10:
 		if len(a) < k {
-			return a[0] //want "nilable value sliced into"
+			return a[0] //want "sliced into"
 		}
 	case 11:
 		if len(a) <= i {
-			return a[0] //want "nilable value sliced into"
+			return a[0] //want "sliced into"
 		}
 	case 12:
 		if len(a) <= j {
-			return a[0] //want "nilable value sliced into"
+			return a[0] //want "sliced into"
 		}
 	case 13:
 		if len(a) <= k {
-			return a[0] //want "nilable value sliced into"
+			return a[0] //want "sliced into"
 		}
 	case 14:
 		// these cases test that non-literal integers are treated optimistically
@@ -315,15 +315,15 @@ func lengthCheckByIntExprTest(a []int, i int) int {
 		}
 	case 17:
 		if len(a) != i {
-			return a[0] //want "nilable value sliced into"
+			return a[0] //want "sliced into"
 		}
 	case 18:
 		if len(a) != j {
-			return a[0] //want "nilable value sliced into"
+			return a[0] //want "sliced into"
 		}
 	case 19:
 		if len(a) != k {
-			return a[0] //want "nilable value sliced into"
+			return a[0] //want "sliced into"
 		}
 	}
 	return 0
@@ -339,14 +339,14 @@ func testDoubleLenCheck(a, b []int) int {
 	switch 0 {
 	case 1:
 		if dummyBool() {
-			return a[0] //want "nilable value sliced into"
+			return a[0] //want "sliced into"
 		}
 		if len(a) == len(b) {
 			return a[0]
 		}
 	case 2:
 		if dummyBool() {
-			return b[0] //want "nilable value sliced into"
+			return b[0] //want "sliced into"
 		}
 		if len(a) == len(b) {
 			return b[0]
@@ -376,40 +376,40 @@ func testRangeProducesNonnil(a []*int) *int {
 		return a[0]
 	}
 	if dummyBool() {
-		return a[0] //want "nilable value sliced into"
+		return a[0] //want "sliced into"
 	}
 	for _ = range a {
 		return a[0]
 	}
 	if dummyBool() {
-		return a[0] //want "nilable value sliced into"
+		return a[0] //want "sliced into"
 	}
 	for i := range a {
 		dummyConsume(i)
 		return a[0]
 	}
 	if dummyBool() {
-		return a[0] //want "nilable value sliced into"
+		return a[0] //want "sliced into"
 	}
 	for _, _ = range a {
 		return a[0]
 	}
 	if dummyBool() {
-		return a[0] //want "nilable value sliced into"
+		return a[0] //want "sliced into"
 	}
 	for i, _ := range a {
 		dummyConsume(i)
 		return a[0]
 	}
 	if dummyBool() {
-		return a[0] //want "nilable value sliced into"
+		return a[0] //want "sliced into"
 	}
 	for _, j := range a {
 		dummyConsume(j)
 		return a[0]
 	}
 	if dummyBool() {
-		return a[0] //want "nilable value sliced into"
+		return a[0] //want "sliced into"
 	}
 	for i, j := range a {
 		dummyConsume(i)
@@ -417,7 +417,7 @@ func testRangeProducesNonnil(a []*int) *int {
 		return a[0]
 	}
 	if dummyBool() {
-		return a[0] //want "nilable value sliced into"
+		return a[0] //want "sliced into"
 	}
 	var i2, j2 interface{}
 	for i2, _ = range a {
@@ -425,14 +425,14 @@ func testRangeProducesNonnil(a []*int) *int {
 		return a[0]
 	}
 	if dummyBool() {
-		return a[0] //want "nilable value sliced into"
+		return a[0] //want "sliced into"
 	}
 	for _, j2 = range a {
 		dummyConsume(j2)
 		return a[0]
 	}
 	if dummyBool() {
-		return a[0] //want "nilable value sliced into"
+		return a[0] //want "sliced into"
 	}
 	for i2, j2 = range a {
 		dummyConsume(i2)
@@ -440,7 +440,7 @@ func testRangeProducesNonnil(a []*int) *int {
 		return a[0]
 	}
 	if dummyBool() {
-		return a[0] //want "nilable value sliced into"
+		return a[0] //want "sliced into"
 	}
 	i := 0
 	return &i
@@ -450,9 +450,9 @@ func testSwitchAsLenCheck(a []int) int {
 	var i int
 	switch len(a) {
 	case -1:
-		return a[0] //want "nilable value sliced into"
+		return a[0] //want "sliced into"
 	case 0:
-		return a[0] //want "nilable value sliced into"
+		return a[0] //want "sliced into"
 	case 1:
 		return a[0]
 	case 39845978:
@@ -505,61 +505,61 @@ func testOtherSlicingCreatesConsumerForNilableSlice() []int {
 	switch 0 {
 	case 1:
 		// [:n]
-		b = nilA[:n] //want "nilable value sliced into"
+		b = nilA[:n] //want "sliced into"
 	case 2:
 		// [n:0]
-		b = nilA[n:0]          //want "nilable value sliced into"
-		b = nilA[n : 1-1]      //want "nilable value sliced into"
-		b = nilA[n:zero]       //want "nilable value sliced into"
-		b = nilA[n : zero+1-1] //want "nilable value sliced into"
+		b = nilA[n:0]          //want "sliced into"
+		b = nilA[n : 1-1]      //want "sliced into"
+		b = nilA[n:zero]       //want "sliced into"
+		b = nilA[n : zero+1-1] //want "sliced into"
 	case 3:
 		// [0:n]
-		b = nilA[0:n]          //want "nilable value sliced into"
-		b = nilA[1-1 : n]      //want "nilable value sliced into"
-		b = nilA[zero:n]       //want "nilable value sliced into"
-		b = nilA[zero+1-1 : n] //want "nilable value sliced into"
+		b = nilA[0:n]          //want "sliced into"
+		b = nilA[1-1 : n]      //want "sliced into"
+		b = nilA[zero:n]       //want "sliced into"
+		b = nilA[zero+1-1 : n] //want "sliced into"
 	case 4:
 		// [m:n]
-		b = nilA[m:n] //want "nilable value sliced into"
+		b = nilA[m:n] //want "sliced into"
 	case 5:
 		// [0:0:n]
-		b = nilA[0:0:n]                   //want "nilable value sliced into"
-		b = nilA[1-1 : 1-1 : n]           //want "nilable value sliced into"
-		b = nilA[zero:zero:n]             //want "nilable value sliced into"
-		b = nilA[zero+1-1 : zero+1-1 : n] //want "nilable value sliced into"
+		b = nilA[0:0:n]                   //want "sliced into"
+		b = nilA[1-1 : 1-1 : n]           //want "sliced into"
+		b = nilA[zero:zero:n]             //want "sliced into"
+		b = nilA[zero+1-1 : zero+1-1 : n] //want "sliced into"
 	case 6:
 		// [0:n:0]
-		b = nilA[0:n:0]                   //want "nilable value sliced into"
-		b = nilA[1-1 : n : 1-1]           //want "nilable value sliced into"
-		b = nilA[zero:n:zero]             //want "nilable value sliced into"
-		b = nilA[zero+1-1 : n : zero+1-1] //want "nilable value sliced into"
+		b = nilA[0:n:0]                   //want "sliced into"
+		b = nilA[1-1 : n : 1-1]           //want "sliced into"
+		b = nilA[zero:n:zero]             //want "sliced into"
+		b = nilA[zero+1-1 : n : zero+1-1] //want "sliced into"
 	case 7:
 		// [n:0:0]
-		b = nilA[n:0:0]                   //want "nilable value sliced into"
-		b = nilA[n : 1-1 : 1-1]           //want "nilable value sliced into"
-		b = nilA[n:zero:zero]             //want "nilable value sliced into"
-		b = nilA[n : zero+1-1 : zero+1-1] //want "nilable value sliced into"
+		b = nilA[n:0:0]                   //want "sliced into"
+		b = nilA[n : 1-1 : 1-1]           //want "sliced into"
+		b = nilA[n:zero:zero]             //want "sliced into"
+		b = nilA[n : zero+1-1 : zero+1-1] //want "sliced into"
 	case 8:
 		// [0:m:n]
-		b = nilA[0:m:n]            //want "nilable value sliced into"
-		b = nilA[1-1 : m : n]      //want "nilable value sliced into"
-		b = nilA[zero:m:n]         //want "nilable value sliced into"
-		b = nilA[zero+1-1 : m : n] //want "nilable value sliced into"
+		b = nilA[0:m:n]            //want "sliced into"
+		b = nilA[1-1 : m : n]      //want "sliced into"
+		b = nilA[zero:m:n]         //want "sliced into"
+		b = nilA[zero+1-1 : m : n] //want "sliced into"
 	case 9:
 		// [m:0:n]
-		b = nilA[m:0:n]            //want "nilable value sliced into"
-		b = nilA[m : 1-1 : n]      //want "nilable value sliced into"
-		b = nilA[m:zero:n]         //want "nilable value sliced into"
-		b = nilA[m : zero+1-1 : n] //want "nilable value sliced into"
+		b = nilA[m:0:n]            //want "sliced into"
+		b = nilA[m : 1-1 : n]      //want "sliced into"
+		b = nilA[m:zero:n]         //want "sliced into"
+		b = nilA[m : zero+1-1 : n] //want "sliced into"
 	case 10:
 		// [m:n:0]
-		b = nilA[m:n:0]            //want "nilable value sliced into"
-		b = nilA[m : n : 1-1]      //want "nilable value sliced into"
-		b = nilA[m:n:zero]         //want "nilable value sliced into"
-		b = nilA[m : n : zero+1-1] //want "nilable value sliced into"
+		b = nilA[m:n:0]            //want "sliced into"
+		b = nilA[m : n : 1-1]      //want "sliced into"
+		b = nilA[m:n:zero]         //want "sliced into"
+		b = nilA[m : n : zero+1-1] //want "sliced into"
 	case 11:
 		// [l:m:n]
-		b = nilA[l:m:n] //want "nilable value sliced into"
+		b = nilA[l:m:n] //want "sliced into"
 	}
 	return b
 }
@@ -571,48 +571,48 @@ func testCertainSlicingCreatesNilProducerForAnySlice() {
 	case 1:
 		// [:0]
 		b := nilA[:0]
-		print(b[0]) //want "nilable value sliced into"
+		print(b[0]) //want "sliced into"
 		c := nonNilA[:0]
-		print(c[0]) //want "nilable value sliced into"
+		print(c[0]) //want "sliced into"
 		// We could test const zero or binary expressions that evaluates to zero as well but I feel
 		// the related util function *RootAssertionNode#isZero is well tested in the previous two
 		// tests so we don't test again here (and following tests).
 	case 2:
 		// [0:0]
 		b := nilA[0:0]
-		print(b[0]) //want "nilable value sliced into"
+		print(b[0]) //want "sliced into"
 		c := nonNilA[0:0]
-		print(c[0]) //want "nilable value sliced into"
+		print(c[0]) //want "sliced into"
 	case 3:
 		// [n:0]
-		b := nilA[n:0] //want "nilable value sliced into"
-		print(b[0])    //want "nilable value sliced into"
+		b := nilA[n:0] //want "sliced into"
+		print(b[0])    //want "sliced into"
 		c := nonNilA[n:0]
-		print(c[0]) //want "nilable value sliced into"
+		print(c[0]) //want "sliced into"
 	case 4:
 		// [0:0:0]
 		b := nilA[0:0:0]
-		print(b[0]) //want "nilable value sliced into"
+		print(b[0]) //want "sliced into"
 		c := nonNilA[0:0:0]
-		print(c[0]) //want "nilable value sliced into"
+		print(c[0]) //want "sliced into"
 	case 5:
 		// [0:0:n]
-		b := nilA[0:0:n] //want "nilable value sliced into"
-		print(b[0])      //want "nilable value sliced into"
+		b := nilA[0:0:n] //want "sliced into"
+		print(b[0])      //want "sliced into"
 		c := nonNilA[0:0:n]
-		print(c[0]) //want "nilable value sliced into"
+		print(c[0]) //want "sliced into"
 	case 6:
 		// [n:0:0]
-		b := nilA[n:0:0] //want "nilable value sliced into"
-		print(b[0])      //want "nilable value sliced into"
+		b := nilA[n:0:0] //want "sliced into"
+		print(b[0])      //want "sliced into"
 		c := nonNilA[n:0:0]
-		print(c[0]) //want "nilable value sliced into"
+		print(c[0]) //want "sliced into"
 	case 7:
 		// [m:0:n]
-		b := nilA[m:0:n] //want "nilable value sliced into"
-		print(b[0])      //want "nilable value sliced into"
+		b := nilA[m:0:n] //want "sliced into"
+		print(b[0])      //want "sliced into"
 		c := nonNilA[m:0:n]
-		print(c[0]) //want "nilable value sliced into"
+		print(c[0]) //want "sliced into"
 	}
 }
 
@@ -622,13 +622,13 @@ func testCertainSlicingPreserveNilabilityOfOriginalSlice() {
 	case 1:
 		// [0:]
 		b := nilA[0:]
-		print(b[0]) //want "nilable value sliced into"
+		print(b[0]) //want "sliced into"
 		c := nonNilA[0:]
 		print(c[0])
 	case 2:
 		// [:]
 		b := nilA[:]
-		print(b[0]) //want "nilable value sliced into"
+		print(b[0]) //want "sliced into"
 		c := nonNilA[:]
 		print(c[0])
 	}
@@ -640,43 +640,43 @@ func testOtherSlicingCreatesNonNilProducerForAnySlice() {
 	switch 0 {
 	case 1:
 		// [:n]
-		b := nilA[:n] //want "nilable value sliced into"
+		b := nilA[:n] //want "sliced into"
 		print(b[0])
 		c := nonNilA[:n]
 		print(c[0])
 	case 2:
 		// [0:n]
-		b := nilA[0:n] //want "nilable value sliced into"
+		b := nilA[0:n] //want "sliced into"
 		print(b[0])
 		c := nonNilA[0:n]
 		print(c[0])
 	case 3:
 		// [m:n]
-		b := nilA[m:n] //want "nilable value sliced into"
+		b := nilA[m:n] //want "sliced into"
 		print(b[0])
 		c := nonNilA[m:n]
 		print(c[0])
 	case 4:
 		// [0:n:0]
-		b := nilA[0:n:0] //want "nilable value sliced into"
+		b := nilA[0:n:0] //want "sliced into"
 		print(b[0])
 		c := nonNilA[0:n:0]
 		print(c[0])
 	case 5:
 		// [0:m:n]
-		b := nilA[0:m:n] //want "nilable value sliced into"
+		b := nilA[0:m:n] //want "sliced into"
 		print(b[0])
 		c := nonNilA[0:m:n]
 		print(c[0])
 	case 6:
 		// [m:n:0]
-		b := nilA[m:n:0] //want "nilable value sliced into"
+		b := nilA[m:n:0] //want "sliced into"
 		print(b[0])
 		c := nonNilA[m:n:0]
 		print(c[0])
 	case 7:
 		// [l:m:n]
-		b := nilA[l:m:n] //want "nilable value sliced into"
+		b := nilA[l:m:n] //want "sliced into"
 		print(b[0])
 		c := nonNilA[l:m:n]
 		print(c[0])
@@ -692,34 +692,34 @@ func testOtherInterestingCasesOnZeroSlicing() {
 		d := c[:]
 		e := d[0:0]
 		f := e[0:]
-		print(f[0]) //want "nilable value sliced into"
+		print(f[0]) //want "sliced into"
 	case 2:
 		// nested slice expressions
 		c := twoDSlice[:0][:0]
-		print(c[0]) //want "nilable value sliced into"
+		print(c[0]) //want "sliced into"
 
 		c = twoDSlice[:0][0:]
-		print(c[0]) //want "nilable value sliced into"
+		print(c[0]) //want "sliced into"
 
-		c = twoDSlice[:0][1:3] //want "nilable value sliced into"
+		c = twoDSlice[:0][1:3] //want "sliced into"
 		print(c[1])
 
 		c = twoDSlice[0:][:0]
-		print(c[1]) //want "nilable value sliced into"
+		print(c[1]) //want "sliced into"
 
 		c = twoDSlice[0:][0:]
-		print(c[1]) //want "nilable value sliced into"
+		print(c[1]) //want "sliced into"
 
-		c = twoDSlice[:0][1:3] //want "nilable value sliced into"
+		c = twoDSlice[:0][1:3] //want "sliced into"
 		print(c[1])
 
-		c = twoDSlice[1:3][:0] //want "nilable value sliced into"
-		print(c[1])            //want "nilable value sliced into"
+		c = twoDSlice[1:3][:0] //want "sliced into"
+		print(c[1])            //want "sliced into"
 
-		c = twoDSlice[1:3][0:] //want "nilable value sliced into"
+		c = twoDSlice[1:3][0:] //want "sliced into"
 		print(c[1])
 
-		c = twoDSlice[1:3][1:3] //want "nilable value sliced into"
+		c = twoDSlice[1:3][1:3] //want "sliced into"
 		print(c[1])
 	}
 }
@@ -742,20 +742,20 @@ func testInterProcedural() {
 		helperSliceParamForNonNilParam(nonNilA[0:])
 
 		// non-zero slicing triggering non-nil producer all the time, e.g, [1:3]
-		helperSliceParamForNonNilParam(nilA[1:3]) //want "nilable value sliced into"
+		helperSliceParamForNonNilParam(nilA[1:3]) //want "sliced into"
 		helperSliceParamForNonNilParam(nonNilA[1:3])
 	case 2:
 		// use slicing as return result
 
 		// zero slicing triggering nil producer all the time, e.g., [:0]
 		b := helperReturnZeroSlicingAlwaysNilProducerForNilableParam(nilA)
-		print(b[1]) //want "nilable value sliced into"
+		print(b[1]) //want "sliced into"
 		c := helperReturnZeroSlicingAlwaysNilProducerForNonNilParam(nonNilA)
-		print(c[1]) //want "nilable value sliced into"
+		print(c[1]) //want "sliced into"
 
 		// zero slicing that preserves nilability of original slice, e.g., [0:]
 		b = helperReturnZeroSlicingPreserveForNilableParam(nilA)
-		print(b[1]) //want "nilable value sliced into"
+		print(b[1]) //want "sliced into"
 		c = helperReturnZeroSlicingPreserveForNonNilParam(nonNilA)
 		print(c[1])
 
@@ -768,15 +768,15 @@ func testInterProcedural() {
 }
 
 func helperSliceParamForNilableParam1(b []int) {
-	print(b[0]) //want "nilable value sliced into"
+	print(b[0]) //want "sliced into"
 }
 
 func helperSliceParamForNilableParam2(b []int) {
-	print(b[0]) //want "nilable value sliced into"
+	print(b[0]) //want "sliced into"
 }
 
 func helperSliceParamForNilableParam3(b []int) {
-	print(b[0]) //want "nilable value sliced into"
+	print(b[0]) //want "sliced into"
 }
 
 // Must annotate because the default nilability of a slice type is nilable; see
@@ -806,7 +806,7 @@ func helperReturnZeroSlicingPreserveForNonNilParam(b []int) []int {
 
 // nonnil(result 0)
 func helperReturnNonZeroSlicingNonNilProducerForNilableParam(b []int) []int {
-	return b[1:3] //want "nilable value sliced into"
+	return b[1:3] //want "sliced into"
 }
 
 // nonnil(b, result 0)
@@ -825,17 +825,17 @@ func helperReturnNonZeroSlicingNonNilProducerForNonNilParam(b []int) []int {
 
 // nonnil(a, a[])
 func testAppendNil(a []*int) {
-	a[0] = nil // want "nilable value assigned deeply into deeply nonnil arg"
+	a[0] = nil //want "assigned deeply into parameter arg `a`"
 	// Now, we append a literal nil into a deeply nonnil slice.
-	a = append(a, nil) // want "nilable value assigned deeply into deeply nonnil arg"
+	a = append(a, nil) //want "assigned deeply into parameter arg `a`"
 }
 
 // nonnil(a, a[], b)
 // nilable(c, result 0)
 func testAppend(a []*int, b, c *int) {
 	b = c
-	a = append(a, b) // want "nilable value assigned deeply into deeply nonnil arg"
-	a = append(a, c) // want "nilable value assigned deeply into deeply nonnil arg"
+	a = append(a, b) //want "assigned deeply into parameter arg `a`"
+	a = append(a, c) //want "assigned deeply into parameter arg `a`"
 }
 
 // nilable(result 0)
@@ -845,8 +845,8 @@ func nilableFun() *int {
 
 // nonnil(a, a[], b)
 func testAppendNilableFunc(a []*int) {
-	a[0] = nilableFun()         // want "nilable value assigned deeply into"
-	a = append(a, nilableFun()) // want "nilable value assigned deeply into deeply nonnil arg"
+	a[0] = nilableFun()         //want "assigned deeply into parameter arg `a`"
+	a = append(a, nilableFun()) //want "assigned deeply into parameter arg `a`"
 }
 
 // nonnil(a, a[])
@@ -860,7 +860,7 @@ func testTheFirstArgumentOfAppend(a, b []*int) {
 // nonnil(a, a[])
 // nilable(b, b[])
 func testVariadicArgs(a, b []*int) {
-	a = append(a, b...) // want "nilable value assigned deeply into deeply nonnil arg"
+	a = append(a, b...) //want "assigned deeply into parameter arg `a`"
 	b = append(b, a...)
 }
 
@@ -873,12 +873,12 @@ func testMultipleAppendArgs(a []*int, nilablevar, nonnilvar *int) {
 func testAppendNilableForLocalVar() {
 	var a = make([]*int, 0)
 	a = append(a, nil)
-	print(*a[0]) // want "nilable value sliced into, earlier literal nil"
+	print(*a[0]) //want "literal `nil` sliced into"
 }
 
 var a = make([]*int, 0)
 
 func testAppendNilableForGlobalVar() {
-	a = append(a, nil) // want "nilable value assigned into the global variable `a`, earlier literal nil"
-	print(*a[0])       // want "nilable value sliced into, earlier literal nil"
+	a = append(a, nil) //want "literal `nil` assigned into global variable `a`"
+	print(*a[0])       //want "literal `nil` sliced into"
 }

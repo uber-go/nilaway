@@ -20,24 +20,24 @@ package funcreturnfields
 
 // Testing with direct return of a composite literal initialization of struct
 
-func giveEmptyA() *A11 { //want "Annotation on Field aptr of Result 0 of Function giveEmptyA overconstrained"
+func giveEmptyA() *A11 {
 	t := &A11{}
 	return t
 }
 
 func m07() *int {
 	b := giveEmptyA()
-	return b.aptr.ptr
+	return b.aptr.ptr //want "accessed field `ptr`"
 }
 
 // Testing with direct return of struct as a composite literal.
-func giveEmptyAComposite() *A11 { //want "Annotation on Field aptr of Result 0 of Function giveEmptyAComposite overconstrained"
+func giveEmptyAComposite() *A11 {
 	return &A11{}
 }
 
 func m08() *int {
 	t := giveEmptyAComposite()
-	return t.aptr.ptr
+	return t.aptr.ptr //want "accessed field `ptr`"
 }
 
 // Testing with transitive return of struct through a function call.
@@ -45,12 +45,11 @@ func giveEmptyA11Fun() *A11 {
 	return &A11{}
 }
 
-// TODO: Location of the error in this case is inappropriate.
-func giveEmptyACallFun() *A11 { //want "Annotation on Field aptr of Result 0 of Function giveEmptyACallFun overconstrained"
+func giveEmptyACallFun() *A11 {
 	return giveEmptyA11Fun()
 }
 
 func m10() *int {
 	t := giveEmptyACallFun()
-	return t.aptr.ptr
+	return t.aptr.ptr //want "accessed field `ptr`"
 }

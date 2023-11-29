@@ -164,87 +164,170 @@ func newNilBinaryExpr(arg ast.Expr, op token.Token) *ast.BinaryExpr {
 	}
 }
 
-// requireComparators handles a slightly more sophisticated case for asserting the length of a
-// slice, e.g., length of a slice is greater than 0 implies the slice is not nil.
+// The constant (enum) values below represent the possible values of an expected expression in a comparison
+// E.g., `Equal(1, len(s))`, where `1` is the expected expression and is assigned the value `_greaterThanZero`.
+// E.g., `Equal(nil, err)`, where `nil` is the expected expression and is assigned the value `_nil`.
+type expectedValue int
+
+const (
+	_unknown expectedValue = iota // init value when the expected expression value is yet to be determined
+	_zero
+	_greaterThanZero
+	_nil
+	_false
+)
+
+// requireComparators handles slightly more sophisticated cases of comparisons. We currently support:
+// - slice length comparison (e.g., `Equal(1, len(s))`, implying len(s) > 0, meaning s is nonnil)
+// - nil comparison (e.g., `Equal(nil, err)`).
 var requireComparators action = func(call *ast.CallExpr, startIndex int, pass *analysis.Pass) any {
 	// Comparator function calls must have at least two arguments.
 	if len(call.Args[startIndex:]) < 2 {
 		return nil
 	}
 
-	// We handle multiple comparator functions here, so we store the function name to do different
-	// actions depending on their semantics.
+	// We now find the actual and expected expressions, where expected is the constant value that actual expression is
+	// compared against. For example, in `Equal(1, len(s))`, expected is 1, and actual is `s`. However, the position
+	// of the actual and expected expressions can be swapped, e.g., `Equal(len(s), 1)`. We handle both cases below. For
+	// example, for length comparison, we search for the slice expression, the other will be treated as length expression.
+
+	var actualExpr ast.Expr
+	var actualExprIndex int
+	expectedExprValue := _unknown
+
+	for argIndex, expr := range call.Args[startIndex : startIndex+2] {
+		switch expr := expr.(type) {
+		case *ast.CallExpr:
+			// Check if the expression is `len(<slice_expr>)`.
+			wrapperFunc, ok := expr.Fun.(*ast.Ident)
+			if !ok {
+				continue
+			}
+			if pass.TypesInfo.ObjectOf(wrapperFunc) != util.BuiltinLen || len(expr.Args) != 1 {
+				continue
+			}
+			// Check if `<slice_expr>` is of slice type.
+			sliceExpr, lenExpr := expr.Args[0], call.Args[startIndex+1-argIndex]
+			_, ok = pass.TypesInfo.TypeOf(sliceExpr).Underlying().(*types.Slice)
+			if !ok {
+				continue
+			}
+
+			// Then, we can treat the other argument as the length expression and check its
+			// compile-time value.
+			typeAndValue, ok := pass.TypesInfo.Types[lenExpr]
+			if !ok {
+				continue
+			}
+
+			v, ok := constant.Val(typeAndValue.Value).(int64)
+			if !ok {
+				continue
+			}
+
+			actualExpr = sliceExpr
+			actualExprIndex = argIndex
+			if v == 0 {
+				expectedExprValue = _zero
+			} else if v > 0 {
+				expectedExprValue = _greaterThanZero
+			}
+
+		case *ast.Ident:
+			// Check if the expected expression is `nil`.
+			if expr.Name == "nil" {
+				actualExpr = call.Args[startIndex+1-argIndex]
+				actualExprIndex = argIndex
+				expectedExprValue = _nil
+			}
+		}
+	}
+
+	// likely represents a case that we don't support.
+	if expectedExprValue == _unknown {
+		return nil
+	}
+
+	// we now generate the comparators based on the semantics of the function.
+	return generateComparators(call, actualExpr, actualExprIndex, expectedExprValue)
+}
+
+// requireZeroComparators handles a special case of comparators checking for zero values (e.g., `Empty(err)`, i.e. err == nil).
+// We currently support the following cases of zero comparators:
+// - `nil` for pointers
+// - `false` for booleans
+// - `len == 0` for slices, maps, and channels
+var requireZeroComparators action = func(call *ast.CallExpr, index int, pass *analysis.Pass) any {
+	expr := call.Args[index]
+	if expr == nil {
+		return nil
+	}
+
+	exprType := pass.TypesInfo.TypeOf(expr).Underlying()
+	switch t := exprType.(type) {
+	case *types.Pointer, *types.Interface:
+		return generateComparators(call, expr, index, _nil)
+	case *types.Slice, *types.Map, *types.Chan:
+		return generateComparators(call, expr, index, _zero)
+	case *types.Basic:
+		if t.Kind() == types.Bool {
+			return generateComparators(call, expr, index, _false)
+		}
+	}
+
+	return nil
+}
+
+// generateComparators generates comparators based on the semantics of the function.
+func generateComparators(call *ast.CallExpr, actualExpr ast.Expr, actualExprIndex int, expectedVal expectedValue) any {
 	sel, ok := call.Fun.(*ast.SelectorExpr)
 	if !ok {
 		return nil
 	}
 	funcName := sel.Sel.Name
 
-	// The slice expression and the length expression can be at either places (i.e., both
-	// `Equal(len(s), 1)` and `Equal(1, len(s))` are allowed), so we search for the slice expression, the
-	// other will be treated as length expression.
-	for argIndex, expr := range call.Args[startIndex : startIndex+2] {
-		// Check if the expression is `len(<slice_expr>)`.
-		callExpr, ok := expr.(*ast.CallExpr)
-		if !ok {
-			continue
+	// Now, based on the semantics of the function, we can create artificial nonnil checks for
+	// the following cases.
+	// - slice length comparison. E.g., `Equal(1, len(s))`, implying len(s) > 0, meaning s is nonnil.
+	//   Here, actualExpr is `s` and expectedExprValue is `_greaterThanZero`, which translates to the binary expression
+	//   `s != nil` being added to the CFG. Similarly, for `Equal(len(s), 0)`, we add `s == nil` to the CFG.
+	// - nil comparison. E.g., `Equal(nil, err)`, where actualExpr is `err` and expectedExprValue is `_nil`, which
+	//   translates to the binary expression `err == nil` being added to the CFG.
+	switch funcName {
+	case "Equal", "Equalf", "Empty", "Emptyf": // len(s) == [positive_int], expr == nil
+		switch expectedVal {
+		case _greaterThanZero:
+			return newNilBinaryExpr(actualExpr, token.NEQ)
+		case _nil:
+			return newNilBinaryExpr(actualExpr, token.EQL)
+		case _false:
+			return negatedSelfExpr(call, actualExprIndex, nil)
 		}
-		wrapperFunc, ok := callExpr.Fun.(*ast.Ident)
-		if !ok {
-			continue
-		}
-		if pass.TypesInfo.ObjectOf(wrapperFunc) != util.BuiltinLen || len(callExpr.Args) != 1 {
-			continue
-		}
-
-		// Check if `<slice_expr>` is of slice type.
-		sliceExpr, lenExpr := callExpr.Args[0], call.Args[startIndex+1-argIndex]
-		_, ok = pass.TypesInfo.TypeOf(sliceExpr).Underlying().(*types.Slice)
-		if !ok {
-			continue
-		}
-
-		// Then, we can treat the other argument as the length expression and check its
-		// compile-time value.
-		typeAndValue, ok := pass.TypesInfo.Types[lenExpr]
-		if !ok {
-			continue
+	case "NotEqual", "NotEqualf", "NotEmpty", "NotEmptyf": // len(s) != [zero], expr != nil
+		switch expectedVal {
+		case _zero, _nil:
+			return newNilBinaryExpr(actualExpr, token.NEQ)
+		case _false:
+			return selfExpr(call, actualExprIndex, nil)
 		}
 
-		v, ok := constant.Val(typeAndValue.Value).(int64)
-		if !ok {
-			continue
+	// Note the check for `actualExprIndex` in the following cases, we need to make sure the slice expr
+	// is at the correct position since these are inequality checks.
+	case "Greater", "Greaterf": // len(s) > [non_negative_int]
+		if actualExprIndex == 0 && (expectedVal == _zero || expectedVal == _greaterThanZero) {
+			return newNilBinaryExpr(actualExpr, token.NEQ)
 		}
-
-		// Now, based on the semantics of the function, we can create artificial nonnil checks for
-		// the following cases.
-		switch funcName {
-		case "Equal", "Equalf": // len(s) == [positive_int]
-			if v > 0 {
-				return newNilBinaryExpr(sliceExpr, token.NEQ)
-			}
-		case "NotEqual", "NotEqualf": // len(s) != [zero]
-			if v == 0 {
-				return newNilBinaryExpr(sliceExpr, token.NEQ)
-			}
-		// Note the check for `argIndex` in the following cases, we need to make sure the slice expr
-		// is at the correct position since these are inequality checks.
-		case "Greater", "Greaterf": // len(s) > [non_negative_int]
-			if argIndex == 0 && v >= 0 {
-				return newNilBinaryExpr(sliceExpr, token.NEQ)
-			}
-		case "GreaterOrEqual", "GreaterOrEqualf": // len(s) >= [positive_int]
-			if argIndex == 0 && v > 0 {
-				return newNilBinaryExpr(sliceExpr, token.NEQ)
-			}
-		case "Less", "Lessf": // [non_negative_int] < len(s)
-			if argIndex == 1 && v >= 0 {
-				return newNilBinaryExpr(sliceExpr, token.NEQ)
-			}
-		case "LessOrEqual", "LessOrEqualf": // [positive_int] <= len(s)
-			if argIndex == 1 && v > 0 {
-				return newNilBinaryExpr(sliceExpr, token.NEQ)
-			}
+	case "GreaterOrEqual", "GreaterOrEqualf": // len(s) >= [positive_int]
+		if actualExprIndex == 0 && expectedVal == _greaterThanZero {
+			return newNilBinaryExpr(actualExpr, token.NEQ)
+		}
+	case "Less", "Lessf": // [non_negative_int] < len(s)
+		if actualExprIndex == 1 && (expectedVal == _zero || expectedVal == _greaterThanZero) {
+			return newNilBinaryExpr(actualExpr, token.NEQ)
+		}
+	case "LessOrEqual", "LessOrEqualf": // [positive_int] <= len(s)
+		if actualExprIndex == 1 && expectedVal == _greaterThanZero {
+			return newNilBinaryExpr(actualExpr, token.NEQ)
 		}
 	}
 
@@ -311,7 +394,7 @@ var trustedFuncs = map[trustedFuncSig]trustedFuncAction{
 	{
 		kind:           _method,
 		enclosingRegex: regexp.MustCompile(`github\.com/stretchr/testify/(suite\.Suite|assert\.Assertions|require\.Assertions)$`),
-		funcNameRegex:  regexp.MustCompile(`^(Greater(f)?|Less(f)?|(GreaterOr|LessOr)?Equal(f)?)$`),
+		funcNameRegex:  regexp.MustCompile(`^(Greater(f)?|Less(f)?|Equal(f)?|GreaterOrEqual(f)?|LessOrEqual(f)?|NotEqual(f)?)$`),
 	}: {action: requireComparators, argIndex: 0},
 	{
 		kind:           _method,
@@ -343,7 +426,7 @@ var trustedFuncs = map[trustedFuncSig]trustedFuncAction{
 	{
 		kind:           _func,
 		enclosingRegex: regexp.MustCompile(`github\.com/stretchr/testify/(assert|require)$`),
-		funcNameRegex:  regexp.MustCompile(`^(Greater(f)?|Less(f)?|(GreaterOr|LessOr)?Equal(f)?)$`),
+		funcNameRegex:  regexp.MustCompile(`^(Greater(f)?|Less(f)?|Equal(f)?|GreaterOrEqual(f)?|LessOrEqual(f)?|NotEqual(f)?)$`),
 	}: {action: requireComparators, argIndex: 1},
 	{
 		kind:           _func,
@@ -376,6 +459,16 @@ var trustedFuncs = map[trustedFuncSig]trustedFuncAction{
 		enclosingRegex: regexp.MustCompile(`github\.com/pkg/errors$`),
 		funcNameRegex:  regexp.MustCompile(`^New$`),
 	}: {action: nonnilProducer, argIndex: -1},
+	{
+		kind:           _func,
+		enclosingRegex: regexp.MustCompile(`github\.com/stretchr/testify/(assert|require)$`),
+		funcNameRegex:  regexp.MustCompile(`^(Empty(f)?|NotEmpty(f)?)$`),
+	}: {action: requireZeroComparators, argIndex: 1},
+	{
+		kind:           _method,
+		enclosingRegex: regexp.MustCompile(`github\.com/stretchr/testify/(suite\.Suite|assert\.Assertions|require\.Assertions)$`),
+		funcNameRegex:  regexp.MustCompile(`^(Empty(f)?|NotEmpty(f)?)$`),
+	}: {action: requireZeroComparators, argIndex: 0},
 }
 
 // BuiltinAppend is used to check the builtin append method for slice

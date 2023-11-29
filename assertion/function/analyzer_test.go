@@ -23,12 +23,15 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"go.uber.org/nilaway/assertion/anonymousfunc"
 	"go.uber.org/nilaway/assertion/function/assertiontree"
 	"go.uber.org/nilaway/assertion/function/functioncontracts"
 	"go.uber.org/nilaway/config"
+	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
 	"golang.org/x/tools/go/analysis/passes/ctrlflow"
+	"golang.org/x/tools/go/cfg"
 )
 
 func TestTimeout(t *testing.T) {
@@ -94,4 +97,43 @@ func TestTimeout(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		require.Fail(t, "A cancelled context was given to backprop, but it did not return within 10 seconds.")
 	}
+}
+
+func TestAnalyzeFuncPanic(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	resultChan := make(chan functionResult)
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	// Intentionally give bad input data to cause a panic. We should convert the panic to an error
+	// and send it back to the original channel.
+	go analyzeFunc(ctx,
+		&analysis.Pass{},                /* pass */
+		&ast.FuncDecl{},                 /* funcDecl */
+		assertiontree.FunctionContext{}, /* funcContext */
+		&cfg.CFG{},                      /* graph */
+		0,                               /* index */
+		resultChan,
+		&wg,
+	)
+	// Fire up another goroutine that waits for the work to be done and closes the result channel.
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
+
+	select {
+	case res := <-resultChan:
+		require.Equal(t, res.index, 0)
+		require.ErrorContains(t, res.err, "panic")
+	case <-time.After(10 * time.Second):
+		require.Fail(t, "analyzeFun did not return within 10 seconds.")
+	}
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

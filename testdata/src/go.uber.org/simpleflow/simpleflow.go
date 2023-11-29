@@ -36,22 +36,22 @@ func (a *A) foo(b, c *A) *A {
 	case 1:
 		return a
 	case 2:
-		return a.f //want "nilable value returned from the function `foo`"
+		return a.f //want "returned from `foo.*`"
 	case 3:
 		return a.g
 	case 4:
 		return b
 	case 5:
-		return b.f //want "nilable value returned from the function `foo`"
+		return b.f //want "returned from `foo.*`"
 	case 6:
 		return b.g
 	case 7:
-		return c //want "nilable value returned from the function `foo`"
+		return c //want "returned from `foo.*`"
 	case 8:
-		return c.f //want "nilable value returned from the function `foo`" "nilable value passed to a field access"
+		return c.f //want "returned from `foo.*`" "accessed field `f`"
 	case 9:
-		return c.g //want "nilable value passed to a field access"
+		return c.g //want "accessed field `g`"
 	default:
-		return nil //want "nilable value returned from the function `foo`"
+		return nil //want "returned from `foo.*`"
 	}
 }

@@ -26,6 +26,7 @@ import (
 	"go.uber.org/nilaway/assertion"
 	"go.uber.org/nilaway/assertion/function/assertiontree"
 	"go.uber.org/nilaway/config"
+	"go.uber.org/nilaway/diagnostic"
 	"go.uber.org/nilaway/inference"
 	"golang.org/x/tools/go/analysis"
 )
@@ -110,17 +111,19 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 		return errorsToDiagnostics(errs), nil
 	}
 
+	diagnosticEngine := diagnostic.NewEngine(pass)
+
+	// Create an inference engine and observe (load) information from upstream dependencies (i.e.,
+	// mappings between annotation sites and their inferred values).
+	inferenceEngine := inference.NewEngine(pass, diagnosticEngine)
+	inferenceEngine.ObserveUpstream()
+
 	// Determine inference type based on comments in package doc string.
 	mode := inference.DetermineMode(pass)
 
-	// Create an engine and observe (load) information from upstream dependencies (i.e., mappings
-	// between annotation sites and their inferred values).
-	engine := inference.NewEngine(pass)
-	engine.ObserveUpstream()
-
 	// First observe all annotations from annotationsResult (observes only syntactic annotations
 	// for FullInfer mode, otherwise all annotations for NoInfer)
-	engine.ObserveAnnotations(annotationsResult.AnnotationMap, mode)
+	inferenceEngine.ObserveAnnotations(annotationsResult.AnnotationMap, mode)
 
 	var (
 		inferredMap *inference.InferredMap
@@ -131,13 +134,17 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 		// Incorporate assertions from this package one-by-one into the inferredAnnotationMap, possibly
 		// determining local and upstream sites in the process. This is guaranteed not to determine any
 		// sites unless we really have a reason they have to be determined.
-		engine.ObservePackage(assertionsResult.FullTriggers)
-		inferredMap, diagnostics = engine.InferredMapWithDiagnostics()
+		inferenceEngine.ObservePackage(assertionsResult.FullTriggers)
+		inferredMap = inferenceEngine.InferredMap()
+		diagnostics = diagnosticEngine.Diagnostics(true /* grouping */)
 
 	case inference.NoInfer:
 		// In non-inference case - use the classical assertionNode.CheckErrors method to determine error outputs
-		inferredMap, diagnostics = engine.InferredMapWithDiagnostics()
-		diagnostics = append(diagnostics, buildDiagnostics(pass, checkErrors(assertionsResult.FullTriggers, inferredMap))...)
+		inferredMap = inferenceEngine.InferredMap()
+		checkErrors(assertionsResult.FullTriggers, inferredMap, diagnosticEngine)
+		// Retrieve the diagnostics from the engine. Note that we should not group the
+		// diagnostics for easier unit testing.
+		diagnostics = diagnosticEngine.Diagnostics(false /* grouping */)
 
 	default:
 		panic("Invalid mode for running NilAway")
@@ -167,22 +174,13 @@ func errorsToDiagnostics(errs []error) []analysis.Diagnostic {
 	return diagnostics
 }
 
-// buildDiagnostics takes a list of FullTriggers, which are assumed to already have been checked
-// and are known to fail, and returns a slice of the appropriate diagnostics for all the triggers.
-func buildDiagnostics(pass *analysis.Pass, triggers []annotation.FullTrigger) []analysis.Diagnostic {
-	var errors []analysis.Diagnostic
-	for _, trigger := range triggers {
-		errors = append(errors, analysis.Diagnostic{
-			Pos:     trigger.Consumer.Pos(),
-			Message: trigger.BuildStringRepr(pass),
-		})
-	}
-	return errors
+type conflictHandler interface {
+	AddSingleAssertionConflict(trigger annotation.FullTrigger)
 }
 
 // checkErrors iterates over a set of full triggers, checking each one against a given annotation
 // map to see if it fails and if so appending it to the returned list.
-func checkErrors(triggers []annotation.FullTrigger, annMap annotation.Map) []annotation.FullTrigger {
+func checkErrors(triggers []annotation.FullTrigger, annMap annotation.Map, diagnosticEngine conflictHandler) {
 	// Filter triggers for error return handling -- inter-procedural and annotations-based (no inference).
 	// (Note that since we are using FilterTriggersForErrorReturn as a preprocessing step here, we can directly use its
 	// first output `filteredTriggers` to check and report errors. The second output of raw `deleted triggers` is not
@@ -199,15 +197,13 @@ func checkErrors(triggers []annotation.FullTrigger, annMap annotation.Map) []ann
 		},
 	)
 
-	var triggered []annotation.FullTrigger
 	for _, trigger := range filteredTriggers {
 		// Skip checking any full triggers we created by duplicating from contracted functions
 		// to the caller function.
 		if !trigger.CreatedFromDuplication && trigger.Check(annMap) {
-			triggered = append(triggered, trigger)
+			diagnosticEngine.AddSingleAssertionConflict(trigger)
 		}
 	}
-	return triggered
 }
 
 // This is required to use interface types in facts - see the implementation of GobRegister for the

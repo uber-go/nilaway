@@ -19,26 +19,37 @@ package inference
 import (
 	"encoding/gob"
 	"fmt"
+	"strings"
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/assertion/function/assertiontree"
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	"golang.org/x/tools/go/analysis"
 )
 
+// conflictHandler defines the interface that handles the conflicts encountered during inference.
+// This makes the inference engine independent of the diagnostic generation logic.
+type conflictHandler interface {
+	AddSingleAssertionConflict(trigger annotation.FullTrigger)
+	AddOverconstraintConflict(nilExplanation, nonnilExplanation ExplainedBool)
+}
+
 // Engine is the structure responsible for running the inference: it contains methods to run
 // various tasks for the inference and stores an internal map that can be obtained by calling
-// Engine.InferredMapWithDiagnostics.
+// Engine.InferredMap.
 type Engine struct {
 	pass *analysis.Pass
 	// inferredMap is the internal inferred map that the engine writes to, it is initialized on the
 	// construction of the engine and populated by the "Observe*" methods of the engine. Users
-	// should use the Engine.InferredMapWithDiagnostics() method to obtain the current inferred map.
+	// should use the Engine.InferredMap() method to obtain the current inferred map.
 	inferredMap *InferredMap
-	// conflicts stores conflict groups encountered during the observations. It will be
-	// converted to diagnostics and returned along with the current inferred map whenever users
-	// request it.
-	conflicts *conflictGrouping
+	// diagnosticEngine receives all encountered conflicts during inference and eventually
+	// generates proper diagnostics from those conflicts.
+	diagnosticEngine conflictHandler
+	// primitive is the primitivizer that is able to convert full triggers and annotation sites to
+	// their primitive forms (see primitive.go).
+	primitive *primitivizer
 	// controlledTriggersBySite stores the set of controlled triggers for each site if the site
 	// controls any triggers. This field is for internal use in the struct only and should not be
 	// accessed elsewhere.
@@ -46,18 +57,20 @@ type Engine struct {
 }
 
 // NewEngine constructs an inference engine that is ready to run inference.
-func NewEngine(pass *analysis.Pass) *Engine {
+func NewEngine(pass *analysis.Pass, diagnosticEngine conflictHandler) *Engine {
+	primitive := newPrimitivizer(pass)
 	return &Engine{
-		pass:        pass,
-		inferredMap: newInferredMap(),
-		conflicts:   newConflictGrouping(),
+		pass:             pass,
+		primitive:        primitive,
+		inferredMap:      newInferredMap(primitive),
+		diagnosticEngine: diagnosticEngine,
 	}
 }
 
-// InferredMapWithDiagnostics returns the current inferred annotation map and a slice of diagnostics
-// generated during inference.
-func (e *Engine) InferredMapWithDiagnostics() (*InferredMap, []analysis.Diagnostic) {
-	return e.inferredMap, e.conflicts.diagnostics()
+// InferredMap returns the current inferred annotation map, callers must treat this map as
+// read-only and do not directly modify it. Any further updates must be made via the Engine.
+func (e *Engine) InferredMap() *InferredMap {
+	return e.inferredMap
 }
 
 // ObserveUpstream imports all information from upstream dependencies. Specifically, it iterates
@@ -68,26 +81,40 @@ func (e *Engine) InferredMapWithDiagnostics() (*InferredMap, []analysis.Diagnost
 // added to Mapping but not UpstreamMapping, then, on a call to Export, only the information
 // present in Mapping but not UpstreamMapping is exported to ensure minimization of output.
 func (e *Engine) ObserveUpstream() {
+	var facts []analysis.PackageFact
 	for _, packageFact := range e.pass.AllPackageFacts() {
-		importedMap, ok := packageFact.Fact.(*InferredMap)
-		if !ok {
-			continue
+		// We only care about NilAway-related facts here.
+		if _, ok := packageFact.Fact.(*InferredMap); ok {
+			facts = append(facts, packageFact)
 		}
-		importedMap.Range(func(site primitiveSite, val InferredVal) bool {
-			switch val := val.(type) {
+	}
+
+	// `pass.AllPackageFacts()` returns the slice of package facts in _unspecified_ order. Here
+	// we sort the facts by package path to ensure deterministic iteration order, which is
+	// important for determinism in NilAway since our inference algorithm depends on the order of
+	// trigger / site nilability applications.
+	slices.SortFunc(facts, func(i, j analysis.PackageFact) int {
+		return strings.Compare(i.Package.Path(), j.Package.Path())
+	})
+
+	for _, f := range facts {
+		f.Fact.(*InferredMap).OrderedRange(func(site primitiveSite, val InferredVal) bool {
+			switch v := val.(type) {
 			case *DeterminedVal:
 				// Fix as an Explained site any sites that `otherMap` knows are explained
 				// This can yield an overconstrainedConflict if the current map disagrees on the
 				// value of the site.
-				e.observeSiteExplanation(site, val.Bool)
+				e.observeSiteExplanation(site, v.Bool)
 			case *UndeterminedVal:
-				// Observe all forward implications from this site
-				for implicateSite, implicateAssertion := range val.Implicates {
-					e.observeImplication(site, implicateSite, implicateAssertion)
+				// Observe all forward implications from this site.
+				for _, p := range v.Implicates.Pairs {
+					implicantSite, assertion := p.Key, p.Value
+					e.observeImplication(site, implicantSite, assertion)
 				}
-				// Observe all backward implications from this site
-				for implicantSite, implicantAssertion := range val.Implicants {
-					e.observeImplication(implicantSite, site, implicantAssertion)
+				// Observe all backward implications from this site.
+				for _, p := range v.Implicants.Pairs {
+					implicantSite, assertion := p.Key, p.Value
+					e.observeImplication(implicantSite, site, assertion)
 				}
 			}
 			return true
@@ -95,7 +122,7 @@ func (e *Engine) ObserveUpstream() {
 	}
 
 	// copy imported maps into upstreamMapping field
-	e.inferredMap.Range(func(site primitiveSite, val InferredVal) bool {
+	e.inferredMap.OrderedRange(func(site primitiveSite, val InferredVal) bool {
 		e.inferredMap.upstreamMapping[site] = val.copy()
 		return true
 	})
@@ -110,11 +137,11 @@ func (e *Engine) ObserveUpstream() {
 // annotation sites, because they're all already determined, but they can yield failures.
 func (e *Engine) ObserveAnnotations(pkgAnnotations *annotation.ObservedMap, mode ModeOfInference) {
 	pkgAnnotations.Range(func(key annotation.Key, isDeep bool, val bool) {
-		site := newPrimitiveSite(key, isDeep)
+		site := e.primitive.site(key, isDeep)
 		if val {
-			e.observeSiteExplanation(site, TrueBecauseAnnotation{})
+			e.observeSiteExplanation(site, TrueBecauseAnnotation{AnnotationPos: site.Position})
 		} else {
-			e.observeSiteExplanation(site, FalseBecauseAnnotation{})
+			e.observeSiteExplanation(site, FalseBecauseAnnotation{AnnotationPos: site.Position})
 		}
 	}, mode != NoInfer)
 }
@@ -162,7 +189,7 @@ func (e *Engine) ObservePackage(pkgFullTriggers []annotation.FullTrigger) {
 				}
 
 				isDeep := kind == annotation.DeepConditional
-				primitive := newPrimitiveSite(site, isDeep)
+				primitive := e.primitive.site(site, isDeep)
 				if val, ok := e.inferredMap.Load(primitive); ok {
 					switch vType := val.(type) {
 					case *DeterminedVal:
@@ -207,7 +234,7 @@ func (e *Engine) buildPkgInferenceMap(triggers []annotation.FullTrigger) {
 		// controller is an CallSiteParamAnnotationKey, which must be enclosed in a ArgPass
 		// consumer, which Kind() method returns Conditional which is not deep. Thus, we pass false
 		// here.
-		site := newPrimitiveSite(*trigger.Controller, false)
+		site := e.primitive.site(*trigger.Controller, false)
 		ts, ok := controlledTgsBySite[site]
 		if !ok {
 			ts = map[annotation.FullTrigger]bool{}
@@ -229,18 +256,16 @@ func (e *Engine) buildPkgInferenceMap(triggers []annotation.FullTrigger) {
 }
 
 func (e *Engine) buildFromSingleFullTrigger(trigger annotation.FullTrigger) {
-	primitiveAssertion := fullTriggerAsPrimitive(e.pass, trigger)
-
 	pKind, cKind := trigger.Producer.Annotation.Kind(), trigger.Consumer.Annotation.Kind()
 	pSite, cSite := trigger.Producer.Annotation.UnderlyingSite(), trigger.Consumer.Annotation.UnderlyingSite()
 	// NilAway does not know that (kind == Conditional || DeepConditional) => (site != nil),
 	// so we have to add some redundant checks in the corresponding cases to give some hints.
-	// TODO: remove this redundant check.
+	// TODO: remove those redundant nilness checks for sites.
 	switch {
 	case pKind == annotation.Always && cKind == annotation.Always:
 		// Producer always produces nilable value -> consumer always consumes nonnil value.
 		// We simply generate a failure for this case.
-		e.conflicts.addConflict(newSingleAssertionConflict(e.pass, trigger))
+		e.diagnosticEngine.AddSingleAssertionConflict(trigger)
 
 	case pKind == annotation.Always && (cKind == annotation.Conditional || cKind == annotation.DeepConditional):
 		// Producer always produces nilable value -> consumer unknown.
@@ -248,9 +273,9 @@ func (e *Engine) buildFromSingleFullTrigger(trigger annotation.FullTrigger) {
 		if cSite == nil {
 			panic("trigger is conditional but the underlying site is nil")
 		}
-		site := newPrimitiveSite(cSite, cKind == annotation.DeepConditional)
+		site := e.primitive.site(cSite, cKind == annotation.DeepConditional)
 		e.observeSiteExplanation(site, TrueBecauseShallowConstraint{
-			ExternalAssertion: primitiveAssertion,
+			ExternalAssertion: e.primitive.fullTrigger(trigger),
 		})
 
 	case (pKind == annotation.Conditional || pKind == annotation.DeepConditional) && (cKind == annotation.Always):
@@ -259,9 +284,9 @@ func (e *Engine) buildFromSingleFullTrigger(trigger annotation.FullTrigger) {
 		if pSite == nil {
 			panic("trigger is conditional but the underlying site is nil")
 		}
-		site := newPrimitiveSite(pSite, pKind == annotation.DeepConditional)
+		site := e.primitive.site(pSite, pKind == annotation.DeepConditional)
 		e.observeSiteExplanation(site, FalseBecauseShallowConstraint{
-			ExternalAssertion: primitiveAssertion,
+			ExternalAssertion: e.primitive.fullTrigger(trigger),
 		})
 
 	case (pKind == annotation.Conditional || pKind == annotation.DeepConditional) &&
@@ -271,17 +296,17 @@ func (e *Engine) buildFromSingleFullTrigger(trigger annotation.FullTrigger) {
 		if pSite == nil || cSite == nil {
 			panic("trigger is conditional but the underlying site is nil")
 		}
-		producer := newPrimitiveSite(pSite, pKind == annotation.DeepConditional)
-		consumer := newPrimitiveSite(cSite, cKind == annotation.DeepConditional)
+		producer := e.primitive.site(pSite, pKind == annotation.DeepConditional)
+		consumer := e.primitive.site(cSite, cKind == annotation.DeepConditional)
 
-		e.observeImplication(producer, consumer, primitiveAssertion)
+		e.observeImplication(producer, consumer, e.primitive.fullTrigger(trigger))
 	}
 }
 
 // observeSiteExplanation augments inferred map with a definite value for the passed
 // site `site` - the definite value being given as the ExplainedBool `siteExplained`. Any conflicts
 // encountered during the inference are stored internally and will be available when the inferred
-// map is retrieved via `Engine.InferredMapWithDiagnostics`.There are three cases for what can happen when this
+// map is retrieved via `Engine.InferredMap`.There are three cases for what can happen when this
 // call is made. If the site is not already mapped to an InferredVal of any kind, then a mapping to
 // an DeterminedVal for the passed ExplainedBool is simply added - indicating that we now we have
 // fixed the value of this site. If the site is already mapped to an DeterminedVal, then we check
@@ -323,7 +348,7 @@ func (e *Engine) observeSiteExplanation(site primitiveSite, siteExplained Explai
 		if !v.Bool.Val() {
 			trueExplanation, falseExplanation = falseExplanation, trueExplanation
 		}
-		e.conflicts.addConflict(newOverconstrainedConflict(site, trueExplanation, falseExplanation))
+		e.diagnosticEngine.AddOverconstraintConflict(trueExplanation, falseExplanation)
 
 		// Even though we have a conflict, we still need to make sure to activate any controlled
 		// triggers that are waiting on this site, so that we would not miss processing any
@@ -336,21 +361,22 @@ func (e *Engine) observeSiteExplanation(site primitiveSite, siteExplained Explai
 		// Propagate the nilability of this site to its downstream constraints (for nilable value)
 		// or its upstream constraints (for nonnil value).
 		if siteExplained.Val() {
-			for implicateSite, implicateAssertion := range v.Implicates {
+			for _, p := range v.Implicates.Pairs {
+				implicateSite, assertion := p.Key, p.Value
 				e.observeSiteExplanation(implicateSite, TrueBecauseDeepConstraint{
-					InternalAssertion: implicateAssertion,
+					InternalAssertion: assertion,
 					DeeperExplanation: siteExplained,
 				})
 			}
 		} else {
-			for implicantSite, implicantAssertion := range v.Implicants {
+			for _, p := range v.Implicants.Pairs {
+				implicantSite, assertion := p.Key, p.Value
 				e.observeSiteExplanation(implicantSite, FalseBecauseDeepConstraint{
-					InternalAssertion: implicantAssertion,
+					InternalAssertion: assertion,
 					DeeperExplanation: siteExplained,
 				})
 			}
 		}
-
 	}
 }
 
@@ -463,11 +489,9 @@ func GobRegister() {
 	gob.RegisterName(nextStr(), FalseBecauseShallowConstraint{})
 	gob.RegisterName(nextStr(), FalseBecauseDeepConstraint{})
 	gob.RegisterName(nextStr(), FalseBecauseAnnotation{})
-	gob.RegisterName(nextStr(), FalseBecauseMyopia{})
 	gob.RegisterName(nextStr(), TrueBecauseShallowConstraint{})
 	gob.RegisterName(nextStr(), TrueBecauseDeepConstraint{})
 	gob.RegisterName(nextStr(), TrueBecauseAnnotation{})
-	gob.RegisterName(nextStr(), TrueBecauseMyopia{})
 
 	gob.RegisterName(nextStr(), annotation.PtrLoadPrestring{})
 	gob.RegisterName(nextStr(), annotation.MapAccessPrestring{})
@@ -536,4 +560,5 @@ func GobRegister() {
 	gob.RegisterName(nextStr(), annotation.MethodRecvPrestring{})
 	gob.RegisterName(nextStr(), annotation.RecvPassPrestring{})
 	gob.RegisterName(nextStr(), annotation.MethodRecvDeepPrestring{})
+	gob.RegisterName(nextStr(), annotation.FldReturnPrestring{})
 }

@@ -23,7 +23,7 @@ package methodimplementation
 
 type I2 interface {
 	// nilable(x)
-	foo(x *A2) (*A2, string) //want "nilable value could be returned as result"
+	foo(x *A2) (*A2, string) //want "returned as result"
 }
 
 type A2 struct {
@@ -31,7 +31,7 @@ type A2 struct {
 }
 
 // nilable(result 0)
-func (A2) foo(x *A2) (*A2, string) { //want "nilable value could be passed as param"
+func (A2) foo(x *A2) (*A2, string) { //want "passed as param"
 	var b *A2
 	return b, x.s
 }

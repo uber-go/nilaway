@@ -16,6 +16,7 @@ package inference
 
 import (
 	"fmt"
+	"go/token"
 )
 
 // An ExplainedBool is a boolean value, wrapped by a "reason" that we came to the conclusion it should
@@ -27,8 +28,12 @@ import (
 // - <Val>BecauseDeepConstraint: Applied to site X when X was half of an assertion where the other half was fixed, but through a deeper chain of assertions
 // - <Val>BecauseAnnotation: Applied to site X when a syntactic annotation was discovered on X
 type ExplainedBool interface {
+	fmt.Stringer
+
 	Val() bool
-	String() string
+	Position() token.Position
+	TriggerReprs() (producer fmt.Stringer, consumer fmt.Stringer)
+	DeeperReason() ExplainedBool
 }
 
 // ExplainedTrue is a common embedding in all instances of ExplainedBool that wrap the value `true`
@@ -64,6 +69,22 @@ func (t TrueBecauseShallowConstraint) String() string {
 		t.ExternalAssertion.ConsumerRepr, t.ExternalAssertion.ProducerRepr)
 }
 
+// Position is the position of underlying site.
+func (t TrueBecauseShallowConstraint) Position() token.Position {
+	return t.ExternalAssertion.Position
+}
+
+// TriggerReprs returns the compact representation structs for the producer and consumer.
+func (t TrueBecauseShallowConstraint) TriggerReprs() (fmt.Stringer, fmt.Stringer) {
+	return t.ExternalAssertion.ProducerRepr, t.ExternalAssertion.ConsumerRepr
+}
+
+// DeeperReason returns another ExplainedBool that marks the deeper reason of this constraint.
+// It is only nonnil for deep constraints.
+func (t TrueBecauseShallowConstraint) DeeperReason() ExplainedBool {
+	return nil
+}
+
 // FalseBecauseShallowConstraint is used as the label for site X when an assertion of the form
 // `nilable X -> nilable Y` is discovered and the trigger for `nilable Y` always fires (i.e. yields
 // nonnil) - for example because it is the dereferenced as a pointer or passed to a field access. In
@@ -79,6 +100,22 @@ func (f FalseBecauseShallowConstraint) String() string {
 	return fmt.Sprintf(
 		"NONNIL because it describes the value %s, and that value is %s, where it must be NONNIL",
 		f.ExternalAssertion.ProducerRepr, f.ExternalAssertion.ConsumerRepr)
+}
+
+// Position is the position of underlying site.
+func (f FalseBecauseShallowConstraint) Position() token.Position {
+	return f.ExternalAssertion.Position
+}
+
+// TriggerReprs returns the compact representation structs for the producer and consumer.
+func (f FalseBecauseShallowConstraint) TriggerReprs() (fmt.Stringer, fmt.Stringer) {
+	return f.ExternalAssertion.ProducerRepr, f.ExternalAssertion.ConsumerRepr
+}
+
+// DeeperReason returns another ExplainedBool that marks the deeper reason of this constraint.
+// It is only nonnil for deep constraints.
+func (f FalseBecauseShallowConstraint) DeeperReason() ExplainedBool {
+	return nil
 }
 
 // TrueBecauseDeepConstraint is used as the label for a site Y when an assertion of the form
@@ -97,6 +134,22 @@ func (t TrueBecauseDeepConstraint) String() string {
 		t.InternalAssertion.ConsumerRepr, t.InternalAssertion.ProducerRepr, t.DeeperExplanation.String())
 }
 
+// Position is the position of underlying site.
+func (t TrueBecauseDeepConstraint) Position() token.Position {
+	return t.InternalAssertion.Position
+}
+
+// TriggerReprs returns the compact representation structs for the producer and consumer.
+func (t TrueBecauseDeepConstraint) TriggerReprs() (fmt.Stringer, fmt.Stringer) {
+	return t.InternalAssertion.ProducerRepr, t.InternalAssertion.ConsumerRepr
+}
+
+// DeeperReason returns another ExplainedBool that marks the deeper reason of this constraint.
+// It is only nonnil for deep constraints.
+func (t TrueBecauseDeepConstraint) DeeperReason() ExplainedBool {
+	return t.DeeperExplanation
+}
+
 // FalseBecauseDeepConstraint is used as the label for a site X when an assertion of the form
 // `nilable X -> nilable Y` is discovered along with some reason for Y to be nonnil, besides it
 // necessarily being so because it always fires. This reason could be any ExplainedFalse - such as
@@ -113,44 +166,72 @@ func (f FalseBecauseDeepConstraint) String() string {
 		f.InternalAssertion.ProducerRepr, f.InternalAssertion.ConsumerRepr, f.DeeperExplanation.String())
 }
 
+// Position is the position of underlying site.
+func (f FalseBecauseDeepConstraint) Position() token.Position {
+	return f.InternalAssertion.Position
+}
+
+// TriggerReprs returns the compact representation structs for the producer and consumer.
+func (f FalseBecauseDeepConstraint) TriggerReprs() (fmt.Stringer, fmt.Stringer) {
+	return f.InternalAssertion.ProducerRepr, f.InternalAssertion.ConsumerRepr
+}
+
+// DeeperReason returns another ExplainedBool that marks the deeper reason of this constraint.
+// It is only nonnil for deep constraints.
+func (f FalseBecauseDeepConstraint) DeeperReason() ExplainedBool {
+	return f.DeeperExplanation
+}
+
 // TrueBecauseAnnotation is used as the label for a site X on which a literal annotation "//nilable(x)"
 // has been discovered - forcing that site to be nilable.
 type TrueBecauseAnnotation struct {
 	ExplainedTrue
+	AnnotationPos token.Position
 }
 
 func (TrueBecauseAnnotation) String() string {
 	return "NILABLE because it is annotated as so"
 }
 
+// Position is the position of underlying site.
+func (t TrueBecauseAnnotation) Position() token.Position {
+	return t.AnnotationPos
+}
+
+// TriggerReprs simply returns nil, nil since this constraint is the result of an annotation.
+func (TrueBecauseAnnotation) TriggerReprs() (fmt.Stringer, fmt.Stringer) {
+	return nil, nil
+}
+
+// DeeperReason returns another ExplainedBool that marks the deeper reason of this constraint.
+// It is only nonnil for deep constraints.
+func (TrueBecauseAnnotation) DeeperReason() ExplainedBool {
+	return nil
+}
+
 // FalseBecauseAnnotation is used as the label for a site X on which a literal annotation "//nonnil(x)"
 // has been discovered - forcing that site to be nonnil.
 type FalseBecauseAnnotation struct {
 	ExplainedFalse
+	AnnotationPos token.Position
 }
 
 func (FalseBecauseAnnotation) String() string {
 	return "NONNIL because it is annotated as so"
 }
 
-// TrueBecauseMyopia is used as the label for a site X that a myopic inference procedure decided should
-// be nilable
-type TrueBecauseMyopia struct {
-	ExplainedTrue
-	PkgName string
+// Position is the position of underlying site.
+func (f FalseBecauseAnnotation) Position() token.Position {
+	return f.AnnotationPos
 }
 
-func (t TrueBecauseMyopia) String() string {
-	return fmt.Sprintf("NILABLE because myopic annotation inference for package %s decided so", t.PkgName)
+// TriggerReprs simply returns nil, nil since this constraint is the result of an annotation.
+func (FalseBecauseAnnotation) TriggerReprs() (fmt.Stringer, fmt.Stringer) {
+	return nil, nil
 }
 
-// FalseBecauseMyopia is used as the label for a site X that a myopic inference procedure decided should
-// be nonnil
-type FalseBecauseMyopia struct {
-	ExplainedFalse
-	PkgName string
-}
-
-func (f FalseBecauseMyopia) String() string {
-	return fmt.Sprintf("NONNIL because myopic annotation inference for package %s decided so", f.PkgName)
+// DeeperReason returns another ExplainedBool that marks the deeper reason of this constraint.
+// It is only nonnil for deep constraints.
+func (f FalseBecauseAnnotation) DeeperReason() ExplainedBool {
+	return nil
 }

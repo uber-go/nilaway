@@ -16,7 +16,6 @@
 This package aims to test hand-written function contracts in no inference mode.
 
 <nilaway no inference>
-<nilaway contract enable>
 */
 package parse
 
@@ -48,7 +47,7 @@ func barReturn1() {
 func barReturn2() {
 	var a2 *int
 	b2 := fooReturn(a2) // nilable(param 0, result 0)
-	print(*b2)          // want "nilable value dereferenced"
+	print(*b2)          // want "dereferenced"
 }
 
 // Test the contracted function retains a full trigger param 0 -> nonnil.
@@ -61,7 +60,7 @@ func fooParam(x *int) *int {
 	if rand.Float64() > 0.5 {
 		return new(int)
 	} else {
-		sink(*x) // want "nilable value dereferenced"
+		sink(*x) // want "dereferenced"
 		return nil
 	}
 }
@@ -76,7 +75,7 @@ func barParam1() {
 func barParam2() {
 	var a2 *int
 	b2 := fooParam(a2) // nilable(param 0, result 0)
-	print(*b2)         // want "nilable value dereferenced"
+	print(*b2)         // want "dereferenced"
 }
 
 func sink(v int) {}
@@ -111,7 +110,7 @@ func barNested1() {
 func barNested2() {
 	var a2 *int
 	b2 := fooNested(a2) // nilable(param 0, result 0)
-	print(*b2)          // want "nilable value dereferenced"
+	print(*b2)          // want "dereferenced"
 }
 
 // Test the contracted function is called multiple times in another function.
@@ -136,7 +135,7 @@ func barReturnCalledMultipleTimesInTheSameFunction() {
 
 	var a2 *int
 	b2 := fooReturnCalledMultipleTimesInTheSameFunction(a2) // nilable(param 0, result 0)
-	print(*b2)                                              // want "nilable value dereferenced"
+	print(*b2)                                              // want "dereferenced"
 
 	m := 2
 	a3 := &m
@@ -145,7 +144,7 @@ func barReturnCalledMultipleTimesInTheSameFunction() {
 
 	var a4 *int
 	b4 := fooReturnCalledMultipleTimesInTheSameFunction(a4) // nilable(param 0, result 0)
-	print(*b4)                                              // want "nilable value dereferenced"
+	print(*b4)                                              // want "dereferenced"
 }
 
 // Test call site annotations are wrongly written.
@@ -166,7 +165,7 @@ func fooWrongCallSiteAnnotation(x *int) *int {
 
 func barWrongCallSiteAnnotation() {
 	var a *int
-	b := fooWrongCallSiteAnnotation(a) // nonnil(param 0, result 0) // want "read from a variable that was never assigned to"
+	b := fooWrongCallSiteAnnotation(a) // nonnil(param 0, result 0) // want "unassigned variable `a`"
 	print(*b)                          // safe because the call site annotation is used
 }
 
@@ -189,6 +188,6 @@ func barNoCallSiteAnnoatation() {
 	var a *int
 	// We should rely on the function header annotations if we do not find any call site
 	// annotations.
-	v := fooNoCallSiteAnnoatation(a) // want "nilable value passed"
-	print(*v)                        // want "nilable value dereferenced"
+	v := fooNoCallSiteAnnoatation(a) // want "passed"
+	print(*v)                        // want "dereferenced"
 }

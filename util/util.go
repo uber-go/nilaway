@@ -72,11 +72,11 @@ func TypeIsSlice(t types.Type) bool {
 // TypeIsDeeplyArray returns true if `t` is of array type, including
 // transitively through Named types
 func TypeIsDeeplyArray(t types.Type) bool {
-	if _, ok := t.(*types.Array); ok {
+	switch tt := UnwrapPtr(t).(type) {
+	case *types.Array:
 		return true
-	}
-	if t, ok := t.(*types.Named); ok {
-		return TypeIsDeeplyArray(t.Underlying())
+	case *types.Named:
+		return TypeIsDeeplyArray(tt.Underlying())
 	}
 	return false
 }
@@ -419,12 +419,6 @@ func DocContainsAnonymousFuncCheck(group *ast.CommentGroup) bool {
 	return docContainsString(config.NilAwayAnonymousFuncCheckString)(group)
 }
 
-// DocContainsFunctionContractsCheck is used by analyzers to check if the function contracts check
-// enabling string is present.
-func DocContainsFunctionContractsCheck(group *ast.CommentGroup) bool {
-	return docContainsString(config.NilAwayFunctionContractsCheckString)(group)
-}
-
 // docContainsString is used to check if the file comments contain a string s.
 func docContainsString(s string) func(*ast.CommentGroup) bool {
 	return func(group *ast.CommentGroup) bool {
@@ -451,14 +445,22 @@ func IsLiteral(expr ast.Expr, literals ...string) bool {
 	return false
 }
 
+// TruncatePosition truncates the prefix of the filename to keep it at the given depth (config.DirLevelsToPrintForTriggers)
+func TruncatePosition(position token.Position) token.Position {
+	position.Filename = PortionAfterSep(
+		position.Filename, "/",
+		config.DirLevelsToPrintForTriggers)
+	return position
+}
+
 var codeReferencePattern = regexp.MustCompile("\\`(.*?)\\`")
 var pathPattern = regexp.MustCompile(`"(.*?)"`)
-var nilabilityPattern = regexp.MustCompile(`([\(|^\t](?i)(definitely\s|must\sbe\s)(nilable|nonnil)[\)]?)`)
+var nilabilityPattern = regexp.MustCompile(`([\(|^\t](?i)(found\s|must\sbe\s)(nilable|nonnil)[\)]?)`)
 
 // PrettyPrintErrorMessage is used in error reporting to post process and pretty print the output with colors
 func PrettyPrintErrorMessage(msg string) string {
 	// TODO: below string parsing should not be required after  is implemented
-	errorStr := fmt.Sprintf("\x1b[%dm%s\x1b[0m", 31, "error:")       // red
+	errorStr := fmt.Sprintf("\x1b[%dm%s\x1b[0m", 31, "error: ")      // red
 	codeStr := fmt.Sprintf("\u001B[%dm%s\u001B[0m", 95, "`${1}`")    // magenta
 	pathStr := fmt.Sprintf("\u001B[%dm%s\u001B[0m", 36, "${1}")      // cyan
 	nilabilityStr := fmt.Sprintf("\u001B[%dm%s\u001B[0m", 1, "${1}") // bold

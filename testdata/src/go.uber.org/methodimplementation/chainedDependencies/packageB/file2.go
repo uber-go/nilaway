@@ -21,7 +21,7 @@ import (
 
 type S1 struct{}
 
-func (*S1) Foo(n *int) bool { //want "nilable value could be passed as param"
+func (*S1) Foo(n *int) bool { //want "passed as param"
 	v := &n
 	return v != nil
 }

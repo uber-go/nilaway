@@ -20,7 +20,7 @@ type A9 struct {
 }
 
 // nilable(result 0)
-func (a *A9) Foo(x *A9) (*A9, string) { //want "nilable value could be passed as param"
+func (a *A9) Foo(x *A9) (*A9, string) { //want "passed as param"
 	var b *A9
 	return b, x.S
 }

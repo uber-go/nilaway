@@ -24,7 +24,7 @@ package methodimplementation
 
 type I interface {
 	// nilable(x)
-	foo(x *A) (*A, string) //want "nilable value could be returned as result"
+	foo(x *A) (*A, string) //want "returned as result"
 }
 
 type J interface {
@@ -41,7 +41,7 @@ type B struct {
 }
 
 // nilable(result 0)
-func (A) foo(x *A) (*A, string) { //want "nilable value could be passed as param"
+func (A) foo(x *A) (*A, string) { //want "passed as param"
 	var b *A
 	return b, x.s
 }
@@ -59,8 +59,8 @@ func (b B) foo(x *A) (*A, string) {
 }
 
 // nilable(y, result 0)
-func (b *B) bar(x *A, y *B) *string { //want "nilable value could be passed as param"
-	if b.i+y.i > 5 { // want "nilable value passed to a field access"
+func (b *B) bar(x *A, y *B) *string { //want "passed as param"
+	if b.i+y.i > 5 { //want "accessed field `i`"
 		return nil
 	}
 	return &x.s

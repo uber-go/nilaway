@@ -37,7 +37,7 @@ func m09() *int {
 }
 
 // Testing interaction with error semantics: 2.
-func giveEmptyACompositeWithErr2() (*A11, error) { //want "Annotation on Field aptr of Result 0 of Function giveEmptyACompositeWithErr2 overconstrained:"
+func giveEmptyACompositeWithErr2() (*A11, error) {
 	return &A11{}, nil
 }
 
@@ -47,12 +47,12 @@ func m88() *int {
 		return new(int)
 	}
 	// This should give an error
-	return t.aptr.ptr
+	return t.aptr.ptr //want "accessed field `ptr`"
 }
 
 // Testing interaction with error semantics: 3.
 func dummy() bool { return true }
-func giveEmptyACompositeWithErr3() (*A11, error) { //want "Annotation on Field aptr of Result 0 of Function giveEmptyACompositeWithErr3 overconstrained:"
+func giveEmptyACompositeWithErr3() (*A11, error) {
 	if dummy() {
 		return &A11{}, nil
 	} else {
@@ -66,7 +66,7 @@ func m78() *int {
 		return new(int)
 	}
 	// This should give an error
-	return t.aptr.ptr
+	return t.aptr.ptr //want "accessed field `ptr`"
 }
 
 // Testing interaction with error semantics: 4.
@@ -102,7 +102,7 @@ func m58() *int {
 }
 
 // Testing interaction with error semantics: 6.
-func giveEmptyACompositeWithErr6() (*A11, error) { //want "Annotation on Field aptr of Result 0 of Function giveEmptyACompositeWithErr6 overconstrained"
+func giveEmptyACompositeWithErr6() (*A11, error) {
 	if dummy() {
 		return &A11{}, nil
 	} else {
@@ -116,11 +116,11 @@ func m68() *int {
 		return new(int)
 	}
 	// This should give an error
-	return t.aptr.ptr
+	return t.aptr.ptr //want "accessed field `ptr`"
 }
 
 // test case for named return
-func m98() (a *A11, e error) { //want "Annotation on Field aptr of Result 0 of Function m98 overconstrained"
+func m98() (a *A11, e error) {
 	a = &A11{}
 	return
 }
@@ -128,6 +128,6 @@ func m98() (a *A11, e error) { //want "Annotation on Field aptr of Result 0 of F
 func callM98() {
 	t, err := m98()
 	if err == nil {
-		print(t.aptr.ptr)
+		print(t.aptr.ptr) //want "field `aptr` returned by result 0 of `m98.*`"
 	}
 }

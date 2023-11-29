@@ -19,19 +19,21 @@ These tests check if the nonnil global variables are initialized
 */
 package globalvars
 
+import "go.uber.org/globalvars/upstream"
+
 var x = 3
 
 // This should throw an error since it is not initialized
-var noInit *int //want "nilable value assigned into the global variable"
+var noInit *int //want "assigned into global variable"
 
 // nilable(nilableVar)
 var nilableVar *int
-var assignedNilable = nilableVar //want "nilable value assigned"
+var assignedNilable = nilableVar //want "assigned"
 
-var initMult, noInitMult *int = &x, nil //want "nilable value assigned"
+var initMult, noInitMult *int = &x, nil //want "assigned"
 
 // Use of 1-1 assignment and a function call
-var initNew, noInitAgain = new(*int), nilableFun() //want "nilable value assigned"
+var initNew, noInitAgain = new(*int), nilableFun() //want "assigned"
 
 // nilable(result 0)
 func nilableFun() *string {
@@ -64,7 +66,7 @@ type structA struct {
 }
 
 var stA = &structA{}
-var nilableField = stA.A //want "nilable value assigned"
+var nilableField = stA.A //want "assigned"
 
 // nilable(result 0)
 func (structA) methA() *int {
@@ -75,7 +77,7 @@ func (structA) methB() *int {
 	return new(int)
 }
 
-var nilableMethod, nonnilMethod = stA.methA(), stA.methB() //want "nilable value assigned"
+var nilableMethod, nonnilMethod = stA.methA(), stA.methB() //want "assigned"
 
 // Function with multiple returns
 
@@ -84,7 +86,7 @@ func funMulti() (int, *int) {
 	return 2, new(int)
 }
 
-var multiNonNil, multiNil = funMulti() //want "nilable value assigned"
+var multiNonNil, multiNil = funMulti() //want "assigned"
 
 // nilable(result 0)
 func foo() *int {
@@ -94,3 +96,14 @@ func foo() *int {
 	print(multiNonNil, multiNil, nonnilMethod, assignedNilable)
 	return nil
 }
+
+// Below test checks when a constant is assigned to a global variable.
+
+// ErrorNoFailure is a constant marking a failure.
+const ErrorNoFailure = upstream.ErrorNo(42)
+
+// Now, we can assign the (nonnil) constant ErrorNoFailure to a global variable.
+var invalidSyscall error = ErrorNoFailure
+
+// Assign it again, but from an upstream package.
+var invalidSyscallUpstream error = upstream.ErrorNoFailure

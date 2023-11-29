@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"go.uber.org/nilaway/config"
 	"golang.org/x/tools/go/analysis/analysistest"
 )
@@ -171,7 +172,7 @@ func TestMethodImplementation(t *testing.T) {
 	t.Parallel()
 
 	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/methodimplementation", "go.uber.org/methodimplementation/mergedDependencies", "go.uber.org/methodimplementation/chainedDependencies", "go.uber.org/methodimplementation/multipackage")
+	analysistest.Run(t, testdata, Analyzer, "go.uber.org/methodimplementation", "go.uber.org/methodimplementation/mergedDependencies", "go.uber.org/methodimplementation/chainedDependencies", "go.uber.org/methodimplementation/multipackage", "go.uber.org/methodimplementation/embedding")
 
 }
 
@@ -228,6 +229,13 @@ func TestFunctionContracts(t *testing.T) {
 		"go.uber.org/functioncontracts/infer/inference")
 }
 
+func TestConstants(t *testing.T) {
+	t.Parallel()
+
+	testdata := analysistest.TestData()
+	analysistest.Run(t, testdata, Analyzer, "go.uber.org/consts")
+}
+
 func TestPrettyPrint(t *testing.T) { //nolint:paralleltest
 	// We specifically do not set this test to be parallel such that this test is run separately
 	// from the parallel tests. This makes it possible to set the pretty-print flag to true for
@@ -256,6 +264,5 @@ func TestMain(m *testing.M) {
 			os.Exit(1)
 		}
 	}
-
-	os.Exit(m.Run())
+	goleak.VerifyTestMain(m)
 }

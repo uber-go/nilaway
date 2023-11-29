@@ -672,14 +672,16 @@ func blocksAndPreprocessingFromCFG(
 				}
 			}
 		} else if rangeExpr := getRangeExpr(blocks[i]); rangeExpr != nil {
+			blockSuccs := blocks[i].Succs
+
 			// blocks[i] is a precursor to a range loop
-			if len(blocks[i].Succs) != 1 {
+			if blockSuccs == nil || len(blocks[i].Succs) != 1 {
 				panic("expected shape of CFG violated: block that ends with range has " +
 					"non-singular successors")
 			}
 
 			// this is the actual range loop node with two successors
-			rangeLoop := blocks[i].Succs[0]
+			rangeLoop := blockSuccs[0]
 			if len(rangeLoop.Nodes) != 0 {
 				panic("expected shape of CFG violated: block presumed to be a range loop has " +
 					"a nonzero number of nodes")
@@ -719,7 +721,7 @@ func exprAsDeepProducer(rootNode *RootAssertionNode, expr ast.Expr) annotation.P
 	if len(parsedExpr) > 1 {
 		panic("multiply returning function passed where a deep producer is expected - tuple types are not deep")
 	}
-	if len(parsedExpr) == 0 || !parsedExpr[0].IsDeep() {
+	if len(parsedExpr) == 0 || !parsedExpr[0].IsDeep() || parsedExpr[0].GetDeep() == nil {
 		// the expr is not deeply nilable
 		return annotation.ProduceTriggerNever{}
 	}

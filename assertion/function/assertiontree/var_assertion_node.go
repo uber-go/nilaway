@@ -49,6 +49,7 @@ func (v *varAssertionNode) DefaultTrigger() annotation.ProducingAnnotationTrigge
 		return annotation.MethodRecv{
 			TriggerIfNilable: annotation.TriggerIfNilable{
 				Ann: annotation.RecvAnnotationKey{FuncDecl: fdecl}},
+			VarDecl: v.decl,
 		}
 	}
 	if annotation.VarIsGlobal(v.decl) {
@@ -63,18 +64,17 @@ func (v *varAssertionNode) DefaultTrigger() annotation.ProducingAnnotationTrigge
 	// if `v` is a struct (e.g., var s S), not a struct pointer, then analyze it for its fields. Note that here we don't
 	// want to analyze fields of an unassigned struct pointer, since at this point the pointer itself is nil.
 	// TODO: below logic won't be required once we standardize the expression `var s S` by replacing it with `S{}` in the
-	//  preprocessing phase after  is implemented
-	if v.Root().functionContext.isDepthOneFieldCheck() {
-		if !util.TypeIsDeeplyPtr(v.decl.Type()) {
-			if structType := util.TypeAsDeeplyStruct(v.decl.Type()); structType != nil {
-				builtExpr := v.BuildExpr(v.Root().Pass(), nil)
-				v.Root().addProductionForVarFieldNode(v, builtExpr)
-				return annotation.ProduceTriggerNever{} // indicating that the struct object itself is not nil
+	//  preprocessing phase
+	if !util.TypeIsDeeplyPtr(v.decl.Type()) {
+		if structType := util.TypeAsDeeplyStruct(v.decl.Type()); structType != nil {
+			if v.Root().functionContext.isDepthOneFieldCheck() {
+				v.Root().addProductionForVarFieldNode(v, v.BuildExpr(v.Root().Pass(), nil))
 			}
+			return annotation.ProduceTriggerNever{} // indicating that the struct object itself is not nil
 		}
 	}
 
-	return annotation.NoVarAssign{}
+	return annotation.NoVarAssign{VarObj: v.decl}
 }
 
 // BuildExpr for a varAssertionNode returns the underlying variable's AST node

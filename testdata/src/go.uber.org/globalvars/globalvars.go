@@ -25,7 +25,7 @@ var nonnil = new(int)
 
 func readFromGlobals() *int {
 	if true {
-		return nilable //want "nilable value returned"
+		return nilable //want "returned"
 	} else {
 		return nonnil
 	}
@@ -39,21 +39,21 @@ func writeToGlobals(a, b *int) {
 	case 2:
 		nilable = b
 	case 3:
-		nonnil = a //want "nilable value assigned"
+		nonnil = a //want "assigned"
 	default:
 		nonnil = b
 	}
 }
 
 // nilable(deepnilable[]), nonnil(deepnilable)
-var deepnilable []*int //want "nilable value assigned into the global variable"
+var deepnilable []*int //want "assigned into global variable"
 
 // nonnil(deepnonnil)
-var deepnonnil []*int //want "nilable value assigned into the global variable"
+var deepnonnil []*int //want "assigned into global variable"
 
 func readDeepFromGlobals() *int {
 	if true {
-		return deepnilable[0] //want "nilable value returned"
+		return deepnilable[0] //want "returned"
 	} else {
 		return deepnonnil[0]
 	}
@@ -67,7 +67,7 @@ func writeDeepToGlobals(a, b *int) {
 	case 2:
 		deepnilable[0] = b
 	case 3:
-		deepnonnil[0] = a //want "nilable value assigned"
+		deepnonnil[0] = a //want "assigned"
 	default:
 		deepnonnil[0] = b
 	}

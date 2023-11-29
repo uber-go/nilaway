@@ -39,7 +39,7 @@ func rotNilLoop(i int) struct{} {
 		j1 = j0
 		j0 = k
 	}
-	return *j3 //want "nilable value dereferenced"
+	return *j3 //want "dereferenced"
 }
 
 // this function should not have a nil error- j0 does not rotate to j3
@@ -76,7 +76,7 @@ func infiniteAssertion() {
 		a = a.f
 	}
 	for dummyBool() {
-		a = a.f //want "nilable value passed to a field access"
+		a = a.f //want "accessed field `f`"
 	}
 }
 

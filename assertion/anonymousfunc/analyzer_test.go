@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
 )
@@ -152,4 +153,8 @@ func findExpectedClosure(pass *analysis.Pass) map[*ast.FuncLit][]string {
 	}
 
 	return results
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

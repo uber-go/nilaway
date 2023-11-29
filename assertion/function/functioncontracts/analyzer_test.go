@@ -21,6 +21,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
 )
@@ -126,4 +127,8 @@ func TestInfer(t *testing.T) {
 
 func getFuncObj(pass *analysis.Pass, name string) *types.Func {
 	return pass.Pkg.Scope().Lookup(name).(*types.Func)
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }

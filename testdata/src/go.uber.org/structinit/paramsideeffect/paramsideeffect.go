@@ -38,7 +38,7 @@ func m1() *int {
 
 // Similar but positive test
 
-func populate12(x *A) { //want "Annotation on Field newPtr of Param 0: 'x' at output of Function populate12 overconstrained"
+func populate12(x *A) {
 	x.newPtr = nil
 }
 
@@ -46,7 +46,7 @@ func m12() *int {
 	b := &A{}
 	b.aptr = &A{}
 	populate12(b)
-	print(b.newPtr.ptr)
+	print(b.newPtr.ptr) //want "field `newPtr` of argument 0 to `populate12.*`"
 	return b.aptr.ptr
 }
 
@@ -109,7 +109,7 @@ func caller() {
 }
 
 // positive case
-func populate14(x *A) { //want "Annotation on Field newPtr of Param 0: 'x' at output of Function populate14 overconstrained"
+func populate14(x *A) {
 	x.newPtr = nil
 }
 
@@ -117,7 +117,7 @@ func m14() *int {
 	b := &A{}
 	b.newPtr = &A{}
 	populate14(b)
-	return b.newPtr.ptr
+	return b.newPtr.ptr //want "field `newPtr` of argument 0 to `populate14.*`"
 }
 
 // negative case
@@ -133,10 +133,10 @@ func m15() *int {
 }
 
 // Following cases of false positives and false negatives are due to limitations of our current technique under these special cases
-// TODO: Find a better to way to handle these
+// TODO: Find a better to way to handle these.
 // Another case of identical arguments to function call: False positive
 
-func initializeSecond(a1 *A, a2 *A) { //want "Annotation on Field aptr of Param 0: 'a1' at output of Function initializeSecond overconstrained"
+func initializeSecond(a1 *A, a2 *A) {
 	a1.aptr = nil
 	a2.aptr = new(A)
 }
@@ -144,7 +144,7 @@ func initializeSecond(a1 *A, a2 *A) { //want "Annotation on Field aptr of Param 
 func caller2() {
 	a := &A{}
 	initializeSecond(a, a)
-	print(a.aptr.ptr)
+	print(a.aptr.ptr) //want "field `aptr` of argument 0 to `initializeSecond.*`"
 }
 
 // Another case of identical arguments to function call: False negative

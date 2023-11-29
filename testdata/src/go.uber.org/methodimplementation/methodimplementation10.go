@@ -31,11 +31,11 @@ type i3 interface {
 }
 
 type i4 interface {
-	foo() (x *int) //want "nilable value could be returned as result"
+	foo() (x *int) //want "returned as result"
 }
 
 type i5 interface {
-	foo() (x *int) //want "nilable value could be returned as result"
+	foo() (x *int) //want "returned as result"
 }
 
 type i6 interface {
@@ -43,11 +43,11 @@ type i6 interface {
 }
 
 type i7 interface {
-	foo() (x *int) //want "nilable value could be returned as result"
+	foo() (x *int) //want "returned as result"
 }
 
 type i8 interface {
-	foo() (x *int) //want "nilable value could be returned as result"
+	foo() (x *int) //want "returned as result"
 }
 
 type s1 struct{}

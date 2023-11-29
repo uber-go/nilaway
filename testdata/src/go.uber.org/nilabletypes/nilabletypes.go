@@ -21,7 +21,9 @@ these cases no diagnostics are emitted
 */
 package nilabletypes
 
-type A struct{}
+type A struct {
+	f int
+}
 
 type A2 A
 
@@ -48,19 +50,19 @@ func nilableTypesTest() interface{} {
 
 	switch 0 {
 	case 1:
-		return aptr //want "nilable value returned"
+		return aptr //want "returned"
 	case 2:
 		return a
 	case 3:
-		return a2ptr //want "nilable value returned"
+		return a2ptr //want "returned"
 	case 4:
 		return a2
 	case 5:
-		return bptr //want "nilable value returned"
+		return bptr //want "returned"
 	case 6:
-		return b //want "nilable value returned"
+		return b //want "returned"
 	case 7:
-		return iptr //want "nilable value returned"
+		return iptr //want "returned"
 	case 8:
 		return i
 	case 9:
@@ -68,7 +70,7 @@ func nilableTypesTest() interface{} {
 	case 10:
 		return mi
 	case 11:
-		return miptr //want "nilable value returned"
+		return miptr //want "returned"
 	case 12:
 		return &A{}
 	case 13:
@@ -78,19 +80,59 @@ func nilableTypesTest() interface{} {
 	case 15:
 		return A2{}
 	case 16:
-		return nil //want "nilable value returned"
+		return nil //want "returned"
 	case 17:
 		return func(i int) int { return i }
 	case 18:
 		return 0
 	case 19:
-		return slc1 //want "nilable value returned"
+		return slc1 //want "returned"
 	case 20:
-		return slc2 //want "nilable value returned"
+		return slc2 //want "returned"
 	case 21:
-		return mp1 //want "nilable value returned"
+		return mp1 //want "returned"
 	case 22:
-		return mp2 //want "nilable value returned"
+		return mp2 //want "returned"
+	case 23:
+		var x A
+		y := &x
+		return y
+	case 24:
+		var x A
+		y := &x
+		return y.f
+	case 25:
+		var x A
+		return x
+	case 26:
+		var x A
+		return x.f
+	case 27:
+		var x A
+		y := &x
+		return *y
+	case 28:
+		var x A
+		return *(&x)
+	case 29:
+		var x A
+		return (&(*(&(*(&x)))))
+	case 30:
+		var x *A
+		y := *x //want "unassigned variable `x` dereferenced"
+		return &y
+	case 31:
+		var x *A
+		return &x //want "unassigned variable `x` returned"
+	case 32:
+		var x *A
+		return x.f //want "unassigned variable `x` accessed field `f`"
+	case 33:
+		var x *A
+		return &(*x) //want "unassigned variable `x` dereferenced"
+	case 34:
+		var x *A
+		return (*(&(*(&(*x))))) //want "unassigned variable `x` dereferenced"
 	default:
 		return nilableTypesTest()
 	}

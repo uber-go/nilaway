@@ -30,23 +30,23 @@ func testReturn(i int, v *int) bool {
 	case 0:
 		return v != nil && *v == 1
 	case 1:
-		return v != nil || *v == 1 //want "nilable value dereferenced"
+		return v != nil || *v == 1 //want "dereferenced"
 	case 2:
-		return v == nil && x != nil && *v == 1 //want "nilable value dereferenced"
+		return v == nil && x != nil && *v == 1 //want "dereferenced"
 	case 3:
-		return (v == nil || x != nil) && *v == 1 //want "nilable value dereferenced"
+		return (v == nil || x != nil) && *v == 1 //want "dereferenced"
 	case 4:
-		return (x != nil && *v == 1) && (v != nil && *x == 0) //want "nilable value dereferenced"
+		return (x != nil && *v == 1) && (v != nil && *x == 0) //want "dereferenced"
 	case 5:
 		return v != nil && x != nil && *v == 1 && *x == 0
 	case 6:
-		return v != nil || dummy && *v == 1 //want "nilable value dereferenced"
+		return v != nil || dummy && *v == 1 //want "dereferenced"
 	case 7:
-		return (nil != v || nil == v) && *v == 1 //want "nilable value dereferenced"
+		return (nil != v || nil == v) && *v == 1 //want "dereferenced"
 	case 8:
 		return retNil() != nil && *retNil() == 1
 	case 9:
-		return *v == 1 && v != nil //want "nilable value dereferenced"
+		return *v == 1 && v != nil //want "dereferenced"
 	case 10:
 		return (v != nil) && *v == 1
 	case 11:
@@ -54,22 +54,22 @@ func testReturn(i int, v *int) bool {
 	case 12:
 		return (!(v == nil)) && *v == 1
 	case 13:
-		return (!(v != nil)) && *v == 1 //want "nilable value dereferenced"
+		return (!(v != nil)) && *v == 1 //want "dereferenced"
 	case 14:
-		return (v == nil && dummy) || *v == 1 //want "nilable value dereferenced"
+		return (v == nil && dummy) || *v == 1 //want "dereferenced"
 	case 15:
-		return v == nil && dummy || *v == 1 //want "nilable value dereferenced"
+		return v == nil && dummy || *v == 1 //want "dereferenced"
 	case 16:
 		// below is a rather difficult case for NilAway. It requires full SAT solving capability that NilAway currently does not support. Hence, in this case it reports a False Positive.
-		return (v != nil || dummy) && (!dummy || nil != v) && *v == 1 //want "nilable value dereferenced"
+		return (v != nil || dummy) && (!dummy || nil != v) && *v == 1 //want "dereferenced"
 	case 17:
-		return !(!(v == nil)) && *v == 1 //want "nilable value dereferenced"
+		return !(!(v == nil)) && *v == 1 //want "dereferenced"
 	case 18:
 		return !(!(v != nil)) && *v == 1
 	case 19:
-		return !(v != v) && *v == 1 //want "nilable value dereferenced"
+		return !(v != v) && *v == 1 //want "dereferenced"
 	case 20:
-		return !(v != v) || *v == 1 //want "nilable value dereferenced"
+		return !(v != v) || *v == 1 //want "dereferenced"
 	}
 	return true
 }
@@ -85,24 +85,24 @@ func testAssignment(i int, v *int) bool {
 	case 0:
 		x = v != nil && *v == 1
 	case 1:
-		x = v != nil || *v == 1 //want "nilable value dereferenced"
+		x = v != nil || *v == 1 //want "dereferenced"
 	case 2:
-		x = v == nil && y != nil && *v == 1 //want "nilable value dereferenced"
+		x = v == nil && y != nil && *v == 1 //want "dereferenced"
 	case 3:
-		x = (v == nil || y != nil) && *v == 1 //want "nilable value dereferenced"
+		x = (v == nil || y != nil) && *v == 1 //want "dereferenced"
 	case 4:
-		x = (y != nil && *v == 1) && (v != nil && *y == 0) //want "nilable value dereferenced"
+		x = (y != nil && *v == 1) && (v != nil && *y == 0) //want "dereferenced"
 	case 5:
 		x = v != nil && y != nil && *v == 1 && *y == 0
 	case 6:
-		z := v != nil || dummy && *v == 1 //want "nilable value dereferenced"
+		z := v != nil || dummy && *v == 1 //want "dereferenced"
 		x = z
 	case 7:
-		x = (nil != v || nil == v) && *v == 1 //want "nilable value dereferenced"
+		x = (nil != v || nil == v) && *v == 1 //want "dereferenced"
 	case 8:
 		x = retNil() != nil && *retNil() == 1
 	case 9:
-		x = *v == 1 && v != nil //want "nilable value dereferenced"
+		x = *v == 1 && v != nil //want "dereferenced"
 	}
 	return x
 }
@@ -118,23 +118,23 @@ func testParam(i int, v *int) {
 	case 0:
 		takesBool(v != nil && *v == 1)
 	case 1:
-		takesBool(v != nil || *v == 1) //want "nilable value dereferenced"
+		takesBool(v != nil || *v == 1) //want "dereferenced"
 	case 2:
-		takesBool(v == nil && x != nil && *v == 1) //want "nilable value dereferenced"
+		takesBool(v == nil && x != nil && *v == 1) //want "dereferenced"
 	case 3:
-		takesBool((v == nil || x != nil) && *v == 1) //want "nilable value dereferenced"
+		takesBool((v == nil || x != nil) && *v == 1) //want "dereferenced"
 	case 4:
-		takesBool((x != nil && *v == 1) && (v != nil && *x == 0)) //want "nilable value dereferenced"
+		takesBool((x != nil && *v == 1) && (v != nil && *x == 0)) //want "dereferenced"
 	case 5:
 		takesBool(v != nil && x != nil && *v == 1 && *x == 0)
 	case 6:
-		takesBool(v != nil || dummy && *v == 1) //want "nilable value dereferenced"
+		takesBool(v != nil || dummy && *v == 1) //want "dereferenced"
 	case 7:
-		takesBool((nil != v || nil == v) && *v == 1) //want "nilable value dereferenced"
+		takesBool((nil != v || nil == v) && *v == 1) //want "dereferenced"
 	case 8:
 		takesBool(retNil() != nil && *retNil() == 1)
 	case 9:
-		takesBool(*v == 1 && v != nil) //want "nilable value dereferenced"
+		takesBool(*v == 1 && v != nil) //want "dereferenced"
 	}
 }
 
@@ -152,13 +152,13 @@ func testStruct(i int, v *int) bool {
 		return a.f
 	case 1:
 		a := &A{}
-		a.f = (v != nil || *v == 1) //want "nilable value dereferenced"
+		a.f = (v != nil || *v == 1) //want "dereferenced"
 		return a.f
 	case 2:
 		a := &A{v != nil && *v == 1}
 		return a.f
 	case 3:
-		a := &A{v != nil || *v == 1} //want "nilable value dereferenced"
+		a := &A{v != nil || *v == 1} //want "dereferenced"
 		return a.f
 	}
 	return false
@@ -188,5 +188,5 @@ type H struct {
 // nilable(x)
 func testChainedAccesses(x *X) bool {
 	// Below gives False Positives for the field accesses of `f` and `g`. Fix this in a follow-up diff. Issue tracked in
-	return x != nil && x.f != nil && x.f.g != nil && x.f.g.h == 4 //want "nilable value" "nilable value" "nilable value"
+	return x != nil && x.f != nil && x.f.g != nil && x.f.g.h == 4 //want "field .* accessed" "field .* accessed" "field .* accessed"
 }

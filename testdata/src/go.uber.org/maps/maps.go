@@ -30,11 +30,11 @@ func retsNilableNonnilMaps() (map[int]*int, map[int]*int) {
 	case 1:
 		return make(map[int]*int), make(map[int]*int)
 	case 2:
-		return nil, nil //want "nilable value returned"
+		return nil, nil //want "returned"
 	case 3:
-		return nilableMap, nilableMap //want "nilable value returned"
+		return nilableMap, nilableMap //want "returned"
 	case 4:
-		return nonnilMap, nilableMap //want "nilable value returned"
+		return nonnilMap, nilableMap //want "returned"
 	case 5:
 		return nilableMap, nonnilMap
 	default:
@@ -48,58 +48,58 @@ func testMapNilability(nilableMapParam, nonnilMapParam map[int]*int) *int {
 
 	i := 0
 
-	nilableMap[0] = nil //want "nilable value assigned" "nilable value written to at an index"
-	nilableMap[1] = &i  //want "nilable value written to at an index"
-	nonnilMap[0] = nil  //want "nilable value assigned"
+	nilableMap[0] = nil //want "assigned" "written to at an index"
+	nilableMap[1] = &i  //want "written to at an index"
+	nonnilMap[0] = nil  //want "assigned"
 	nonnilMap[1] = &i
 
-	nilableMapParam[0] = nil //want "nilable value assigned" "nilable value written to at an index"
-	nilableMapParam[1] = &i  //want "nilable value written to at an index"
-	nonnilMapParam[0] = nil  //want "nilable value assigned"
+	nilableMapParam[0] = nil //want "assigned" "written to at an index"
+	nilableMapParam[1] = &i  //want "written to at an index"
+	nonnilMapParam[0] = nil  //want "assigned"
 	nonnilMapParam[1] = &i
 
-	nilableMapResult[0] = nil //want "nilable value assigned" "nilable value written to at an index"
-	nilableMapResult[1] = &i  //want "nilable value written to at an index"
-	nonnilMapResult[0] = nil  //want "nilable value assigned"
+	nilableMapResult[0] = nil //want "assigned" "written to at an index"
+	nilableMapResult[1] = &i  //want "written to at an index"
+	nonnilMapResult[0] = nil  //want "assigned"
 	nonnilMapResult[1] = &i
 
 	switch 0 {
 	case 1:
-		return nilableMap[0] //want "nilable value returned"
+		return nilableMap[0] //want "returned"
 	case 2:
 		return nilableMap[1]
 	case 3:
-		return nilableMap[2] //want "nilable value returned"
+		return nilableMap[2] //want "returned"
 	case 4:
-		return nonnilMap[0] //want "nilable value returned"
+		return nonnilMap[0] //want "returned"
 	case 5:
 		return nonnilMap[1]
 	case 6:
-		return nonnilMap[2] //want "nilable value returned"
+		return nonnilMap[2] //want "returned"
 	case 7:
-		return nilableMapParam[0] //want "nilable value returned"
+		return nilableMapParam[0] //want "returned"
 	case 8:
 		return nilableMapParam[1]
 	case 9:
-		return nilableMapParam[2] //want "nilable value returned"
+		return nilableMapParam[2] //want "returned"
 	case 10:
-		return nonnilMapParam[0] //want "nilable value returned"
+		return nonnilMapParam[0] //want "returned"
 	case 11:
 		return nonnilMapParam[1]
 	case 12:
-		return nonnilMapParam[2] //want "nilable value returned"
+		return nonnilMapParam[2] //want "returned"
 	case 13:
-		return nilableMapResult[0] //want "nilable value returned"
+		return nilableMapResult[0] //want "returned"
 	case 14:
 		return nilableMapResult[1]
 	case 15:
-		return nilableMapResult[2] //want "nilable value returned"
+		return nilableMapResult[2] //want "returned"
 	case 16:
-		return nonnilMapResult[0] //want "nilable value returned"
+		return nonnilMapResult[0] //want "returned"
 	case 17:
 		return nonnilMapResult[1]
 	case 18:
-		return nonnilMapResult[2] //want "nilable value returned"
+		return nonnilMapResult[2] //want "returned"
 	}
 	return &i
 }
@@ -114,10 +114,10 @@ func testOkCheckForParams(deepNilableMapParam, deepNonnilMapParam map[int]*int) 
 	vNilable, okNilable := deepNilableMapParam[0]
 
 	if dummy {
-		return vNonnil //want "nilable value returned"
+		return vNonnil //want "returned"
 	}
 	if dummy {
-		return vNilable //want "nilable value returned"
+		return vNilable //want "returned"
 	}
 
 	if okNonnil {
@@ -125,24 +125,24 @@ func testOkCheckForParams(deepNilableMapParam, deepNonnilMapParam map[int]*int) 
 			return vNonnil
 		}
 		if dummy {
-			return vNilable //want "nilable value returned"
+			return vNilable //want "returned"
 		}
 	}
 
 	if okNilable {
 		if dummy {
-			return vNonnil //want "nilable value returned"
+			return vNonnil //want "returned"
 		}
 		if dummy {
-			return vNilable //want "nilable value returned"
+			return vNilable //want "returned"
 		}
 	}
 
 	if dummy {
-		return vNonnil //want "nilable value returned"
+		return vNonnil //want "returned"
 	}
 	if dummy {
-		return vNilable //want "nilable value returned"
+		return vNilable //want "returned"
 	}
 
 	switch 0 {
@@ -151,7 +151,7 @@ func testOkCheckForParams(deepNilableMapParam, deepNonnilMapParam map[int]*int) 
 
 		if okNonnil {
 			// this case tests that assignments to the rich bool invalidate the check properly
-			return vNonnil //want "nilable value returned"
+			return vNonnil //want "returned"
 		}
 	case 2:
 		switch 0 {
@@ -164,7 +164,7 @@ func testOkCheckForParams(deepNilableMapParam, deepNonnilMapParam map[int]*int) 
 		if okNonnil {
 			// this case is similar to above, but tests that assignments in branching of degree
 			// greater than 2 is still handled properly
-			return vNonnil //want "nilable value returned"
+			return vNonnil //want "returned"
 		}
 	case 3:
 		switch 0 {
@@ -191,7 +191,7 @@ func testOkCheckForParams(deepNilableMapParam, deepNonnilMapParam map[int]*int) 
 		if okNonnil {
 			// this case is similar to above, but tests a non-identical re-assignment
 			// of vNonNil to make sure the check is invalidated
-			return vNonnil //want "nilable value returned"
+			return vNonnil //want "returned"
 		}
 
 		if ok2Nonnil {
@@ -225,10 +225,10 @@ func testOkCheckForGlobals() *int {
 	vNilable, okNilable := deepNilableMap[0]
 
 	if dummy {
-		return vNonnil //want "nilable value returned"
+		return vNonnil //want "returned"
 	}
 	if dummy {
-		return vNilable //want "nilable value returned"
+		return vNilable //want "returned"
 	}
 
 	if okNonnil {
@@ -236,24 +236,24 @@ func testOkCheckForGlobals() *int {
 			return vNonnil
 		}
 		if dummy {
-			return vNilable //want "nilable value returned"
+			return vNilable //want "returned"
 		}
 	}
 
 	if okNilable {
 		if dummy {
-			return vNonnil //want "nilable value returned"
+			return vNonnil //want "returned"
 		}
 		if dummy {
-			return vNilable //want "nilable value returned"
+			return vNilable //want "returned"
 		}
 	}
 
 	if dummy {
-		return vNonnil //want "nilable value returned"
+		return vNonnil //want "returned"
 	}
 	if dummy {
-		return vNilable //want "nilable value returned"
+		return vNilable //want "returned"
 	}
 
 	switch 0 {
@@ -262,7 +262,7 @@ func testOkCheckForGlobals() *int {
 
 		if okNonnil {
 			// this case tests that assignments to the rich bool invalidate the check properly
-			return vNonnil //want "nilable value returned"
+			return vNonnil //want "returned"
 		}
 	case 2:
 		switch 0 {
@@ -275,7 +275,7 @@ func testOkCheckForGlobals() *int {
 		if okNonnil {
 			// this case is similar to above, but tests that assignments in branching of degree
 			// greater than 2 is still handled properly
-			return vNonnil //want "nilable value returned"
+			return vNonnil //want "returned"
 		}
 	case 3:
 		switch 0 {
@@ -302,7 +302,7 @@ func testOkCheckForGlobals() *int {
 		if okNonnil {
 			// this case is similar to above, but tests a non-identical re-assignment
 			// of vNonNil to make sure the check is invalidated
-			return vNonnil //want "nilable value returned"
+			return vNonnil //want "returned"
 		}
 
 		if ok2Nonnil {
@@ -332,7 +332,7 @@ func testOkCheckForLocals() *int {
 	vNonnil, okNonnil := deepNonnilMap[0]
 
 	if dummy {
-		return vNonnil //want "nilable value returned"
+		return vNonnil //want "returned"
 	}
 
 	if okNonnil {
@@ -342,7 +342,7 @@ func testOkCheckForLocals() *int {
 	}
 
 	if dummy {
-		return vNonnil //want "nilable value returned"
+		return vNonnil //want "returned"
 	}
 
 	switch 0 {
@@ -351,7 +351,7 @@ func testOkCheckForLocals() *int {
 
 		if okNonnil {
 			// this case tests that assignments to the rich bool invalidate the check properly
-			return vNonnil //want "nilable value returned"
+			return vNonnil //want "returned"
 		}
 	case 2:
 		switch 0 {
@@ -364,7 +364,7 @@ func testOkCheckForLocals() *int {
 		if okNonnil {
 			// this case is similar to above, but tests that assignments in branching of degree
 			// greater than 2 is still handled properly
-			return vNonnil //want "nilable value returned"
+			return vNonnil //want "returned"
 		}
 	case 3:
 		switch 0 {
@@ -391,7 +391,7 @@ func testOkCheckForLocals() *int {
 		if okNonnil {
 			// this case is similar to above, but tests a non-identical re-assignment
 			// of vNonNil to make sure the check is invalidated
-			return vNonnil //want "nilable value returned"
+			return vNonnil //want "returned"
 		}
 
 		if ok2Nonnil {
@@ -426,10 +426,10 @@ func testOkCheckForResults() *int {
 	vNilable, okNilable := deepNilableMapResult[0]
 
 	if dummy {
-		return vNonnil //want "nilable value returned"
+		return vNonnil //want "returned"
 	}
 	if dummy {
-		return vNilable //want "nilable value returned"
+		return vNilable //want "returned"
 	}
 
 	if okNonnil {
@@ -437,24 +437,24 @@ func testOkCheckForResults() *int {
 			return vNonnil
 		}
 		if dummy {
-			return vNilable //want "nilable value returned"
+			return vNilable //want "returned"
 		}
 	}
 
 	if okNilable {
 		if dummy {
-			return vNonnil //want "nilable value returned"
+			return vNonnil //want "returned"
 		}
 		if dummy {
-			return vNilable //want "nilable value returned"
+			return vNilable //want "returned"
 		}
 	}
 
 	if dummy {
-		return vNonnil //want "nilable value returned"
+		return vNonnil //want "returned"
 	}
 	if dummy {
-		return vNilable //want "nilable value returned"
+		return vNilable //want "returned"
 	}
 
 	switch 0 {
@@ -463,7 +463,7 @@ func testOkCheckForResults() *int {
 
 		if okNonnil {
 			// this case tests that assignments to the rich bool invalidate the check properly
-			return vNonnil //want "nilable value returned"
+			return vNonnil //want "returned"
 		}
 	case 2:
 		switch 0 {
@@ -476,7 +476,7 @@ func testOkCheckForResults() *int {
 		if okNonnil {
 			// this case is similar to above, but tests that assignments in branching of degree
 			// greater than 2 is still handled properly
-			return vNonnil //want "nilable value returned"
+			return vNonnil //want "returned"
 		}
 	case 3:
 		switch 0 {
@@ -503,7 +503,7 @@ func testOkCheckForResults() *int {
 		if okNonnil {
 			// this case is similar to above, but tests a non-identical re-assignment
 			// of vNonNil to make sure the check is invalidated
-			return vNonnil //want "nilable value returned"
+			return vNonnil //want "returned"
 		}
 
 		if ok2Nonnil {
@@ -536,7 +536,7 @@ func testRangeOverMaps(a, b, c, d map[int]*int) *int {
 		}
 	case 2:
 		for _, b_elem := range b {
-			return b_elem //want "nilable value returned"
+			return b_elem //want "returned"
 		}
 	case 3:
 		for _, c_elem := range c {
@@ -544,7 +544,7 @@ func testRangeOverMaps(a, b, c, d map[int]*int) *int {
 		}
 	case 4:
 		for _, d_elem := range d {
-			return d_elem //want "nilable value returned"
+			return d_elem //want "returned"
 		}
 	}
 	i := 0
@@ -557,8 +557,8 @@ func singleKeysEstablishNonnil(m map[int]*int) {
 	v, ok := m[0]
 
 	// here, m and v should be nilable
-	takesNonnil(v) //want "nilable value passed"
-	takesNonnil(m) //want "nilable value passed"
+	takesNonnil(v) //want "passed"
+	takesNonnil(m) //want "passed"
 
 	switch 0 {
 	case 1:
@@ -577,8 +577,8 @@ func singleKeysEstablishNonnil(m map[int]*int) {
 		}
 
 		// here, neither v nor m should be nonnil
-		takesNonnil(v) //want "nilable value passed"
-		takesNonnil(m) //want "nilable value passed"
+		takesNonnil(v) //want "passed"
+		takesNonnil(m) //want "passed"
 	case 5:
 		v = nil
 
@@ -587,7 +587,7 @@ func singleKeysEstablishNonnil(m map[int]*int) {
 		}
 
 		// here, JUST m should be nonnil
-		takesNonnil(v) //want "nilable value passed"
+		takesNonnil(v) //want "passed"
 		takesNonnil(m)
 	case 6:
 		m = nil
@@ -598,13 +598,13 @@ func singleKeysEstablishNonnil(m map[int]*int) {
 
 		// here, JUST v should be nonnil
 		takesNonnil(v)
-		takesNonnil(m) //want "nilable value passed"
+		takesNonnil(m) //want "passed"
 	}
 }
 
 func plainReflCheck(m map[any]any) any {
 	if dummy {
-		return m //want "nilable value returned"
+		return m //want "returned"
 	}
 
 	_, ok := m[0]
@@ -613,7 +613,7 @@ func plainReflCheck(m map[any]any) any {
 		return m
 	}
 
-	return m //want "nilable value returned"
+	return m //want "returned"
 }
 
 // tests for checking explicit boolean checks
@@ -626,7 +626,7 @@ func testExplicitBool(mp map[int]*int, i int) *int {
 		}
 	case 1:
 		if x, ok := mp[i]; ok != true {
-			return x //want "nilable value returned"
+			return x //want "returned"
 		}
 	case 2:
 		if x, ok := mp[i]; ok != false {
@@ -638,7 +638,7 @@ func testExplicitBool(mp map[int]*int, i int) *int {
 		}
 	case 4:
 		if x, ok := mp[i]; true != ok {
-			return x //want "nilable value returned"
+			return x //want "returned"
 		}
 	case 5:
 		var x *int
@@ -654,11 +654,11 @@ func testExplicitBool(mp map[int]*int, i int) *int {
 		}
 	case 7:
 		if x, ok := mp[i]; ok != true {
-			return x //want "nilable value returned"
+			return x //want "returned"
 		}
 	case 8:
 		if x, ok := mp[i]; false == ok {
-			return x //want "nilable value returned"
+			return x //want "returned"
 		}
 	case 9:
 		if x, ok := mp[i]; false != ok {
@@ -666,11 +666,11 @@ func testExplicitBool(mp map[int]*int, i int) *int {
 		}
 	case 10:
 		if x, ok := mp[i]; true != ok {
-			return x //want "nilable value returned"
+			return x //want "returned"
 		}
 	case 11:
 		if x, ok := mp[i]; !(!(!(!(true != ok) || ok == true))) {
-			return x //want "nilable value returned"
+			return x //want "returned"
 		}
 	case 12:
 		x, ok1 := mp[0]
@@ -679,15 +679,15 @@ func testExplicitBool(mp map[int]*int, i int) *int {
 			return x
 		}
 		if ok1 == true || ok2 == true {
-			return y //want "nilable value returned"
+			return y //want "returned"
 		}
 	case 13:
 		if x, _ := mp[0]; true == true || true != false || false == false || false != true {
-			return x //want "nilable value returned"
+			return x //want "returned"
 		}
 	case 14:
 		if x, ok := mp[i]; ok == true || i > 5 {
-			return x //want "nilable value returned"
+			return x //want "returned"
 		}
 	}
 	return &i

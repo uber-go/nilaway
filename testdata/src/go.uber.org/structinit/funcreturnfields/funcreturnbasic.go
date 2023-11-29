@@ -51,18 +51,18 @@ type A12 struct {
 	aptr *A12
 }
 
-func giveEmptyA12() *A12 { //want "Annotation on Field aptr of Result 0 of Function giveEmptyA12 overconstrained"
+func giveEmptyA12() *A12 {
 	t := &A12{}
 	return t
 }
 
 func m12() *int {
 	var b = giveEmptyA12()
-	return b.aptr.ptr
+	return b.aptr.ptr //want "uninitialized"
 }
 
 // Testing function with multiple returns
-func giveOneEmptyAndOneNonEmptyA12() (*A12, *A12) { //want "Annotation on Field aptr of Result 1 of Function giveOneEmptyAndOneNonEmptyA12 overconstrained"
+func giveOneEmptyAndOneNonEmptyA12() (*A12, *A12) {
 	t1 := &A12{}
 	t1.aptr = new(A12)
 
@@ -73,18 +73,18 @@ func giveOneEmptyAndOneNonEmptyA12() (*A12, *A12) { //want "Annotation on Field 
 
 func m123() {
 	var b1, b2 = giveOneEmptyAndOneNonEmptyA12()
-	print(b1.aptr.ptr, b2.aptr.ptr)
+	print(b1.aptr.ptr, b2.aptr.ptr) //want "uninitialized"
 }
 
 // Testing function with multiple returns
-func giveTwoEmptyA12() (*A12, *A12) { //want "Annotation on Field aptr of Result 0 of Function giveTwoEmptyA12 overconstrained" "Annotation on Field aptr of Result 1 of Function giveTwoEmptyA12 overconstrained"
+func giveTwoEmptyA12() (*A12, *A12) {
 	t1 := &A12{}
 	return t1, t1
 }
 
 func m124() {
 	var b1, b2 = giveTwoEmptyA12()
-	print(b1.aptr.ptr, b2.aptr.ptr)
+	print(b1.aptr.ptr, b2.aptr.ptr) //want "uninitialized" "uninitialized"
 }
 
 // Testing function with multiple returns
@@ -100,42 +100,42 @@ func m125() {
 }
 
 // In this test, rhs giveEmptyA122(someInt) is not a stable expression
-func giveEmptyA122(someInt int) *A12 { //want "Annotation on Field aptr of Result 0 of Function giveEmptyA122 overconstrained"
+func giveEmptyA122(someInt int) *A12 {
 	t := &A12{}
 	return t
 }
 
 func m122(someInt int) *int {
 	var b = giveEmptyA122(someInt)
-	return b.aptr.ptr
+	return b.aptr.ptr //want "accessed field `ptr`"
 }
 
 // In this test case, B12 is named type
 
 type B12 A12
 
-func giveEmptyB12() *B12 { //want "Annotation on Field aptr of Result 0 of Function giveEmptyB12 overconstrained"
+func giveEmptyB12() *B12 {
 	t := &B12{}
 	return t
 }
 
 func mb12() *int {
 	var b = giveEmptyB12()
-	return b.aptr.ptr
+	return b.aptr.ptr //want "accessed field `ptr`"
 }
 
 // In this test case, B122 is named type
 
 type B122 = A12
 
-func giveEmptyB122() *B122 { //want "Annotation on Field aptr of Result 0 of Function giveEmptyB122 overconstrained"
+func giveEmptyB122() *B122 {
 	t := &B122{}
 	return t
 }
 
 func mb122() *int {
 	var b = giveEmptyB122()
-	return b.aptr.ptr
+	return b.aptr.ptr //want "accessed field `ptr`"
 }
 
 // In the following test case we have an anonymous field from different package
@@ -144,11 +144,11 @@ type fakeSchema struct {
 	packageone.S
 }
 
-func slice() packageone.S { //want "Annotation on Result 0 of Function slice overconstrained"
+func slice() packageone.S {
 	f := &fakeSchema{}
 	return f.S
 }
 
 func m3() {
-	print(slice()[0])
+	print(slice()[0]) //want "sliced into"
 }

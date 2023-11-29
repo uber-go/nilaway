@@ -34,22 +34,22 @@ func testArrayRet() [2]*int {
 // nonnil(a[])
 func testParamArrayWrite(a [4]*int, v *int, b bool) (*int, *int) {
 	if b {
-		a[0] = v //want "nilable value assigned deeply into deeply nonnil arg"
+		a[0] = v //want "assigned deeply into parameter arg `a`"
 	}
-	return a[0], a[1] //want "nilable value returned from the function `testParamArrayWrite` in position 0"
+	return a[0], a[1] //want "returned from `testParamArrayWrite.*` in position 0"
 }
 
 func testGlobalArrayWrite(v *int, b bool) *int {
 	if b {
 		globalArr[0] = v
 	}
-	return globalArr[0] //want "nilable value returned from the function"
+	return globalArr[0] //want "returned"
 }
 
 func testLocalArrayWrite() *int {
 	var a [4]*int
 	a[0] = globalArr[0]
-	return a[0] //want "nilable value returned from the function"
+	return a[0] //want "returned"
 }
 
 // nilable(v)
@@ -59,13 +59,13 @@ func testParamNilableArrayWrite(a [4]*int, v *int, b bool) (*int, *int) {
 	}
 	i := 0
 	a[1] = &i
-	return a[0], a[1] //want "nilable value returned from the function `testParamNilableArrayWrite` in position 0, earlier read deeply from the parameter `a`" "nilable value returned from the function `testParamNilableArrayWrite` in position 0, earlier read from the function parameter `v`"
+	return a[0], a[1] //want "deep read from parameter `a`" "returned from `testParamNilableArrayWrite.*` in position 0"
 }
 
 // nonnil(a[])
 func testArrayWriteNil(a [4]*int) *int {
-	a[0] = nil  //want "nilable value assigned deeply into deeply nonnil arg"
-	return a[0] //want "nilable value returned from the function"
+	a[0] = nil  //want "assigned deeply into parameter arg `a`"
+	return a[0] //want "returned"
 }
 
 func testArrayWriteInit(a [2]int) *int {
@@ -76,7 +76,7 @@ func testArrayWriteInit(a [2]int) *int {
 func testGlobals(i int) *int {
 	switch i {
 	case 1:
-		return globalArr[0] //want "nilable value returned from the function"
+		return globalArr[0] //want "returned"
 	case 3:
 		return twodArr[0][0]
 	case 4:
@@ -118,7 +118,7 @@ func testRange(a [5]*int) *int {
 func testArrayCopy(a [2]*int) *int {
 	var b [2]*int
 	b = a
-	return b[1] //want "nilable value returned from the function"
+	return b[1] //want "returned"
 }
 
 // nonnil(i[])
@@ -129,7 +129,7 @@ type t struct {
 // nonnil(a[])
 func testArrayMultiLevelAssign(a [2]*t) {
 	var x *int
-	a[0].i[0] = x //want "nilable value assigned deeply into a field"
+	a[0].i[0] = x //want "assigned deeply into field `i`"
 }
 
 func testEmptyArrayReturn(a [0]*int) [0]*int {
@@ -153,5 +153,34 @@ func test2dArrayAssignment() *int {
 	var nilableTwodArr [5][5]*int
 	nilableTwodArr[0][0] = nil
 	twodArr = nilableTwodArr // TODO: an error should be reported here since we are assigning a (default) deeply nilable array 'nilableTwodArr' into a declared deeply nonnil array 'twodArr'
-	return twodArr[0][0]     //want "nilable value returned from the function"
+	return twodArr[0][0]     //want "returned"
+}
+
+// Test a case where we declare a type alias for an array and then range over it.
+
+type blocks [42]int
+
+type blockSlice []int
+
+// nonnil(aPtr, a, bPtr, b)
+func testArrayAliasPtr(aPtr *blocks, a blocks, bPtr *blockSlice, b blockSlice) {
+	// blocks is an alias for arrays, and the [language specs] states that it is possible to range
+	// over an array or a pointer to an array. Interestingly, you cannot range over a pointer to
+	// a slice.
+	// [language specs]: https://go.dev/ref/spec#RangeClause
+
+	// Range over a pointer to array alias. OK
+	for range aPtr {
+	}
+
+	// Range over an array alias. OK
+	for range a {
+	}
+
+	// Range over a pointer to slice alias. Disallowed!
+	// for range bPtr {}
+
+	// Range over a slice alias. OK
+	for range b {
+	}
 }

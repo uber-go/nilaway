@@ -19,8 +19,8 @@ package anonymousfunction
 func testNilFlowFromClosure() {
 
 	var t *int
-	func() { // want "Annotation on Param 0: 't'"
-		print(*t)
+	func() {
+		print(*t) //want "unassigned variable `t`"
 	}()
 
 	i := 1
@@ -36,10 +36,9 @@ func testNilFlowFromClosure() {
 
 	t = nil
 
-	// (Note: below 'want' captures the grouped error reported for both the print calls)
-	func() { //want "Annotation on Param 0: 't'"
-		print(*t)
-		print(*t)
+	func() {
+		print(*t) // (error here grouped with the error on the next line)
+		print(*t) //want "literal `nil`"
 	}()
 
 	t = &i
@@ -47,7 +46,7 @@ func testNilFlowFromClosure() {
 	func() {
 		print(*t)
 		t = nil
-		print(*t) // want "Value literal nil at"
+		print(*t) //want "literal `nil`"
 	}()
 
 	// TODO we will report an error here after updating the return type of function literals to include variables from closure
@@ -58,9 +57,9 @@ func testNilFlowFromClosure() {
 	var t1 *int
 	func() {
 		var t2 *int
-		func() { // want "Annotation on Param 0: 't1'" "Annotation on Param 1: 't2'"
-			print(*t1)
-			print(*t2)
+		func() {
+			print(*t1) //want "unassigned variable `t1`"
+			print(*t2) //want "unassigned variable `t2`"
 		}()
 	}()
 
@@ -70,9 +69,9 @@ func testNilFlowFromClosure() {
 		print(*t3)
 		var t4 *int
 		// the following error is coming from t4 but not from t3
-		func() { // want "Annotation on Param 1: 't4'"
+		func() {
 			print(*t3) // this should be ok
-			print(*t4) // this is not
+			print(*t4) //want "unassigned variable `t4`"
 			if t4 != nil {
 				print(*t4) // this is ok
 			}
@@ -80,10 +79,10 @@ func testNilFlowFromClosure() {
 	}()
 
 	var t5 *int
-	func() { // want "Annotation on Param 2: 't5'" "Annotation on Param 0: 't1'"
-		print(*t1)
+	func() {
+		print(*t1) //want "unassigned variable `t1`"
 		print(*t3)
-		print(*t5)
+		print(*t5) //want "unassigned variable `t5`"
 	}()
 
 }

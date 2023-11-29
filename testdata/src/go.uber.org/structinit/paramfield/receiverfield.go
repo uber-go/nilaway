@@ -37,8 +37,8 @@ func callM22() {
 	t.m22()
 }
 
-func (c *A) m22() { //want "Annotation on Field aptr of"
-	print(c.aptr.ptr)
+func (c *A) m22() {
+	print(c.aptr.ptr) //want "field `aptr` of method receiver `c`"
 }
 
 // Checking if Nilaway does not crash on unnamed receivers
@@ -50,8 +50,8 @@ func callF24() {
 	(A{}).f24()
 }
 
-func (c A) f24() { //want "Annotation on Field aptr of Receiver: 'c' at input of Method f24 overconstrained:"
-	print(c.aptr.ptr)
+func (c A) f24() {
+	print(c.aptr.ptr) //want "field `aptr` of method receiver `c`"
 }
 
 // Positive example with direct composite as parameter
@@ -63,8 +63,8 @@ func callF25() {
 	giveA25().f25()
 }
 
-func (c *A) f25() { //want "Annotation on Field aptr of Receiver: 'c' at input of Method f25 overconstrained:"
-	print(c.aptr.ptr)
+func (c *A) f25() {
+	print(c.aptr.ptr) //want "field `aptr` of method receiver `c`"
 }
 
 // Negative example with direct composite as parameter

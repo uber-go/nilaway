@@ -40,7 +40,6 @@ type ConsumingAnnotationTrigger interface {
 	// for example - an `ArgPass` trigger triggers iff the corresponding function arg has
 	// nonNil type
 	CheckConsume(Map) bool
-	String() string
 	Prestring() Prestring
 
 	// Kind returns the kind of the trigger.
@@ -119,10 +118,6 @@ type PtrLoad struct {
 	ConsumeTriggerTautology
 }
 
-func (p PtrLoad) String() string {
-	return p.Prestring().String()
-}
-
 // Prestring returns this PtrLoad as a Prestring
 func (p PtrLoad) Prestring() Prestring {
 	return PtrLoadPrestring{}
@@ -140,10 +135,6 @@ func (PtrLoadPrestring) String() string {
 // note: this trigger is produced only if config.ErrorOnNilableMapRead == true
 type MapAccess struct {
 	ConsumeTriggerTautology
-}
-
-func (i MapAccess) String() string {
-	return i.Prestring().String()
 }
 
 // Prestring returns this MapAccess as a Prestring
@@ -164,10 +155,6 @@ type MapWrittenTo struct {
 	ConsumeTriggerTautology
 }
 
-func (m MapWrittenTo) String() string {
-	return m.Prestring().String()
-}
-
 // Prestring returns this MapWrittenTo as a Prestring
 func (m MapWrittenTo) Prestring() Prestring {
 	return MapWrittenToPrestring{}
@@ -185,10 +172,6 @@ type SliceAccess struct {
 	ConsumeTriggerTautology
 }
 
-func (s SliceAccess) String() string {
-	return s.Prestring().String()
-}
-
 // Prestring returns this SliceAccess as a Prestring
 func (s SliceAccess) Prestring() Prestring {
 	return SliceAccessPrestring{}
@@ -204,22 +187,39 @@ func (SliceAccessPrestring) String() string {
 // FldAccess is when a value flows to a point where a field of it is accessed, and so it must be non-nil
 type FldAccess struct {
 	ConsumeTriggerTautology
-}
 
-func (f FldAccess) String() string {
-	return f.Prestring().String()
+	Sel types.Object
 }
 
 // Prestring returns this FldAccess as a Prestring
 func (f FldAccess) Prestring() Prestring {
-	return FldAccessPrestring{}
+	fieldName, methodName := "", ""
+	switch t := f.Sel.(type) {
+	case *types.Var:
+		fieldName = t.Name()
+	case *types.Func:
+		methodName = t.Name()
+	default:
+		panic(fmt.Sprintf("unexpected Sel type %T in FldAccess", t))
+	}
+
+	return FldAccessPrestring{
+		FieldName:  fieldName,
+		MethodName: methodName,
+	}
 }
 
 // FldAccessPrestring is a Prestring storing the needed information to compactly encode a FldAccess
-type FldAccessPrestring struct{}
+type FldAccessPrestring struct {
+	FieldName  string
+	MethodName string
+}
 
-func (FldAccessPrestring) String() string {
-	return "passed to a field access"
+func (f FldAccessPrestring) String() string {
+	if f.MethodName != "" {
+		return fmt.Sprintf("called `%s()`", f.MethodName)
+	}
+	return fmt.Sprintf("accessed field `%s`", f.FieldName)
 }
 
 // UseAsErrorResult is when a value flows to the error result of a function, where it is expected to be non-nil
@@ -228,10 +228,6 @@ type UseAsErrorResult struct {
 
 	RetStmt       *ast.ReturnStmt
 	IsNamedReturn bool
-}
-
-func (u UseAsErrorResult) String() string {
-	return u.Prestring().String()
 }
 
 // Prestring returns this UseAsErrorResult as a Prestring
@@ -255,9 +251,9 @@ type UseAsErrorResultPrestring struct {
 
 func (u UseAsErrorResultPrestring) String() string {
 	if u.IsNamedReturn {
-		return fmt.Sprintf("returned as the named error return value `%s` in position %d of function `%s`", u.RetName, u.Pos, u.ReturningFuncStr)
+		return fmt.Sprintf("returned as named error result `%s` of `%s()`", u.RetName, u.ReturningFuncStr)
 	}
-	return fmt.Sprintf("returned as the error result %d of function `%s`", u.Pos, u.ReturningFuncStr)
+	return fmt.Sprintf("returned as error result %d of `%s()`", u.Pos, u.ReturningFuncStr)
 }
 
 // overriding position value to point to the raw return statement, which is the source of the potential error
@@ -271,10 +267,6 @@ func (u UseAsErrorResult) customPos() (token.Pos, bool) {
 // FldAssign is when a value flows to a point where it is assigned into a field
 type FldAssign struct {
 	TriggerIfNonNil
-}
-
-func (f FldAssign) String() string {
-	return f.Prestring().String()
 }
 
 // Prestring returns this FldAssign as a Prestring
@@ -291,52 +283,57 @@ type FldAssignPrestring struct {
 }
 
 func (f FldAssignPrestring) String() string {
-	return fmt.Sprintf("assigned into the field `%s`", f.FieldName)
+	return fmt.Sprintf("assigned into field `%s`", f.FieldName)
 }
 
 // ArgFldPass is when a struct field value (A.f) flows to a point where it is passed to a function with a param of
 // the same struct type (A)
 type ArgFldPass struct {
 	TriggerIfNonNil
-}
-
-func (f ArgFldPass) String() string {
-	return f.Prestring().String()
+	IsPassed bool
 }
 
 // Prestring returns this ArgFldPass as a Prestring
 func (f ArgFldPass) Prestring() Prestring {
 	ann := f.Ann.(ParamFieldAnnotationKey)
+	recvName := ""
+	if ann.IsReceiver() {
+		recvName = ann.FuncDecl.Type().(*types.Signature).Recv().Name()
+	}
+
 	return ArgFldPassPrestring{
-		FieldName:  ann.FieldDecl.Name(),
-		FuncName:   ann.FuncDecl.Name(),
-		ParamNum:   ann.ParamNum,
-		IsReceiver: ann.IsReceiver(),
+		FieldName: ann.FieldDecl.Name(),
+		FuncName:  ann.FuncDecl.Name(),
+		ParamNum:  ann.ParamNum,
+		RecvName:  recvName,
+		IsPassed:  f.IsPassed,
 	}
 }
 
 // ArgFldPassPrestring is a Prestring storing the needed information to compactly encode a ArgFldPass
 type ArgFldPassPrestring struct {
-	FieldName  string
-	FuncName   string
-	ParamNum   int
-	IsReceiver bool
+	FieldName string
+	FuncName  string
+	ParamNum  int
+	RecvName  string
+	IsPassed  bool
 }
 
 func (f ArgFldPassPrestring) String() string {
-	if f.IsReceiver {
-		return fmt.Sprintf("of the field `%s` of receiver of call to function `%s`", f.FieldName, f.FuncName)
+	prefix := ""
+	if f.IsPassed {
+		prefix = "assigned to "
 	}
-	return fmt.Sprintf("of the field `%s` of argument %d to call to function `%s`", f.FieldName, f.ParamNum, f.FuncName)
+
+	if len(f.RecvName) > 0 {
+		return fmt.Sprintf("%sfield `%s` of method receiver `%s`", prefix, f.FieldName, f.RecvName)
+	}
+	return fmt.Sprintf("%sfield `%s` of argument %d to `%s()`", prefix, f.FieldName, f.ParamNum, f.FuncName)
 }
 
 // GlobalVarAssign is when a value flows to a point where it is assigned into a global variable
 type GlobalVarAssign struct {
 	TriggerIfNonNil
-}
-
-func (g GlobalVarAssign) String() string {
-	return g.Prestring().String()
 }
 
 // Prestring returns this GlobalVarAssign as a Prestring
@@ -353,7 +350,7 @@ type GlobalVarAssignPrestring struct {
 }
 
 func (g GlobalVarAssignPrestring) String() string {
-	return fmt.Sprintf("assigned into the global variable `%s`", g.VarName)
+	return fmt.Sprintf("assigned into global variable `%s`", g.VarName)
 }
 
 // ArgPass is when a value flows to a point where it is passed as an argument to a function. This
@@ -364,10 +361,6 @@ func (g GlobalVarAssignPrestring) String() string {
 // duplicate the sites for context sensitivity.
 type ArgPass struct {
 	TriggerIfNonNil
-}
-
-func (a ArgPass) String() string {
-	return a.Prestring().String()
 }
 
 // Prestring returns this ArgPass as a Prestring
@@ -402,7 +395,7 @@ type ArgPassPrestring struct {
 
 func (a ArgPassPrestring) String() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("passed as %s to func `%s`", a.ParamName, a.FuncName))
+	sb.WriteString(fmt.Sprintf("passed as %s to `%s()`", a.ParamName, a.FuncName))
 	if a.Location != "" {
 		sb.WriteString(fmt.Sprintf(" at %s", a.Location))
 	}
@@ -413,10 +406,6 @@ func (a ArgPassPrestring) String() string {
 // E.g., `s.foo()`, here `s` is a receiver and forms the RecvPass Consumer
 type RecvPass struct {
 	TriggerIfNonNil
-}
-
-func (a RecvPass) String() string {
-	return a.Prestring().String()
 }
 
 // Prestring returns this RecvPass as a Prestring
@@ -433,17 +422,13 @@ type RecvPassPrestring struct {
 }
 
 func (a RecvPassPrestring) String() string {
-	return fmt.Sprintf("used as a receiver to call method `%s`", a.FuncName)
+	return fmt.Sprintf("used as receiver to call `%s()`", a.FuncName)
 }
 
 // InterfaceResultFromImplementation is when a result is determined to flow from a concrete method to an interface method via implementation
 type InterfaceResultFromImplementation struct {
 	TriggerIfNonNil
 	AffiliationPair
-}
-
-func (i InterfaceResultFromImplementation) String() string {
-	return i.Prestring().String()
 }
 
 // Prestring returns this InterfaceResultFromImplementation as a Prestring
@@ -464,7 +449,7 @@ type InterfaceResultFromImplementationPrestring struct {
 }
 
 func (i InterfaceResultFromImplementationPrestring) String() string {
-	return fmt.Sprintf("could be returned as result %d from the interface method `%s` (implemented by method `%s`)",
+	return fmt.Sprintf("returned as result %d from interface method `%s()` (implemented by `%s()`)",
 		i.RetNum, i.IntName, i.ImplName)
 }
 
@@ -472,10 +457,6 @@ func (i InterfaceResultFromImplementationPrestring) String() string {
 type MethodParamFromInterface struct {
 	TriggerIfNonNil
 	AffiliationPair
-}
-
-func (m MethodParamFromInterface) String() string {
-	return m.Prestring().String()
 }
 
 // Prestring returns this MethodParamFromInterface as a Prestring
@@ -496,7 +477,7 @@ type MethodParamFromInterfacePrestring struct {
 }
 
 func (m MethodParamFromInterfacePrestring) String() string {
-	return fmt.Sprintf("could be passed as param `%s` to the method `%s` (implementing interface method `%s`)",
+	return fmt.Sprintf("passed as parameter `%s` to `%s()` (implementing `%s()`)",
 		m.ParamName, m.ImplName, m.IntName)
 }
 
@@ -527,10 +508,6 @@ type UseAsReturn struct {
 	TriggerIfNonNil
 	IsNamedReturn bool
 	RetStmt       *ast.ReturnStmt
-}
-
-func (u UseAsReturn) String() string {
-	return u.Prestring().String()
 }
 
 // Prestring returns this UseAsReturn as a Prestring
@@ -571,11 +548,12 @@ type UseAsReturnPrestring struct {
 
 func (u UseAsReturnPrestring) String() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("returned from the function `%s`", u.FuncName))
+	sb.WriteString(fmt.Sprintf("returned from `%s()`", u.FuncName))
 	if u.IsNamedReturn {
-		sb.WriteString(fmt.Sprintf(" via the named return value `%s`", u.RetName))
+		sb.WriteString(fmt.Sprintf(" via named return `%s`", u.RetName))
+	} else {
+		sb.WriteString(fmt.Sprintf(" in position %d", u.RetNum))
 	}
-	sb.WriteString(fmt.Sprintf(" in position %d", u.RetNum))
 	if u.Location != "" {
 		sb.WriteString(fmt.Sprintf(" at %s", u.Location))
 	}
@@ -596,10 +574,6 @@ type UseAsFldOfReturn struct {
 	TriggerIfNonNil
 }
 
-func (u UseAsFldOfReturn) String() string {
-	return u.Prestring().String()
-}
-
 // Prestring returns this UseAsFldOfReturn as a Prestring
 func (u UseAsFldOfReturn) Prestring() Prestring {
 	retAnn := u.Ann.(RetFieldAnnotationKey)
@@ -618,7 +592,7 @@ type UseAsFldOfReturnPrestring struct {
 }
 
 func (u UseAsFldOfReturnPrestring) String() string {
-	return fmt.Sprintf("of the field `%s` of return of the function `%s` in position %d", u.FieldName, u.FuncName, u.RetNum)
+	return fmt.Sprintf("field `%s` returned by result %d of `%s()`", u.FieldName, u.RetNum, u.FuncName)
 }
 
 // GetRetFldConsumer returns the UseAsFldOfReturn consume trigger with given retKey and expr
@@ -649,7 +623,9 @@ func GetParamFldConsumer(paramKey Key, expr ast.Expr) *ConsumeTrigger {
 	return &ConsumeTrigger{
 		Annotation: ArgFldPass{
 			TriggerIfNonNil: TriggerIfNonNil{
-				Ann: paramKey}},
+				Ann: paramKey},
+			IsPassed: true,
+		},
 		Expr:   expr,
 		Guards: util.NoGuards(),
 	}
@@ -658,10 +634,6 @@ func GetParamFldConsumer(paramKey Key, expr ast.Expr) *ConsumeTrigger {
 // SliceAssign is when a value flows to a point where it is assigned into a slice
 type SliceAssign struct {
 	TriggerIfDeepNonNil
-}
-
-func (f SliceAssign) String() string {
-	return f.Prestring().String()
 }
 
 // Prestring returns this SliceAssign as a Prestring
@@ -678,16 +650,12 @@ type SliceAssignPrestring struct {
 }
 
 func (f SliceAssignPrestring) String() string {
-	return fmt.Sprintf("assigned into a slice of deeply non-nil type `%s`", f.TypeName)
+	return fmt.Sprintf("assigned into a slice of deeply nonnil type `%s`", f.TypeName)
 }
 
 // ArrayAssign is when a value flows to a point where it is assigned into an array
 type ArrayAssign struct {
 	TriggerIfDeepNonNil
-}
-
-func (a ArrayAssign) String() string {
-	return a.Prestring().String()
 }
 
 // Prestring returns this ArrayAssign as a Prestring
@@ -704,16 +672,12 @@ type ArrayAssignPrestring struct {
 }
 
 func (a ArrayAssignPrestring) String() string {
-	return fmt.Sprintf("assigned into an array of deeply non-nil type `%s`", a.TypeName)
+	return fmt.Sprintf("assigned into an array of deeply nonnil type `%s`", a.TypeName)
 }
 
 // PtrAssign is when a value flows to a point where it is assigned into a pointer
 type PtrAssign struct {
 	TriggerIfDeepNonNil
-}
-
-func (f PtrAssign) String() string {
-	return f.Prestring().String()
 }
 
 // Prestring returns this PtrAssign as a Prestring
@@ -730,16 +694,12 @@ type PtrAssignPrestring struct {
 }
 
 func (f PtrAssignPrestring) String() string {
-	return fmt.Sprintf("assigned into a pointer of deeply non-nil type `%s`", f.TypeName)
+	return fmt.Sprintf("assigned into a pointer of deeply nonnil type `%s`", f.TypeName)
 }
 
 // MapAssign is when a value flows to a point where it is assigned into an annotated map
 type MapAssign struct {
 	TriggerIfDeepNonNil
-}
-
-func (f MapAssign) String() string {
-	return f.Prestring().String()
 }
 
 // Prestring returns this MapAssign as a Prestring
@@ -756,17 +716,13 @@ type MapAssignPrestring struct {
 }
 
 func (f MapAssignPrestring) String() string {
-	return fmt.Sprintf("assigned into a map of deeply non-nil type `%s`", f.TypeName)
+	return fmt.Sprintf("assigned into a map of deeply nonnil type `%s`", f.TypeName)
 }
 
 // DeepAssignPrimitive is when a value flows to a point where it is assigned
 // deeply into an unnannotated object
 type DeepAssignPrimitive struct {
 	ConsumeTriggerTautology
-}
-
-func (d DeepAssignPrimitive) String() string {
-	return d.Prestring().String()
 }
 
 // Prestring returns this Prestring as a Prestring
@@ -778,7 +734,7 @@ func (DeepAssignPrimitive) Prestring() Prestring {
 type DeepAssignPrimitivePrestring struct{}
 
 func (DeepAssignPrimitivePrestring) String() string {
-	return "assigned into a deep type without nilability Annotation"
+	return "assigned into a deep type expecting nonnil element type"
 }
 
 // ParamAssignDeep is when a value flows to a point where it is assigned deeply into a function parameter
@@ -786,36 +742,23 @@ type ParamAssignDeep struct {
 	TriggerIfDeepNonNil
 }
 
-func (p ParamAssignDeep) String() string {
-	return p.Prestring().String()
-}
-
 // Prestring returns this ParamAssignDeep as a Prestring
 func (p ParamAssignDeep) Prestring() Prestring {
-	paramAnn := p.Ann.(ParamAnnotationKey)
-	return ParamAssignDeepPrestring{
-		ParamName: paramAnn.MinimalString(),
-		FuncName:  paramAnn.FuncDecl.Name(),
-	}
+	return ParamAssignDeepPrestring{p.Ann.(ParamAnnotationKey).MinimalString()}
 }
 
 // ParamAssignDeepPrestring is a Prestring storing the needed information to compactly encode a ParamAssignDeep
 type ParamAssignDeepPrestring struct {
 	ParamName string
-	FuncName  string
 }
 
 func (p ParamAssignDeepPrestring) String() string {
-	return fmt.Sprintf("assigned deeply into deeply nonnil %s of function `%s`", p.ParamName, p.FuncName)
+	return fmt.Sprintf("assigned deeply into parameter %s", p.ParamName)
 }
 
 // FuncRetAssignDeep is when a value flows to a point where it is assigned deeply into a function return
 type FuncRetAssignDeep struct {
 	TriggerIfDeepNonNil
-}
-
-func (f FuncRetAssignDeep) String() string {
-	return f.Prestring().String()
 }
 
 // Prestring returns this FuncRetAssignDeep as a Prestring
@@ -834,7 +777,7 @@ type FuncRetAssignDeepPrestring struct {
 }
 
 func (f FuncRetAssignDeepPrestring) String() string {
-	return fmt.Sprintf("assigned deeply into the result of function `%s` in position %d", f.FuncName, f.RetNum)
+	return fmt.Sprintf("assigned deeply into the result %d of `%s()`", f.RetNum, f.FuncName)
 }
 
 // VariadicParamAssignDeep is when a value flows to a point where it is assigned deeply into a variadic
@@ -843,36 +786,26 @@ type VariadicParamAssignDeep struct {
 	TriggerIfNonNil
 }
 
-func (v VariadicParamAssignDeep) String() string {
-	return v.Prestring().String()
-}
-
 // Prestring returns this VariadicParamAssignDeep as a Prestring
 func (v VariadicParamAssignDeep) Prestring() Prestring {
 	paramAnn := v.Ann.(ParamAnnotationKey)
 	return VariadicParamAssignDeepPrestring{
 		ParamName: paramAnn.MinimalString(),
-		FuncName:  paramAnn.FuncDecl.Name(),
 	}
 }
 
 // VariadicParamAssignDeepPrestring is a Prestring storing the needed information to compactly encode a VariadicParamAssignDeep
 type VariadicParamAssignDeepPrestring struct {
 	ParamName string
-	FuncName  string
 }
 
 func (v VariadicParamAssignDeepPrestring) String() string {
-	return fmt.Sprintf("assigned deeply into deeply nonnil variadic `%s` of function `%s`", v.ParamName, v.FuncName)
+	return fmt.Sprintf("assigned deeply into variadic parameter `%s`", v.ParamName)
 }
 
 // FieldAssignDeep is when a value flows to a point where it is assigned deeply into a field
 type FieldAssignDeep struct {
 	TriggerIfDeepNonNil
-}
-
-func (f FieldAssignDeep) String() string {
-	return f.Prestring().String()
 }
 
 // Prestring returns this FieldAssignDeep as a Prestring
@@ -887,16 +820,12 @@ type FieldAssignDeepPrestring struct {
 }
 
 func (f FieldAssignDeepPrestring) String() string {
-	return fmt.Sprintf("assigned deeply into a field `%s` of deeply non-nil type", f.FldName)
+	return fmt.Sprintf("assigned deeply into field `%s`", f.FldName)
 }
 
 // GlobalVarAssignDeep is when a value flows to a point where it is assigned deeply into a global variable
 type GlobalVarAssignDeep struct {
 	TriggerIfDeepNonNil
-}
-
-func (g GlobalVarAssignDeep) String() string {
-	return g.Prestring().String()
 }
 
 // Prestring returns this GlobalVarAssignDeep as a Prestring
@@ -911,16 +840,12 @@ type GlobalVarAssignDeepPrestring struct {
 }
 
 func (g GlobalVarAssignDeepPrestring) String() string {
-	return fmt.Sprintf("assigned deeply into the global variable `%s` of deeply non-nil type", g.VarName)
+	return fmt.Sprintf("assigned deeply into global variable `%s`", g.VarName)
 }
 
 // ChanAccess is when a channel is accessed for sending, and thus must be non-nil
 type ChanAccess struct {
 	ConsumeTriggerTautology
-}
-
-func (c ChanAccess) String() string {
-	return c.Prestring().String()
 }
 
 // Prestring returns this MapWrittenTo as a Prestring
@@ -932,17 +857,13 @@ func (c ChanAccess) Prestring() Prestring {
 type ChanAccessPrestring struct{}
 
 func (ChanAccessPrestring) String() string {
-	return "of uninitialized channel"
+	return "uninitialized; nil channel accessed"
 }
 
 // LocalVarAssignDeep is when a value flows to a point where it is assigned deeply into a local variable of deeply nonnil type
 type LocalVarAssignDeep struct {
 	ConsumeTriggerTautology
 	LocalVar *types.Var
-}
-
-func (l LocalVarAssignDeep) String() string {
-	return l.Prestring().String()
 }
 
 // Prestring returns this LocalVarAssignDeep as a Prestring
@@ -956,16 +877,12 @@ type LocalVarAssignDeepPrestring struct {
 }
 
 func (l LocalVarAssignDeepPrestring) String() string {
-	return fmt.Sprintf("assigned deeply into the local variable `%s` of deeply non-nil type", l.VarName)
+	return fmt.Sprintf("assigned deeply into local variable `%s`", l.VarName)
 }
 
 // ChanSend is when a value flows to a point where it is sent to a channel
 type ChanSend struct {
 	TriggerIfDeepNonNil
-}
-
-func (c ChanSend) String() string {
-	return c.Prestring().String()
 }
 
 // Prestring returns this ChanSend as a Prestring
@@ -980,7 +897,7 @@ type ChanSendPrestring struct {
 }
 
 func (c ChanSendPrestring) String() string {
-	return fmt.Sprintf("sent to a channel of deeply non-nil type `%s`", c.TypeName)
+	return fmt.Sprintf("sent to channel of deeply nonnil type `%s`", c.TypeName)
 }
 
 // FldEscape is when a nilable value flows through a field of a struct that escapes.
@@ -993,10 +910,6 @@ func (c ChanSendPrestring) String() string {
 // TODO: Add struct assignment as another possible cause of field escape
 type FldEscape struct {
 	TriggerIfNonNil
-}
-
-func (f FldEscape) String() string {
-	return f.Prestring().String()
 }
 
 // Prestring returns this FldEscape as a Prestring
@@ -1013,7 +926,7 @@ type FldEscapePrestring struct {
 }
 
 func (f FldEscapePrestring) String() string {
-	return fmt.Sprintf("escaped field `%s`", f.FieldName)
+	return fmt.Sprintf("field `%s` escaped out of our analysis scope (presumed nilable)", f.FieldName)
 }
 
 // UseAsNonErrorRetDependentOnErrorRetNilability is when a value flows to a point where it is returned from an error returning function
@@ -1022,10 +935,6 @@ type UseAsNonErrorRetDependentOnErrorRetNilability struct {
 
 	IsNamedReturn bool
 	RetStmt       *ast.ReturnStmt
-}
-
-func (u UseAsNonErrorRetDependentOnErrorRetNilability) String() string {
-	return u.Prestring().String()
 }
 
 // Prestring returns this UseAsNonErrorRetDependentOnErrorRetNilability as a Prestring
@@ -1055,7 +964,7 @@ func (u UseAsNonErrorRetDependentOnErrorRetNilabilityPrestring) String() string 
 		via = fmt.Sprintf(" via the named return value `%s`", u.RetName)
 	}
 
-	return fmt.Sprintf("returned from the function `%s`%s in position %d when the error return in position %d is not guaranteed to be non-nil through all paths",
+	return fmt.Sprintf("returned from `%s()`%s in position %d when the error return in position %d is not guaranteed to be non-nil through all paths",
 		u.FuncName, via, u.RetNum, u.ErrRetNum)
 }
 
@@ -1073,10 +982,6 @@ type UseAsErrorRetWithNilabilityUnknown struct {
 
 	IsNamedReturn bool
 	RetStmt       *ast.ReturnStmt
-}
-
-func (u UseAsErrorRetWithNilabilityUnknown) String() string {
-	return u.Prestring().String()
 }
 
 // Prestring returns this UseAsErrorRetWithNilabilityUnknown as a Prestring
@@ -1100,9 +1005,9 @@ type UseAsErrorRetWithNilabilityUnknownPrestring struct {
 
 func (u UseAsErrorRetWithNilabilityUnknownPrestring) String() string {
 	if u.IsNamedReturn {
-		return fmt.Sprintf("found in at least one path of the function `%s` for the named return `%s` in position %d", u.FuncName, u.RetName, u.RetNum)
+		return fmt.Sprintf("found in at least one path of `%s()` for the named return `%s` in position %d", u.FuncName, u.RetName, u.RetNum)
 	}
-	return fmt.Sprintf("found in at least one path of the function `%s` for the return in position %d", u.FuncName, u.RetNum)
+	return fmt.Sprintf("found in at least one path of `%s()` for the return in position %d", u.FuncName, u.RetNum)
 }
 
 // overriding position value to point to the raw return statement, which is the source of the potential error
@@ -1184,15 +1089,6 @@ func (c *ConsumeTrigger) Pos() token.Pos {
 		return pos
 	}
 	return c.Expr.Pos()
-}
-
-func (c *ConsumeTrigger) String() string {
-	guarded := ""
-	if !c.Guards.IsEmpty() {
-		guarded = fmt.Sprintf("%s-GuardMatched ", c.Guards)
-	}
-	return fmt.Sprintf("{(%s%T@%d-%d %s)}",
-		guarded, c.Expr, c.Expr.Pos(), c.Expr.End(), c.Annotation.String())
 }
 
 // MergeConsumeTriggerSlices merges two slices of `ConsumeTrigger`s

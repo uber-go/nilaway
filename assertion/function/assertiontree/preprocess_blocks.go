@@ -549,7 +549,9 @@ func markSwitchStatements(graph *cfg.CFG, switchChildren map[ast.Node]*ast.Switc
 				},
 			}
 
-			caseBlockIdx = graph.Blocks[caseBlockIdx].Succs[1].Index
+			if blockSuccs := graph.Blocks[caseBlockIdx].Succs; blockSuccs != nil {
+				caseBlockIdx = blockSuccs[1].Index
+			}
 		}
 	}
 }

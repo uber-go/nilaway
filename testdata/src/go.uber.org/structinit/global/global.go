@@ -46,7 +46,7 @@ func h() {
 
 type A2 struct {
 	ptr  *int
-	aptr *A2 //want "Annotation on Field aptr overconstrained"
+	aptr *A2
 }
 
 var g2 *A2 = nil
@@ -61,7 +61,7 @@ func h2() {
 		return
 	}
 
-	print(g2.aptr.ptr)
+	print(g2.aptr.ptr) //want "field `aptr` accessed field `ptr`"
 }
 
 var g3 = &A{}

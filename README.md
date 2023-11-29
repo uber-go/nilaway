@@ -63,7 +63,8 @@ panic may occur if `someCondition` is false. NilAway is able to catch this poten
 error showing this nilness flow:
 
 ```
-go.uber.org/example.go:12:9: error: Value read from a variable that was never assigned to (definitely nilable) and is passed to a field access at go.uber.org/example.go:12:9 (must be nonnil)
+go.uber.org/example.go:12:9: error: Potential nil panic detected. Observed nil flow from source to dereference point:
+    -> go.uber.org/example.go:12:9: unassigned variable `p` accessed field `f`
 ```
 
 If we guard this dereference with a nilness check (`if p != nil`), the error goes away.
@@ -85,10 +86,9 @@ whenever `bar` is called. NilAway is able to catch this potential nil flow and r
 the nilness flow across function boundaries: 
 
 ```
-go.uber.org/example.go:19:6: error: Annotation on Result 0 of Function foo overconstrained:
-	Must be NILABLE because it describes the value returned from the function `foo` in position 0 at go.uber.org/example.go:20:14, and that value is literal nil at go.uber.org/example.go:20:14, where it is NILABLE
-		AND
-	Must be NONNIL because it describes the value returned as result 0 from the method `foo`, and that value is dereferenced at go.uber.org/example.go:23:13, where it must be NONNIL
+go.uber.org/example.go:23:13: error: Potential nil panic detected. Observed nil flow from source to dereference point:
+    -> go.uber.org/example.go:20:14: literal `nil` returned from `foo()` in position 0
+    -> go.uber.org/example.go:23:13: result 0 of `foo()` dereferenced
 ```
 
 Note that in the above example, `foo` does not necessarily have to reside in the same package as `bar`. NilAway is able
@@ -102,6 +102,9 @@ Please check [wiki/Configuration](https://github.com/uber-go/nilaway/wiki/Config
 how to pass them using different linter drivers.
 
 ## Support 
+
+We follow the same [version support policy](https://go.dev/doc/devel/release#policy) as the [Go](https://golang.org/) 
+project: we support and test the last two major versions of Go.
 
 Please feel free to [open a GitHub issue](https://github.com/uber-go/nilaway/issues) if you have any questions, bug 
 reports, and feature requests.
