@@ -53,7 +53,8 @@ func testRecv() {
 
 // -----------------------------------
 // the below test checks for in-scope analysis of receivers. If a receiver-based call is made to an external method,
-// such as `err.Error()`, then it is treated as a normal field access of `err`, reporting an error if `err == nil`.
+// such as `err.Error()`, then it is treated with optimistic default, assuming the external method to be handling
+// nil receivers.
 
 func (a *A) retErr() error {
 	return nil
@@ -62,7 +63,7 @@ func (a *A) retErr() error {
 func testInScope() {
 	var a *A
 	err := a.retErr()
-	print(err.Error()) //want "returned as error result 0 of `retErr.*`"
+	print(err.Error())
 }
 
 // -----------------------------------
