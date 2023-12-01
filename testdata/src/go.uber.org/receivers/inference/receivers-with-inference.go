@@ -14,6 +14,10 @@
 
 package inference
 
+import (
+	"os"
+)
+
 var dummy bool
 
 type A struct {
@@ -54,16 +58,20 @@ func testRecv() {
 // -----------------------------------
 // the below test checks for in-scope analysis of receivers. If a receiver-based call is made to an external method,
 // such as `err.Error()`, then it is treated with optimistic default, assuming the external method to be handling
-// nil receivers.
+// nil receivers. This can potentially result in false negatives, as shown below in the example of `err.Error()`.
+// However, this is a trade-off made to avoid false positives.
 
 func (a *A) retErr() error {
 	return nil
 }
 
 func testInScope() {
+	var file *os.File
+	_, _ = file.Stat() // true negative, since `Stat()` is nil-safe
+
 	var a *A
 	err := a.retErr()
-	print(err.Error())
+	print(err.Error()) // false negative, since `Error()` is nil-unsafe
 }
 
 // -----------------------------------
