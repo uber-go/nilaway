@@ -12,18 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*
-This package aims to test automated inferred function contracts in no inference mode.
-
-<nilaway no inference>
-<nilaway contract enable>
-*/
-package infer
+// This package aims to test hand-written function contracts in no inference mode.
+// <nilaway no inference>
+package functioncontracts
 
 import "math/rand"
 
 // Test the contracted function contains a full trigger nilable -> return 0.
 // nilable(x, result 0)
+// contract(nonnil -> nonnil)
 func fooReturn(x *int) *int {
 	if x != nil {
 		// Return nonnil
@@ -47,11 +44,12 @@ func barReturn1() {
 func barReturn2() {
 	var a2 *int
 	b2 := fooReturn(a2) // nilable(param 0, result 0)
-	print(*b2)          // want "nilable value dereferenced"
+	print(*b2)          // want "dereferenced"
 }
 
 // Test the contracted function retains a full trigger param 0 -> nonnil.
 // nilable(x, result 0)
+// contract(nonnil -> nonnil)
 func fooParam(x *int) *int {
 	if x != nil {
 		return new(int)
@@ -59,7 +57,7 @@ func fooParam(x *int) *int {
 	if rand.Float64() > 0.5 {
 		return new(int)
 	} else {
-		sink(*x) // want "nilable value dereferenced"
+		sink(*x) // want "dereferenced"
 		return nil
 	}
 }
@@ -74,19 +72,19 @@ func barParam1() {
 func barParam2() {
 	var a2 *int
 	b2 := fooParam(a2) // nilable(param 0, result 0)
-	print(*b2)         // want "nilable value dereferenced"
+	print(*b2)         // want "dereferenced"
 }
 
 func sink(v int) {}
 
 // Test the contracted function contains another contracted function.
-// TODO: remove the contract here when we can automatically infer the contract for this function.
-// contract(nonnil -> nonnil)
 // nilable(x, result 0)
+// contract(nonnil -> nonnil)
 func fooNested(x *int) *int {
 	return fooBase(x)
 }
 
+// contract(nonnil -> nonnil)
 // nilable(x, result 0)
 func fooBase(x *int) *int {
 	if x != nil {
@@ -109,10 +107,11 @@ func barNested1() {
 func barNested2() {
 	var a2 *int
 	b2 := fooNested(a2) // nilable(param 0, result 0)
-	print(*b2)          // want "nilable value dereferenced"
+	print(*b2)          // want "dereferenced"
 }
 
 // Test the contracted function is called multiple times in another function.
+// contract(nonnil -> nonnil)
 // nilable(x, result 0)
 func fooReturnCalledMultipleTimesInTheSameFunction(x *int) *int {
 	if x != nil {
@@ -133,7 +132,7 @@ func barReturnCalledMultipleTimesInTheSameFunction() {
 
 	var a2 *int
 	b2 := fooReturnCalledMultipleTimesInTheSameFunction(a2) // nilable(param 0, result 0)
-	print(*b2)                                              // want "nilable value dereferenced"
+	print(*b2)                                              // want "dereferenced"
 
 	m := 2
 	a3 := &m
@@ -142,11 +141,12 @@ func barReturnCalledMultipleTimesInTheSameFunction() {
 
 	var a4 *int
 	b4 := fooReturnCalledMultipleTimesInTheSameFunction(a4) // nilable(param 0, result 0)
-	print(*b4)                                              // want "nilable value dereferenced"
+	print(*b4)                                              // want "dereferenced"
 }
 
 // Test call site annotations are wrongly written.
 // nilable(x, result 0)
+// contract(nonnil -> nonnil)
 func fooWrongCallSiteAnnotation(x *int) *int {
 	if x != nil {
 		// Return nonnil
@@ -162,11 +162,12 @@ func fooWrongCallSiteAnnotation(x *int) *int {
 
 func barWrongCallSiteAnnotation() {
 	var a *int
-	b := fooWrongCallSiteAnnotation(a) // nonnil(param 0, result 0) // want "read from a variable that was never assigned to"
+	b := fooWrongCallSiteAnnotation(a) // nonnil(param 0, result 0) // want "unassigned variable `a`"
 	print(*b)                          // safe because the call site annotation is used
 }
 
 // nonnil(x) nilable(result 0)
+// contract(nonnil -> nonnil)
 func fooNoCallSiteAnnoatation(x *int) *int {
 	if x != nil {
 		// Return nonnil
@@ -184,6 +185,25 @@ func barNoCallSiteAnnoatation() {
 	var a *int
 	// We should rely on the function header annotations if we do not find any call site
 	// annotations.
-	v := fooNoCallSiteAnnoatation(a) // want "nilable value passed"
-	print(*v)                        // want "nilable value dereferenced"
+	v := fooNoCallSiteAnnoatation(a) // want "passed"
+	print(*v)                        // want "dereferenced"
+}
+
+// Contract below isn't useful, since return is always nonnil and argument is ignored, but added to
+// check we don't crash on unnamed parameters.
+// contract(nonnil -> nonnil)
+func fooUnnamedParam(_ *int) *int {
+	return new(int)
+}
+
+func barUnnamedParam1() {
+	var a1 *int
+	b1 := fooUnnamedParam(a1) // nilable(param 0) nonnil(result 0)
+	print(*b1) // No error here.
+}
+
+func barUnnamedParam2() {
+	var a2 *int
+	b2 := fooUnnamedParam(a2) // nilable(param 0) nonnil(result 0)
+	print(*b2) // No error here.
 }

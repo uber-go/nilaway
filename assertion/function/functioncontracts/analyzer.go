@@ -115,7 +115,7 @@ func collectFunctionContracts(pass *analysis.Pass) Map {
 
 	m := Map{}
 	for _, file := range pass.Files {
-		if !conf.IsFileInScope(file) || !util.DocContainsFunctionContractsCheck(file.Doc) {
+		if !conf.IsFileInScope(file) {
 			continue
 		}
 		for _, decl := range file.Decls {
@@ -191,6 +191,8 @@ func inferContractsToChannel(
 	fnChan chan functionResult,
 	wg *sync.WaitGroup,
 ) {
+	defer wg.Done()
+
 	// As a last resort, convert the panics into errors and return.
 	defer func() {
 		if r := recover(); r != nil {
@@ -198,7 +200,6 @@ func inferContractsToChannel(
 			fnChan <- functionResult{err: e, funcObj: funcObj, contracts: []*FunctionContract{}}
 		}
 	}()
-	defer wg.Done()
 
 	fnChan <- functionResult{
 		funcObj:   funcObj,

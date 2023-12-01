@@ -222,11 +222,7 @@ func TestFunctionContracts(t *testing.T) {
 	t.Parallel()
 
 	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer,
-		"go.uber.org/functioncontracts/parse",
-		"go.uber.org/functioncontracts/parse/inference",
-		"go.uber.org/functioncontracts/infer",
-		"go.uber.org/functioncontracts/infer/inference")
+	analysistest.Run(t, testdata, Analyzer, "go.uber.org/functioncontracts", "go.uber.org/functioncontracts/inference")
 }
 
 func TestConstants(t *testing.T) {

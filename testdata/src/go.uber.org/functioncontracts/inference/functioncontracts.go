@@ -12,18 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*
-This package aims to test hand-written function contracts in full inference mode.
 
-<nilaway contract enable>
-*/
+// This package aims to test automated inferred function contracts in full inference mode.
+
 package inference
 
 import "math/rand"
 
 // Test the contracted function contains a full trigger nilable -> return 0.
-// contract(nonnil -> nonnil)
-func fooReturn(x *int) *int { // want "^ Annotation on Result 0.*\n.*Must be NILABLE.*\n.*AND.*\n.*Must be NONNIL.*NONNIL$"
+func fooReturn(x *int) *int {
 	if x != nil {
 		// Return nonnil
 		return new(int)
@@ -40,25 +37,24 @@ func barReturn1() {
 	n := 1
 	a1 := &n
 	b1 := fooReturn(a1)
-	print(*b1) // No "nilable value dereferenced" wanted
+	print(*b1) // No error due to the contract.
 }
 
 func barReturn2() {
 	var a2 *int
 	b2 := fooReturn(a2)
-	print(*b2) // "nilable value dereferenced" wanted
+	print(*b2) // want "result 0 of `fooReturn.*` .* dereferenced"
 }
 
 // Test the contracted function contains a full trigger param 0 -> nonnil.
-// contract(nonnil -> nonnil)
-func fooParam(x *int) *int { // want "^ Annotation on Param 0.*\n.*Must be NILABLE.*\n.*AND.*\n.*Must be NONNIL.*NONNIL$" "^ Annotation on Result 0.*\n.*Must be NILABLE.*\n.*AND.*\n.*Must be NONNIL.*NONNIL$"
+func fooParam(x *int) *int {
 	if x != nil {
 		return new(int)
 	}
 	if rand.Float64() > 0.5 {
 		return new(int)
 	} else {
-		sink(*x) // "nilable value dereferenced" wanted
+		sink(*x) // want "function parameter `x` .* dereferenced"
 		return nil
 	}
 }
@@ -73,19 +69,19 @@ func barParam1() {
 func barParam2() {
 	var a2 *int
 	b2 := fooParam(a2)
-	print(*b2)
+	print(*b2) // want "result 0 of `fooParam.*` .* dereferenced"
 }
 
 func sink(v int) {}
 
 // Test the contracted function contains another contracted function.
+// TODO: remove the contract here when we can automatically infer the contract for this function.
 // contract(nonnil -> nonnil)
 func fooNested(x *int) *int {
 	return fooBase(x)
 }
 
-// contract(nonnil -> nonnil)
-func fooBase(x *int) *int { // want "^ Annotation on Result 0.*\n.*Must be NILABLE.*\n.*AND.*\n.*Must be NONNIL.*NONNIL$"
+func fooBase(x *int) *int {
 	if x != nil {
 		return new(int)
 	}
@@ -100,25 +96,24 @@ func barNested1() {
 	n := 1
 	a1 := &n
 	b1 := fooNested(a1)
-	print(*b1) // No "nilable value dereferenced" wanted
+	print(*b1) // No error here due to the contract.
 }
 
 func barNested2() {
 	var a2 *int
 	b2 := fooNested(a2)
-	print(*b2) // "nilable value dereferenced" wanted
+	print(*b2) // want "result 0 of `fooNested.*` .* dereferenced"
 }
 
 // Test the contracted function is called by another function.
-// contract(nonnil -> nonnil)
-func fooParamCalledInAnotherFunction(x *int) *int { // want "^ Annotation on Param 0.*\n.*Must be NILABLE.*\n.*AND.*\n.*Must be NONNIL.*NONNIL$"
+func fooParamCalledInAnotherFunction(x *int) *int {
 	if x != nil {
 		return new(int)
 	}
 	if rand.Float64() > 0.5 {
 		return new(int)
 	} else {
-		sink(*x) // "nilable value dereferenced" wanted
+		sink(*x) // want "function parameter `x` .* dereferenced"
 		return nil
 	}
 }
@@ -131,8 +126,7 @@ func barParamCalledInAnotherFunction() {
 func call(x *int) {}
 
 // Test a contracted function is called multiple times in another function.
-// contract(nonnil->nonnil)
-func fooReturnCalledMultipleTimesInTheSameFunction(x *int) *int { // want "^ Annotation on Result 0.*\n.*Must be NILABLE.*\n.*AND.*\n.*Must be NONNIL.*NONNIL$" "^ Annotation on Result 0.*\n.*Must be NILABLE.*\n.*AND.*\n.*Must be NONNIL.*NONNIL$"
+func fooReturnCalledMultipleTimesInTheSameFunction(x *int) *int {
 	if x != nil {
 		return new(int)
 	}
@@ -147,37 +141,18 @@ func barReturnCalledMultipleTimesInTheSameFunction() {
 	n := 1
 	a1 := &n
 	b1 := fooReturnCalledMultipleTimesInTheSameFunction(a1)
-	print(*b1) // No "nilable value dereferenced" wanted
+	print(*b1) // No error here due to the contract.
 
 	var a2 *int
 	b2 := fooReturnCalledMultipleTimesInTheSameFunction(a2)
-	print(*b2) // "nilable value dereferenced" wanted
+	print(*b2) // want "result 0 of `fooReturnCalledMultipleTimesInTheSameFunction.*` .* dereferenced"
 
 	m := 2
 	a3 := &m
 	b3 := fooReturnCalledMultipleTimesInTheSameFunction(a3)
-	print(*b3) // No "nilable value dereferenced" wanted
+	print(*b3) // No error here due to the contract.
 
 	var a4 *int
 	b4 := fooReturnCalledMultipleTimesInTheSameFunction(a4)
-	print(*b4) // "nilable value dereferenced" wanted
-}
-
-// Contract below isn't useful, since return is always nonnil and argument is ignored, but added to
-// check we don't crash on unnamed parameters.
-// contract(nonnil -> nonnil)
-func fooUnamedParam(_ *int) *int {
-	return new(int)
-}
-
-func barUnamedParam1() {
-	var a1 *int
-	b1 := fooUnamedParam(a1)
-	print(*b1) // No "nilable value dereferenced" wanted
-}
-
-func barUnamedParam2() {
-	var a2 *int
-	b2 := fooUnamedParam(a2)
-	print(*b2) // No "nilable value dereferenced" wanted
+	print(*b4) // want "result 0 of `fooReturnCalledMultipleTimesInTheSameFunction.*` .* dereferenced"
 }
