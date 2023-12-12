@@ -622,9 +622,6 @@ buildShadowMask:
 
 						// beforeTriggersLastIndex is used to find the newly added triggers on the next line
 						beforeTriggersLastIndex := len(rootNode.triggers)
-						if beforeTriggersLastIndex > 0 {
-							beforeTriggersLastIndex--
-						}
 
 						rootNode.AddProduction(&annotation.ProduceTrigger{
 							Annotation: rproducers[0].GetShallow().Annotation,
@@ -632,9 +629,6 @@ buildShadowMask:
 						}, rproducers[0].GetDeepSlice()...)
 
 						// Update consumers of newly added triggers with assignment entries for informative printing of errors
-						if len(rootNode.triggers) == 0 {
-							continue
-						}
 						for _, t := range rootNode.triggers[beforeTriggersLastIndex:len(rootNode.triggers)] {
 							t.Consumer.Annotation.AddAssignment(annotation.Assignment{
 								LHSExprStr: util.ExprToString(lhsVal, rootNode.Pass()),
