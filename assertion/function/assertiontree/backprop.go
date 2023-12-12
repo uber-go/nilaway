@@ -629,6 +629,11 @@ buildShadowMask:
 						}, rproducers[0].GetDeepSlice()...)
 
 						// Update consumers of newly added triggers with assignment entries for informative printing of errors
+						// TODO: the below check `len(rootNode.triggers) == 0` should not be needed, however, it is added to
+						//  satisfy NilAway's analysis
+						if len(rootNode.triggers) == 0 {
+							continue
+						}
 						for _, t := range rootNode.triggers[beforeTriggersLastIndex:len(rootNode.triggers)] {
 							t.Consumer.Annotation.AddAssignment(annotation.Assignment{
 								LHSExprStr: util.ExprToString(lhsVal, rootNode.Pass()),
