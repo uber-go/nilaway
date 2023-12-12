@@ -16,6 +16,7 @@
 // multi-package inference is tested by our integration test suites. Please see
 // `testdata/README.md` for more details.
 
+// <nilaway no inference>
 package errormessage
 
 import "errors"
@@ -45,6 +46,7 @@ func test3(x *int) {
 	print(*z) //want "`nil` to `x`"
 }
 
+// nilable(f)
 type S struct {
 	f *int
 }
@@ -72,11 +74,7 @@ func test6() *int {
 	var x *int = nil
 	y := x
 	z := y
-	return z
-}
-
-func callTest6() {
-	print(*test6()) //want "`nil` to `x`"
+	return z //want "`nil` to `x`"
 }
 
 func test7() {
@@ -131,12 +129,12 @@ func test12(mp map[int]S, i int) {
 	y := mp[i] // unrelated assignment, should not be printed in the error message
 	_ = y
 
-	s := mp[i] // relevant assignment, should be printed in the error message
-	consumeS(&s)
+	s := mp[i]   // relevant assignment, should be printed in the error message
+	consumeS(&s) //want "`mp\\[i\\]` to `s`"
 }
 
 func consumeS(s *S) {
-	print(s.f) //want "`mp\\[i\\]` to `s`"
+	print(s.f)
 }
 
 func retErr() error {
@@ -145,11 +143,7 @@ func retErr() error {
 
 func test13() *int {
 	if err := retErr(); err != nil { // unrelated assignment, should not be printed in the error message
-		return nil
+		return nil //want "literal `nil` returned"
 	}
 	return new(int)
-}
-
-func callTest13() {
-	print(*test13()) //want "literal `nil` returned"
 }
