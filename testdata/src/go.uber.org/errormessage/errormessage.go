@@ -121,3 +121,18 @@ func callTest11() {
 	var s []*int
 	test11(s)
 }
+
+func test12(mp map[int]S, i int) {
+	x := mp[i] // unrelated assignment, should not be printed in the error message
+	_ = x
+
+	y := mp[i] // unrelated assignment, should not be printed in the error message
+	_ = y
+
+	s := mp[i]   // relevant assignment, should be printed in the error message
+	consumeS(&s) //want "`mp\\[i\\]` to `s`"
+}
+
+func consumeS(s *S) {
+	print(s.f)
+}
