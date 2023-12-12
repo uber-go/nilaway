@@ -510,30 +510,31 @@ func ExprToString(e ast.Expr, pass *analysis.Pass, isShortenExpr bool) string {
 // exprOnLine3)" becomes "foo(...)"
 func shortenExpr(expr string) string {
 	var result strings.Builder
-	var depth int
-	var inBrackets bool
-	var innerExpr strings.Builder
+	var depth int                 // helps to keep track of nested brackets
+	var inBrackets bool           // indicates if we are currently inside brackets
+	var innerExpr strings.Builder // stores the content inside brackets
 
 	for _, char := range expr {
 		switch char {
 		case '(', '{', '[':
 			if depth == 0 {
-				depth++
 				inBrackets = true
-				result.WriteRune(char)
+				result.WriteRune(char) // append the opening bracket
 			}
+			depth++
 			continue
 
 		case ')', '}', ']':
 			depth--
 			if depth == 0 {
-				// Replace the content inside brackets with "..." if it is long (more than 3 characters)
+				// Replace the content inside brackets with "..." if it is long (more than 3 characters), else
+				// retain the original content as is.
 				if innerExpr.Len() > 3 {
 					result.WriteString("...")
 				} else {
 					result.WriteString(innerExpr.String())
 				}
-				result.WriteRune(char)
+				result.WriteRune(char) // append the closing bracket
 
 				inBrackets = false
 				innerExpr.Reset()
@@ -542,10 +543,10 @@ func shortenExpr(expr string) string {
 		}
 
 		if inBrackets {
-			innerExpr.WriteRune(char)
+			innerExpr.WriteRune(char) // append the character to the inner expression
 			continue
 		}
-		result.WriteRune(char)
+		result.WriteRune(char) // append the character to the result if not in brackets, and not a bracket itself
 	}
 
 	return result.String()
