@@ -483,11 +483,70 @@ func PosToLocation(pos token.Pos, pass *analysis.Pass) token.Position {
 }
 
 // ExprToString converts AST expression to string
-func ExprToString(e ast.Expr, pass *analysis.Pass) string {
+func ExprToString(e ast.Expr, pass *analysis.Pass, isShortenExpr bool) string {
 	var buf bytes.Buffer
 	err := printer.Fprint(&buf, pass.Fset, e)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to convert AST expression to string: %v\n", err))
 	}
-	return buf.String()
+	s := buf.String()
+
+	if isShortenExpr {
+		// shorten long expression strings (e.g., s.foo(longVarName, anotherLongVarName, someOtherLongVarName) --> s.foo(...))
+		s = shortenExpr(s)
+	}
+
+	return s
+}
+
+// shortenExpr shortens long expressions enclosed in brackets ('()', '{}', '[]') to "...". It also handles nested brackets
+// and multi-line expressions.
+// Examples:
+// 1. "s.foo(longVarName, anotherLongVarName, someOtherLongVarName)" becomes "s.foo(...)"
+// 2. "s.foo(a, b, c ,d ,e, f).bar(i)" becomes "s.foo(...).bar(i)"
+// 3. "s.foo(someVar, bar(), baz(x, y))" becomes "s.foo(...)"
+// 4. "foo(exprOnLine1,
+// exprOnLine2,
+// exprOnLine3)" becomes "foo(...)"
+func shortenExpr(expr string) string {
+	var result strings.Builder
+	var depth int
+	var inBrackets bool
+	var innerExpr strings.Builder
+
+	for _, char := range expr {
+		switch char {
+		case '(', '{', '[':
+			if depth == 0 {
+				depth++
+				inBrackets = true
+				result.WriteRune(char)
+			}
+			continue
+
+		case ')', '}', ']':
+			depth--
+			if depth == 0 {
+				// Replace the content inside brackets with "..." if it is long (more than 3 characters)
+				if innerExpr.Len() > 3 {
+					result.WriteString("...")
+				} else {
+					result.WriteString(innerExpr.String())
+				}
+				result.WriteRune(char)
+
+				inBrackets = false
+				innerExpr.Reset()
+			}
+			continue
+		}
+
+		if inBrackets {
+			innerExpr.WriteRune(char)
+			continue
+		}
+		result.WriteRune(char)
+	}
+
+	return result.String()
 }
