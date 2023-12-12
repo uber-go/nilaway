@@ -63,7 +63,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 		if r.isNil(expr) {
 			return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{
 				Producer: &annotation.ProduceTrigger{
-					Annotation: annotation.ConstNil{},
+					Annotation: &annotation.ConstNil{ProduceTriggerTautology: &annotation.ProduceTriggerTautology{}},
 					Expr:       expr,
 				},
 			}}
@@ -80,9 +80,9 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 			if annotation.VarIsRecv(funcObj, varObj) {
 				return nil, []producer.ParsedProducer{producer.DeepParsedProducer{
 					ShallowProducer: &annotation.ProduceTrigger{
-						Annotation: annotation.MethodRecv{
-							TriggerIfNilable: annotation.TriggerIfNilable{
-								Ann: annotation.RecvAnnotationKey{FuncDecl: funcObj}},
+						Annotation: &annotation.MethodRecv{
+							TriggerIfNilable: &annotation.TriggerIfNilable{
+								Ann: &annotation.RecvAnnotationKey{FuncDecl: funcObj}},
 							VarDecl: varObj,
 						},
 						Expr: expr,
@@ -102,9 +102,9 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 				}
 				if annotation.VarIsGlobal(varObj) {
 					return &annotation.ProduceTrigger{
-						Annotation: annotation.GlobalVarRead{
-							TriggerIfNilable: annotation.TriggerIfNilable{
-								Ann: annotation.GlobalVarAnnotationKey{
+						Annotation: &annotation.GlobalVarRead{
+							TriggerIfNilable: &annotation.TriggerIfNilable{
+								Ann: &annotation.GlobalVarAnnotationKey{
 									VarDecl: varObj,
 								}}},
 						Expr: expr,
@@ -112,7 +112,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 				}
 				// in the case of a totally unrecognized identifier - we assume nilability
 				return &annotation.ProduceTrigger{
-					Annotation: annotation.ProduceTriggerTautology{},
+					Annotation: &annotation.ProduceTriggerTautology{},
 					Expr:       expr,
 				}
 			}
@@ -177,7 +177,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 		// if we reach here - that should mean that expr.X is not deeply nilable, so we know this
 		// read cannot produce nil
 		return []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: &annotation.ProduceTrigger{
-			Annotation: annotation.ProduceTriggerNever{},
+			Annotation: &annotation.ProduceTriggerNever{},
 			Expr:       expr,
 		}}}
 	}
@@ -202,9 +202,9 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 			fldObj := r.ObjectOf(expr.Sel).(*types.Var)
 			return []producer.ParsedProducer{producer.DeepParsedProducer{
 				ShallowProducer: &annotation.ProduceTrigger{
-					Annotation: annotation.FldRead{
-						TriggerIfNilable: annotation.TriggerIfNilable{
-							Ann: annotation.FieldAnnotationKey{
+					Annotation: &annotation.FldRead{
+						TriggerIfNilable: &annotation.TriggerIfNilable{
+							Ann: &annotation.FieldAnnotationKey{
 								FieldDecl: fldObj}}},
 					Expr: expr,
 				},
@@ -348,7 +348,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 			// We should create a nilable producer.
 			return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{
 				Producer: &annotation.ProduceTrigger{
-					Annotation: annotation.ProduceTriggerTautology{},
+					Annotation: &annotation.ProduceTriggerTautology{},
 					Expr:       expr,
 				}}}
 		// For slice expressions `b[0:]` and `b[:]`, the result's nilability depends on the
@@ -433,14 +433,14 @@ func (r *RootAssertionNode) getFuncReturnProducers(ident *ast.Ident, expr *ast.C
 
 		producers[i] = producer.DeepParsedProducer{
 			ShallowProducer: &annotation.ProduceTrigger{
-				Annotation: annotation.FuncReturn{
-					TriggerIfNilable: annotation.TriggerIfNilable{
+				Annotation: &annotation.FuncReturn{
+					TriggerIfNilable: &annotation.TriggerIfNilable{
 						Ann: retKey,
+						// for an error-returning function, all but the last result are guarded
+						// TODO: add an annotation that allows more results to escape from guarding
+						// such as "error-nonnil" or "always-nonnil"
+						NeedsGuard: isErrReturning && i != numResults-1,
 					},
-					// for an error-returning function, all but the last result are guarded
-					// TODO: add an annotation that allows more results to escape from guarding
-					// such as "error-nonnil" or "always-nonnil"
-					Guarded: isErrReturning && i != numResults-1,
 				},
 				Expr: expr,
 			},
@@ -476,7 +476,7 @@ func (r *RootAssertionNode) parseStructCreateExprAsProducer(expr ast.Expr, field
 
 			if fieldVal == nil {
 				// this means the field is not assigned any value, thus unassigned field should be produced
-				fieldProducerArray[i] = &annotation.ProduceTrigger{Annotation: annotation.UnassignedFld{}}
+				fieldProducerArray[i] = &annotation.ProduceTrigger{Annotation: &annotation.UnassignedFld{ProduceTriggerTautology: &annotation.ProduceTriggerTautology{}}}
 			} else {
 				// do not track. Get producer for expression `fieldVal` assigned to the field
 				_, fieldProducer := r.ParseExprAsProducer(fieldVal, true)
@@ -485,13 +485,13 @@ func (r *RootAssertionNode) parseStructCreateExprAsProducer(expr ast.Expr, field
 					fieldProducerArray[i] = fieldProducer[0].GetShallow()
 				} else {
 					// If the field producer is nil, that means it is not a nilable expression
-					fieldProducerArray[i] = &annotation.ProduceTrigger{Annotation: annotation.ProduceTriggerNever{}}
+					fieldProducerArray[i] = &annotation.ProduceTrigger{Annotation: &annotation.ProduceTriggerNever{}}
 				}
 			}
 		}
 
 		return producer.DeepParsedProducer{
-			ShallowProducer: &annotation.ProduceTrigger{Annotation: annotation.ProduceTriggerNever{}},
+			ShallowProducer: &annotation.ProduceTrigger{Annotation: &annotation.ProduceTriggerNever{}},
 			DeepProducer:    nil,
 			FieldProducers:  fieldProducerArray,
 		}

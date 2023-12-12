@@ -141,8 +141,8 @@ func (r *RootAssertionNode) getFieldProducersForFuncReturns(calledFuncDecl *type
 			retKey := annotation.NewRetFldAnnKey(calledFuncDecl, retNum, fieldDecl)
 
 			fieldProducer := &annotation.ProduceTrigger{
-				Annotation: annotation.FldReturn{
-					TriggerIfNilable: annotation.TriggerIfNilable{Ann: retKey},
+				Annotation: &annotation.FldReturn{
+					TriggerIfNilable: &annotation.TriggerIfNilable{Ann: retKey},
 				},
 			}
 
@@ -188,7 +188,7 @@ func (r *RootAssertionNode) addProductionForVarFieldNode(varNode *varAssertionNo
 			if varAstExpr == selExpr.X {
 				r.AddProduction(
 					&annotation.ProduceTrigger{
-						Annotation: annotation.UnassignedFld{},
+						Annotation: &annotation.UnassignedFld{ProduceTriggerTautology: &annotation.ProduceTriggerTautology{}},
 						Expr:       selExpr,
 					})
 			}
@@ -207,8 +207,8 @@ func (r *RootAssertionNode) addProductionsForParamFieldNode(selExpr *ast.Selecto
 			if paramName == selExpr.X {
 				r.AddProduction(
 					&annotation.ProduceTrigger{
-						Annotation: annotation.ParamFldRead{
-							TriggerIfNilable: annotation.TriggerIfNilable{
+						Annotation: &annotation.ParamFldRead{
+							TriggerIfNilable: &annotation.TriggerIfNilable{
 								Ann: annotation.NewParamFldAnnKey(funcObj, index, node.decl)}},
 						Expr: selExpr,
 					})
@@ -229,8 +229,8 @@ func (r *RootAssertionNode) addProductionsForParamFieldNode(selExpr *ast.Selecto
 			}
 			r.AddProduction(
 				&annotation.ProduceTrigger{
-					Annotation: annotation.ParamFldRead{
-						TriggerIfNilable: annotation.TriggerIfNilable{
+					Annotation: &annotation.ParamFldRead{
+						TriggerIfNilable: &annotation.TriggerIfNilable{
 							Ann: annotation.NewParamFldAnnKey(funcObj, annotation.ReceiverParamIndex, node.decl)}},
 					Expr: selExpr,
 				})
@@ -301,8 +301,8 @@ func (r *RootAssertionNode) addConsumptionsForArgFieldsAtIndex(arg ast.Expr, fun
 					paramFieldKey := annotation.NewParamFldAnnKey(funcObj, argIdx, fieldDecl)
 					r.AddConsumption(
 						&annotation.ConsumeTrigger{
-							Annotation: annotation.ArgFldPass{
-								TriggerIfNonNil: annotation.TriggerIfNonNil{
+							Annotation: &annotation.ArgFldPass{
+								TriggerIfNonNil: &annotation.TriggerIfNonNil{
 									Ann: paramFieldKey,
 								},
 							},
@@ -411,8 +411,8 @@ func (r *RootAssertionNode) addProductionForFuncCallArgFieldsAtIndex(arg ast.Exp
 			if paramFieldKey != nil {
 				r.AddProduction(
 					&annotation.ProduceTrigger{
-						Annotation: annotation.ParamFldRead{
-							TriggerIfNilable: annotation.TriggerIfNilable{
+						Annotation: &annotation.ParamFldRead{
+							TriggerIfNilable: &annotation.TriggerIfNilable{
 								Ann: paramFieldKey,
 							},
 						},
@@ -469,8 +469,8 @@ func (r *RootAssertionNode) addConsumptionsForFieldsOfParam(param *types.Var, pa
 
 			if paramFieldKey != nil {
 				r.AddConsumption(&annotation.ConsumeTrigger{
-					Annotation: annotation.ArgFldPass{
-						TriggerIfNonNil: annotation.TriggerIfNonNil{
+					Annotation: &annotation.ArgFldPass{
+						TriggerIfNonNil: &annotation.TriggerIfNonNil{
 							Ann: paramFieldKey},
 						IsPassed: true,
 					},
@@ -491,7 +491,7 @@ func (r *RootAssertionNode) getParamFieldKey(arg ast.Expr, methodType *types.Fun
 	}
 	selExpr := r.getSelectorExpr(fieldDecl, arg)
 
-	paramFieldKey := annotation.ParamFieldAnnotationKey{
+	paramFieldKey := &annotation.ParamFieldAnnotationKey{
 		FuncDecl:             methodType,
 		ParamNum:             argIdx,
 		FieldDecl:            fieldDecl,

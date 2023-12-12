@@ -59,16 +59,16 @@ func (f *fldAssertionNode) DefaultTrigger() annotation.ProducingAnnotationTrigge
 		// If the field is not produced by a variable we default to the FieldAnnotationKey
 		// Similarly, for a global variable we default to the FieldAnnotationKey
 		if varNode != nil && !annotation.VarIsGlobal(varNode.decl) {
-			return annotation.FldRead{
-				TriggerIfNilable: annotation.TriggerIfNilable{
-					Ann: annotation.EscapeFieldAnnotationKey{
+			return &annotation.FldRead{
+				TriggerIfNilable: &annotation.TriggerIfNilable{
+					Ann: &annotation.EscapeFieldAnnotationKey{
 						FieldDecl: f.decl,
 					}}}
 		}
 	}
-	return annotation.FldRead{
-		TriggerIfNilable: annotation.TriggerIfNilable{
-			Ann: annotation.FieldAnnotationKey{
+	return &annotation.FldRead{
+		TriggerIfNilable: &annotation.TriggerIfNilable{
+			Ann: &annotation.FieldAnnotationKey{
 				FieldDecl: f.decl,
 			}}}
 }

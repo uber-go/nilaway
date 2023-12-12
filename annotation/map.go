@@ -35,8 +35,8 @@ type Map interface {
 	CheckFuncRecvAnn(*types.Func) (Val, bool)
 	CheckDeepTypeAnn(*types.TypeName) (Val, bool)
 	CheckGlobalVarAnn(*types.Var) (Val, bool)
-	CheckFuncCallSiteParamAnn(key CallSiteParamAnnotationKey) (Val, bool)
-	CheckFuncCallSiteRetAnn(key CallSiteRetAnnotationKey) (Val, bool)
+	CheckFuncCallSiteParamAnn(*CallSiteParamAnnotationKey) (Val, bool)
+	CheckFuncCallSiteRetAnn(*CallSiteRetAnnotationKey) (Val, bool)
 }
 
 // Val is a possible value of an Annotation
@@ -192,7 +192,7 @@ func (m *ObservedMap) Range(op func(key Key, isDeep bool, val bool), setSitesOnl
 	}
 
 	for fld, val := range m.fieldAnnMap {
-		callOpOnKeyVal(FieldAnnotationKey{FieldDecl: fld}, val)
+		callOpOnKeyVal(&FieldAnnotationKey{FieldDecl: fld}, val)
 	}
 
 	for fdecl, vals := range m.funcParamAnnMap {
@@ -208,15 +208,15 @@ func (m *ObservedMap) Range(op func(key Key, isDeep bool, val bool), setSitesOnl
 	}
 
 	for fdecl, val := range m.funcRecvAnnMap {
-		callOpOnKeyVal((RecvAnnotationKey{FuncDecl: fdecl}), val)
+		callOpOnKeyVal((&RecvAnnotationKey{FuncDecl: fdecl}), val)
 	}
 
 	for tdecl, val := range m.deepTypeAnnMap {
-		callOpOnKeyVal(TypeNameAnnotationKey{TypeDecl: tdecl}, val)
+		callOpOnKeyVal(&TypeNameAnnotationKey{TypeDecl: tdecl}, val)
 	}
 
 	for gvar, val := range m.globalVarsAnnMap {
-		callOpOnKeyVal(GlobalVarAnnotationKey{VarDecl: gvar}, val)
+		callOpOnKeyVal(&GlobalVarAnnotationKey{VarDecl: gvar}, val)
 	}
 
 	for callSite, vals := range m.funcCallSiteParamAnnMap {
