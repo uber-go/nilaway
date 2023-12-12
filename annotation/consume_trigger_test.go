@@ -17,62 +17,76 @@ package annotation
 import (
 	"testing"
 
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 )
 
-type ConsumingAnnotationTriggerTestSuite struct {
+const _interfaceNameConsumingAnnotationTrigger = "ConsumingAnnotationTrigger"
+
+// initStructsConsumingAnnotationTrigger initializes all structs that implement the ConsumingAnnotationTrigger interface
+var initStructsConsumingAnnotationTrigger = []any{
+	&TriggerIfNonNil{Ann: newMockKey()},
+	&TriggerIfDeepNonNil{Ann: newMockKey()},
+	&ConsumeTriggerTautology{},
+	&PtrLoad{ConsumeTriggerTautology: &ConsumeTriggerTautology{}},
+	&MapAccess{ConsumeTriggerTautology: &ConsumeTriggerTautology{}},
+	&MapWrittenTo{ConsumeTriggerTautology: &ConsumeTriggerTautology{}},
+	&SliceAccess{ConsumeTriggerTautology: &ConsumeTriggerTautology{}},
+	&FldAccess{ConsumeTriggerTautology: &ConsumeTriggerTautology{}},
+	&UseAsErrorResult{TriggerIfNonNil: &TriggerIfNonNil{Ann: newMockKey()}},
+	&FldAssign{TriggerIfNonNil: &TriggerIfNonNil{Ann: newMockKey()}},
+	&ArgFldPass{TriggerIfNonNil: &TriggerIfNonNil{Ann: newMockKey()}},
+	&GlobalVarAssign{TriggerIfNonNil: &TriggerIfNonNil{Ann: newMockKey()}},
+	&ArgPass{TriggerIfNonNil: &TriggerIfNonNil{Ann: newMockKey()}},
+	&RecvPass{TriggerIfNonNil: &TriggerIfNonNil{Ann: newMockKey()}},
+	&InterfaceResultFromImplementation{TriggerIfNonNil: &TriggerIfNonNil{Ann: newMockKey()}},
+	&MethodParamFromInterface{TriggerIfNonNil: &TriggerIfNonNil{Ann: newMockKey()}},
+	&UseAsReturn{TriggerIfNonNil: &TriggerIfNonNil{Ann: newMockKey()}},
+	&UseAsFldOfReturn{TriggerIfNonNil: &TriggerIfNonNil{Ann: newMockKey()}},
+	&SliceAssign{TriggerIfDeepNonNil: &TriggerIfDeepNonNil{Ann: newMockKey()}},
+	&ArrayAssign{TriggerIfDeepNonNil: &TriggerIfDeepNonNil{Ann: newMockKey()}},
+	&PtrAssign{TriggerIfDeepNonNil: &TriggerIfDeepNonNil{Ann: newMockKey()}},
+	&MapAssign{TriggerIfDeepNonNil: &TriggerIfDeepNonNil{Ann: newMockKey()}},
+	&DeepAssignPrimitive{ConsumeTriggerTautology: &ConsumeTriggerTautology{}},
+	&ParamAssignDeep{TriggerIfDeepNonNil: &TriggerIfDeepNonNil{Ann: newMockKey()}},
+	&FuncRetAssignDeep{TriggerIfDeepNonNil: &TriggerIfDeepNonNil{Ann: newMockKey()}},
+	&VariadicParamAssignDeep{TriggerIfNonNil: &TriggerIfNonNil{Ann: newMockKey()}},
+	&FieldAssignDeep{TriggerIfDeepNonNil: &TriggerIfDeepNonNil{Ann: newMockKey()}},
+	&GlobalVarAssignDeep{TriggerIfDeepNonNil: &TriggerIfDeepNonNil{Ann: newMockKey()}},
+	&ChanAccess{ConsumeTriggerTautology: &ConsumeTriggerTautology{}},
+	&LocalVarAssignDeep{ConsumeTriggerTautology: &ConsumeTriggerTautology{}},
+	&ChanSend{TriggerIfDeepNonNil: &TriggerIfDeepNonNil{Ann: newMockKey()}},
+	&FldEscape{TriggerIfNonNil: &TriggerIfNonNil{Ann: newMockKey()}},
+	&UseAsNonErrorRetDependentOnErrorRetNilability{TriggerIfNonNil: &TriggerIfNonNil{Ann: newMockKey()}},
+	&UseAsErrorRetWithNilabilityUnknown{TriggerIfNonNil: &TriggerIfNonNil{Ann: newMockKey()}},
+}
+
+// ConsumingAnnotationTriggerEqualsTestSuite tests for the `equals` method of all the structs that implement
+// the `ConsumingAnnotationTrigger` interface.
+type ConsumingAnnotationTriggerEqualsTestSuite struct {
 	EqualsTestSuite
 }
 
-func (s *ConsumingAnnotationTriggerTestSuite) SetupTest() {
-	s.interfaceName = "ConsumingAnnotationTrigger"
-
-	mockedKey := new(mockKey)
-	mockedKey.On("equals", mock.Anything).Return(true)
-
-	// initialize all structs that implement ConsumingAnnotationTrigger
-	s.initStructs = []any{
-		&TriggerIfNonNil{Ann: mockedKey},
-		&TriggerIfDeepNonNil{Ann: mockedKey},
-		&ConsumeTriggerTautology{},
-		&PtrLoad{ConsumeTriggerTautology: &ConsumeTriggerTautology{}},
-		&MapAccess{ConsumeTriggerTautology: &ConsumeTriggerTautology{}},
-		&MapWrittenTo{ConsumeTriggerTautology: &ConsumeTriggerTautology{}},
-		&SliceAccess{ConsumeTriggerTautology: &ConsumeTriggerTautology{}},
-		&FldAccess{ConsumeTriggerTautology: &ConsumeTriggerTautology{}},
-		&UseAsErrorResult{TriggerIfNonNil: &TriggerIfNonNil{Ann: mockedKey}},
-		&FldAssign{TriggerIfNonNil: &TriggerIfNonNil{Ann: mockedKey}},
-		&ArgFldPass{TriggerIfNonNil: &TriggerIfNonNil{Ann: mockedKey}},
-		&GlobalVarAssign{TriggerIfNonNil: &TriggerIfNonNil{Ann: mockedKey}},
-		&ArgPass{TriggerIfNonNil: &TriggerIfNonNil{Ann: mockedKey}},
-		&RecvPass{TriggerIfNonNil: &TriggerIfNonNil{Ann: mockedKey}},
-		&InterfaceResultFromImplementation{TriggerIfNonNil: &TriggerIfNonNil{Ann: mockedKey}},
-		&MethodParamFromInterface{TriggerIfNonNil: &TriggerIfNonNil{Ann: mockedKey}},
-		&UseAsReturn{TriggerIfNonNil: &TriggerIfNonNil{Ann: mockedKey}},
-		&UseAsFldOfReturn{TriggerIfNonNil: &TriggerIfNonNil{Ann: mockedKey}},
-		&SliceAssign{TriggerIfDeepNonNil: &TriggerIfDeepNonNil{Ann: mockedKey}},
-		&ArrayAssign{TriggerIfDeepNonNil: &TriggerIfDeepNonNil{Ann: mockedKey}},
-		&PtrAssign{TriggerIfDeepNonNil: &TriggerIfDeepNonNil{Ann: mockedKey}},
-		&MapAssign{TriggerIfDeepNonNil: &TriggerIfDeepNonNil{Ann: mockedKey}},
-		&DeepAssignPrimitive{ConsumeTriggerTautology: &ConsumeTriggerTautology{}},
-		&ParamAssignDeep{TriggerIfDeepNonNil: &TriggerIfDeepNonNil{Ann: mockedKey}},
-		&FuncRetAssignDeep{TriggerIfDeepNonNil: &TriggerIfDeepNonNil{Ann: mockedKey}},
-		&VariadicParamAssignDeep{TriggerIfNonNil: &TriggerIfNonNil{Ann: mockedKey}},
-		&FieldAssignDeep{TriggerIfDeepNonNil: &TriggerIfDeepNonNil{Ann: mockedKey}},
-		&GlobalVarAssignDeep{TriggerIfDeepNonNil: &TriggerIfDeepNonNil{Ann: mockedKey}},
-		&ChanAccess{ConsumeTriggerTautology: &ConsumeTriggerTautology{}},
-		&LocalVarAssignDeep{ConsumeTriggerTautology: &ConsumeTriggerTautology{}},
-		&ChanSend{TriggerIfDeepNonNil: &TriggerIfDeepNonNil{Ann: mockedKey}},
-		&FldEscape{TriggerIfNonNil: &TriggerIfNonNil{Ann: mockedKey}},
-		&UseAsNonErrorRetDependentOnErrorRetNilability{TriggerIfNonNil: &TriggerIfNonNil{Ann: mockedKey}},
-		&UseAsErrorRetWithNilabilityUnknown{TriggerIfNonNil: &TriggerIfNonNil{Ann: mockedKey}},
-	}
+func (s *ConsumingAnnotationTriggerEqualsTestSuite) SetupTest() {
+	s.interfaceName = _interfaceNameConsumingAnnotationTrigger
+	s.initStructs = initStructsConsumingAnnotationTrigger
 }
 
-// TestConsumingAnnotationTriggerEqualsSuite runs the test suite for the `equals` method of all the structs that implement
-// the `ConsumingAnnotationTrigger` interface.
 func TestConsumingAnnotationTriggerEqualsSuite(t *testing.T) {
 	t.Parallel()
-	suite.Run(t, new(ConsumingAnnotationTriggerTestSuite))
+	suite.Run(t, new(ConsumingAnnotationTriggerEqualsTestSuite))
+}
+
+// ConsumingAnnotationTriggerCopyTestSuite tests for the `copy` method of all the structs that implement
+// the `ConsumingAnnotationTrigger` interface.
+type ConsumingAnnotationTriggerCopyTestSuite struct {
+	CopyTestSuite
+}
+
+func (s *ConsumingAnnotationTriggerCopyTestSuite) SetupTest() {
+	s.interfaceName = _interfaceNameConsumingAnnotationTrigger
+	s.initStructs = initStructsConsumingAnnotationTrigger
+}
+func TestConsumingAnnotationTriggerCopySuite(t *testing.T) {
+	t.Parallel()
+	suite.Run(t, new(ConsumingAnnotationTriggerCopyTestSuite))
 }

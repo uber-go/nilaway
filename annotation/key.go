@@ -42,6 +42,9 @@ type Key interface {
 
 	// equals returns true if the passed key is equal to this key
 	equals(Key) bool
+
+	// copy returns a deep copy of this key
+	copy() Key
 }
 
 // FieldAnnotationKey allows the Lookup of a field's Annotation in the Annotation map
@@ -68,6 +71,11 @@ func (k *FieldAnnotationKey) equals(other Key) bool {
 		return *k == *other
 	}
 	return false
+}
+
+func (k *FieldAnnotationKey) copy() Key {
+	copyKey := *k
+	return &copyKey
 }
 
 func (k *FieldAnnotationKey) String() string {
@@ -113,6 +121,11 @@ func (pk *CallSiteParamAnnotationKey) equals(other Key) bool {
 		return *pk == *other
 	}
 	return false
+}
+
+func (pk *CallSiteParamAnnotationKey) copy() Key {
+	copyKey := *pk
+	return &copyKey
 }
 
 func (pk *CallSiteParamAnnotationKey) String() string {
@@ -241,6 +254,11 @@ func (pk *ParamAnnotationKey) equals(other Key) bool {
 	return false
 }
 
+func (pk *ParamAnnotationKey) copy() Key {
+	copyKey := *pk
+	return &copyKey
+}
+
 func (pk *ParamAnnotationKey) String() string {
 	argname := ""
 	if pk.ParamName() != nil {
@@ -302,6 +320,11 @@ func (rk *CallSiteRetAnnotationKey) equals(other Key) bool {
 	return false
 }
 
+func (rk *CallSiteRetAnnotationKey) copy() Key {
+	copyKey := *rk
+	return &copyKey
+}
+
 func (rk *CallSiteRetAnnotationKey) String() string {
 	return fmt.Sprintf("Result %d of Function %s at Location %v",
 		rk.RetNum, rk.FuncDecl.Name(), rk.Location)
@@ -344,6 +367,11 @@ func (rk *RetAnnotationKey) equals(other Key) bool {
 	return false
 }
 
+func (rk *RetAnnotationKey) copy() Key {
+	copyKey := *rk
+	return &copyKey
+}
+
 func (rk *RetAnnotationKey) String() string {
 	return fmt.Sprintf("Result %d of Function %s",
 		rk.RetNum, rk.FuncDecl.Name())
@@ -383,6 +411,11 @@ func (tk *TypeNameAnnotationKey) equals(other Key) bool {
 	return false
 }
 
+func (tk *TypeNameAnnotationKey) copy() Key {
+	copyKey := *tk
+	return &copyKey
+}
+
 func (tk *TypeNameAnnotationKey) String() string {
 	return fmt.Sprintf("Type %s", tk.TypeDecl.Name())
 }
@@ -411,6 +444,11 @@ func (gk *GlobalVarAnnotationKey) equals(other Key) bool {
 		return *gk == *other
 	}
 	return false
+}
+
+func (gk *GlobalVarAnnotationKey) copy() Key {
+	copyKey := *gk
+	return &copyKey
 }
 
 func (gk *GlobalVarAnnotationKey) String() string {
@@ -447,6 +485,11 @@ func (rf *RetFieldAnnotationKey) equals(other Key) bool {
 		return *rf == *other
 	}
 	return false
+}
+
+func (rf *RetFieldAnnotationKey) copy() Key {
+	copyKey := *rf
+	return &copyKey
 }
 
 // String returns a string representation of this annotation key
@@ -498,6 +541,11 @@ func (ek *EscapeFieldAnnotationKey) equals(other Key) bool {
 		return *ek == *other
 	}
 	return false
+}
+
+func (ek *EscapeFieldAnnotationKey) copy() Key {
+	copyKey := *ek
+	return &copyKey
 }
 
 func (ek *EscapeFieldAnnotationKey) String() string {
@@ -560,6 +608,11 @@ func (pf *ParamFieldAnnotationKey) equals(other Key) bool {
 	return false
 }
 
+func (pf *ParamFieldAnnotationKey) copy() Key {
+	copyKey := *pf
+	return &copyKey
+}
+
 // String returns a string representation of this annotation key for ParamFieldAnnotationKey
 func (pf *ParamFieldAnnotationKey) String() string {
 	argName := ""
@@ -615,6 +668,11 @@ func (rk *RecvAnnotationKey) equals(other Key) bool {
 		return *rk == *other
 	}
 	return false
+}
+
+func (rk *RecvAnnotationKey) copy() Key {
+	copyKey := *rk
+	return &copyKey
 }
 
 func (rk *RecvAnnotationKey) String() string {
