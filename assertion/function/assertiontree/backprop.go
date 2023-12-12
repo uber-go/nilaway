@@ -585,7 +585,18 @@ buildShadowMask:
 					}
 
 					lhsNode, ok := rootNode.LiftFromPath(lpath)
-					if ok {
+					// TODO: below check for `lhsNode != nil` should not be needed when NilAway supports Ok form for
+					//  used-defined functions (tracked issue #77)
+					if ok && lhsNode != nil {
+						// Add assignment entries to the consumers of lhsNode for informative printing of errors
+						for _, c := range lhsNode.ConsumeTriggers() {
+							c.Annotation.AddAssignment(annotation.Assignment{
+								LHSExprStr: util.ExprToString(lhsVal, rootNode.Pass()),
+								RHSExprStr: util.ExprToString(rhsVal, rootNode.Pass()),
+								Position:   util.TruncatePosition(util.PosToLocation(lhsVal.Pos(), rootNode.Pass())),
+							})
+						}
+
 						// If the lhsVal path is not only trackable but tracked, we add it as
 						// a deferred landing
 						landings = append(landings, deferredLanding{
@@ -609,10 +620,27 @@ buildShadowMask:
 							rootNode.addProductionsForAssignmentFields(fieldProducers, lhsVal)
 						}
 
+						// beforeTriggersLastIndex is used to find the newly added triggers on the next line
+						beforeTriggersLastIndex := len(rootNode.triggers)
+
 						rootNode.AddProduction(&annotation.ProduceTrigger{
 							Annotation: rproducers[0].GetShallow().Annotation,
 							Expr:       lhsVal,
 						}, rproducers[0].GetDeepSlice()...)
+
+						// Update consumers of newly added triggers with assignment entries for informative printing of errors
+						// TODO: the below check `len(rootNode.triggers) == 0` should not be needed, however, it is added to
+						//  satisfy NilAway's analysis
+						if len(rootNode.triggers) == 0 {
+							continue
+						}
+						for _, t := range rootNode.triggers[beforeTriggersLastIndex:len(rootNode.triggers)] {
+							t.Consumer.Annotation.AddAssignment(annotation.Assignment{
+								LHSExprStr: util.ExprToString(lhsVal, rootNode.Pass()),
+								RHSExprStr: util.ExprToString(rhsVal, rootNode.Pass()),
+								Position:   util.TruncatePosition(util.PosToLocation(lhsVal.Pos(), rootNode.Pass())),
+							})
+						}
 					default:
 						return errors.New("rhs expression in a 1-1 assignment was multiply returning - " +
 							"this certainly indicates an error in control flow")
