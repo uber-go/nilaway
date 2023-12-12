@@ -18,6 +18,8 @@
 
 package errormessage
 
+import "errors"
+
 var dummy bool
 
 func test1(x *int) {
@@ -129,10 +131,25 @@ func test12(mp map[int]S, i int) {
 	y := mp[i] // unrelated assignment, should not be printed in the error message
 	_ = y
 
-	s := mp[i]   // relevant assignment, should be printed in the error message
-	consumeS(&s) //want "`mp\\[i\\]` to `s`"
+	s := mp[i] // relevant assignment, should be printed in the error message
+	consumeS(&s)
 }
 
 func consumeS(s *S) {
-	print(s.f)
+	print(s.f) //want "`mp\\[i\\]` to `s`"
+}
+
+func retErr() error {
+	return errors.New("error")
+}
+
+func test13() *int {
+	if err := retErr(); err != nil { // unrelated assignment, should not be printed in the error message
+		return nil
+	}
+	return new(int)
+}
+
+func callTest13() {
+	print(*test13()) //want "literal `nil` returned"
 }
