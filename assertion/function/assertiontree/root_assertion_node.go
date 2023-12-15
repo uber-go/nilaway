@@ -673,6 +673,35 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 						Guards: util.NoGuards(),
 					}
 					r.AddConsumption(&consumer)
+
+					// If arg is a deep type, we add a full trigger for it to track its deep nilability.
+					// ```
+					// E.g., func bar(s []*int) {
+					//   foo(s) // <-- track shallow and deep nilability of `s` here
+					// }
+					// ```
+					if util.TypeIsDeep(util.TypeOf(r.Pass(), arg)) {
+						deepProducer := &annotation.ProduceTrigger{
+							Annotation: exprAsDeepProducer(r, arg),
+							Expr:       arg,
+						}
+						deepConsumer := &annotation.ConsumeTrigger{
+							Annotation: &annotation.ArgPassDeep{
+								TriggerIfDeepNonNil: &annotation.TriggerIfDeepNonNil{
+									Ann: paramKey,
+								}},
+							Expr:   arg,
+							Guards: util.NoGuards(),
+						}
+						// since this is an implicit tracking of the deep nilability of arg, we don't need to
+						// check for its guarding
+						deepConsumer.Annotation.SetNeedsGuard(false)
+
+						r.AddNewTriggers(annotation.FullTrigger{
+							Producer: deepProducer,
+							Consumer: deepConsumer,
+						})
+					}
 				}
 			}
 		}
