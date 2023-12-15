@@ -108,7 +108,7 @@ func TestDeepNil(t *testing.T) {
 	t.Parallel()
 
 	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/deepnil")
+	analysistest.Run(t, testdata, Analyzer, "go.uber.org/deepnil", "go.uber.org/deepnil/inference")
 }
 
 func TestNilableTypes(t *testing.T) {

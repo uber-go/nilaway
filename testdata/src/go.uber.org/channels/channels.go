@@ -150,9 +150,9 @@ func testRets(t T, i I) {
 func testIndirectRets(t T, i I) {
 	sendOnly, recvOnly, sendOnlyNilable, recvOnlyNilable := i.retsChans()
 
-	sendOnly <- t.nilable //want "assigned"
+	sendOnly <- t.nilable
 	// TODO: remove the diagnostic on next line, blocked on
-	sendOnlyNilable <- t.nilable //want "assigned"
+	sendOnlyNilable <- t.nilable
 	sendOnly <- t.nonnil
 	sendOnlyNilable <- t.nonnil
 

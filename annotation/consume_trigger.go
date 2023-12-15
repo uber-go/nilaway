@@ -1656,14 +1656,13 @@ func (c ChanAccessPrestring) String() string {
 
 // LocalVarAssignDeep is when a value flows to a point where it is assigned deeply into a local variable of deeply nonnil type
 type LocalVarAssignDeep struct {
-	*ConsumeTriggerTautology
-	LocalVar *types.Var
+	*TriggerIfDeepNonNil
 }
 
 // equals returns true if the passed ConsumingAnnotationTrigger is equal to this one
 func (l *LocalVarAssignDeep) equals(other ConsumingAnnotationTrigger) bool {
 	if other, ok := other.(*LocalVarAssignDeep); ok {
-		return l.ConsumeTriggerTautology.equals(other.ConsumeTriggerTautology) && l.LocalVar == other.LocalVar
+		return l.TriggerIfDeepNonNil.equals(other.TriggerIfDeepNonNil)
 	}
 	return false
 }
@@ -1671,14 +1670,14 @@ func (l *LocalVarAssignDeep) equals(other ConsumingAnnotationTrigger) bool {
 // Copy returns a deep copy of this ConsumingAnnotationTrigger
 func (l *LocalVarAssignDeep) Copy() ConsumingAnnotationTrigger {
 	copyConsumer := *l
-	copyConsumer.ConsumeTriggerTautology = l.ConsumeTriggerTautology.Copy().(*ConsumeTriggerTautology)
+	copyConsumer.TriggerIfDeepNonNil = l.TriggerIfDeepNonNil.Copy().(*TriggerIfDeepNonNil)
 	return &copyConsumer
 }
 
 // Prestring returns this LocalVarAssignDeep as a Prestring
 func (l *LocalVarAssignDeep) Prestring() Prestring {
 	return LocalVarAssignDeepPrestring{
-		VarName:       l.LocalVar.Name(),
+		VarName:       l.Ann.(*LocalVarAnnotationKey).VarDecl.Name(),
 		AssignmentStr: l.assignmentFlow.String(),
 	}
 }

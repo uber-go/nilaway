@@ -73,7 +73,7 @@ func (s *ProducingAnnotationTriggerTestSuite) SetupTest() {
 		&VariadicFuncParamDeep{TriggerIfNilable: &TriggerIfNilable{Ann: mockedKey}},
 		&FuncReturnDeep{TriggerIfDeepNilable: &TriggerIfDeepNilable{Ann: mockedKey}},
 		&FldReadDeep{TriggerIfDeepNilable: &TriggerIfDeepNilable{Ann: mockedKey}},
-		&LocalVarReadDeep{ProduceTriggerNever: &ProduceTriggerNever{}},
+		&LocalVarReadDeep{TriggerIfDeepNilable: &TriggerIfDeepNilable{Ann: mockedKey}},
 		&GlobalVarReadDeep{TriggerIfDeepNilable: &TriggerIfDeepNilable{Ann: mockedKey}},
 		&GuardMissing{ProduceTriggerTautology: &ProduceTriggerTautology{}, OldAnnotation: mockedProducingAnnotationTrigger},
 	}
