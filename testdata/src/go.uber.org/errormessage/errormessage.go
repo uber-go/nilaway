@@ -48,8 +48,7 @@ func test3(x *int) {
 
 // nilable(f)
 type S struct {
-	f    *int
-	sPtr *S
+	f *int
 }
 
 func test4(x *int) {
@@ -149,7 +148,7 @@ func test13() *int {
 	return new(int)
 }
 
-// below tests check shortening of expressions
+// below tests check shortening of expressions in assignment messages
 
 // nilable(s, result 0)
 func (s *S) bar(i int) *int {
@@ -157,26 +156,26 @@ func (s *S) bar(i int) *int {
 }
 
 // nilable(result 0)
-func (s *S) retNil(a int, b *int, c string, d bool) *S {
+func (s *S) foo(a int, b *int, c string, d bool) *S {
 	return nil
 }
 
 func test14(x *int, i int) {
 	s := &S{}
-	x = s.retNil(1,
+	x = s.foo(1,
 		new(int),
 		"abc",
 		true).bar(i)
 	y := x
-	print(*y) //want "`s.retNil\\(...\\).bar\\(i\\)` to `x`"
+	print(*y) //want "`s.foo\\(...\\).bar\\(i\\)` to `x`"
 }
 
 func test15(x *int) {
 	var longVarName, anotherLongVarName, yetAnotherLongName int
 	s := &S{}
-	x = s.retNil(longVarName, &anotherLongVarName, "abc", true).bar(yetAnotherLongName)
+	x = s.foo(longVarName, &anotherLongVarName, "abc", true).bar(yetAnotherLongName)
 	y := x
-	print(*y) //want "`s.retNil\\(...\\).bar\\(...\\)` to `x`"
+	print(*y) //want "`s.foo\\(...\\).bar\\(...\\)` to `x`"
 }
 
 func test16(mp map[int]*int) {
@@ -190,14 +189,14 @@ func test17(x *int, mp map[int]*int) {
 	var aVeryVeryVeryLongIndexVar int
 	s := &S{}
 
-	x = s.retNil(1, mp[aVeryVeryVeryLongIndexVar], "abc", true).bar(2) //want "deep read"
+	x = s.foo(1, mp[aVeryVeryVeryLongIndexVar], "abc", true).bar(2) //want "deep read"
 	y := x
-	print(*y) //want "`s.retNil\\(...\\).bar\\(2\\)` to `x`"
+	print(*y) //want "`s.foo\\(...\\).bar\\(2\\)` to `x`"
 }
 
 func test18(x *int, mp map[int]*int) {
 	s := &S{}
-	x = mp[*(s.retNil(1, new(int), "abc", true).bar(2))] //want "dereferenced"
+	x = mp[*(s.foo(1, new(int), "abc", true).bar(2))] //want "dereferenced"
 	y := x
 	print(*y) //want "`mp\\[...\\]` to `x`"
 }
