@@ -115,6 +115,7 @@ func exprCallsKnownNilableErrFunc(expr ast.Expr) bool {
 // in particular, this function is responsible for splitting returns into the cases:
 // 1: Normal Return - all results yield consume triggers eventually enforcing their annotated/inferred nilability
 // 2: Error Return - consume triggers are created based on the error contract. i.e., based on the nilabiity status of the error return expression
+// 3. Ok return - consume triggers are created based on the nilability status of the boolean (`ok`) return expression
 func computeAndConsumeResults(rootNode *RootAssertionNode, node *ast.ReturnStmt) error {
 	// no matter what case the consumption of these returns ends up as - each must be computed
 	for i := range node.Results {
@@ -137,6 +138,11 @@ func computeAndConsumeResults(rootNode *RootAssertionNode, node *ast.ReturnStmt)
 			// if the function has named error return variable, then handle specially using the error handling logic
 			if util.FuncIsErrReturning(rootNode.FuncObj()) {
 				handleErrorReturns(rootNode, node, results, true /* isNamedReturn */)
+				return nil
+			}
+
+			if util.FuncIsOkReturning(rootNode.FuncObj()) {
+				handleBooleanReturns(rootNode, node, results, true /* isNamedReturn */)
 				return nil
 			}
 
@@ -203,6 +209,10 @@ func computeAndConsumeResults(rootNode *RootAssertionNode, node *ast.ReturnStmt)
 		handleErrorReturns(rootNode, node, node.Results, false /* isNamedReturn */)
 		return nil
 	}
+	if util.FuncIsOkReturning(rootNode.FuncObj()) {
+		handleBooleanReturns(rootNode, node, node.Results, false /* isNamedReturn */)
+		return nil
+	}
 
 	// we've excluded all abnormal cases - here, just really consume each result as a return value
 	for i := range node.Results {
@@ -256,11 +266,23 @@ func isErrorReturnNonnil(rootNode *RootAssertionNode, errRet ast.Expr) bool {
 	return false
 }
 
-// handleErrorReturns handles the special case for error returning functions (n-th result of type `error` which guards at least one of the first n-1 non-error results).
-// It generates consumers by applying the error contract:
+// isBooleanReturnTrue returns true if the boolean return is guaranteed to be "true", false otherwise
+func isBooleanReturnTrue(errRet ast.Expr) bool {
+	if ident, ok := errRet.(*ast.Ident); ok {
+		return ident.Name == "true"
+	}
+	return false
+}
+
+// handleErrorReturns handles the special case for functions with contract returning pattern, namely, error returns
+// and boolean (`ok`) returns. In this, the n-th result of type `error` or `boolean` guards at least one of the first n-1 results.
+// For error returns, we generate consumers by applying the following error contract:
 // (1) if error return value = nil, create consumers for the non-error returns
 // (2) if error return value = non-nil, create consumer for error return
 // (3) if error return value = unknown, create consumers for all returns (error and non-error), and defer applying of the error contract when the nilability status is known, such as at `ProcessEntry`
+//
+// Similarly, for boolean returns, we generate consumers by applying the following boolean contract:
+// (1) if boolean return value = true, create consumers for the non-boolean returns
 //
 // Note that `results` should be explicitly passed since `retStmt` of a named return will contain no results
 func handleErrorReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, results []ast.Expr, isNamedReturn bool) {
@@ -305,6 +327,26 @@ func handleErrorReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, re
 			}
 		}
 	}
+}
+
+func handleBooleanReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, results []ast.Expr, isNamedReturn bool) {
+	nRetIndex := len(results) - 1
+	nRetExpr := results[nRetIndex]          // n-th expression
+	nMinusOneRetExpr := results[:nRetIndex] // n-1 expressions
+
+	// check if the n-th return is at all guarding any nilable returns, such as pointers, maps, and slices
+	for _, r := range nMinusOneRetExpr {
+		if util.ExprBarsNilness(rootNode.Pass(), r) {
+			// no need to further analyze and create triggers
+			return
+		}
+	}
+
+	if !isBooleanReturnTrue(nRetExpr) {
+		return
+	}
+	// create return consume triggers for all n-1 return expressions
+	createGeneralReturnConsumers(rootNode, nMinusOneRetExpr, retStmt, isNamedReturn)
 }
 
 // createConsumerForErrorReturn creates a consumer for the error return enforcing it to be non-nil

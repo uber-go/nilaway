@@ -232,8 +232,11 @@ func parseExpr(rootNode *RootAssertionNode, expr ast.Expr) TrackableExpr {
 	return parsed
 }
 
-// NodeTriggersOkRead is a case of a node creating a rich bool effect for map read and channel receive in the "ok" form.
-// It matches on `AssignStmt`s of the form `v, ok := mp[k]` and `v, ok := <-ch`
+// NodeTriggersOkRead is a case of a node creating a rich bool effect for map reads, channel receives, and user-defined
+// functions in the "ok" form. Specifically, it matches on `AssignStmt`s of the form
+// - `v, ok := mp[k]`
+// - `v, ok := <-ch`
+// - `r0, r1, r2, ..., ok := f()`
 func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardNonceGenerator, node ast.Node) ([]RichCheckEffect, bool) {
 	lhs, rhs := asthelper.ExtractLHSRHS(node)
 	if len(lhs) < 2 || len(rhs) != 1 {
@@ -313,6 +316,20 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 			}
 		}
 	case *ast.CallExpr:
+		callIdent := util.FuncIdentFromCallExpr(rhs)
+		if callIdent == nil {
+			// this discards the case of an anonymous function
+			// perhaps in the future we could change this
+			return nil, false
+		}
+
+		rhsFuncDecl, ok := rootNode.Pass().TypesInfo.ObjectOf(callIdent).(*types.Func)
+
+		if !ok || !util.FuncIsOkReturning(rhsFuncDecl) {
+			return nil, false
+		}
+
+		// we've found an assignment of vars to an "ok" form function!
 		for i := 0; i < len(lhs)-1; i++ {
 			lhsExpr := lhs[i]
 			lhsValueParsed := parseExpr(rootNode, lhsExpr)
