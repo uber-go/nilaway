@@ -106,9 +106,7 @@ func retPtrAndBoolNamed() (x *int, ok bool) {
 	if dummy {
 		return
 	}
-	x = new(int)
-	ok = true
-	return
+	return new(int), true
 }
 
 func testNamedReturn(i int) {
@@ -368,11 +366,17 @@ func usesBoolFunc() {
 }
 
 // nilable(result 0)
-func testNilableAnyways() (*int, bool) {
+func retNilableAnyways() (*int, bool) {
 	if dummy {
 		return nil, true
 	}
 	return nil, false
+}
+
+func testNilableAnyways() {
+	if v, ok := retNilableAnyways(); ok {
+		print(*v) //want "dereferenced"
+	}
 }
 
 func retsAnyBool() (any, bool) {
