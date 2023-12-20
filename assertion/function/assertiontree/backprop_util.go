@@ -274,15 +274,11 @@ func isBooleanReturnTrue(errRet ast.Expr) bool {
 	return false
 }
 
-// handleErrorReturns handles the special case for functions with contract returning pattern, namely, error returns
-// and boolean (`ok`) returns. In this, the n-th result of type `error` or `boolean` guards at least one of the first n-1 results.
-// For error returns, we generate consumers by applying the following error contract:
+// handleErrorReturns handles the special case for error returning functions (n-th result of type `error` which guards at least one of the first n-1 non-error results).
+// It generates consumers by applying the error contract:
 // (1) if error return value = nil, create consumers for the non-error returns
 // (2) if error return value = non-nil, create consumer for error return
 // (3) if error return value = unknown, create consumers for all returns (error and non-error), and defer applying of the error contract when the nilability status is known, such as at `ProcessEntry`
-//
-// Similarly, for boolean returns, we generate consumers by applying the following boolean contract:
-// (1) if boolean return value = true, create consumers for the non-boolean returns
 //
 // Note that `results` should be explicitly passed since `retStmt` of a named return will contain no results
 func handleErrorReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, results []ast.Expr, isNamedReturn bool) {
@@ -329,6 +325,13 @@ func handleErrorReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, re
 	}
 }
 
+// handleBooleanReturns handles the special case for boolean (`ok`) returning functions (n-th result of type `bool`
+// which guards at least one of the first n-1 non-bool results). Similar to the handliong of error returning functions,
+// for boolean returns, we generate consumers by applying the following boolean contract:
+// (1) if boolean return value = true, create consumers for the non-boolean returns
+// TODO: currently we support only explicit boolean returns, i.e., `return r0, r1, ..., true`. We should also support
+//
+//	implicit boolean returns, i.e., `return` or `return <expr>`
 func handleBooleanReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, results []ast.Expr, isNamedReturn bool) {
 	nRetIndex := len(results) - 1
 	nRetExpr := results[nRetIndex]          // n-th expression
