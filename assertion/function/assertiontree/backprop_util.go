@@ -329,9 +329,7 @@ func handleErrorReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, re
 // which guards at least one of the first n-1 non-bool results). Similar to the handliong of error returning functions,
 // for boolean returns, we generate consumers by applying the following boolean contract:
 // (1) if boolean return value = true, create consumers for the non-boolean returns
-// TODO: currently we support only explicit boolean returns, i.e., `return r0, r1, ..., true`. We should also support
-//
-//	implicit boolean returns, i.e., `return` or `return <expr>`
+// TODO: currently we support only explicit boolean returns, i.e., `return r0, r1, ..., true`. We should also support implicit boolean returns, i.e., `return` or `return <expr>`
 func handleBooleanReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, results []ast.Expr, isNamedReturn bool) {
 	nRetIndex := len(results) - 1
 	nRetExpr := results[nRetIndex]          // n-th expression
