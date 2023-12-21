@@ -176,3 +176,37 @@ func checkAndDeref() {
 		_ = *x //want "error return in position 1 is not guaranteed to be non-nil through all paths"
 	}
 }
+
+// ***** below tests error handling logic for mixed nilable (e.g., pointer) and non-nilable (e.g., string) non-error returns *****
+func retStrNilErr() (string, *int, error) {
+	if dummy2 {
+		return "abc", nil, nil
+	}
+	return "", nil, &myErr2{}
+}
+
+func retNilStrErr() (*int, string, error) {
+	if dummy2 {
+		return nil, "abc", nil
+	}
+	return nil, "", &myErr2{}
+}
+
+func testMixedReturns() {
+	if _, x, err := retStrNilErr(); err == nil {
+		print(*x) //want "dereferenced"
+	}
+
+	if _, x, _ := retStrNilErr(); x != nil {
+		print(*x)
+	}
+
+	if x, _, err := retNilStrErr(); err == nil {
+		print(*x) //want "dereferenced"
+	}
+}
+
+// nonnil(result 1)
+func testMixedReturnsPassToAnotherFunc() (string, *int, error) { //want "returned"
+	return retStrNilErr()
+}
