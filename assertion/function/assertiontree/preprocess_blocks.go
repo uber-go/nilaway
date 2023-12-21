@@ -599,23 +599,6 @@ func genPreds(graph *cfg.CFG) [][]int32 {
 	return out
 }
 
-// RichCheckEffectSlicesString returns a slice of RichCheckEffect slices as a string representation
-func RichCheckEffectSlicesString(name string, richCheckBlocks [][]RichCheckEffect) string {
-	out := fmt.Sprintf("%s len %d: {\n", name, len(richCheckBlocks))
-	for i, richCheckEffects := range richCheckBlocks {
-		repr := "nil"
-		if richCheckEffects != nil {
-			repr = "{"
-			for _, richCheckEffect := range richCheckEffects {
-				repr += fmt.Sprintf("%s; ", richCheckEffect.String())
-			}
-			repr += "}"
-		}
-		out += fmt.Sprintf("\t%s[%d]: %s\n", name, i, repr)
-	}
-	return out + "}"
-}
-
 // weakPropagateRichChecks performs a simple form of propagation of rich checks: for each effect, it
 // figures out which blocks are reachable from the block it was declared in.
 //
