@@ -63,7 +63,6 @@ type RichCheckEffect interface {
 // assumed nilable
 //
 // For proper invalidation, each stored return of a function is treated as a separate effect
-// nonnil(err, ret)
 type FuncErrRet struct {
 	root  *RootAssertionNode // an associated root node
 	err   TrackableExpr      // the `error`-typed return of the function
@@ -99,16 +98,15 @@ func (f *FuncErrRet) equals(effect RichCheckEffect) bool {
 		f.guard == otherFuncErrRet.guard
 }
 
-// okRead provides a general implementation for the special return form: `v1, v2 := expr`.
+// okRead provides a general implementation for the special return form: `v1, v2, ..., ok := expr`.
 // Concrete examples of patterns supported are:
 // - map ok read: `v, ok := m[k]`
 // - channel ok receive: `v, ok := <-ch`
-// - function error return: `r0, r1, r2, ..., err := f()`
-// nonnil(value, ok)
+// - function ok return: `r0, r1, r2, ..., ok := f()`
 type okRead struct {
 	root  *RootAssertionNode // an associated root node
 	value TrackableExpr      // `value` could be a value for read from a map or channel, or the return value of a function
-	ok    TrackableExpr      // `ok` is boolean "ok" for read from a map or channel, or "err" for return from a function
+	ok    TrackableExpr      // `ok` is boolean "ok" for read from a map or channel, or return from a function
 	guard util.GuardNonce    // the guard to be applied on a matching check
 }
 
@@ -172,6 +170,13 @@ type ChannelOkRecvRefl struct {
 	okRead
 }
 
+// A FuncOkReturn is a RichCheckEffect for the `ok` in `r0, r1, r2, ..., ok := f()`, where the
+// function `f` has a final result of type `bool` - and until this is checked all other results are
+// assumed nilable. For proper invalidation, each stored return of a function is treated as a separate effect
+type FuncOkReturn struct {
+	okRead
+}
+
 // A RichCheckNoop is a placeholder instance of RichCheckEffect that functions as a total noop.
 // It is used to allow in place modification of collections of RichCheckEffects.
 type RichCheckNoop struct{}
@@ -194,7 +199,6 @@ func (RichCheckNoop) equals(effect RichCheckEffect) bool {
 // RichCheckFromNode analyzes the passed `ast.Node` to see if it generates a rich check effect.
 // If it does, that effect is returned along with the boolean true
 // If it does not, then `nil, false` is returned.
-// nilable(result 0)
 func RichCheckFromNode(rootNode *RootAssertionNode, nonceGenerator *util.GuardNonceGenerator, node ast.Node) ([]RichCheckEffect, bool) {
 	var effects []RichCheckEffect
 	someEffects := false
@@ -227,19 +231,19 @@ func parseExpr(rootNode *RootAssertionNode, expr ast.Expr) TrackableExpr {
 	return parsed
 }
 
-// NodeTriggersOkRead is a case of a node creating a rich bool effect for map read and channel receive in the "ok" form.
-// It matches on `AssignStmt`s of the form `v, ok := mp[k]` and `v, ok := <-ch`
-// nilable(result 0)
+// NodeTriggersOkRead is a case of a node creating a rich bool effect for map reads, channel receives, and user-defined
+// functions in the "ok" form. Specifically, it matches on `AssignStmt`s of the form
+// - `v, ok := mp[k]`
+// - `v, ok := <-ch`
+// - `r0, r1, r2, ..., ok := f()`
 func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardNonceGenerator, node ast.Node) ([]RichCheckEffect, bool) {
 	assignStmt, ok := node.(*ast.AssignStmt)
 
-	if !ok || len(assignStmt.Lhs) != 2 || len(assignStmt.Rhs) != 1 {
+	if !ok || len(assignStmt.Lhs) < 2 || len(assignStmt.Rhs) != 1 {
 		return nil, false
 	}
 
-	valueExpr := assignStmt.Lhs[0]
-	okExpr := assignStmt.Lhs[1]
-	lhsValueParsed := parseExpr(rootNode, valueExpr)
+	okExpr := assignStmt.Lhs[len(assignStmt.Lhs)-1]
 	lhsOkParsed := parseExpr(rootNode, okExpr)
 	if lhsOkParsed == nil {
 		// here, the lhs `ok` operand is not trackable so there are no rich effects
@@ -250,8 +254,14 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 
 	switch rhs := assignStmt.Rhs[0].(type) {
 	case *ast.IndexExpr:
+		// this is the case of `v, ok := mp[k]`. Early return if the lhs is not a map read of the expected format
+		if len(assignStmt.Lhs) != 2 {
+			return nil, false
+		}
+
 		rhsXType := rootNode.Pass().TypesInfo.Types[rhs.X].Type
 		if util.TypeIsDeeplyMap(rhsXType) {
+			lhsValueParsed := parseExpr(rootNode, assignStmt.Lhs[0])
 			if lhsValueParsed != nil {
 				// here, the lhs `value` operand is trackable
 				effects = append(effects, &MapOkRead{
@@ -259,7 +269,7 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 						root:  rootNode,
 						value: lhsValueParsed,
 						ok:    lhsOkParsed,
-						guard: nonceGenerator.Next(valueExpr),
+						guard: nonceGenerator.Next(assignStmt.Lhs[0]),
 					}})
 			}
 
@@ -275,8 +285,14 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 			}
 		}
 	case *ast.UnaryExpr:
+		// this is the case of `v, ok := <-ch`. Early return if the lhs is not a channel receive of the expected format
+		if len(assignStmt.Lhs) != 2 {
+			return nil, false
+		}
+
 		rhsXType := rootNode.Pass().TypesInfo.Types[rhs.X].Type
 		if rhs.Op == token.ARROW && util.TypeIsDeeplyChan(rhsXType) {
+			lhsValueParsed := parseExpr(rootNode, assignStmt.Lhs[0])
 			if lhsValueParsed != nil {
 				// here, the lhs `value` operand is trackable
 				effects = append(effects, &ChannelOkRecv{
@@ -284,7 +300,7 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 						root:  rootNode,
 						value: lhsValueParsed,
 						ok:    lhsOkParsed,
-						guard: nonceGenerator.Next(valueExpr),
+						guard: nonceGenerator.Next(assignStmt.Lhs[0]),
 					}})
 			}
 
@@ -299,6 +315,37 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 					}})
 			}
 		}
+	case *ast.CallExpr:
+		callIdent := util.FuncIdentFromCallExpr(rhs)
+		if callIdent == nil {
+			// this discards the case of an anonymous function
+			// perhaps in the future we could change this
+			return nil, false
+		}
+
+		rhsFuncDecl, ok := rootNode.Pass().TypesInfo.ObjectOf(callIdent).(*types.Func)
+
+		if !ok || !util.FuncIsOkReturning(rhsFuncDecl) {
+			return nil, false
+		}
+
+		// we've found an assignment of vars to an "ok" form function!
+		for i := 0; i < len(assignStmt.Lhs)-1; i++ {
+			lhsExpr := assignStmt.Lhs[i]
+			lhsValueParsed := parseExpr(rootNode, lhsExpr)
+			if lhsValueParsed == nil || util.ExprBarsNilness(rootNode.Pass(), lhsExpr) {
+				// ignore assignments to any variables whose type bars nilness, such as 'int'
+				continue
+			}
+			// here, the lhs `value` operand is trackable
+			effects = append(effects, &FuncOkReturn{
+				okRead{
+					root:  rootNode,
+					value: lhsValueParsed,
+					ok:    lhsOkParsed,
+					guard: nonceGenerator.Next(assignStmt.Lhs[i]),
+				}})
+		}
 	}
 	if len(effects) > 0 {
 		return effects, true
@@ -308,7 +355,6 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 
 // NodeTriggersFuncErrRet is a case of a node creating a rich check effect.
 // it matches on calls to functions with error-returning types
-// nilable(result 0)
 func NodeTriggersFuncErrRet(rootNode *RootAssertionNode, nonceGenerator *util.GuardNonceGenerator, node ast.Node) ([]RichCheckEffect, bool) {
 	assignStmt, ok := node.(*ast.AssignStmt)
 
