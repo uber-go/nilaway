@@ -22,7 +22,7 @@ import "runtime/debug"
 // below tests check behavior of ok-form for user defined functions
 
 func retPtrAndBool() (*int, bool) {
-	if true {
+	if dummy {
 		return nil, false
 	}
 	return new(int), true
@@ -104,7 +104,7 @@ func testUnsafeCases(i int) {
 
 func retPtrAndBoolNamed() (x *int, ok bool) {
 	if dummy {
-		return
+		return nil, false
 	}
 	return new(int), true
 }
@@ -150,6 +150,28 @@ func testLibraryFunction() {
 	}
 	for _, kv := range info.Settings {
 		_ = kv
+	}
+}
+
+// below tests check behavior of ok-form for user defined functions with non-explicit boolean expression
+// TODO: currently these cases result in a false positive. We plan to support them in the future.
+
+func retTrue() bool {
+	return true
+}
+
+func retPtrAndBoolExpr() (*int, bool) {
+	var flag bool
+	if dummy {
+		// this is a false positive since we don't support non-explicit boolean expressions yet
+		return nil, flag //want "literal `nil` returned"
+	}
+	return new(int), retTrue()
+}
+
+func testCasesWithNonExplicitBool() {
+	if v, ok := retPtrAndBoolExpr(); ok {
+		print(*v)
 	}
 }
 
@@ -638,4 +660,74 @@ func boolContractPassedThroughTypeSwitch() any {
 		return j
 	}
 	return i
+}
+
+// below test cases are for functions not conforming to NilAway's idea of a "boolean (ok) returning function". In such cases,
+// NilAway would treat them as normal returns, with no special handling for boolean returns. This might result in some
+// false positives, but such patterns are expected to be rare in practice
+
+// below test case is for a function with error as not the last return
+// nilable(result 1)
+func testBoolInNonLastPos(i, j int) (bool, *int, *int) {
+	switch i {
+	case 0:
+		return true, nil, nil //want "returned from `testBoolInNonLastPos.*` in position 2"
+	case 1:
+		return true, &i, &j
+	case 2:
+		return true, nil, &j
+	case 3:
+		return true, &i, nil //want "returned from `testBoolInNonLastPos.*` in position 2"
+	case 5:
+		return false, nil, &j
+	case 6:
+		// the below error can be considered to be a false positive as per the boolean ok-form contract
+		return false, &i, nil //want "returned from `testBoolInNonLastPos.*` in position 2"
+	}
+	return false, &i, &j
+}
+
+// below test case is for a function with multiple boolean returns
+func testMultipleBools(i int) (*int, bool, bool) {
+	if dummy {
+		return &i, true, true
+	}
+	// the below error can be considered to be a false positive
+	return nil, true, false //want "returned from `testMultipleBools.*` in position 0"
+}
+
+// below cases test boolean ok-form handling logic for mixed nilable (e.g., pointer) and non-nilable (e.g., string) n-1 returns
+
+// nilable(result 1)
+func retStrNilBool() (string, *int, bool) {
+	if dummy2 {
+		return "abc", nil, true
+	}
+	return "", nil, false
+}
+
+// nilable(result 0)
+func retNilStrBool() (*int, string, bool) {
+	if dummy2 {
+		return nil, "abc", true
+	}
+	return nil, "", false
+}
+
+func testMixedReturns() {
+	if _, x, ok := retStrNilBool(); ok {
+		print(*x) //want "dereferenced"
+	}
+
+	if _, x, _ := retStrNilBool(); x != nil {
+		print(*x)
+	}
+
+	if x, _, ok := retNilStrBool(); ok {
+		print(*x) //want "dereferenced"
+	}
+}
+
+func testMixedReturnsPassToAnotherFunc() (string, *int, bool) {
+	return retStrNilBool() //want "returned"
 }
