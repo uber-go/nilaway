@@ -200,3 +200,58 @@ func test18(x *int, mp map[int]*int) {
 	y := x
 	print(*y) //want "`mp\\[...\\]` to `x`"
 }
+
+func test19() {
+	mp := make(map[string]*string)
+	x := mp["("]
+	y := x
+	print(*y) //want "`mp\\[\"\\(\"\\]` to `x`"
+
+	x = mp[")"]
+	y = x
+	print(*y) //want "`mp\\[\"\\)\"\\]` to `x`"
+
+	x = mp["))"]
+	y = x
+	print(*y) //want "`mp\\[...\\]` to `x`"
+
+	x = mp["(("]
+	y = x
+	print(*y) //want "`mp\\[...\\]` to `x`"
+
+	x = mp[")))((("]
+	y = x
+	print(*y) //want "`mp\\[...\\]` to `x`"
+
+	x = mp[")))((("]
+	y = x
+	print(*y) //want "`mp\\[...\\]` to `x`"
+
+	x = mp["(((()"]
+	y = x
+	print(*y) //want "`mp\\[...\\]` to `x`"
+
+	x = mp["())))"]
+	y = x
+	print(*y) //want "`mp\\[...\\]` to `x`"
+
+	s := &S{}
+	i := 0
+	a := s.foo(1,
+		new(int),
+		"({[",
+		true).bar(i)
+	b := a
+	print(*b) //want "`s.foo\\(...\\).bar\\(i\\)` to `a`"
+}
+
+func test20() {
+	mp := make(map[rune]*rune)
+	x := mp['(']
+	y := x
+	print(*y) //want "`mp\\['\\('\\]` to `x`"
+
+	x = mp[')']
+	y = x
+	print(*y) //want "`mp\\['\\)'\\]` to `x`"
+}
