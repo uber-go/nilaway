@@ -513,10 +513,19 @@ func shortenExpr(expr string) string {
 	var depth int                 // helps to keep track of nested brackets
 	var inBrackets bool           // indicates if we are currently inside brackets
 	var innerExpr strings.Builder // stores the content inside brackets
+	var inQuotes bool             // indicates if we are currently inside quotes
 
 	for _, char := range expr {
 		switch char {
+		case '"', '\'':
+			inQuotes = !inQuotes
+
 		case '(', '{', '[':
+			if inQuotes {
+				innerExpr.WriteRune(char)
+				continue
+			}
+
 			if depth == 0 {
 				inBrackets = true
 				result.WriteRune(char) // append the opening bracket
@@ -525,6 +534,11 @@ func shortenExpr(expr string) string {
 			continue
 
 		case ')', '}', ']':
+			if inQuotes {
+				innerExpr.WriteRune(char)
+				continue
+			}
+
 			depth--
 			if depth == 0 {
 				// Replace the content inside brackets with "..." if it is long (more than 3 characters), else
@@ -542,11 +556,11 @@ func shortenExpr(expr string) string {
 			continue
 		}
 
-		if inBrackets {
+		if inBrackets || inQuotes {
 			innerExpr.WriteRune(char) // append the character to the inner expression
-			continue
+		} else {
+			result.WriteRune(char) // append the character to the result if not in brackets, and not a bracket itself
 		}
-		result.WriteRune(char) // append the character to the result if not in brackets, and not a bracket itself
 	}
 
 	return result.String()
