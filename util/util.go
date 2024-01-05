@@ -16,10 +16,8 @@
 package util
 
 import (
-	"bytes"
 	"fmt"
 	"go/ast"
-	"go/printer"
 	"go/token"
 	"go/types"
 	"regexp"
@@ -486,88 +484,4 @@ func truncatePosition(position token.Position) token.Position {
 // PosToLocation converts a token.Pos as a real code location, of token.Position.
 func PosToLocation(pos token.Pos, pass *analysis.Pass) token.Position {
 	return truncatePosition(pass.Fset.Position(pos))
-}
-
-// ExprToString converts AST expression to string
-func ExprToString(e ast.Expr, pass *analysis.Pass, isShortenExpr bool) string {
-	var buf bytes.Buffer
-	err := printer.Fprint(&buf, pass.Fset, e)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to convert AST expression to string: %v\n", err))
-	}
-	s := buf.String()
-
-	if isShortenExpr {
-		// shorten long expression strings (e.g., s.foo(longVarName, anotherLongVarName, someOtherLongVarName) --> s.foo(...))
-		s = shortenExpr(s)
-	}
-
-	return s
-}
-
-// shortenExpr shortens long expressions enclosed in brackets ('()', '{}', '[]') to "...". It also handles nested brackets
-// and multi-line expressions.
-// Examples:
-// 1. "s.foo(longVarName, anotherLongVarName, someOtherLongVarName)" becomes "s.foo(...)"
-// 2. "s.foo(a, b, c ,d ,e, f).bar(i)" becomes "s.foo(...).bar(i)"
-// 3. "s.foo(someVar, bar(), baz(x, y))" becomes "s.foo(...)"
-// 4. "foo(exprOnLine1,
-// exprOnLine2,
-// exprOnLine3)" becomes "foo(...)"
-func shortenExpr(expr string) string {
-	var result strings.Builder
-	var depth int                 // helps to keep track of nested brackets
-	var inBrackets bool           // indicates if we are currently inside brackets
-	var innerExpr strings.Builder // stores the content inside brackets
-	var inQuotes bool             // indicates if we are currently inside quotes
-
-	for _, char := range expr {
-		switch char {
-		case '"', '\'':
-			inQuotes = !inQuotes
-
-		case '(', '{', '[':
-			if inQuotes {
-				innerExpr.WriteRune(char)
-				continue
-			}
-
-			if depth == 0 {
-				inBrackets = true
-				result.WriteRune(char) // append the opening bracket
-			}
-			depth++
-			continue
-
-		case ')', '}', ']':
-			if inQuotes {
-				innerExpr.WriteRune(char)
-				continue
-			}
-
-			depth--
-			if depth == 0 {
-				// Replace the content inside brackets with "..." if it is long (more than 3 characters), else
-				// retain the original content as is.
-				if innerExpr.Len() > 3 {
-					result.WriteString("...")
-				} else {
-					result.WriteString(innerExpr.String())
-				}
-				result.WriteRune(char) // append the closing bracket
-
-				inBrackets = false
-				innerExpr.Reset()
-			}
-			continue
-		}
-
-		if inBrackets || inQuotes {
-			innerExpr.WriteRune(char) // append the character to the inner expression
-		} else {
-			result.WriteRune(char) // append the character to the result if not in brackets, and not a bracket itself
-		}
-	}
-
-	return result.String()
 }
