@@ -27,6 +27,7 @@ import (
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/util/asthelper"
 	"golang.org/x/exp/slices"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/cfg"
@@ -591,8 +592,8 @@ buildShadowMask:
 						// Add assignment entries to the consumers of lhsNode for informative printing of errors
 						for _, c := range lhsNode.ConsumeTriggers() {
 							c.Annotation.AddAssignment(annotation.Assignment{
-								LHSExprStr: util.ExprToString(lhsVal, rootNode.Pass(), true /* isShortenExpr */),
-								RHSExprStr: util.ExprToString(rhsVal, rootNode.Pass(), true /* isShortenExpr */),
+								LHSExprStr: asthelper.PrintExpr(lhsVal, rootNode.Pass(), true /* isShortenExpr */),
+								RHSExprStr: asthelper.PrintExpr(rhsVal, rootNode.Pass(), true /* isShortenExpr */),
 								Position:   util.TruncatePosition(util.PosToLocation(lhsVal.Pos(), rootNode.Pass())),
 							})
 						}
@@ -636,8 +637,8 @@ buildShadowMask:
 						}
 						for _, t := range rootNode.triggers[beforeTriggersLastIndex:len(rootNode.triggers)] {
 							t.Consumer.Annotation.AddAssignment(annotation.Assignment{
-								LHSExprStr: util.ExprToString(lhsVal, rootNode.Pass(), true /* isShortenExpr */),
-								RHSExprStr: util.ExprToString(rhsVal, rootNode.Pass(), true /* isShortenExpr */),
+								LHSExprStr: asthelper.PrintExpr(lhsVal, rootNode.Pass(), true /* isShortenExpr */),
+								RHSExprStr: asthelper.PrintExpr(rhsVal, rootNode.Pass(), true /* isShortenExpr */),
 								Position:   util.TruncatePosition(util.PosToLocation(lhsVal.Pos(), rootNode.Pass())),
 							})
 						}
