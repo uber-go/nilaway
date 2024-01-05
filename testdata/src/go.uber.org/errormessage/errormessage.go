@@ -100,6 +100,7 @@ func test9(m map[int]*int) {
 	y := x
 	print(*y) //want "`m\\[0\\]` to `x`"
 }
+
 func test10(ch chan *int) {
 	x := <-ch //want "nil channel accessed"
 	y := x
