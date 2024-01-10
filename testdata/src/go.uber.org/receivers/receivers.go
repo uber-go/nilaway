@@ -128,8 +128,8 @@ func testCaller(dummy bool, i int, e *E) {
 		print(errObj.Error()) //want "unassigned variable"
 
 	case 8:
-		e.errField = errObj
-		print(e.errField.Error()) //want "unassigned variable"
+		e.errField = nil
+		print(e.errField.Error())
 	}
 }
 

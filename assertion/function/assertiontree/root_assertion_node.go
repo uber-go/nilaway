@@ -730,12 +730,12 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 		//       with so far the only known case being of method invocations for supporting nilable receivers. Our support
 		//       is currently limited to enabling this analysis only if the below criteria is satisfied.
 		//       - Check 1: selector expression is a method invocation (e.g., `s.foo()`)
-		//       - Check 2: receiver is named and a pointer type (e.g., `func (s *S) foo()`). Blank receivers (`func (*S) foo()`)
-		//       	do not cause nil panics.
 		//       - In-scope flow:
-		//       	- Check 3: the invoked method is in scope
-		//       	- Check 4: the invoking expression (caller) is of struct type. (We are restricting support only for structs
+		//       	- Check 2: the invoked method is in scope
+		//       	- Check 3: the invoking expression (caller) is of struct type. (We are restricting support only for structs
 		//            due to the challenges of secret nil for interfaces.)
+		// 			- Check 4: receiver is named and a pointer type (e.g., `func (s *S) foo()`). Blank receivers (`func (*S) foo()`)
+		//       		do not cause nil panics.
 		//       - Out-of-scope flow:
 		//          - Check 5: consider the criteria satisfied to support optimistic default
 		//
@@ -744,14 +744,14 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 
 		allowNilable := false
 		if funcObj, ok := r.ObjectOf(expr.Sel).(*types.Func); ok { // Check 1:  selector expression is a method invocation
-			recv := funcObj.Type().(*types.Signature).Recv()
+			conf := r.Pass().ResultOf[config.Analyzer].(*config.Config)
+			if conf.IsPkgInScope(funcObj.Pkg()) { // Check 2: invoked method is in scope
+				t := util.TypeOf(r.Pass(), expr.X)
+				// Here, `t` can only be of type struct or interface, of which we only support for structs.
+				if util.TypeAsDeeplyStruct(t) != nil { // Check 3: invoking expression (caller) is of struct type
+					recv := funcObj.Type().(*types.Signature).Recv()
 
-			if len(recv.Name()) > 0 { // Check 2: receiver is named and of pointer type
-				conf := r.Pass().ResultOf[config.Analyzer].(*config.Config)
-				if conf.IsPkgInScope(funcObj.Pkg()) { // Check 3: invoked method is in scope
-					t := util.TypeOf(r.Pass(), expr.X)
-					// Here, `t` can only be of type struct or interface, of which we only support for structs.
-					if util.TypeAsDeeplyStruct(t) != nil { // Check 4: invoking expression (caller) is of struct type
+					if len(recv.Name()) > 0 { // Check 4: receiver is a named receiver
 						allowNilable = true
 						// We are in the special case of supporting nilable receivers! Can be nilable depending on declaration annotation/inferred nilability.
 						r.AddConsumption(&annotation.ConsumeTrigger{
@@ -765,12 +765,12 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 							Guards: util.NoGuards(),
 						})
 					}
-				} else { // Check 5: invoked method is out of scope
-					// We are setting an optimistic default here for methods out of scope, specifically to avoid
-					// false positives being reported for methods in generated code. It means that such external
-					// methods are assumed to be safely handling nil receivers
-					allowNilable = true
 				}
+			} else { // Check 5: invoked method is out of scope
+				// We are setting an optimistic default here for methods out of scope, specifically to avoid
+				// false positives being reported for methods in generated code. It means that such external
+				// methods are assumed to be safely handling nil receivers
+				allowNilable = true
 			}
 		}
 		if !allowNilable {
