@@ -735,9 +735,11 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 		//			this is not a candidate for analyzing nilable receiver, instead we should check for nilablilty of the
 		//			receiver at the call site itself.
 		//       - In-scope flow:
-		//       	- Check 3: the invoked method is in scope
-		//       	- Check 4: the invoking expression (caller) is of struct type. (We are restricting support only for structs
+		//       	- Check 2: the invoked method is in scope
+		//       	- Check 3: the invoking expression (caller) is of struct type. (We are restricting support only for structs
 		//            due to the challenges of secret nil for interfaces.)
+		// 			- Check 4: receiver is named and a pointer type (e.g., `func (s *S) foo()`). Blank receivers (`func (*S) foo()`)
+		//       		do not cause nil panics.
 		//       - Out-of-scope flow:
 		//          - Check 5: consider the criteria satisfied to support optimistic default
 		//
@@ -766,12 +768,12 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 							Guards: util.NoGuards(),
 						})
 					}
-				} else { // Check 5: invoked method is out of scope
-					// We are setting an optimistic default here for methods out of scope, specifically to avoid
-					// false positives being reported for methods in generated code. It means that such external
-					// methods are assumed to be safely handling nil receivers
-					allowNilable = true
 				}
+			} else { // Check 5: invoked method is out of scope
+				// We are setting an optimistic default here for methods out of scope, specifically to avoid
+				// false positives being reported for methods in generated code. It means that such external
+				// methods are assumed to be safely handling nil receivers
+				allowNilable = true
 			}
 		}
 		if !allowNilable {
