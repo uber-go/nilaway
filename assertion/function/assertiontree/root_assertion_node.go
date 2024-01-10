@@ -731,7 +731,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 		//       is currently limited to enabling this analysis only if the below criteria is satisfied.
 		//       - Check 1: selector expression is a method invocation (e.g., `s.foo()`)
 		//       - Check 2: receiver is named and a pointer type (e.g., `func (s *S) foo()`). Blank receivers (`func (*S) foo()`)
-		//          or non-pointer receivers (`func (s S) foo()`) do not cause nil panics.
+		//       	do not cause nil panics.
 		//       - In-scope flow:
 		//       	- Check 3: the invoked method is in scope
 		//       	- Check 4: the invoking expression (caller) is of struct type. (We are restricting support only for structs
@@ -746,7 +746,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 		if funcObj, ok := r.ObjectOf(expr.Sel).(*types.Func); ok { // Check 1:  selector expression is a method invocation
 			recv := funcObj.Type().(*types.Signature).Recv()
 
-			if len(recv.Name()) > 0 && util.TypeIsDeeplyPtr(recv.Type()) { // Check 2: receiver is named and of pointer type
+			if len(recv.Name()) > 0 { // Check 2: receiver is named and of pointer type
 				conf := r.Pass().ResultOf[config.Analyzer].(*config.Config)
 				if conf.IsPkgInScope(funcObj.Pkg()) { // Check 3: invoked method is in scope
 					t := util.TypeOf(r.Pass(), expr.X)
