@@ -47,29 +47,8 @@ func (s *S) nonnilRecv() {
 	_ = s.f
 }
 
-func (s S) nonPointerRecv() {
-	_ = s.f
-}
-
-func (*S) blankPointerRecv(i int) *int {
-	return &i
-}
-
-func (S) blankNonPointerRecv(i int) *int {
-	return &i
-}
-
-type myErr struct{}
-
-func (myErr) Error() string { return "myErr message" }
-
-type E struct {
-	errField error
-}
-
-func testCaller(dummy bool, i int, e *E) {
+func testCaller(dummy bool, i int) {
 	var s *S // DECL_1: s is uninitialized
-	var errObj *myErr
 
 	switch i {
 	case 0:
@@ -114,22 +93,6 @@ func testCaller(dummy bool, i int, e *E) {
 		}
 		// here - two different flows result in a nilable (DECL_1 and DECL_2)
 		s.nonnilRecv() //want "used as receiver to call `nonnilRecv.*`" "used as receiver to call `nonnilRecv.*`"
-
-	case 4:
-		s.nonPointerRecv() //want "unassigned variable"
-
-	case 5:
-		s.blankPointerRecv(0) //want "unassigned variable"
-
-	case 6:
-		s.blankNonPointerRecv(0) //want "unassigned variable"
-
-	case 7:
-		print(errObj.Error()) //want "unassigned variable"
-
-	case 8:
-		e.errField = nil
-		print(e.errField.Error())
 	}
 }
 

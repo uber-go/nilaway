@@ -71,7 +71,7 @@ func testInScope() {
 
 	var a *A
 	err := a.retErr()
-	print(err.Error()) // false negative, since `Error()` is nil-unsafe
+	print(err.Error()) //want "result 0 of `retErr.*`"
 }
 
 // -----------------------------------
@@ -110,4 +110,52 @@ func testAffiliation() {
 
 	// FP since affiliations are not tracked for nilable receivers
 	newI2().foo() //want "result 0 of `newI2.*`"
+}
+
+// -----------------------------------
+// below tests check for non-pointer receivers. When you call a method on a non-pointer receiver (blank or named),
+// Go automatically dereferences the value and passes a copy of the value to the method. This means that such receivers
+// needs to be checked for nilness at the call site.
+
+func (a *A) namedPointer() {
+	_ = a.f //want "accessed field"
+}
+
+func (a A) namedNonpointer() {
+	_ = a.f
+}
+
+func (*A) nonnamedPointer() {}
+
+func (A) nonNamedNonPointer() {}
+
+func testBlankAndNonPointerReceivers() {
+	var s1, s2, s3, s4 *A
+	s1.namedPointer()    // safe at call site
+	s2.nonnamedPointer() // safe at call site
+
+	// below two non-pointer cases are not safe at call site
+	s3.namedNonpointer()    //want "unassigned variable"
+	s4.nonNamedNonPointer() //want "unassigned variable"
+}
+
+type myErr struct{}
+
+func (myErr) Error() string { return "myErr message" }
+
+type E struct {
+	errField error
+}
+
+func testBlankAndNonPointerReceiversForLibraryMethods() {
+	var err *myErr
+	print(err.Error()) //want "unassigned variable"
+
+	var e E
+	var err2 error
+	e.errField = err2
+	print(e.errField.Error()) //want "unassigned variable"
+
+	e.errField = &myErr{}
+	print(e.errField.Error()) // safe
 }
