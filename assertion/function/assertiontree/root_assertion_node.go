@@ -736,8 +736,8 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 		//			receiver at the call site itself.
 		//       - In-scope flow:
 		//       	- Check 3: the invoked method is in scope
-		//       	- Check 4: the invoking expression (caller) is of struct type. (We are restricting support only for structs
-		//            due to the challenges of secret nil for interfaces.)
+		//       	- Check 4: the invoking expression (caller) is of a non-interface type (e.g., struct or named). (We are
+		//       		restricting support only for non-interfaces due to the challenges of secret nil for interfaces.)
 		//       - Out-of-scope flow:
 		//          - Check 5: consider the criteria satisfied to support optimistic default
 		//
@@ -752,7 +752,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 				if conf.IsPkgInScope(funcObj.Pkg()) { // Check 3: invoked method is in scope
 					t := util.TypeOf(r.Pass(), expr.X)
 					// Here, `t` can only be of type struct or interface, of which we only support for structs.
-					if util.TypeAsDeeplyStruct(t) != nil { // Check 4: invoking expression (caller) is of struct type
+					if !util.TypeIsDeeplyInterface(t) { // Check 4: invoking expression (caller) is of a non-interface type (e.g., struct or named)
 						allowNilable = true
 						// We are in the special case of supporting nilable receivers! Can be nilable depending on declaration annotation/inferred nilability.
 						r.AddConsumption(&annotation.ConsumeTrigger{
