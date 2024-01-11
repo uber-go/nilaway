@@ -71,7 +71,7 @@ func testInScope() {
 
 	var a *A
 	err := a.retErr()
-	print(err.Error()) // false negative, since `Error()` is nil-unsafe
+	print(err.Error()) //want "result 0 of `retErr.*`"
 }
 
 // -----------------------------------
