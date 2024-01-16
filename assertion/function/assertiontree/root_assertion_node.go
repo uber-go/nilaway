@@ -779,7 +779,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 	case *ast.SliceExpr:
 		// similar to index case
 
-		// zero slicing contains b[:0] b[0:0] b[0:] b[:] b[0:0:0], which are safe even when b is
+		// zero slicing contains b[:0] b[0:0] b[0:] b[:] b[:0:0] b[0:0:0], which are safe even when b is
 		// nil, so we do not create consumer triggers for those slicing.
 		if !r.isZeroSlicing(expr) {
 			// For all the other slicing, the slice must be nonnil, so we create a consumer
@@ -1123,12 +1123,12 @@ func (r *RootAssertionNode) isType(expr ast.Expr) bool {
 }
 
 // isZeroSlicing returns if the given slice expression is a special case that will not cause panic
-// even when the slice itself is nil, i.e, one of [:0] [0:0] [0:] [:] [0:0:0]
+// even when the slice itself is nil, i.e, one of [:0] [0:0] [0:] [:] [:0:0] [0:0:0]
 func (r *RootAssertionNode) isZeroSlicing(expr *ast.SliceExpr) bool {
 	lo, hi, max := expr.Low, expr.High, expr.Max
 	return ((lo == nil || r.isIntZero(lo)) && r.isIntZero(hi) && max == nil) || // [:0] [0:0]
 		((lo == nil || r.isIntZero(lo)) && hi == nil && max == nil) || // [0:] [:]
-		r.isIntZero(lo) && r.isIntZero(hi) && r.isIntZero(max) // [0:0:0]
+		((lo == nil || r.isIntZero(lo)) && r.isIntZero(hi) && r.isIntZero(max)) // [:0:0] [0:0:0]
 }
 
 // isIntZero returns if the given expression is evaluated to integer zero at compile time. For
