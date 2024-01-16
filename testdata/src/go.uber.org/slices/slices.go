@@ -494,6 +494,12 @@ func testSlicingDoesNotCreateConsumersForNilableSlice() []int {
 		b = nilA[1-1 : 1-1 : 0-0]
 		b = nilA[zero:zero:zero]
 		b = nilA[zero+1-1 : zero+1-1 : zero+1-1]
+	case 6:
+		// [:0:0]
+		b = nilA[:0:0]
+		b = nilA[: 1-1 : 0-0]
+		b = nilA[:zero:zero]
+		b = nilA[: zero+1-1 : zero+1-1]
 	}
 	return b
 }
