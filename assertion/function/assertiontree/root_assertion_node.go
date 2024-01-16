@@ -779,7 +779,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 	case *ast.SliceExpr:
 		// similar to index case
 
-		// zero slicing contains b[:0] b[0:0] b[0:] b[:] b[0:0:0], which are safe even when b is
+		// zero slicing contains b[:0] b[0:0] b[0:] b[:] b[:0:0] b[0:0:0], which are safe even when b is
 		// nil, so we do not create consumer triggers for those slicing.
 		if !r.isZeroSlicing(expr) {
 			// For all the other slicing, the slice must be nonnil, so we create a consumer
