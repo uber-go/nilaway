@@ -328,7 +328,6 @@ func (c *ConsumeTriggerTautology) equals(other ConsumingAnnotationTrigger) bool 
 	return false
 }
 
-<<<<<<< HEAD
 // Copy returns a deep copy of this ConsumingAnnotationTrigger
 func (c *ConsumeTriggerTautology) Copy() ConsumingAnnotationTrigger {
 	copyConsumer := *c
@@ -341,8 +340,6 @@ func (c *ConsumeTriggerTautology) AddAssignment(e Assignment) {
 	c.assignmentFlow.addEntry(e)
 }
 
-=======
->>>>>>> 2112fbd89e3c1 (change producers and consumers to pointer types; add `equals`)
 // Prestring returns this Prestring as a Prestring
 func (c *ConsumeTriggerTautology) Prestring() Prestring {
 	return ConsumeTriggerTautologyPrestring{
