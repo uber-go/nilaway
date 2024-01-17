@@ -27,6 +27,7 @@ import (
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/util/asthelper"
 	"golang.org/x/exp/slices"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/cfg"
@@ -590,9 +591,18 @@ buildShadowMask:
 					if ok && lhsNode != nil {
 						// Add assignment entries to the consumers of lhsNode for informative printing of errors
 						for _, c := range lhsNode.ConsumeTriggers() {
+							var lhsExprStr, rhsExprStr string
+							var err error
+							if lhsExprStr, err = asthelper.PrintExpr(lhsVal, rootNode.Pass(), true /* isShortenExpr */); err != nil {
+								return err
+							}
+							if rhsExprStr, err = asthelper.PrintExpr(rhsVal, rootNode.Pass(), true /* isShortenExpr */); err != nil {
+								return err
+							}
+
 							c.Annotation.AddAssignment(annotation.Assignment{
-								LHSExprStr: util.ExprToString(lhsVal, rootNode.Pass()),
-								RHSExprStr: util.ExprToString(rhsVal, rootNode.Pass()),
+								LHSExprStr: lhsExprStr,
+								RHSExprStr: rhsExprStr,
 								Position:   util.TruncatePosition(util.PosToLocation(lhsVal.Pos(), rootNode.Pass())),
 							})
 						}
@@ -635,9 +645,18 @@ buildShadowMask:
 							continue
 						}
 						for _, t := range rootNode.triggers[beforeTriggersLastIndex:len(rootNode.triggers)] {
+							var lhsExprStr, rhsExprStr string
+							var err error
+							if lhsExprStr, err = asthelper.PrintExpr(lhsVal, rootNode.Pass(), true /* isShortenExpr */); err != nil {
+								return err
+							}
+							if rhsExprStr, err = asthelper.PrintExpr(rhsVal, rootNode.Pass(), true /* isShortenExpr */); err != nil {
+								return err
+							}
+
 							t.Consumer.Annotation.AddAssignment(annotation.Assignment{
-								LHSExprStr: util.ExprToString(lhsVal, rootNode.Pass()),
-								RHSExprStr: util.ExprToString(rhsVal, rootNode.Pass()),
+								LHSExprStr: lhsExprStr,
+								RHSExprStr: rhsExprStr,
 								Position:   util.TruncatePosition(util.PosToLocation(lhsVal.Pos(), rootNode.Pass())),
 							})
 						}

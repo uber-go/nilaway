@@ -100,6 +100,7 @@ func test9(m map[int]*int) {
 	y := x
 	print(*y) //want "`m\\[0\\]` to `x`"
 }
+
 func test10(ch chan *int) {
 	x := <-ch //want "nil channel accessed"
 	y := x
@@ -146,4 +147,118 @@ func test13() *int {
 		return nil //want "literal `nil` returned"
 	}
 	return new(int)
+}
+
+// below tests check shortening of expressions in assignment messages
+
+// nilable(s, result 0)
+func (s *S) bar(i int) *int {
+	return nil
+}
+
+// nilable(result 0)
+func (s *S) foo(a int, b *int, c string, d bool) *S {
+	return nil
+}
+
+func test14(x *int, i int) {
+	s := &S{}
+	x = s.foo(1,
+		new(int),
+		"abc",
+		true).bar(i)
+	y := x
+	print(*y) //want "`s.foo\\(...\\).bar\\(i\\)` to `x`"
+}
+
+func test15(x *int) {
+	var longVarName, anotherLongVarName, yetAnotherLongName int
+	s := &S{}
+	x = s.foo(longVarName, &anotherLongVarName, "abc", true).bar(yetAnotherLongName)
+	y := x
+	print(*y) //want "`s.foo\\(...\\).bar\\(...\\)` to `x`"
+}
+
+func test16(mp map[int]*int) {
+	var aVeryVeryVeryLongIndexVar int
+	x := mp[aVeryVeryVeryLongIndexVar]
+	y := x
+	print(*y) //want "`mp\\[...\\]` to `x`"
+}
+
+func test17(x *int, mp map[int]*int) {
+	var aVeryVeryVeryLongIndexVar int
+	s := &S{}
+
+	x = s.foo(1, mp[aVeryVeryVeryLongIndexVar], "abc", true).bar(2) //want "deep read"
+	y := x
+	print(*y) //want "`s.foo\\(...\\).bar\\(2\\)` to `x`"
+}
+
+func test18(x *int, mp map[int]*int) {
+	s := &S{}
+	x = mp[*(s.foo(1, new(int), "abc", true).bar(2))] //want "dereferenced"
+	y := x
+	print(*y) //want "`mp\\[...\\]` to `x`"
+}
+
+func test19() {
+	mp := make(map[string]*string)
+	x := mp["("]
+	y := x
+	print(*y) //want "`mp\\[\"\\(\"\\]` to `x`"
+
+	x = mp[")"]
+	y = x
+	print(*y) //want "`mp\\[\"\\)\"\\]` to `x`"
+
+	x = mp["))"]
+	y = x
+	print(*y) //want "`mp\\[...\\]` to `x`"
+
+	x = mp["(("]
+	y = x
+	print(*y) //want "`mp\\[...\\]` to `x`"
+
+	x = mp[")))((("]
+	y = x
+	print(*y) //want "`mp\\[...\\]` to `x`"
+
+	x = mp[")))((("]
+	y = x
+	print(*y) //want "`mp\\[...\\]` to `x`"
+
+	x = mp["(((()"]
+	y = x
+	print(*y) //want "`mp\\[...\\]` to `x`"
+
+	x = mp["())))"]
+	y = x
+	print(*y) //want "`mp\\[...\\]` to `x`"
+
+	s := &S{}
+	i := 0
+	a := s.foo(1,
+		new(int),
+		"({[",
+		true).bar(i)
+	b := a
+	print(*b) //want "`s.foo\\(...\\).bar\\(i\\)` to `a`"
+}
+
+func test20() {
+	mp := make(map[rune]*rune)
+	x := mp['(']
+	y := x
+	print(*y) //want "`mp\\['\\('\\]` to `x`"
+
+	x = mp[')']
+	y = x
+	print(*y) //want "`mp\\['\\)'\\]` to `x`"
+}
+
+// below test checks that NilAway can handle non-English (non-ASCII) identifiers
+func test21() {
+	var 世界 *int = nil
+	print(*世界) //want "`nil` to `世界`"
 }
