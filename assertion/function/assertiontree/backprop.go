@@ -591,9 +591,18 @@ buildShadowMask:
 					if ok && lhsNode != nil {
 						// Add assignment entries to the consumers of lhsNode for informative printing of errors
 						for _, c := range lhsNode.ConsumeTriggers() {
+							var lhsExprStr, rhsExprStr string
+							var err error
+							if lhsExprStr, err = asthelper.PrintExpr(lhsVal, rootNode.Pass(), true /* isShortenExpr */); err != nil {
+								return err
+							}
+							if rhsExprStr, err = asthelper.PrintExpr(rhsVal, rootNode.Pass(), true /* isShortenExpr */); err != nil {
+								return err
+							}
+
 							c.Annotation.AddAssignment(annotation.Assignment{
-								LHSExprStr: asthelper.PrintExpr(lhsVal, rootNode.Pass(), true /* isShortenExpr */),
-								RHSExprStr: asthelper.PrintExpr(rhsVal, rootNode.Pass(), true /* isShortenExpr */),
+								LHSExprStr: lhsExprStr,
+								RHSExprStr: rhsExprStr,
 								Position:   util.TruncatePosition(util.PosToLocation(lhsVal.Pos(), rootNode.Pass())),
 							})
 						}
@@ -636,9 +645,18 @@ buildShadowMask:
 							continue
 						}
 						for _, t := range rootNode.triggers[beforeTriggersLastIndex:len(rootNode.triggers)] {
+							var lhsExprStr, rhsExprStr string
+							var err error
+							if lhsExprStr, err = asthelper.PrintExpr(lhsVal, rootNode.Pass(), true /* isShortenExpr */); err != nil {
+								return err
+							}
+							if rhsExprStr, err = asthelper.PrintExpr(rhsVal, rootNode.Pass(), true /* isShortenExpr */); err != nil {
+								return err
+							}
+
 							t.Consumer.Annotation.AddAssignment(annotation.Assignment{
-								LHSExprStr: asthelper.PrintExpr(lhsVal, rootNode.Pass(), true /* isShortenExpr */),
-								RHSExprStr: asthelper.PrintExpr(rhsVal, rootNode.Pass(), true /* isShortenExpr */),
+								LHSExprStr: lhsExprStr,
+								RHSExprStr: rhsExprStr,
 								Position:   util.TruncatePosition(util.PosToLocation(lhsVal.Pos(), rootNode.Pass())),
 							})
 						}

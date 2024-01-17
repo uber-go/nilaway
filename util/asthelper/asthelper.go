@@ -16,39 +16,32 @@
 package asthelper
 
 import (
-	"bytes"
-	"fmt"
 	"go/ast"
 	"go/printer"
+	"go/token"
+	"io"
 	"strings"
 
 	"golang.org/x/tools/go/analysis"
 )
 
-// astExprToString converts AST expression to string using the `printer` package
-func astExprToString(e ast.Expr, pass *analysis.Pass) string {
-	var buf bytes.Buffer
-	err := printer.Fprint(&buf, pass.Fset, e)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to convert AST expression to string: %v\n", err))
-	}
-	return buf.String()
-}
-
 // PrintExpr converts AST expression to string, and shortens long expressions if isShortenExpr is true
-func PrintExpr(e ast.Expr, pass *analysis.Pass, isShortenExpr bool) string {
+func PrintExpr(e ast.Expr, pass *analysis.Pass, isShortenExpr bool) (string, error) {
+	builder := &strings.Builder{}
+	var err error
+
 	if !isShortenExpr {
-		astExprToString(e, pass)
+		err = printer.Fprint(builder, pass.Fset, e)
+	} else {
+		// traverse over the AST expression's subtree and shorten long expressions
+		// (e.g., s.foo(longVarName, anotherLongVarName, someOtherLongVarName) --> s.foo(...))
+		err = printExpr(builder, pass.Fset, e)
 	}
 
-	// traverse over the AST expression's subtree and shorten long expressions (e.g., s.foo(longVarName, anotherLongVarName, someOtherLongVarName) --> s.foo(...))
-	s := strings.Builder{}
-	printExprHelper(e, pass, &s)
-
-	return s.String()
+	return builder.String(), err
 }
 
-func printExprHelper(e ast.Expr, pass *analysis.Pass, s *strings.Builder) {
+func printExpr(writer io.Writer, fset *token.FileSet, e ast.Expr) (err error) {
 	// _shortenExprLen is the maximum length of an expression to be printed in full. The value is set to 3 to account for
 	// the length of the ellipsis ("..."), which is used to shorten long expressions.
 	const _shortenExprLen = 3
@@ -70,41 +63,53 @@ func printExprHelper(e ast.Expr, pass *analysis.Pass, s *strings.Builder) {
 
 	switch node := e.(type) {
 	case *ast.Ident:
-		s.WriteString(node.Name)
+		_, err = writer.Write([]byte(node.Name))
 
 	case *ast.SelectorExpr:
-		printExprHelper(node.X, pass, s)
-		s.WriteString(".")
-		s.WriteString(node.Sel.Name)
+		if err = printExpr(writer, fset, node.X); err != nil {
+			return
+		}
+		output := []byte{'.'}
+		output = append(output, node.Sel.Name...)
+		_, err = writer.Write(output)
 
 	case *ast.CallExpr:
-		printExprHelper(node.Fun, pass, s)
-		s.WriteString("(")
+		if err = printExpr(writer, fset, node.Fun); err != nil {
+			return
+		}
+		output := make([]byte, 0, 5)
+		output = append(output, '(')
 		if len(node.Args) > 0 {
 			isShorten := true
 			if len(node.Args) == 1 {
 				if arg, ok := fullExpr(node.Args[0]); ok {
-					s.WriteString(arg)
+					output = append(output, arg...)
 					isShorten = false
 				}
 			}
 			if isShorten {
-				s.WriteString("...")
+				output = append(output, '.', '.', '.') // ellipsis
 			}
 		}
-		s.WriteString(")")
+		output = append(output, ')')
+		_, err = writer.Write(output)
 
 	case *ast.IndexExpr:
-		printExprHelper(node.X, pass, s)
-		s.WriteString("[")
-		if v, ok := fullExpr(node.Index); ok {
-			s.WriteString(v)
-		} else {
-			s.WriteString("...")
+		if err = printExpr(writer, fset, node.X); err != nil {
+			return
 		}
-		s.WriteString("]")
+		output := make([]byte, 0, 5)
+		output = append(output, '[')
+		if v, ok := fullExpr(node.Index); ok {
+			output = append(output, v...)
+		} else {
+			output = append(output, '.', '.', '.') // ellipsis
+		}
+		output = append(output, ']')
+		_, err = writer.Write(output)
 
 	default:
-		s.WriteString(astExprToString(e, pass))
+		err = printer.Fprint(writer, fset, e)
 	}
+	return
 }
