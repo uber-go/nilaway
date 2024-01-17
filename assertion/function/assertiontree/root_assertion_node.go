@@ -500,7 +500,7 @@ func (r *RootAssertionNode) AddGuardMatch(expr ast.Expr, behavior GuardMatchBeha
 			if consumer.Guards.Contains(guard) {
 				r.AddNewTriggers(annotation.FullTrigger{
 					Producer: &annotation.ProduceTrigger{
-						Annotation: annotation.OkReadReflCheck{},
+						Annotation: &annotation.OkReadReflCheck{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
 						Expr:       expr,
 					},
 					Consumer: consumer,
@@ -520,7 +520,7 @@ func (r *RootAssertionNode) consumeIndexExpr(expr ast.Expr) {
 	t := r.Pass().TypesInfo.Types[expr].Type
 	if util.TypeIsDeeplySlice(t) {
 		r.AddConsumption(&annotation.ConsumeTrigger{
-			Annotation: annotation.SliceAccess{},
+			Annotation: &annotation.SliceAccess{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
 			Expr:       expr,
 			Guards:     util.NoGuards(),
 		})
@@ -530,7 +530,7 @@ func (r *RootAssertionNode) consumeIndexExpr(expr ast.Expr) {
 	// encodes this optionality and is currently set to false
 	if config.ErrorOnNilableMapRead && util.TypeIsDeeplyMap(t) {
 		r.AddConsumption(&annotation.ConsumeTrigger{
-			Annotation: annotation.MapAccess{},
+			Annotation: &annotation.MapAccess{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
 			Expr:       expr,
 			Guards:     util.NoGuards(),
 		})
@@ -559,7 +559,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 		if expr.Op == token.LAND {
 			if retExpr, retType := asNilCheckExpr(expr.X); retType == _negativeNilCheck {
 				r.AddProduction(&annotation.ProduceTrigger{
-					Annotation: annotation.NegativeNilCheck{},
+					Annotation: &annotation.NegativeNilCheck{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
 					Expr:       retExpr,
 				})
 				return
@@ -601,8 +601,8 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 										// variance of nilability types)
 										Producer: producer.GetShallow(),
 										Consumer: &annotation.ConsumeTrigger{
-											Annotation: annotation.ArgPass{
-												TriggerIfNonNil: annotation.TriggerIfNonNil{
+											Annotation: &annotation.ArgPass{
+												TriggerIfNonNil: &annotation.TriggerIfNonNil{
 													Ann: annotation.ParamKeyFromArgNum(fdecl, i),
 												}},
 											Expr:   argFunc,
@@ -646,8 +646,8 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 							Expr:       arg,
 						},
 						Consumer: &annotation.ConsumeTrigger{
-							Annotation: annotation.ArgPass{
-								TriggerIfNonNil: annotation.TriggerIfNonNil{
+							Annotation: &annotation.ArgPass{
+								TriggerIfNonNil: &annotation.TriggerIfNonNil{
 									Ann: annotation.ParamKeyFromArgNum(fdecl, i),
 								}},
 							Expr:   arg,
@@ -665,8 +665,8 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 						paramKey = annotation.ParamKeyFromArgNum(fdecl, i)
 					}
 					consumer := annotation.ConsumeTrigger{
-						Annotation: annotation.ArgPass{
-							TriggerIfNonNil: annotation.TriggerIfNonNil{
+						Annotation: &annotation.ArgPass{
+							TriggerIfNonNil: &annotation.TriggerIfNonNil{
 								Ann: paramKey,
 							}},
 						Expr:   arg,
@@ -750,9 +750,9 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 					allowNilable = true
 					// We are in the special case of supporting nilable receivers! Can be nilable depending on declaration annotation/inferred nilability.
 					r.AddConsumption(&annotation.ConsumeTrigger{
-						Annotation: annotation.RecvPass{
-							TriggerIfNonNil: annotation.TriggerIfNonNil{
-								Ann: annotation.RecvAnnotationKey{
+						Annotation: &annotation.RecvPass{
+							TriggerIfNonNil: &annotation.TriggerIfNonNil{
+								Ann: &annotation.RecvAnnotationKey{
 									FuncDecl: funcObj,
 								},
 							}},
@@ -770,7 +770,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 		if !allowNilable {
 			// We are in the default case -- it's a field/method access! Must be non-nil.
 			r.AddConsumption(&annotation.ConsumeTrigger{
-				Annotation: annotation.FldAccess{Sel: r.ObjectOf(expr.Sel)},
+				Annotation: &annotation.FldAccess{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}, Sel: r.ObjectOf(expr.Sel)},
 				Expr:       expr.X,
 				Guards:     util.NoGuards(),
 			})
@@ -785,7 +785,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 			// For all the other slicing, the slice must be nonnil, so we create a consumer
 			// trigger.
 			r.AddConsumption(&annotation.ConsumeTrigger{
-				Annotation: annotation.SliceAccess{},
+				Annotation: &annotation.SliceAccess{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
 				Expr:       expr.X,
 				Guards:     util.NoGuards(),
 			})
@@ -798,7 +798,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 	case *ast.StarExpr:
 		// pointer load! definitely must be non-nil
 		r.AddConsumption(&annotation.ConsumeTrigger{
-			Annotation: annotation.PtrLoad{},
+			Annotation: &annotation.PtrLoad{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
 			Expr:       expr.X,
 			Guards:     util.NoGuards(),
 		})
@@ -811,7 +811,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 		if expr.Op == token.ARROW {
 			// added this consumer since receiving over a nil channel can cause panic
 			r.AddConsumption(&annotation.ConsumeTrigger{
-				Annotation: annotation.ChanAccess{},
+				Annotation: &annotation.ChanAccess{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
 				Expr:       expr.X,
 				Guards:     util.NoGuards(),
 			})
@@ -896,8 +896,6 @@ func getFuncLitFromAssignment(ident *ast.Ident) *ast.FuncLit {
 //	}
 //
 // ```
-//
-// nilable(path, result 0)
 func (r *RootAssertionNode) LiftFromPath(path TrackableExpr) (AssertionNode, bool) {
 	if path != nil {
 		node, whichChild := r.lookupPath(path)

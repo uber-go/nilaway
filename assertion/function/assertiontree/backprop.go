@@ -27,6 +27,7 @@ import (
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/util/asthelper"
 	"golang.org/x/exp/slices"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/cfg"
@@ -118,7 +119,7 @@ func backpropAcrossNode(rootNode *RootAssertionNode, node ast.Node) error {
 func backpropAcrossSend(rootNode *RootAssertionNode, node *ast.SendStmt) error {
 	// Added this consumer since sending over a nil channel can cause panic
 	rootNode.AddConsumption(&annotation.ConsumeTrigger{
-		Annotation: annotation.ChanAccess{},
+		Annotation: &annotation.ChanAccess{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
 		Expr:       node.Chan,
 		Guards:     util.NoGuards(),
 	})
@@ -212,8 +213,8 @@ func backpropAcrossReturn(rootNode *RootAssertionNode, node *ast.ReturnStmt) err
 								Expr:       call,
 							},
 							Consumer: &annotation.ConsumeTrigger{
-								Annotation: annotation.UseAsReturn{
-									TriggerIfNonNil: annotation.TriggerIfNonNil{
+								Annotation: &annotation.UseAsReturn{
+									TriggerIfNonNil: &annotation.TriggerIfNonNil{
 										Ann: annotation.RetKeyFromRetNum(
 											rootNode.ObjectOf(rootNode.FuncNameIdent()).(*types.Func),
 											i,
@@ -320,9 +321,12 @@ func backpropAcrossAssignment(rootNode *RootAssertionNode, lhs, rhs []ast.Expr) 
 				// Add produce trigger for channel receive on the expression `v` here itself,
 				// since we want to set guarding = true.
 				if !util.IsEmptyExpr(lhs[0]) {
+					producer := exprAsDeepProducer(rootNode, r.X)
+					producer.SetNeedsGuard(true)
+
 					rootNode.AddProduction(&annotation.ProduceTrigger{
 						// set the guard on channel receive since it is an ok form
-						Annotation: exprAsDeepProducer(rootNode, r.X).SetNeedsGuard(true),
+						Annotation: producer,
 						Expr:       lhs[0],
 					})
 				}
@@ -356,7 +360,7 @@ func backpropAcrossRange(rootNode *RootAssertionNode, lhs []ast.Expr, rhs ast.Ex
 		// if nonempty, produce the index as definitely non-nil
 		if !util.IsEmptyExpr(lhs[i]) {
 			rootNode.AddProduction(&annotation.ProduceTrigger{
-				Annotation: annotation.RangeIndexAssignment{},
+				Annotation: &annotation.RangeIndexAssignment{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
 				Expr:       lhs[i],
 			})
 		}
@@ -369,10 +373,13 @@ func backpropAcrossRange(rootNode *RootAssertionNode, lhs []ast.Expr, rhs ast.Ex
 		// to an unbounded number of indices to conclude anything other than the annotation-based
 		// deep nilability of rhs
 		if !util.IsEmptyExpr(lhs[i]) {
+			producer := exprAsDeepProducer(rootNode, rhs)
+			producer.SetNeedsGuard(false)
+
 			rootNode.AddProduction(&annotation.ProduceTrigger{
 				// we remove the guard on any deep types read from a range because reading
 				// them through a range guarantees they exist, removing the need for an ok check
-				Annotation: exprAsDeepProducer(rootNode, rhs).SetNeedsGuard(false),
+				Annotation: producer,
 				Expr:       lhs[i],
 			})
 		}
@@ -461,7 +468,7 @@ func backpropAcrossTypeSwitch(rootNode *RootAssertionNode, lhs *ast.Ident, rhs a
 					case 0:
 						// lhsVal expression will never be nil here because rhsVal will never be nil
 						rootNode.triggerProductions(liftedChild, &annotation.ProduceTrigger{
-							Annotation: annotation.ProduceTriggerNever{},
+							Annotation: &annotation.ProduceTriggerNever{},
 							Expr:       lhs,
 						})
 					case 1:
@@ -579,7 +586,27 @@ buildShadowMask:
 					}
 
 					lhsNode, ok := rootNode.LiftFromPath(lpath)
-					if ok {
+					// TODO: below check for `lhsNode != nil` should not be needed when NilAway supports Ok form for
+					//  used-defined functions (tracked issue #77)
+					if ok && lhsNode != nil {
+						// Add assignment entries to the consumers of lhsNode for informative printing of errors
+						for _, c := range lhsNode.ConsumeTriggers() {
+							var lhsExprStr, rhsExprStr string
+							var err error
+							if lhsExprStr, err = asthelper.PrintExpr(lhsVal, rootNode.Pass(), true /* isShortenExpr */); err != nil {
+								return err
+							}
+							if rhsExprStr, err = asthelper.PrintExpr(rhsVal, rootNode.Pass(), true /* isShortenExpr */); err != nil {
+								return err
+							}
+
+							c.Annotation.AddAssignment(annotation.Assignment{
+								LHSExprStr: lhsExprStr,
+								RHSExprStr: rhsExprStr,
+								Position:   util.TruncatePosition(util.PosToLocation(lhsVal.Pos(), rootNode.Pass())),
+							})
+						}
+
 						// If the lhsVal path is not only trackable but tracked, we add it as
 						// a deferred landing
 						landings = append(landings, deferredLanding{
@@ -594,7 +621,7 @@ buildShadowMask:
 					case 0:
 						// lhsVal expression will never be nil here because rhsVal will never be nil
 						rootNode.AddProduction(&annotation.ProduceTrigger{
-							Annotation: annotation.ProduceTriggerNever{},
+							Annotation: &annotation.ProduceTriggerNever{},
 							Expr:       lhsVal,
 						})
 					case 1:
@@ -603,10 +630,36 @@ buildShadowMask:
 							rootNode.addProductionsForAssignmentFields(fieldProducers, lhsVal)
 						}
 
+						// beforeTriggersLastIndex is used to find the newly added triggers on the next line
+						beforeTriggersLastIndex := len(rootNode.triggers)
+
 						rootNode.AddProduction(&annotation.ProduceTrigger{
 							Annotation: rproducers[0].GetShallow().Annotation,
 							Expr:       lhsVal,
 						}, rproducers[0].GetDeepSlice()...)
+
+						// Update consumers of newly added triggers with assignment entries for informative printing of errors
+						// TODO: the below check `len(rootNode.triggers) == 0` should not be needed, however, it is added to
+						//  satisfy NilAway's analysis
+						if len(rootNode.triggers) == 0 {
+							continue
+						}
+						for _, t := range rootNode.triggers[beforeTriggersLastIndex:len(rootNode.triggers)] {
+							var lhsExprStr, rhsExprStr string
+							var err error
+							if lhsExprStr, err = asthelper.PrintExpr(lhsVal, rootNode.Pass(), true /* isShortenExpr */); err != nil {
+								return err
+							}
+							if rhsExprStr, err = asthelper.PrintExpr(rhsVal, rootNode.Pass(), true /* isShortenExpr */); err != nil {
+								return err
+							}
+
+							t.Consumer.Annotation.AddAssignment(annotation.Assignment{
+								LHSExprStr: lhsExprStr,
+								RHSExprStr: rhsExprStr,
+								Position:   util.TruncatePosition(util.PosToLocation(lhsVal.Pos(), rootNode.Pass())),
+							})
+						}
 					default:
 						return errors.New("rhs expression in a 1-1 assignment was multiply returning - " +
 							"this certainly indicates an error in control flow")

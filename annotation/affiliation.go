@@ -59,16 +59,16 @@ func (a AffiliationPair) implementingMethodAsExpr() ast.Expr {
 func FullTriggerForInterfaceParamFlow(affiliation AffiliationPair, paramNum int) FullTrigger {
 	return FullTrigger{
 		Producer: &ProduceTrigger{
-			Annotation: InterfaceParamReachesImplementation{
-				TriggerIfNilable: TriggerIfNilable{
+			Annotation: &InterfaceParamReachesImplementation{
+				TriggerIfNilable: &TriggerIfNilable{
 					Ann: ParamKeyFromArgNum(affiliation.InterfaceMethod, paramNum)},
 				AffiliationPair: affiliation,
 			},
 			Expr: affiliation.interfaceMethodAsExpr(),
 		},
 		Consumer: &ConsumeTrigger{
-			Annotation: MethodParamFromInterface{
-				TriggerIfNonNil: TriggerIfNonNil{
+			Annotation: &MethodParamFromInterface{
+				TriggerIfNonNil: &TriggerIfNonNil{
 					Ann: ParamKeyFromArgNum(affiliation.ImplementingMethod, paramNum)},
 				AffiliationPair: affiliation,
 			},
@@ -88,16 +88,16 @@ func FullTriggerForInterfaceParamFlow(affiliation AffiliationPair, paramNum int)
 func FullTriggerForInterfaceResultFlow(affiliation AffiliationPair, retNum int) FullTrigger {
 	return FullTrigger{
 		Producer: &ProduceTrigger{
-			Annotation: MethodResultReachesInterface{
-				TriggerIfNilable: TriggerIfNilable{
+			Annotation: &MethodResultReachesInterface{
+				TriggerIfNilable: &TriggerIfNilable{
 					Ann: RetKeyFromRetNum(affiliation.ImplementingMethod, retNum)},
 				AffiliationPair: affiliation,
 			},
 			Expr: affiliation.implementingMethodAsExpr(),
 		},
 		Consumer: &ConsumeTrigger{
-			Annotation: InterfaceResultFromImplementation{
-				TriggerIfNonNil: TriggerIfNonNil{
+			Annotation: &InterfaceResultFromImplementation{
+				TriggerIfNonNil: &TriggerIfNonNil{
 					Ann: RetKeyFromRetNum(affiliation.InterfaceMethod, retNum)},
 				AffiliationPair: affiliation,
 			},

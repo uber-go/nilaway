@@ -165,7 +165,7 @@ func (e *Engine) ObservePackage(pkgFullTriggers []annotation.FullTrigger) {
 	nonErrRetTriggers := make(map[annotation.FullTrigger]bool, 0)
 	var otherTriggers []annotation.FullTrigger
 	for _, t := range pkgFullTriggers {
-		if _, ok := t.Consumer.Annotation.(annotation.UseAsNonErrorRetDependentOnErrorRetNilability); ok {
+		if _, ok := t.Consumer.Annotation.(*annotation.UseAsNonErrorRetDependentOnErrorRetNilability); ok {
 			nonErrRetTriggers[t] = true
 		} else {
 			otherTriggers = append(otherTriggers, t)
@@ -234,7 +234,7 @@ func (e *Engine) buildPkgInferenceMap(triggers []annotation.FullTrigger) {
 		// controller is an CallSiteParamAnnotationKey, which must be enclosed in a ArgPass
 		// consumer, which Kind() method returns Conditional which is not deep. Thus, we pass false
 		// here.
-		site := e.primitive.site(*trigger.Controller, false)
+		site := e.primitive.site(trigger.Controller, false)
 		ts, ok := controlledTgsBySite[site]
 		if !ok {
 			ts = map[annotation.FullTrigger]bool{}
