@@ -63,50 +63,39 @@ func printExpr(writer io.Writer, fset *token.FileSet, e ast.Expr) (err error) {
 
 	switch node := e.(type) {
 	case *ast.Ident:
-		_, err = writer.Write([]byte(node.Name))
+		_, err = io.WriteString(writer, node.Name)
 
 	case *ast.SelectorExpr:
 		if err = printExpr(writer, fset, node.X); err != nil {
 			return
 		}
-		output := []byte{'.'}
-		output = append(output, node.Sel.Name...)
-		_, err = writer.Write(output)
+		_, err = io.WriteString(writer, "."+node.Sel.Name)
 
 	case *ast.CallExpr:
 		if err = printExpr(writer, fset, node.Fun); err != nil {
 			return
 		}
-		output := make([]byte, 0, 5)
-		output = append(output, '(')
+		var argStr string
 		if len(node.Args) > 0 {
-			isShorten := true
+			argStr = "..."
 			if len(node.Args) == 1 {
-				if arg, ok := fullExpr(node.Args[0]); ok {
-					output = append(output, arg...)
-					isShorten = false
+				if a, ok := fullExpr(node.Args[0]); ok {
+					argStr = a
 				}
 			}
-			if isShorten {
-				output = append(output, '.', '.', '.') // ellipsis
-			}
 		}
-		output = append(output, ')')
-		_, err = writer.Write(output)
+		_, err = io.WriteString(writer, "("+argStr+")")
 
 	case *ast.IndexExpr:
 		if err = printExpr(writer, fset, node.X); err != nil {
 			return
 		}
-		output := make([]byte, 0, 5)
-		output = append(output, '[')
+
+		indexExpr := "..."
 		if v, ok := fullExpr(node.Index); ok {
-			output = append(output, v...)
-		} else {
-			output = append(output, '.', '.', '.') // ellipsis
+			indexExpr = v
 		}
-		output = append(output, ']')
-		_, err = writer.Write(output)
+		_, err = io.WriteString(writer, "["+indexExpr+"]")
 
 	default:
 		err = printer.Fprint(writer, fset, e)
