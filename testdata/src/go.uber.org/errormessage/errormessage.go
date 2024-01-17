@@ -256,3 +256,9 @@ func test20() {
 	y = x
 	print(*y) //want "`mp\\['\\)'\\]` to `x`"
 }
+
+// below test checks that NilAway can handle non-English (non-ASCII) identifiers
+func test21() {
+	var 世界 *int = nil
+	print(*世界) //want "`nil` to `世界`"
+}
