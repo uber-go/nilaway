@@ -27,6 +27,7 @@ import (
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/util/asthelper"
 	"golang.org/x/exp/slices"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/cfg"
@@ -585,7 +586,27 @@ buildShadowMask:
 					}
 
 					lhsNode, ok := rootNode.LiftFromPath(lpath)
-					if ok {
+					// TODO: below check for `lhsNode != nil` should not be needed when NilAway supports Ok form for
+					//  used-defined functions (tracked issue #77)
+					if ok && lhsNode != nil {
+						// Add assignment entries to the consumers of lhsNode for informative printing of errors
+						for _, c := range lhsNode.ConsumeTriggers() {
+							var lhsExprStr, rhsExprStr string
+							var err error
+							if lhsExprStr, err = asthelper.PrintExpr(lhsVal, rootNode.Pass(), true /* isShortenExpr */); err != nil {
+								return err
+							}
+							if rhsExprStr, err = asthelper.PrintExpr(rhsVal, rootNode.Pass(), true /* isShortenExpr */); err != nil {
+								return err
+							}
+
+							c.Annotation.AddAssignment(annotation.Assignment{
+								LHSExprStr: lhsExprStr,
+								RHSExprStr: rhsExprStr,
+								Position:   util.TruncatePosition(util.PosToLocation(lhsVal.Pos(), rootNode.Pass())),
+							})
+						}
+
 						// If the lhsVal path is not only trackable but tracked, we add it as
 						// a deferred landing
 						landings = append(landings, deferredLanding{
@@ -609,10 +630,36 @@ buildShadowMask:
 							rootNode.addProductionsForAssignmentFields(fieldProducers, lhsVal)
 						}
 
+						// beforeTriggersLastIndex is used to find the newly added triggers on the next line
+						beforeTriggersLastIndex := len(rootNode.triggers)
+
 						rootNode.AddProduction(&annotation.ProduceTrigger{
 							Annotation: rproducers[0].GetShallow().Annotation,
 							Expr:       lhsVal,
 						}, rproducers[0].GetDeepSlice()...)
+
+						// Update consumers of newly added triggers with assignment entries for informative printing of errors
+						// TODO: the below check `len(rootNode.triggers) == 0` should not be needed, however, it is added to
+						//  satisfy NilAway's analysis
+						if len(rootNode.triggers) == 0 {
+							continue
+						}
+						for _, t := range rootNode.triggers[beforeTriggersLastIndex:len(rootNode.triggers)] {
+							var lhsExprStr, rhsExprStr string
+							var err error
+							if lhsExprStr, err = asthelper.PrintExpr(lhsVal, rootNode.Pass(), true /* isShortenExpr */); err != nil {
+								return err
+							}
+							if rhsExprStr, err = asthelper.PrintExpr(rhsVal, rootNode.Pass(), true /* isShortenExpr */); err != nil {
+								return err
+							}
+
+							t.Consumer.Annotation.AddAssignment(annotation.Assignment{
+								LHSExprStr: lhsExprStr,
+								RHSExprStr: rhsExprStr,
+								Position:   util.TruncatePosition(util.PosToLocation(lhsVal.Pos(), rootNode.Pass())),
+							})
+						}
 					default:
 						return errors.New("rhs expression in a 1-1 assignment was multiply returning - " +
 							"this certainly indicates an error in control flow")
