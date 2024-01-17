@@ -74,7 +74,6 @@ func test6() *int {
 	var x *int = nil
 	y := x
 	z := y
-<<<<<<< HEAD
 	return z //want "`nil` to `x`"
 }
 
