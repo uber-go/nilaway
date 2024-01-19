@@ -67,7 +67,7 @@ default set of linters configured. Then,
 
 (1) Add `import _ "go.uber.org/nilaway"` to your `tools.go` file (or other file that you use for configuring tool 
 dependencies, see [How can I track tool dependencies for a module?][track-tool-dependencies] from Go Modules 
-documentation for more details) to avoid `go mod tidy` from removing NilAway as a tool dependency.
+documentation) to avoid `go mod tidy` from removing NilAway as a tool dependency.
 
 (2) Run the following commands to add NilAway as a tool dependency to your project:
 ```bash
@@ -105,7 +105,7 @@ our [wiki page][] on how to pass configurations to NilAway.
 ### golangci-lint
 
 NilAway, as its current form, still reports a fair number of false positives. This makes NilAway fail to be merged with 
-[golangci-lint][golangci-lint] to be offered as a linter (see [PR#4045][pr-4045]). The alternatives are to:
+[golangci-lint][golangci-lint] and be offered as a linter (see [PR#4045][pr-4045]). The alternatives are to:
 
 (1) [build NilAway as a plugin to golangci-lint][nilaway-as-a-plugin]: the Go plugin system _requires_ that NilAway 
   shares the exact same versions of dependencies as the ones from golangci-lint. This is almost impossible for us to
