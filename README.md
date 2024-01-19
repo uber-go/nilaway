@@ -73,7 +73,7 @@ documentation) to avoid `go mod tidy` from removing NilAway as a tool dependency
 ```bash
 # Get NilAway as a dependency, as well as getting its transitive dependencies in go.mod file.
 $ go get go.uber.org/nilaway@latest
-# This should not clean NilAway as a dependency in your go.mod file.
+# This should not remove NilAway as a dependency in your go.mod file.
 $ go mod tidy
 # Run gazelle to sync dependencies from go.mod to WORKSPACE file.
 $ bazel run //:gazelle -- update-repos -from_file=go.mod
