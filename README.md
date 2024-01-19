@@ -25,6 +25,8 @@ optimizations to further reduce its footprint.
 nil panics we have observed in production, allowing NilAway to maintain a good balance between usefulness and build-time 
 overhead.
 
+:star2: For more detailed technical discussion, please check our [Wiki][wiki], [Engineering Blog][blog], and paper (WIP).
+
 ## Installation
 
 NilAway is implemented using the standard [go/analysis](https://pkg.go.dev/golang.org/x/tools/go/analysis) framework, 
@@ -93,7 +95,7 @@ go.uber.org/example.go:23:13: error: Potential nil panic detected. Observed nil 
 
 Note that in the above example, `foo` does not necessarily have to reside in the same package as `bar`. NilAway is able
 to track nil flows across packages as well. Moreover, NilAway handles Go-specific language constructs such as receivers,
-interfaces, type assertions, type switches, and more. For more detailed discussion, please check our paper.
+interfaces, type assertions, type switches, and more.
 
 ## Configurations
 
@@ -124,3 +126,5 @@ This project is copyright 2023 Uber Technologies, Inc., and licensed under Apach
 [ci]: https://github.com/uber-go/nilaway/actions/workflows/ci.yml
 [cov-img]: https://codecov.io/gh/uber-go/nilaway/branch/main/graph/badge.svg
 [cov]: https://codecov.io/gh/uber-go/nilaway
+[wiki]: https://github.com/uber-go/nilaway/wiki
+[blog]: https://www.uber.com/blog/nilaway-practical-nil-panic-detection-for-go/
