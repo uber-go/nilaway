@@ -27,13 +27,10 @@ overhead.
 
 :star2: For more detailed technical discussion, please check our [Wiki][wiki], [Engineering Blog][blog], and paper (WIP).
 
-## Installation
+## Running NilAway
 
-NilAway is implemented using the standard [go/analysis](https://pkg.go.dev/golang.org/x/tools/go/analysis) framework, 
-making it easy to integrate with existing analyzer drivers (e.g., [golangci-lint](https://github.com/golangci/golangci-lint),
-[nogo](https://github.com/bazelbuild/rules_go/blob/master/go/nogo.rst), or 
-[running as a standalone checker](https://pkg.go.dev/golang.org/x/tools/go/analysis/singlechecker)). Here, we list the 
-instructions for running NilAway as a standalone checker. More integration supports will be added soon.
+NilAway is implemented using the standard [go/analysis][go-analysis], making it easy to integrate with existing analyzer
+drivers (i.e., [golangci-lint][golangci-lint], [nogo][nogo], or [running as a standalone checker][singlechecker]).
 
 ### Standalone Checker
 
@@ -120,6 +117,10 @@ our [Uber Contributor License Agreement](https://cla-assistant.io/uber-go/nilawa
 
 This project is copyright 2023 Uber Technologies, Inc., and licensed under Apache 2.0.
 
+[go-analysis]: https://pkg.go.dev/golang.org/x/tools/go/analysis
+[golangci-lint]: https://github.com/golangci/golangci-lint
+[singlechecker]: https://pkg.go.dev/golang.org/x/tools/go/analysis/singlechecker
+[nogo]: https://github.com/bazelbuild/rules_go/blob/master/go/nogo.rst
 [doc-img]: https://pkg.go.dev/badge/go.uber.org/nilaway.svg
 [doc]: https://pkg.go.dev/go.uber.org/nilaway
 [ci-img]: https://github.com/uber-go/nilaway/actions/workflows/ci.yml/badge.svg
