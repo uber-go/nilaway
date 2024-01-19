@@ -100,7 +100,7 @@ $ bazel build --keep_going //...
 ```
 
 (5) See [nogo documentation][nogo-configure-analyzers] on how to pass a configuration JSON to the nogo driver, and see 
-our [wiki page][] on how to pass configurations to NilAway.
+our [wiki page][nogo-configure-nilaway] on how to pass configurations to NilAway.
 
 ### golangci-lint
 
