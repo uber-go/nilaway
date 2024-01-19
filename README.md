@@ -33,10 +33,11 @@ NilAway is implemented using the standard [go/analysis][go-analysis], making it 
 drivers (i.e., [golangci-lint][golangci-lint], [nogo][nogo], or [running as a standalone checker][singlechecker]).
 
 > [!IMPORTANT]  
-> Due to the sophistication of the analyses that NilAway does, it tries to cache its findings about a particular 
+> Due to the sophistication of the analyses that NilAway does, NilAway caches its findings about a particular 
 > package via the [Fact Mechanism][fact-mechanism] from the [go/analysis][go-analysis] framework. Therefore, it is 
 > _highly_ recommended to leverage a driver that supports modular analysis (i.e., bazel/nogo or golangci-lint, but _not_
-> the standalone checker since it stores all facts in memory) for better performance on large projects.
+> the standalone checker since it stores all facts in memory) for better performance on large projects. For example,
+> see [instructions][nogo-instructions] below for running NilAway on your project with bazel/nogo.
 
 > [!IMPORTANT]  
 > By default, NilAway analyzes _all_ Go code, including the standard libraries and dependencies. This helps NilAway 
@@ -44,8 +45,9 @@ drivers (i.e., [golangci-lint][golangci-lint], [nogo][nogo], or [running as a st
 > significant performance cost (only once for drivers with modular support) and increase the number of non-actionable 
 > errors in dependencies, for large Go projects with a lot of dependencies.
 > 
-> You can use the [`include-pkgs`][include-pkgs-flag] flag to only include analysis of first-party code, where NilAway
-> will apply optimistic defaults for the out-of-scope Go code (meaning a potential increase of false negatives).
+> We highly recommend using the [include-pkgs][include-pkgs-flag] flag to narrow down the analysis to your project's 
+> code exclusively. This directs NilAway to skip analyzing dependencies (e.g., third-party libraries), allowing you to 
+> focus solely on potential nil panics reported by NilAway in your first-party code!
 
 ### Standalone Checker
 
@@ -211,3 +213,4 @@ This project is copyright 2023 Uber Technologies, Inc., and licensed under Apach
 [track-tool-dependencies]: https://go.dev/wiki/Modules#how-can-i-track-tool-dependencies-for-a-module
 [nogo-configure-analyzers]: https://github.com/bazelbuild/rules_go/blob/master/go/nogo.rst#id14
 [nogo-configure-nilaway]: https://github.com/uber-go/nilaway/wiki/Configuration#nogo
+[nogo-instructions]: https://github.com/uber-go/nilaway?tab=readme-ov-file#bazelnogo
