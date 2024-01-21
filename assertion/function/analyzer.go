@@ -32,6 +32,7 @@ import (
 	"go.uber.org/nilaway/assertion/structfield"
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/util/asthelper"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/ctrlflow"
 	"golang.org/x/tools/go/cfg"
@@ -143,8 +144,12 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 			// TODO: enable struct initialization flag (tracked in Issue #23).
 			// TODO: enable anonymous function flag.
 		} else {
-			functionConfig.StructInitCheckType = util.DocContainsStructInitCheck(file.Doc)
-			functionConfig.EnableAnonymousFunc = util.DocContainsAnonymousFuncCheck(file.Doc)
+			if asthelper.DocContains(file.Doc, config.NilAwayStructInitCheckString) {
+				functionConfig.StructInitCheckType = config.DepthOneFieldCheck
+			} else {
+				functionConfig.StructInitCheckType = config.NoCheck
+			}
+			functionConfig.EnableAnonymousFunc = asthelper.DocContains(file.Doc, config.NilAwayAnonymousFuncCheckString)
 		}
 
 		// Collect all function declarations and function literals if anonymous function support

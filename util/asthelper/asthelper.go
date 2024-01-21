@@ -25,6 +25,20 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
+func DocContains(group *ast.CommentGroup, s string) bool {
+	if group == nil {
+		return false
+	}
+
+	for _, comment := range group.List {
+		if strings.Contains(comment.Text, s) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // PrintExpr converts AST expression to string, and shortens long expressions if isShortenExpr is true
 func PrintExpr(e ast.Expr, pass *analysis.Pass, isShortenExpr bool) (string, error) {
 	builder := &strings.Builder{}
