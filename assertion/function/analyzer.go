@@ -108,7 +108,6 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 	}()
 
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
-
 	if !conf.IsPkgInScope(pass.Pkg) {
 		return Result{}, nil
 	}
@@ -144,12 +143,8 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 			// TODO: enable struct initialization flag (tracked in Issue #23).
 			// TODO: enable anonymous function flag.
 		} else {
-			if asthelper.DocContains(file.Doc, config.NilAwayStructInitCheckString) {
-				functionConfig.StructInitCheckType = config.DepthOneFieldCheck
-			} else {
-				functionConfig.StructInitCheckType = config.NoCheck
-			}
-			functionConfig.EnableAnonymousFunc = asthelper.DocContains(file.Doc, config.NilAwayAnonymousFuncCheckString)
+			functionConfig.EnableStructInitCheck = asthelper.DocContains(file.Doc, config.StructInitCheckString)
+			functionConfig.EnableAnonymousFunc = asthelper.DocContains(file.Doc, config.AnonymousFuncCheckString)
 		}
 
 		// Collect all function declarations and function literals if anonymous function support
@@ -161,11 +156,10 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 			}
 		}
 		if functionConfig.EnableAnonymousFunc {
-			// Due to , we need a stable order of triggers for inference. However, the
+			// We need a stable order of triggers for inference. However, the
 			// fake func decl nodes generated from the anonymous function analyzer are stored in
 			// a map. Hence, here we traverse the file and append the fake func decl nodes in
 			// depth-first order.
-			// TODO: remove this once  is done.
 			ast.Inspect(file, func(node ast.Node) bool {
 				if f, ok := node.(*ast.FuncLit); ok {
 					funcs = append(funcs, f)

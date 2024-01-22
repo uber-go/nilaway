@@ -147,7 +147,7 @@ func backpropAcrossReturn(rootNode *RootAssertionNode, node *ast.ReturnStmt) err
 	// we have to handle the case that a multiply-returning function is being returned, and split
 	// the productions appropriate instead of just calling computeAndConsumeResults directly in that case
 
-	if rootNode.functionContext.isDepthOneFieldCheck() {
+	if rootNode.functionContext.functionConfig.EnableStructInitCheck {
 		rootNode.addConsumptionsForFieldsOfParams()
 	}
 
@@ -572,7 +572,7 @@ buildShadowMask:
 				if rpath != nil {
 					// Both lhsVal and rhsVal are trackable! we're in case C
 
-					if rootNode.functionContext.isDepthOneFieldCheck() {
+					if rootNode.functionContext.functionConfig.EnableStructInitCheck {
 						// If rhs is a function call that is tracked then we just add field producers before detaching
 						// the assertion nodes
 						_, rproducers := rootNode.ParseExprAsProducer(rhsVal, true)
@@ -614,7 +614,7 @@ buildShadowMask:
 							Expr:       lhsVal,
 						})
 					case 1:
-						if rootNode.functionContext.isDepthOneFieldCheck() {
+						if rootNode.functionContext.functionConfig.EnableStructInitCheck {
 							fieldProducers := rproducers[0].GetFieldProducers()
 							rootNode.addProductionsForAssignmentFields(fieldProducers, lhsVal)
 						}
@@ -708,7 +708,7 @@ func backpropAcrossManyToOneAssignment(rootNode *RootAssertionNode, lhs, rhs []a
 		}
 
 		// Phase 1
-		if rootNode.functionContext.isDepthOneFieldCheck() {
+		if rootNode.functionContext.functionConfig.EnableStructInitCheck {
 			fieldProducers := producers[i].GetFieldProducers()
 			rootNode.addProductionsForAssignmentFields(fieldProducers, lhsVal)
 		}

@@ -682,7 +682,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 			// so we can mark its arguments as consumed
 			consumeArg = consumeArgTrigger(r.ObjectOf(fun).(*types.Func))
 
-			if r.functionContext.isDepthOneFieldCheck() {
+			if r.functionContext.functionConfig.EnableStructInitCheck {
 				// Add Productions for struct field params
 				r.addProductionForFuncCallArgAndReceiverFields(expr, fun)
 
@@ -938,7 +938,7 @@ func (r *RootAssertionNode) ProcessEntry() {
 		child := r.Children()[0]
 		builtExpr := child.BuildExpr(r.Pass(), nil)
 
-		if r.functionContext.isDepthOneFieldCheck() {
+		if r.functionContext.functionConfig.EnableStructInitCheck {
 			// process field Assertion nodes of function parameters
 			r.addProductionsForParamFields(child, builtExpr)
 		}
