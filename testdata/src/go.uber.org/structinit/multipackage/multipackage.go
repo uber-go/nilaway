@@ -14,7 +14,6 @@
 
 // Package multipackage test functions as a sanity check for multi-file handling, just making sure that in the
 // case of linked files no errors are thrown
-// <nilaway struct enable>
 package multipackage
 
 import (

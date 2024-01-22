@@ -122,10 +122,17 @@ func main() {
 	//
 	// `nilaway -flag1 <VALUE1> -flag2 <VALUE> ./...`
 	//
+	type BoolFlag interface{ IsBoolFlag() bool }
 	config.Analyzer.Flags.VisitAll(func(f *flag.Flag) {
-		flag.Func(f.Name, f.Usage, func(s string) error {
-			return f.Value.Set(s)
-		})
+		if _, ok := f.Value.(BoolFlag); ok {
+			flag.BoolFunc(f.Name, f.Usage, func(s string) error {
+				return f.Value.Set(s)
+			})
+		} else {
+			flag.Func(f.Name, f.Usage, func(s string) error {
+				return f.Value.Set(s)
+			})
+		}
 	})
 
 	// Add two more flags to the driver for error suppression since singlechecker does not support it.

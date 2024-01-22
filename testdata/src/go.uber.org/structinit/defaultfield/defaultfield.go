@@ -18,7 +18,6 @@
 // the default nilability of the field is chosen based on escaping initialization analysis. The exact assumptions in the
 // analysis are documented at the FldEscape consume trigger. In short, it tracks the uninitialized fields that escape the
 // function.
-// <nilaway struct enable>
 package defaultfield
 
 // This gives an error since field aptr escapes

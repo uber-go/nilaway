@@ -13,7 +13,6 @@
 // limitations under the License.
 
 // This package aims to test nilability behavior for simple cases in anonymous functions.
-// <nilaway anonymous function enable>
 package anonymousfunction
 
 func testNilFlowFromClosure() {

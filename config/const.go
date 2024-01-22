@@ -32,11 +32,3 @@ const DirLevelsToPrintForTriggers = 1
 
 // DefaultNilableNamedTypes is the list of type names that we interpret as default nilable.
 var DefaultNilableNamedTypes = [...]string{}
-
-// StructInitCheckString is the string that may be inserted into the docstring for a package to
-// force NilAway to enable struct init checking
-const StructInitCheckString = "<nilaway struct enable>"
-
-// AnonymousFuncCheckString is the string that may be inserted into the docstring for a package to
-// force NilAway to enable anonymous func checking
-const AnonymousFuncCheckString = "<nilaway anonymous function enable>"

@@ -32,7 +32,6 @@ import (
 	"go.uber.org/nilaway/assertion/structfield"
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
-	"go.uber.org/nilaway/util/asthelper"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/ctrlflow"
 	"golang.org/x/tools/go/cfg"
@@ -112,6 +111,16 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 		return Result{}, nil
 	}
 
+	// Construct experimental features. By default, enable all features on NilAway itself.
+	functionConfig := assertiontree.FunctionConfig{}
+	if strings.HasPrefix(pass.Pkg.Path(), config.NilAwayPkgPathPrefix) { //nolint:revive
+		// TODO: enable struct initialization flag (tracked in Issue #23).
+		// TODO: enable anonymous function flag.
+	} else {
+		functionConfig.EnableStructInitCheck = conf.ExperimentalStructInitEnable
+		functionConfig.EnableAnonymousFunc = conf.ExperimentalAnonymousFuncEnable
+	}
+
 	ctrlflowResult := pass.ResultOf[ctrlflow.Analyzer].(*ctrlflow.CFGs)
 	funcLitMap := pass.ResultOf[anonymousfunc.Analyzer].(anonymousfunc.Result).FuncLitMap
 	funcContracts := pass.ResultOf[functioncontracts.Analyzer].(functioncontracts.Result).FunctionContracts
@@ -134,17 +143,6 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 		// Skip if a file is marked to be ignored, or it is not in scope of our analysis.
 		if !conf.IsFileInScope(file) {
 			continue
-		}
-
-		// Construct config for analyzing the functions in this file. By default, enable all checks
-		// on NilAway itself.
-		functionConfig := assertiontree.FunctionConfig{}
-		if strings.HasPrefix(pass.Pkg.Path(), config.NilAwayPkgPathPrefix) { //nolint:revive
-			// TODO: enable struct initialization flag (tracked in Issue #23).
-			// TODO: enable anonymous function flag.
-		} else {
-			functionConfig.EnableStructInitCheck = asthelper.DocContains(file.Doc, config.StructInitCheckString)
-			functionConfig.EnableAnonymousFunc = asthelper.DocContains(file.Doc, config.AnonymousFuncCheckString)
 		}
 
 		// Collect all function declarations and function literals if anonymous function support
