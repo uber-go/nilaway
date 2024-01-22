@@ -122,9 +122,7 @@ func main() {
 	//
 	// `nilaway -flag1 <VALUE1> -flag2 <VALUE> ./...`
 	//
-	config.Analyzer.Flags.VisitAll(func(f *flag.Flag) {
-		flag.Var(f.Value, f.Name, f.Usage)
-	})
+	config.Analyzer.Flags.VisitAll(func(f *flag.Flag) { flag.Var(f.Value, f.Name, f.Usage) })
 
 	// Add two more flags to the driver for error suppression since singlechecker does not support it.
 	wd, err := os.Getwd()
