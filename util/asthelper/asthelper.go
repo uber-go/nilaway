@@ -25,6 +25,7 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
+// DocContains returns true if the comment group contains the given string.
 func DocContains(group *ast.CommentGroup, s string) bool {
 	if group == nil {
 		return false
