@@ -265,7 +265,7 @@ func parseExpr(rootNode *RootAssertionNode, expr ast.Expr) TrackableExpr {
 // It matches on `AssignStmt`s of the form `v, ok := mp[k]` and `v, ok := <-ch`
 // nilable(result 0)
 func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardNonceGenerator, node ast.Node) ([]RichCheckEffect, bool) {
-	lhs, rhs := extractLhsRhs(node)
+	lhs, rhs := extractLHSRHS(node)
 	if len(lhs) != 2 || len(rhs) != 1 {
 		return nil, false
 	}
@@ -343,7 +343,7 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 // it matches on calls to functions with error-returning types
 // nilable(result 0)
 func NodeTriggersFuncErrRet(rootNode *RootAssertionNode, nonceGenerator *util.GuardNonceGenerator, node ast.Node) ([]RichCheckEffect, bool) {
-	lhs, rhs := extractLhsRhs(node)
+	lhs, rhs := extractLHSRHS(node)
 
 	if len(lhs) == 0 || len(rhs) != 1 {
 		return nil, false
@@ -461,7 +461,8 @@ func guardExpr(rootNode *RootAssertionNode, expr TrackableExpr, guard util.Guard
 	}
 }
 
-func extractLhsRhs(node ast.Node) (lhs, rhs []ast.Expr) {
+// extractLHSRHS extracts the left-hand side and right-hand side of an assignment statement or a variable declaration
+func extractLHSRHS(node ast.Node) (lhs, rhs []ast.Expr) {
 	switch expr := node.(type) {
 	case *ast.AssignStmt:
 		lhs, rhs = expr.Lhs, expr.Rhs
