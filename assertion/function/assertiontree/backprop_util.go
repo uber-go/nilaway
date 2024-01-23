@@ -23,6 +23,7 @@ import (
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/util/asthelper"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/cfg"
 )
@@ -748,4 +749,23 @@ func CheckGuardOnFullTrigger(trigger annotation.FullTrigger) annotation.FullTrig
 		}
 	}
 	return trigger
+}
+
+// addAssignmentToConsumer updates the consumer with assignment entries for informative printing of errors
+func addAssignmentToConsumer(lhs, rhs ast.Expr, pass *analysis.Pass, consumer annotation.ConsumingAnnotationTrigger) (err error) {
+	var lhsExprStr, rhsExprStr string
+	if lhsExprStr, err = asthelper.PrintExpr(lhs, pass, true /* isShortenExpr */); err != nil {
+		return err
+	}
+	if rhsExprStr, err = asthelper.PrintExpr(rhs, pass, true /* isShortenExpr */); err != nil {
+		return err
+	}
+
+	consumer.AddAssignment(annotation.Assignment{
+		LHSExprStr: lhsExprStr,
+		RHSExprStr: rhsExprStr,
+		Position:   util.TruncatePosition(util.PosToLocation(lhs.Pos(), pass)),
+	})
+
+	return
 }

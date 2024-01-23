@@ -262,3 +262,96 @@ func test21() {
 	var 世界 *int = nil
 	print(*世界) //want "`nil` to `世界`"
 }
+
+// below tests check assignment flow tracking across many-to-one assignments
+
+// nilable(result 0)
+func retPtrErr() (*int, error) {
+	return nil, nil
+}
+
+func test22(i int) {
+	switch i {
+	case 0:
+		x, err := retPtrErr()
+		if err != nil {
+			return
+		}
+		print(*x) //want "`retPtrErr\\(\\)` to `x`"
+
+	case 1:
+		if x, err := retPtrErr(); err == nil {
+			y := x
+			print(*y) //want "`retPtrErr\\(\\)` to `x`"
+		}
+
+	case 2:
+		var x *int
+		var err error
+		x, err = retPtrErr()
+		if err != nil {
+			return
+		}
+		print(*x) //want "`retPtrErr\\(\\)` to `x`"
+
+	case 3:
+		var x, err = retPtrErr()
+		if err != nil {
+			return
+		}
+		print(*x) //want "`retPtrErr\\(\\)` to `x`"
+	}
+}
+
+// nilable(mp[])
+func test23(mp map[int]*int, i int) {
+	switch i {
+	case 0:
+		v, ok := mp[0]
+		if ok {
+			print(*v) //want "`mp\\[0\\]` to `v`"
+		}
+
+	case 1:
+		if v, ok := mp[0]; ok {
+			print(*v) //want "`mp\\[0\\]` to `v`"
+		}
+	case 2:
+		var v *int
+		var ok bool
+		v, ok = mp[0]
+		if ok {
+			print(*v) //want "`mp\\[0\\]` to `v`"
+		}
+	case 3:
+		var v, ok = mp[0]
+		if ok {
+			print(*v) //want "`mp\\[0\\]` to `v`"
+		}
+	}
+}
+
+// nilable(result 0, result 2)
+func retMultiple() (*int, *int, *int) {
+	return nil, new(int), nil
+}
+
+func test24() {
+	a, b, c := retMultiple()
+	if dummy {
+		b = a
+	}
+	print(*a) //want "`retMultiple\\(\\)` to `a`"
+	print(*b) //want "`a` to `b`"
+	print(*c) //want "`retMultiple\\(\\)` to `c`"
+}
+
+// nilable(A[])
+type A []*int
+
+// nonnil(a)
+func test25(a A) {
+	a[0], a[1], _ = retMultiple()
+	print(*a[0]) //want "`retMultiple\\(\\)` to `a\\[0\\]`"
+	print(*a[1])
+}
