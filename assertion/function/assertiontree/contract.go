@@ -265,14 +265,13 @@ func parseExpr(rootNode *RootAssertionNode, expr ast.Expr) TrackableExpr {
 // It matches on `AssignStmt`s of the form `v, ok := mp[k]` and `v, ok := <-ch`
 // nilable(result 0)
 func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardNonceGenerator, node ast.Node) ([]RichCheckEffect, bool) {
-	assignStmt, ok := node.(*ast.AssignStmt)
-
-	if !ok || len(assignStmt.Lhs) != 2 || len(assignStmt.Rhs) != 1 {
+	lhs, rhs := extractLhsRhs(node)
+	if len(lhs) != 2 || len(rhs) != 1 {
 		return nil, false
 	}
 
-	valueExpr := assignStmt.Lhs[0]
-	okExpr := assignStmt.Lhs[1]
+	valueExpr := lhs[0]
+	okExpr := lhs[1]
 	lhsValueParsed := parseExpr(rootNode, valueExpr)
 	lhsOkParsed := parseExpr(rootNode, okExpr)
 	if lhsOkParsed == nil {
@@ -282,7 +281,7 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 
 	var effects []RichCheckEffect
 
-	switch rhs := assignStmt.Rhs[0].(type) {
+	switch rhs := rhs[0].(type) {
 	case *ast.IndexExpr:
 		rhsXType := rootNode.Pass().TypesInfo.Types[rhs.X].Type
 		if util.TypeIsDeeplyMap(rhsXType) {
@@ -344,13 +343,13 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 // it matches on calls to functions with error-returning types
 // nilable(result 0)
 func NodeTriggersFuncErrRet(rootNode *RootAssertionNode, nonceGenerator *util.GuardNonceGenerator, node ast.Node) ([]RichCheckEffect, bool) {
-	assignStmt, ok := node.(*ast.AssignStmt)
+	lhs, rhs := extractLhsRhs(node)
 
-	if !ok || len(assignStmt.Rhs) != 1 {
+	if len(lhs) == 0 || len(rhs) != 1 {
 		return nil, false
 	}
 
-	callExpr, ok := assignStmt.Rhs[0].(*ast.CallExpr)
+	callExpr, ok := rhs[0].(*ast.CallExpr)
 
 	if !ok {
 		// rhs is not a function call
@@ -375,12 +374,12 @@ func NodeTriggersFuncErrRet(rootNode *RootAssertionNode, nonceGenerator *util.Gu
 
 	results := rhsFuncDecl.Type().(*types.Signature).Results()
 	n := results.Len()
-	if len(assignStmt.Lhs) != n {
+	if len(lhs) != n {
 		panic(fmt.Sprintf("ERROR: AssignStmt found with %d operands on left, "+
-			"and a %d-returning function on right", len(assignStmt.Lhs), n))
+			"and a %d-returning function on right", len(lhs), n))
 	}
 
-	errExpr := assignStmt.Lhs[n-1]
+	errExpr := lhs[n-1]
 	errExprParsed := parseExpr(rootNode, errExpr)
 
 	if errExprParsed == nil {
@@ -392,7 +391,7 @@ func NodeTriggersFuncErrRet(rootNode *RootAssertionNode, nonceGenerator *util.Gu
 	someEffect := false
 
 	for i := 0; i < n-1; i++ {
-		lhsExpr := assignStmt.Lhs[i]
+		lhsExpr := lhs[i]
 		lhsExprParsed := parseExpr(rootNode, lhsExpr)
 
 		if lhsExprParsed == nil || util.ExprBarsNilness(rootNode.Pass(), lhsExpr) {
@@ -460,4 +459,17 @@ func guardExpr(rootNode *RootAssertionNode, expr TrackableExpr, guard util.Guard
 			annotation.ConsumeTriggerSliceAsGuarded(
 				lookedUpNode.ConsumeTriggers(), guard))
 	}
+}
+
+func extractLhsRhs(node ast.Node) (lhs, rhs []ast.Expr) {
+	switch expr := node.(type) {
+	case *ast.AssignStmt:
+		lhs, rhs = expr.Lhs, expr.Rhs
+	case *ast.ValueSpec:
+		for _, name := range expr.Names {
+			lhs = append(lhs, name)
+		}
+		rhs = expr.Values
+	}
+	return
 }
