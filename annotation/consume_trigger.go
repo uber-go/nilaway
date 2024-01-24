@@ -145,8 +145,8 @@ func (a *assignmentFlow) String() string {
 
 	// build the informative print string tracking the assignments
 	var sb strings.Builder
-	sb.WriteString(" via the assignment(s):\n\t\t-> ")
-	sb.WriteString(strings.Join(strs, ",\n\t\t-> "))
+	sb.WriteString(" via the assignment(s):\n\t\t- ")
+	sb.WriteString(strings.Join(strs, ",\n\t\t- "))
 	return sb.String()
 }
 

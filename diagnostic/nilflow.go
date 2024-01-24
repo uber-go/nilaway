@@ -92,7 +92,7 @@ func (n *node) String() string {
 		reasonStr += n.consumerRepr
 	}
 
-	return fmt.Sprintf("\t-> %s: %s", posStr, reasonStr)
+	return fmt.Sprintf("\t- %s: %s", posStr, reasonStr)
 }
 
 func pathString(nodes []node) string {
