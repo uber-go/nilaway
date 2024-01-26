@@ -757,10 +757,10 @@ func addAssignmentToConsumer(lhs, rhs ast.Expr, pass *analysis.Pass, consumer an
 	var err error
 
 	if lhsExprStr, err = asthelper.PrintExpr(lhs, pass, true /* isShortenExpr */); err != nil {
-		return fmt.Errorf("converting LHS of assignment expr to string: %w", err)
+		return fmt.Errorf("converting LHS of assignment to string: %w", err)
 	}
 	if rhsExprStr, err = asthelper.PrintExpr(rhs, pass, true /* isShortenExpr */); err != nil {
-		return fmt.Errorf("converting RHS of assignment expr to string: %w", err)
+		return fmt.Errorf("converting RHS of assignment to string: %w", err)
 	}
 
 	consumer.AddAssignment(annotation.Assignment{
