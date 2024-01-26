@@ -102,3 +102,17 @@ func printExpr(writer io.Writer, fset *token.FileSet, e ast.Expr) (err error) {
 	}
 	return
 }
+
+// ExtractLHSRHS extracts the left-hand side and right-hand side of an assignment statement or a variable declaration
+func ExtractLHSRHS(node ast.Node) (lhs, rhs []ast.Expr) {
+	switch expr := node.(type) {
+	case *ast.AssignStmt:
+		lhs, rhs = expr.Lhs, expr.Rhs
+	case *ast.ValueSpec:
+		for _, name := range expr.Names {
+			lhs = append(lhs, name)
+		}
+		rhs = expr.Values
+	}
+	return
+}

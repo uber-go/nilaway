@@ -22,6 +22,7 @@ import (
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/util/asthelper"
 )
 
 // A RichCheckEffect is the fact that a certain check is associated with an effect that can
@@ -265,7 +266,7 @@ func parseExpr(rootNode *RootAssertionNode, expr ast.Expr) TrackableExpr {
 // It matches on `AssignStmt`s of the form `v, ok := mp[k]` and `v, ok := <-ch`
 // nilable(result 0)
 func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardNonceGenerator, node ast.Node) ([]RichCheckEffect, bool) {
-	lhs, rhs := extractLHSRHS(node)
+	lhs, rhs := asthelper.ExtractLHSRHS(node)
 	if len(lhs) != 2 || len(rhs) != 1 {
 		return nil, false
 	}
@@ -343,7 +344,7 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 // it matches on calls to functions with error-returning types
 // nilable(result 0)
 func NodeTriggersFuncErrRet(rootNode *RootAssertionNode, nonceGenerator *util.GuardNonceGenerator, node ast.Node) ([]RichCheckEffect, bool) {
-	lhs, rhs := extractLHSRHS(node)
+	lhs, rhs := asthelper.ExtractLHSRHS(node)
 
 	if len(lhs) == 0 || len(rhs) != 1 {
 		return nil, false
@@ -459,18 +460,4 @@ func guardExpr(rootNode *RootAssertionNode, expr TrackableExpr, guard util.Guard
 			annotation.ConsumeTriggerSliceAsGuarded(
 				lookedUpNode.ConsumeTriggers(), guard))
 	}
-}
-
-// extractLHSRHS extracts the left-hand side and right-hand side of an assignment statement or a variable declaration
-func extractLHSRHS(node ast.Node) (lhs, rhs []ast.Expr) {
-	switch expr := node.(type) {
-	case *ast.AssignStmt:
-		lhs, rhs = expr.Lhs, expr.Rhs
-	case *ast.ValueSpec:
-		for _, name := range expr.Names {
-			lhs = append(lhs, name)
-		}
-		rhs = expr.Values
-	}
-	return
 }
