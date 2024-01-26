@@ -752,13 +752,15 @@ func CheckGuardOnFullTrigger(trigger annotation.FullTrigger) annotation.FullTrig
 }
 
 // addAssignmentToConsumer updates the consumer with assignment entries for informative printing of errors
-func addAssignmentToConsumer(lhs, rhs ast.Expr, pass *analysis.Pass, consumer annotation.ConsumingAnnotationTrigger) (err error) {
+func addAssignmentToConsumer(lhs, rhs ast.Expr, pass *analysis.Pass, consumer annotation.ConsumingAnnotationTrigger) error {
 	var lhsExprStr, rhsExprStr string
+	var err error
+
 	if lhsExprStr, err = asthelper.PrintExpr(lhs, pass, true /* isShortenExpr */); err != nil {
-		return err
+		return fmt.Errorf("converting LHS of assignment expr to string: %w", err)
 	}
 	if rhsExprStr, err = asthelper.PrintExpr(rhs, pass, true /* isShortenExpr */); err != nil {
-		return err
+		return fmt.Errorf("converting RHS of assignment expr to string: %w", err)
 	}
 
 	consumer.AddAssignment(annotation.Assignment{
@@ -767,5 +769,5 @@ func addAssignmentToConsumer(lhs, rhs ast.Expr, pass *analysis.Pass, consumer an
 		Position:   util.TruncatePosition(util.PosToLocation(lhs.Pos(), pass)),
 	})
 
-	return
+	return nil
 }
