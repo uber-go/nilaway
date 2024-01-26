@@ -138,7 +138,7 @@ error showing this nilness flow:
 
 ```
 go.uber.org/example.go:12:9: error: Potential nil panic detected. Observed nil flow from source to dereference point:
-    -> go.uber.org/example.go:12:9: unassigned variable `p` accessed field `f`
+    - go.uber.org/example.go:12:9: unassigned variable `p` accessed field `f`
 ```
 
 If we guard this dereference with a nilness check (`if p != nil`), the error goes away.
@@ -161,8 +161,8 @@ the nilness flow across function boundaries:
 
 ```
 go.uber.org/example.go:23:13: error: Potential nil panic detected. Observed nil flow from source to dereference point:
-    -> go.uber.org/example.go:20:14: literal `nil` returned from `foo()` in position 0
-    -> go.uber.org/example.go:23:13: result 0 of `foo()` dereferenced
+    - go.uber.org/example.go:20:14: literal `nil` returned from `foo()` in position 0
+    - go.uber.org/example.go:23:13: result 0 of `foo()` dereferenced
 ```
 
 Note that in the above example, `foo` does not necessarily have to reside in the same package as `bar`. NilAway is able
