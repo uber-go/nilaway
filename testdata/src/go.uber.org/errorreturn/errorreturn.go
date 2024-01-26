@@ -317,6 +317,14 @@ func usesErrFunc() {
 
 		takesNonnil(nonnilPtr)
 		takesNonnil(nilablePtr) //want "passed" "passed"
+
+	case 13:
+		var nonnilPtr, nilablePtr, err = retsNonnilNilableWithErr(&i, &i)
+		if err != nil {
+			return
+		}
+		takesNonnil(nonnilPtr)
+		takesNonnil(nilablePtr) //want "passed"
 	}
 }
 

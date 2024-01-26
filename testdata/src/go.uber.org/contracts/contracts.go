@@ -38,6 +38,14 @@ func simpleCond(m map[any]any) any {
 	return v
 }
 
+func testVarDecl(m map[any]any) any {
+	var v, ok = m[0]
+	if !ok {
+		panic(0)
+	}
+	return v
+}
+
 func threeWay(m map[any]any) any {
 	var v any
 	var ok bool

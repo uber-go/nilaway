@@ -383,6 +383,12 @@ func testOkChecksForResults() *int {
 			// the rich bool should still be in place
 			return vNonnil
 		}
+	case 6:
+		var vNonnil, okNonnil = <-retsNonnilChans()
+		if !okNonnil {
+			panic(vNonnil)
+		}
+		return vNonnil
 	}
 
 	i := 0
