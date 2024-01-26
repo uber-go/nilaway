@@ -27,7 +27,6 @@ import (
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
-	"go.uber.org/nilaway/util/asthelper"
 	"golang.org/x/exp/slices"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/cfg"
@@ -591,20 +590,10 @@ buildShadowMask:
 					if ok && lhsNode != nil {
 						// Add assignment entries to the consumers of lhsNode for informative printing of errors
 						for _, c := range lhsNode.ConsumeTriggers() {
-							var lhsExprStr, rhsExprStr string
-							var err error
-							if lhsExprStr, err = asthelper.PrintExpr(lhsVal, rootNode.Pass(), true /* isShortenExpr */); err != nil {
+							err := addAssignmentToConsumer(lhsVal, rhsVal, rootNode.Pass(), c.Annotation)
+							if err != nil {
 								return err
 							}
-							if rhsExprStr, err = asthelper.PrintExpr(rhsVal, rootNode.Pass(), true /* isShortenExpr */); err != nil {
-								return err
-							}
-
-							c.Annotation.AddAssignment(annotation.Assignment{
-								LHSExprStr: lhsExprStr,
-								RHSExprStr: rhsExprStr,
-								Position:   util.TruncatePosition(util.PosToLocation(lhsVal.Pos(), rootNode.Pass())),
-							})
 						}
 
 						// If the lhsVal path is not only trackable but tracked, we add it as
@@ -645,20 +634,10 @@ buildShadowMask:
 							continue
 						}
 						for _, t := range rootNode.triggers[beforeTriggersLastIndex:len(rootNode.triggers)] {
-							var lhsExprStr, rhsExprStr string
-							var err error
-							if lhsExprStr, err = asthelper.PrintExpr(lhsVal, rootNode.Pass(), true /* isShortenExpr */); err != nil {
+							err := addAssignmentToConsumer(lhsVal, rhsVal, rootNode.Pass(), t.Consumer.Annotation)
+							if err != nil {
 								return err
 							}
-							if rhsExprStr, err = asthelper.PrintExpr(rhsVal, rootNode.Pass(), true /* isShortenExpr */); err != nil {
-								return err
-							}
-
-							t.Consumer.Annotation.AddAssignment(annotation.Assignment{
-								LHSExprStr: lhsExprStr,
-								RHSExprStr: rhsExprStr,
-								Position:   util.TruncatePosition(util.PosToLocation(lhsVal.Pos(), rootNode.Pass())),
-							})
 						}
 					default:
 						return errors.New("rhs expression in a 1-1 assignment was multiply returning - " +
@@ -734,11 +713,24 @@ func backpropAcrossManyToOneAssignment(rootNode *RootAssertionNode, lhs, rhs []a
 			rootNode.addProductionsForAssignmentFields(fieldProducers, lhsVal)
 		}
 
+		// beforeTriggersLastIndex is used to find the newly added triggers on the next line
+		beforeTriggersLastIndex := len(rootNode.triggers)
+
 		rootNode.AddGuardMatch(lhsVal, ContinueTracking)
 		rootNode.AddProduction(&annotation.ProduceTrigger{
 			Annotation: producers[i].GetShallow().Annotation,
 			Expr:       lhsVal,
 		}, producers[i].GetDeepSlice()...)
+
+		// Update consumers of newly added triggers with assignment entries for informative printing of errors
+		if len(rootNode.triggers) > 0 {
+			for _, t := range rootNode.triggers[beforeTriggersLastIndex:len(rootNode.triggers)] {
+				err := addAssignmentToConsumer(lhsVal, rhsVal, rootNode.Pass(), t.Consumer.Annotation)
+				if err != nil {
+					return err
+				}
+			}
+		}
 
 		// Phase 2
 		consumeTrigger, err := exprAsAssignmentConsumer(rootNode, lhsVal, rhsVal)
@@ -746,6 +738,11 @@ func backpropAcrossManyToOneAssignment(rootNode *RootAssertionNode, lhs, rhs []a
 			return err
 		}
 		if consumeTrigger != nil {
+			// Update consumeTrigger with assignment entries for informative printing of errors
+			if err = addAssignmentToConsumer(lhsVal, rhsVal, rootNode.Pass(), consumeTrigger); err != nil {
+				return err
+			}
+
 			// lhsVal is a field read, so this is a field assignment
 			// since multiple return functions aren't trackable, this is a completed trigger
 			// as long as the type of the expression being assigned doesn't bar nilness
@@ -767,6 +764,11 @@ func backpropAcrossManyToOneAssignment(rootNode *RootAssertionNode, lhs, rhs []a
 		}
 
 		if consumer := exprAsConsumedByAssignment(rootNode, lhsVal); consumer != nil {
+			// Update consumeTrigger with assignment entries for informative printing of errors
+			if err = addAssignmentToConsumer(lhsVal, rhsVal, rootNode.Pass(), consumer.Annotation); err != nil {
+				return err
+			}
+
 			rootNode.AddConsumption(consumer)
 		}
 	}
