@@ -33,7 +33,6 @@ import (
 // In summary, InferredAnnotationVals are the values in the maps InferredMap that we export
 // to indicate the state of multi-package inference between packages.
 type InferredVal interface {
-	isInferredVal()
 	copy() InferredVal
 }
 
@@ -46,8 +45,6 @@ type DeterminedVal struct {
 	// or because it is being passed to a nonnil site.
 	Bool ExplainedBool
 }
-
-func (e *DeterminedVal) isInferredVal() {}
 
 func (e *DeterminedVal) copy() InferredVal { return &DeterminedVal{Bool: e.Bool} }
 
@@ -88,8 +85,6 @@ func (e *UndeterminedVal) copy() InferredVal {
 		Implicates: copySitesWithAssertions(e.Implicates),
 	}
 }
-
-func (e *UndeterminedVal) isInferredVal() {}
 
 // inferredValDiff determines the incremental information that should be exported
 // if `old` was already observed as the InferredVal for a given AnnotationSite,
