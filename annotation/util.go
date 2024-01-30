@@ -111,8 +111,13 @@ func DeepNilabilityOfVar(fdecl *types.Func, v *types.Var) ProducingAnnotationTri
 		}
 		// in this case, the deep nilability of the variable is dependent only on its possible guarding
 		return &LocalVarReadDeep{
-			ReadVar:             v,
-			ProduceTriggerNever: &ProduceTriggerNever{NeedsGuard: util.TypeIsDeeplyMap(v.Type())}}
+			TriggerIfDeepNilable: &TriggerIfDeepNilable{
+				Ann: &LocalVarAnnotationKey{
+					VarDecl: v,
+				},
+				NeedsGuard: util.TypeIsDeeplyMap(v.Type()),
+			},
+		}
 	}
 	// otherwise, the deep nilability of this variable is either that of its named type,
 	// or not deeply nilable - a logical split captured in the method DeepNilabilityAsNamedType
