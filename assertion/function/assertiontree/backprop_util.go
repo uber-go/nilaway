@@ -736,7 +736,7 @@ func exprAsDeepProducer(rootNode *RootAssertionNode, expr ast.Expr) annotation.P
 // trigger is ignored and replaced with an always-nilable-producing
 // instance of annotation.GuardMissing
 func CheckGuardOnFullTrigger(trigger annotation.FullTrigger) annotation.FullTrigger {
-	if trigger.Producer.Annotation.NeedsGuardMatch() && !trigger.Consumer.GuardMatched {
+	if trigger.Producer.Annotation.NeedsGuardMatch() && trigger.Consumer.Annotation.NeedsGuard() && !trigger.Consumer.GuardMatched {
 		return annotation.FullTrigger{
 			Producer: &annotation.ProduceTrigger{
 				Annotation: &annotation.GuardMissing{

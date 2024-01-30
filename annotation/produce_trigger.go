@@ -49,7 +49,8 @@ type ProducingAnnotationTrigger interface {
 	NeedsGuardMatch() bool
 
 	// SetNeedsGuard sets the underlying Guard-Neediness of this ProduceTrigger, if present
-	// This should be very sparingly used, and only with utter conviction of correctness
+	// This should be very sparingly used, and only with utter conviction of correctness.
+	// Default setting for ProduceTriggers is to not need a guard.
 	SetNeedsGuard(bool)
 
 	Prestring() Prestring
