@@ -90,11 +90,9 @@ func TestTimeout(t *testing.T) {
 
 	// Since we have passed a cancelled context, the goroutine should immediately return with a
 	// Canceled error.
-	select {
-	case res := <-resultChan:
-		require.Equal(t, res.index, 0)
-		require.ErrorIs(t, res.err, context.Canceled)
-	}
+	res := <-resultChan
+	require.Equal(t, res.index, 0)
+	require.ErrorIs(t, res.err, context.Canceled)
 }
 
 func TestAnalyzeFuncPanic(t *testing.T) {
@@ -123,11 +121,9 @@ func TestAnalyzeFuncPanic(t *testing.T) {
 		close(resultChan)
 	}()
 
-	select {
-	case res := <-resultChan:
-		require.Equal(t, res.index, 0)
-		require.ErrorContains(t, res.err, "panic")
-	}
+	res := <-resultChan
+	require.Equal(t, res.index, 0)
+	require.ErrorContains(t, res.err, "panic")
 }
 
 func TestMain(m *testing.M) {
