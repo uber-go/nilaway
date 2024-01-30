@@ -830,8 +830,8 @@ func addReturnConsumers(rootNode *RootAssertionNode, node *ast.ReturnStmt, expr 
 		}
 		consumer := &annotation.ConsumeTrigger{
 			Annotation: &annotation.UseAsReturnDeep{
-				TriggerIfDeepNonNil: annotation.TriggerIfDeepNonNil{
-					Ann: &retKey},
+				TriggerIfDeepNonNil: &annotation.TriggerIfDeepNonNil{
+					Ann: retKey},
 				IsNamedReturn: isNamedReturn,
 				RetStmt:       node},
 			Expr:   expr,
