@@ -751,7 +751,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 				conf := r.Pass().ResultOf[config.Analyzer].(*config.Config)
 				if conf.IsPkgInScope(funcObj.Pkg()) { // Check 3: invoked method is in scope
 					t := util.TypeOf(r.Pass(), expr.X)
-					// Here, `t` can only be of type struct or interface, of which we only support for structs.
+					// Here, `t` can only be of type interface, struct, or named, of which we only support for struct and named types.
 					if !util.TypeIsDeeplyInterface(t) { // Check 4: invoking expression (caller) is of a non-interface type (e.g., struct or named)
 						allowNilable = true
 						// We are in the special case of supporting nilable receivers! Can be nilable depending on declaration annotation/inferred nilability.
