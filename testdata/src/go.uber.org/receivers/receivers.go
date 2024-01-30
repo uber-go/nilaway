@@ -77,7 +77,6 @@ type E struct {
 
 func testCaller(dummy bool, i int, e *E) {
 	var s *S // DECL_1: s is uninitialized
-
 	switch i {
 	case 0:
 		s.nonnilRecv() //want "used as receiver to call `nonnilRecv.*`"
