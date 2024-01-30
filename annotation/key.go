@@ -455,7 +455,7 @@ func (gk *GlobalVarAnnotationKey) String() string {
 	return fmt.Sprintf("Global Variable %s", gk.VarDecl.Name())
 }
 
-// LocalVarAnnotationKey allows the Lookup of a global variable's annotations in the Annotation Map
+// LocalVarAnnotationKey allows the Lookup of a local variable's annotations in the Annotation Map
 type LocalVarAnnotationKey struct {
 	VarDecl *types.Var
 }
