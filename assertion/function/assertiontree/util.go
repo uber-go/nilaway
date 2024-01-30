@@ -446,12 +446,12 @@ const (
 // as well as between different modes of inference.
 //
 // FilterTriggersForErrorReturn produces two outputs:
-// (1) final set of triggers that is filtered and refined by replacing consumers
-// (2) raw set of deleted triggers
+// (1) final set of triggers that is filtered and refined by replacing consumers;
+// (2) raw set of deleted triggers (nil if there are no deleted triggers).
 func FilterTriggersForErrorReturn(
 	triggers []annotation.FullTrigger,
 	computeProducerNilability func(p *annotation.ProduceTrigger) ProducerNilability,
-) (filteredTriggers []annotation.FullTrigger, deletedTriggers []annotation.FullTrigger) {
+) (filteredTriggers []annotation.FullTrigger, deletedTriggers map[annotation.FullTrigger]bool) {
 	if len(triggers) == 0 {
 		return nil, nil
 	}
@@ -565,17 +565,19 @@ func FilterTriggersForErrorReturn(
 		}
 	}
 
-	// delete all marked indices
+	// Fast return if there are no triggers to be deleted.
 	if len(allDelIndices) == 0 {
 		return triggers, nil
 	}
 
+	// Delete all marked indices.
+	deletedTriggers = make(map[annotation.FullTrigger]bool, len(allDelIndices))
 	for i, t := range triggers {
-		if !allDelIndices[i] {
-			filteredTriggers = append(filteredTriggers, t)
-		} else {
-			deletedTriggers = append(deletedTriggers, t)
+		if allDelIndices[i] {
+			deletedTriggers[t] = true
+			continue
 		}
+		filteredTriggers = append(filteredTriggers, t)
 	}
-	return
+	return filteredTriggers, deletedTriggers
 }
