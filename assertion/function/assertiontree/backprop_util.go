@@ -647,7 +647,7 @@ func blocksAndPreprocessingFromCFG(
 			// blocks[i] is a conditional
 
 			// so add nil check productions to each successor
-			// this is where the assumption that True Branch = Succs[0], False Branch = Succs[1] shows up
+			// this is where the assumption that True Name = Succs[0], False Name = Succs[1] shows up
 			trueNilCheck, falseNilCheck, isNoop := AddNilCheck(pass, cond)
 			if !isNoop {
 				// we've discovered that this is a nil check

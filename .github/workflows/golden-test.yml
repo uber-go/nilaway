@@ -1,0 +1,66 @@
+name: Golden Test
+
+# NilAway output may change due to introduction of new feature or bug fixes. Since NilAway is still
+# at early stage of development, constantly updating / maintaining the golden test output will be
+# a burden. Therefore, we run this as a separate CI job and post the differences as a PR comment
+# for manual reviews.
+on:
+  pull_request:
+
+jobs:
+  golden-test:
+    name: Golden Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        name: Check out repository
+
+      - name: Fetch base branch (${{ github.event.pull_request.base.ref }}) locally
+        run: git fetch origin ${{ github.event.pull_request.base.ref }}:${{ github.event.pull_request.base.ref }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.21.x
+          cache: false
+
+      - name: Golden Test
+        id: golden_test
+        # Run golden test by comparing HEAD and the base branch (the target branch of the PR).
+        run: |
+          make golden-test ARGS="-base-branch ${{ github.event.pull_request.base.ref }} -result-file ${{ runner.temp }}/golden-test-result.md"
+
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const fsp = require('fs').promises;
+            
+            const issue_number = context.issue.number;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const body = await fsp.readFile(`${{ runner.temp }}/golden-test-result.md`, 'utf8');
+            
+            // First find the comments made by the bot.
+            const comments = await github.rest.issues.listComments({
+              owner: owner,
+              repo: repo,
+              issue_number: issue_number
+            });
+            const botComment = comments.data.find(comment => comment.user.login === 'github-actions[bot]' && comment.body.startsWith('## Golden Test'));
+            
+            // Update or create the PR comment.
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: owner,
+                repo: repo,
+                comment_id: botComment.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: owner,
+                repo: repo,
+                issue_number: issue_number,
+                body: body
+              });
+            }

@@ -7,6 +7,10 @@ GOLANGCI_LINT_VERSION := $(shell golangci-lint --version 2>/dev/null)
 .PHONY: all
 all: build lint test
 
+.PHONY: clean
+clean:
+	@rm -rf $(GOBIN)
+
 .PHONY: build
 build:
 	go install go.uber.org/nilaway/cmd/nilaway
@@ -19,6 +23,11 @@ test:
 cover:
 	go test -v -race -coverprofile=cover.out -coverpkg=./... -v ./...
 	go tool cover -html=cover.out -o cover.html
+
+.PHONY: golden-test
+golden-test:
+	@cd tools && go install go.uber.org/nilaway/tools/cmd/golden-test
+	@$(GOBIN)/golden-test $(ARGS)
 
 .PHONY: lint
 lint: golangci-lint nilaway-lint tidy-lint
