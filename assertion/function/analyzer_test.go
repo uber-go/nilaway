@@ -20,7 +20,6 @@ import (
 	"go/types"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -76,9 +75,10 @@ func TestTimeout(t *testing.T) {
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
 
-	// Give a context that immediately times out, so backprop should return with an error.
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now())
-	defer cancel()
+	// Give a cancelled context, so back propagation should immediately return with an error.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
 	ctrlflowResult := pass.ResultOf[ctrlflow.Analyzer].(*ctrlflow.CFGs)
 	go analyzeFunc(ctx, pass, funcDecl, funcContext, ctrlflowResult.FuncDecl(funcDecl), 0, resultChan, wg)
 
@@ -88,14 +88,12 @@ func TestTimeout(t *testing.T) {
 		close(resultChan)
 	}()
 
-	// Since we have passed a timed out context, the goroutine should immediately return with a
-	// DeadlineExceeded error. Here we wait up to 10 seconds before we force fail.
+	// Since we have passed a cancelled context, the goroutine should immediately return with a
+	// Canceled error.
 	select {
 	case res := <-resultChan:
 		require.Equal(t, res.index, 0)
-		require.ErrorIs(t, res.err, context.DeadlineExceeded)
-	case <-time.After(10 * time.Second):
-		require.Fail(t, "A cancelled context was given to backprop, but it did not return within 10 seconds.")
+		require.ErrorIs(t, res.err, context.Canceled)
 	}
 }
 
@@ -129,8 +127,6 @@ func TestAnalyzeFuncPanic(t *testing.T) {
 	case res := <-resultChan:
 		require.Equal(t, res.index, 0)
 		require.ErrorContains(t, res.err, "panic")
-	case <-time.After(10 * time.Second):
-		require.Fail(t, "analyzeFun did not return within 10 seconds.")
 	}
 }
 

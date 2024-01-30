@@ -19,7 +19,6 @@ import (
 	"go/ast"
 	"go/token"
 
-	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/cfg"
@@ -736,8 +735,7 @@ func propagateRichChecks(graph *cfg.CFG, richCheckBlocks [][]RichCheckEffect) []
 
 		roundCount++
 
-		config.CheckCFGFixedPointRuntime(
-			"RichCheckEffect Forwards Propagation", n, roundCount)
+		checkCFGFixedPointRuntime("RichCheckEffect Forwards Propagation", roundCount, n)
 	}
 
 	// this strips duplicates from the RichCheckEffect slices
