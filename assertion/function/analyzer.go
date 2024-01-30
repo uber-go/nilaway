@@ -123,7 +123,7 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 	}
 
 	// Set up variables for synchronization and communication.
-	ctx, cancel := context.WithTimeout(context.Background(), config.BackpropTimeout)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var wg sync.WaitGroup
 	funcChan := make(chan functionResult)

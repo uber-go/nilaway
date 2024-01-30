@@ -1,10 +1,5 @@
 package config
 
-import (
-	"fmt"
-	"time"
-)
-
 // This file hosts non-user-configurable parameters --- these are for development and testing purposes only.
 
 // StableRoundLimit is the number of rounds in backpropagation algorithm after which, if there is no change
@@ -15,11 +10,6 @@ import (
 // After experimentation, we observed that using StableRoundLimit = 5 with NilAway yields similar analysis time compared
 // to lower values, making it a good compromise for precise results.
 const StableRoundLimit = 5
-
-// BackpropTimeout is the timeout set for analysis of each function. This ensures build time SLAs.
-// NilAway should report an error if this timeout is ever hit, in order not to silently ignore any
-// functions due to this.
-const BackpropTimeout = 10 * time.Second
 
 // ErrorOnNilableMapRead configures whether reading from nil maps should be considered an error.
 // Since Go does not panic on this, right now we do not interpret it as one, but this could be
@@ -62,19 +52,3 @@ const NilAwayStructInitCheckString = "<nilaway struct enable>"
 // NilAwayAnonymousFuncCheckString is the string that may be inserted into the docstring for a package to
 // force NilAway to enable anonymous func checking
 const NilAwayAnonymousFuncCheckString = "<nilaway anonymous function enable>"
-
-func maxRoundsFromBlocks(numBlocks int) int {
-	return numBlocks * numBlocks * 2
-}
-
-// CheckCFGFixedPointRuntime throws a panic if a fixed point iteration loop runs beyond some upper
-// bounded round number, determined by the number of blocks in the CFG of the analyzed function,
-// processed by maxRoundsFromBlocks
-func CheckCFGFixedPointRuntime(passName string, numBlocks, currRound int) {
-	if currRound > maxRoundsFromBlocks(numBlocks) {
-		panic(fmt.Sprintf("ERROR: Propagation over %d-block CFG in pass '%s' ran for "+
-			"%d rounds, when maximum allowed was %d rounds. This indicates a failure of the fixpoint"+
-			" logic and must be debugged at the source level.",
-			numBlocks, passName, currRound, maxRoundsFromBlocks(numBlocks)))
-	}
-}
