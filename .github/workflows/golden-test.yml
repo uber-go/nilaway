@@ -14,9 +14,6 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         name: Check out repository
-        with:
-          # Fetch all histories and branches so that we can later check out source branch for comparisons.
-          fetch-depth: 0
 
       - name: Fetch base branch (${{ github.event.pull_request.base.ref }}) locally
         run: git fetch origin ${{ github.event.pull_request.base.ref }}:${{ github.event.pull_request.base.ref }}
