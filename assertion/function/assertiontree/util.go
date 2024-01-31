@@ -26,6 +26,17 @@ import (
 	"golang.org/x/tools/go/ast/astutil"
 )
 
+// checkCFGFixedPointRuntime panics if a fixed point iteration loop runs beyond some upper
+// bounded round number, determined by the number of blocks in the CFG of the analyzed function.
+func checkCFGFixedPointRuntime(passName string, currRound, numBlocks int) {
+	if maxRound := numBlocks * numBlocks * 2; currRound > maxRound {
+		panic(fmt.Sprintf("propagation over %d-block CFG in %q ran for "+
+			"%d rounds, when maximum allowed was %d rounds.",
+			numBlocks, passName, currRound, maxRound),
+		)
+	}
+}
+
 // GetDeclaringPath finds the path of nested AST nodes beginning with the passed interval `[start, end]`
 func GetDeclaringPath(pass *analysis.Pass, start, end token.Pos) ([]ast.Node, bool) {
 	astFile := lookupAstFromFile(pass, pass.Fset.File(start))
@@ -231,7 +242,7 @@ func AddNilCheck(pass *analysis.Pass, expr ast.Expr) (trueCheck, falseCheck Root
 	}
 
 	produceNegativeNilCheck := func(expr ast.Expr) RootFunc {
-		return produceExprByTrigger(expr, annotation.NegativeNilCheck{})
+		return produceExprByTrigger(expr, &annotation.NegativeNilCheck{ProduceTriggerNever: &annotation.ProduceTriggerNever{}})
 	}
 
 	// An exprCheck is a pattern that we match on that, if successful, will give us a pair
@@ -389,7 +400,11 @@ func CopyNode(node AssertionNode) AssertionNode {
 		fresh.SetChildren(append(fresh.Children(), freshChild))
 	}
 
-	fresh.SetConsumeTriggers(append(make([]*annotation.ConsumeTrigger, 0, len(node.ConsumeTriggers())), node.ConsumeTriggers()...))
+	copyConsumers := make([]*annotation.ConsumeTrigger, 0, len(node.ConsumeTriggers()))
+	for _, c := range node.ConsumeTriggers() {
+		copyConsumers = append(copyConsumers, c.Copy())
+	}
+	fresh.SetConsumeTriggers(copyConsumers)
 
 	return fresh
 }
@@ -442,12 +457,12 @@ const (
 // as well as between different modes of inference.
 //
 // FilterTriggersForErrorReturn produces two outputs:
-// (1) final set of triggers that is filtered and refined by replacing consumers
-// (2) raw set of deleted triggers
+// (1) final set of triggers that is filtered and refined by replacing consumers;
+// (2) raw set of deleted triggers (nil if there are no deleted triggers).
 func FilterTriggersForErrorReturn(
 	triggers []annotation.FullTrigger,
 	computeProducerNilability func(p *annotation.ProduceTrigger) ProducerNilability,
-) (filteredTriggers []annotation.FullTrigger, deletedTriggers []annotation.FullTrigger) {
+) (filteredTriggers []annotation.FullTrigger, deletedTriggers map[annotation.FullTrigger]bool) {
 	if len(triggers) == 0 {
 		return nil, nil
 	}
@@ -472,7 +487,7 @@ func FilterTriggersForErrorReturn(
 	retTriggers := make(map[*ast.ReturnStmt]info)
 	for i, t := range triggers {
 		switch c := t.Consumer.Annotation.(type) {
-		case annotation.UseAsErrorRetWithNilabilityUnknown:
+		case *annotation.UseAsErrorRetWithNilabilityUnknown:
 			v := retTriggers[c.RetStmt]
 			v.errTriggers = append(v.errTriggers, i)
 
@@ -485,7 +500,7 @@ func FilterTriggersForErrorReturn(
 			}
 			retTriggers[c.RetStmt] = v
 
-		case annotation.UseAsNonErrorRetDependentOnErrorRetNilability:
+		case *annotation.UseAsNonErrorRetDependentOnErrorRetNilability:
 			v := retTriggers[c.RetStmt]
 			v.nonErrTriggers = append(v.nonErrTriggers, i)
 			retTriggers[c.RetStmt] = v
@@ -509,11 +524,11 @@ func FilterTriggersForErrorReturn(
 
 			// update the placeholder non-error returns consumer `UseAsNonErrorRetDependentOnErrorRetNilability` with `UseAsReturn`
 			for _, i := range v.nonErrTriggers {
-				if old, ok := triggers[i].Consumer.Annotation.(annotation.UseAsNonErrorRetDependentOnErrorRetNilability); ok {
-					if oldAnn, ok := old.Ann.(annotation.RetAnnotationKey); ok {
+				if old, ok := triggers[i].Consumer.Annotation.(*annotation.UseAsNonErrorRetDependentOnErrorRetNilability); ok {
+					if oldAnn, ok := old.Ann.(*annotation.RetAnnotationKey); ok {
 						triggers[i].Consumer = &annotation.ConsumeTrigger{
-							Annotation: annotation.UseAsReturn{
-								TriggerIfNonNil: annotation.TriggerIfNonNil{Ann: oldAnn},
+							Annotation: &annotation.UseAsReturn{
+								TriggerIfNonNil: &annotation.TriggerIfNonNil{Ann: oldAnn},
 								IsNamedReturn:   old.IsNamedReturn,
 								RetStmt:         old.RetStmt,
 							},
@@ -532,11 +547,11 @@ func FilterTriggersForErrorReturn(
 
 			// update the placeholder error return consumer `UseAsErrorRetWithNilabilityUnknown` with `UseAsErrorResult`
 			for _, i := range v.errTriggers {
-				if old, ok := triggers[i].Consumer.Annotation.(annotation.UseAsErrorRetWithNilabilityUnknown); ok {
-					if oldAnn, ok := old.Ann.(annotation.RetAnnotationKey); ok {
+				if old, ok := triggers[i].Consumer.Annotation.(*annotation.UseAsErrorRetWithNilabilityUnknown); ok {
+					if oldAnn, ok := old.Ann.(*annotation.RetAnnotationKey); ok {
 						triggers[i].Consumer = &annotation.ConsumeTrigger{
-							Annotation: annotation.UseAsErrorResult{
-								TriggerIfNonNil: annotation.TriggerIfNonNil{Ann: oldAnn},
+							Annotation: &annotation.UseAsErrorResult{
+								TriggerIfNonNil: &annotation.TriggerIfNonNil{Ann: oldAnn},
 								IsNamedReturn:   old.IsNamedReturn,
 								RetStmt:         old.RetStmt,
 							},
@@ -561,17 +576,19 @@ func FilterTriggersForErrorReturn(
 		}
 	}
 
-	// delete all marked indices
+	// Fast return if there are no triggers to be deleted.
 	if len(allDelIndices) == 0 {
 		return triggers, nil
 	}
 
+	// Delete all marked indices.
+	deletedTriggers = make(map[annotation.FullTrigger]bool, len(allDelIndices))
 	for i, t := range triggers {
-		if !allDelIndices[i] {
-			filteredTriggers = append(filteredTriggers, t)
-		} else {
-			deletedTriggers = append(deletedTriggers, t)
+		if allDelIndices[i] {
+			deletedTriggers[t] = true
+			continue
 		}
+		filteredTriggers = append(filteredTriggers, t)
 	}
-	return
+	return filteredTriggers, deletedTriggers
 }

@@ -123,7 +123,7 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 	}
 
 	// Set up variables for synchronization and communication.
-	ctx, cancel := context.WithTimeout(context.Background(), config.BackpropTimeout)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var wg sync.WaitGroup
 	funcChan := make(chan functionResult)
@@ -310,8 +310,8 @@ func duplicateFullTriggersFromContractedFunctionsToCallers(
 			// If the full trigger has a FuncParam producer or a UseAsReturn consumer, then create
 			// a duplicated (possibly controlled) full trigger from it and add the created full
 			// trigger to every caller.
-			_, isParamProducer := trigger.Producer.Annotation.(annotation.FuncParam)
-			_, isReturnConsumer := trigger.Consumer.Annotation.(annotation.UseAsReturn)
+			_, isParamProducer := trigger.Producer.Annotation.(*annotation.FuncParam)
+			_, isReturnConsumer := trigger.Consumer.Annotation.(*annotation.UseAsReturn)
 			if !isParamProducer && !isReturnConsumer {
 				// No need to duplicate the full trigger
 				continue
@@ -380,7 +380,7 @@ func duplicateFullTrigger(
 		dupTrigger.Consumer = annotation.DuplicateReturnConsumer(trigger.Consumer, retLoc)
 		// Set up the site that controls the controlled full trigger to be created
 		c := annotation.NewCallSiteParamKey(callee, 0, argLoc)
-		dupTrigger.Controller = &c
+		dupTrigger.Controller = c
 	}
 
 	return dupTrigger

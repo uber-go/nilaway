@@ -23,7 +23,6 @@ import (
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/assertion/function/assertiontree"
-	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/tools/go/analysis"
 )
@@ -162,11 +161,14 @@ func (e *Engine) ObservePackage(pkgFullTriggers []annotation.FullTrigger) {
 	// their nilability status is known, then filter out the unnecessary UseAsNonErrorRetDependentOnErrorRetNilability
 	// triggers, and run the pkg inference process again only for the remainder triggers.
 	// Steps 1--3 below depict this approach in more detail.
-	nonErrRetTriggers := make(map[annotation.FullTrigger]bool, 0)
-	var otherTriggers []annotation.FullTrigger
+	var (
+		nonErrRetTriggers []annotation.FullTrigger
+		// In most cases all triggers will be stored in otherTriggers, so we set a proper capacity.
+		otherTriggers = make([]annotation.FullTrigger, 0, len(pkgFullTriggers))
+	)
 	for _, t := range pkgFullTriggers {
-		if _, ok := t.Consumer.Annotation.(annotation.UseAsNonErrorRetDependentOnErrorRetNilability); ok {
-			nonErrRetTriggers[t] = true
+		if _, ok := t.Consumer.Annotation.(*annotation.UseAsNonErrorRetDependentOnErrorRetNilability); ok {
+			nonErrRetTriggers = append(nonErrRetTriggers, t)
 		} else {
 			otherTriggers = append(otherTriggers, t)
 		}
@@ -215,13 +217,19 @@ func (e *Engine) ObservePackage(pkgFullTriggers []annotation.FullTrigger) {
 			return assertiontree.ProducerNilabilityUnknown
 		})
 
-	// remove deleted triggers from nonErrRetTriggers
-	for _, t := range delTriggers {
-		delete(nonErrRetTriggers, t)
+	filteredTriggers := nonErrRetTriggers
+	// Remove deleted triggers from nonErrRetTriggers (if needed).
+	if len(delTriggers) != 0 {
+		filteredTriggers = make([]annotation.FullTrigger, 0, len(nonErrRetTriggers)-len(delTriggers))
+		for _, t := range nonErrRetTriggers {
+			if !delTriggers[t] {
+				filteredTriggers = append(filteredTriggers, t)
+			}
+		}
 	}
 
 	// Step 3: run the inference building process for only the remaining UseAsNonErrorRetDependentOnErrorRetNilability triggers, and collect assertions
-	e.buildPkgInferenceMap(maps.Keys(nonErrRetTriggers))
+	e.buildPkgInferenceMap(filteredTriggers)
 }
 
 func (e *Engine) buildPkgInferenceMap(triggers []annotation.FullTrigger) {
@@ -234,7 +242,7 @@ func (e *Engine) buildPkgInferenceMap(triggers []annotation.FullTrigger) {
 		// controller is an CallSiteParamAnnotationKey, which must be enclosed in a ArgPass
 		// consumer, which Kind() method returns Conditional which is not deep. Thus, we pass false
 		// here.
-		site := e.primitive.site(*trigger.Controller, false)
+		site := e.primitive.site(trigger.Controller, false)
 		ts, ok := controlledTgsBySite[site]
 		if !ok {
 			ts = map[annotation.FullTrigger]bool{}

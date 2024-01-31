@@ -108,7 +108,7 @@ func TestDeepNil(t *testing.T) {
 	t.Parallel()
 
 	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/deepnil")
+	analysistest.Run(t, testdata, Analyzer, "go.uber.org/deepnil", "go.uber.org/deepnil/inference")
 }
 
 func TestNilableTypes(t *testing.T) {
@@ -230,6 +230,13 @@ func TestConstants(t *testing.T) {
 
 	testdata := analysistest.TestData()
 	analysistest.Run(t, testdata, Analyzer, "go.uber.org/consts")
+}
+
+func TestErrorMessage(t *testing.T) {
+	t.Parallel()
+
+	testdata := analysistest.TestData()
+	analysistest.Run(t, testdata, Analyzer, "go.uber.org/errormessage")
 }
 
 func TestPrettyPrint(t *testing.T) { //nolint:paralleltest

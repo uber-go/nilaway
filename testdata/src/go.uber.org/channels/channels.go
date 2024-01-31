@@ -150,9 +150,9 @@ func testRets(t T, i I) {
 func testIndirectRets(t T, i I) {
 	sendOnly, recvOnly, sendOnlyNilable, recvOnlyNilable := i.retsChans()
 
-	sendOnly <- t.nilable //want "assigned"
+	sendOnly <- t.nilable
 	// TODO: remove the diagnostic on next line, blocked on
-	sendOnlyNilable <- t.nilable //want "assigned"
+	sendOnlyNilable <- t.nilable
 	sendOnly <- t.nonnil
 	sendOnlyNilable <- t.nonnil
 
@@ -383,6 +383,12 @@ func testOkChecksForResults() *int {
 			// the rich bool should still be in place
 			return vNonnil
 		}
+	case 6:
+		var vNonnil, okNonnil = <-retsNonnilChans()
+		if !okNonnil {
+			panic(vNonnil)
+		}
+		return vNonnil
 	}
 
 	i := 0

@@ -46,16 +46,16 @@ func (v *varAssertionNode) DefaultTrigger() annotation.ProducingAnnotationTrigge
 		return annotation.ParamAsProducer(fdecl, v.decl)
 	}
 	if annotation.VarIsRecv(fdecl, v.decl) {
-		return annotation.MethodRecv{
-			TriggerIfNilable: annotation.TriggerIfNilable{
-				Ann: annotation.RecvAnnotationKey{FuncDecl: fdecl}},
+		return &annotation.MethodRecv{
+			TriggerIfNilable: &annotation.TriggerIfNilable{
+				Ann: &annotation.RecvAnnotationKey{FuncDecl: fdecl}},
 			VarDecl: v.decl,
 		}
 	}
 	if annotation.VarIsGlobal(v.decl) {
-		return annotation.GlobalVarRead{
-			TriggerIfNilable: annotation.TriggerIfNilable{
-				Ann: annotation.GlobalVarAnnotationKey{
+		return &annotation.GlobalVarRead{
+			TriggerIfNilable: &annotation.TriggerIfNilable{
+				Ann: &annotation.GlobalVarAnnotationKey{
 					VarDecl: v.decl}}}
 	}
 
@@ -70,11 +70,11 @@ func (v *varAssertionNode) DefaultTrigger() annotation.ProducingAnnotationTrigge
 			if v.Root().functionContext.isDepthOneFieldCheck() {
 				v.Root().addProductionForVarFieldNode(v, v.BuildExpr(v.Root().Pass(), nil))
 			}
-			return annotation.ProduceTriggerNever{} // indicating that the struct object itself is not nil
+			return &annotation.ProduceTriggerNever{} // indicating that the struct object itself is not nil
 		}
 	}
 
-	return annotation.NoVarAssign{VarObj: v.decl}
+	return &annotation.NoVarAssign{ProduceTriggerTautology: &annotation.ProduceTriggerTautology{}, VarObj: v.decl}
 }
 
 // BuildExpr for a varAssertionNode returns the underlying variable's AST node

@@ -22,6 +22,7 @@ import (
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/util/asthelper"
 )
 
 // A RichCheckEffect is the fact that a certain check is associated with an effect that can
@@ -51,8 +52,6 @@ type RichCheckEffect interface {
 
 	// isNoop returns whether this effect is a noop (i.e. placeholder value)
 	isNoop() bool
-
-	String() string
 
 	// equals returns true iff this effect should be considered equal to another
 	// correctness of these `equals` functions is vital to correctness (and termination) of the propagation
@@ -90,11 +89,6 @@ func (f *FuncErrRet) effectIfFalse(*RootAssertionNode) {
 }
 
 func (f *FuncErrRet) isNoop() bool { return false }
-
-func (f *FuncErrRet) String() string {
-	return fmt.Sprintf("<FuncErrRet: {err: %s, ret: %s}>",
-		f.err.MinimalString(), f.ret.MinimalString())
-}
 
 func (f *FuncErrRet) equals(effect RichCheckEffect) bool {
 	otherFuncErrRet, ok := effect.(*FuncErrRet)
@@ -137,11 +131,6 @@ func (r *okRead) effectIfFalse(*RootAssertionNode) {
 
 func (*okRead) isNoop() bool { return false }
 
-func (r *okRead) String() string {
-	return fmt.Sprintf("<okRead: {value: %s, ok: %s}>",
-		r.value.MinimalString(), r.ok.MinimalString())
-}
-
 func (r *okRead) equals(effect RichCheckEffect) bool {
 	other, ok := effect.(*okRead)
 	if !ok {
@@ -161,20 +150,10 @@ type MapOkRead struct {
 	okRead
 }
 
-func (r *MapOkRead) String() string {
-	return fmt.Sprintf("<MapOkRead: {val: %s, ok: %s}>",
-		r.value.MinimalString(), r.ok.MinimalString())
-}
-
 // A MapOkReadRefl indicates that a map was read in a `v, ok := m[k]` assignment, and now
 // if `ok` is checked it should produce non-nil for `m` because it cannot be nil if `ok` is true.
 type MapOkReadRefl struct {
 	okRead
-}
-
-func (r *MapOkReadRefl) String() string {
-	return fmt.Sprintf("<MapOkReadRefl: {mapVal: %s, ok: %s}>",
-		r.value.MinimalString(), r.ok.MinimalString())
 }
 
 // A ChannelOkRecv is a RichCheckEffect for the `ok` in `v, ok := <-chan` assignment. To match such an assignment,
@@ -188,20 +167,10 @@ type ChannelOkRecv struct {
 	okRead
 }
 
-func (r *ChannelOkRecv) String() string {
-	return fmt.Sprintf("<ChannelOkRecv: {val: %s, ok: %s}>",
-		r.value.MinimalString(), r.ok.MinimalString())
-}
-
 // A ChannelOkRecvRefl indicates that a channel receive was encountered with a `v, ok := <-chan` assignment, and now
 // if `ok` is checked it should produce non-nil for `chan` because it cannot be nil if `ok` is true.
 type ChannelOkRecvRefl struct {
 	okRead
-}
-
-func (r *ChannelOkRecvRefl) String() string {
-	return fmt.Sprintf("<ChannelOkRecvRefl: {chanValue: %s, ok: %s}>",
-		r.value.MinimalString(), r.ok.MinimalString())
 }
 
 // A RichCheckNoop is a placeholder instance of RichCheckEffect that functions as a total noop.
@@ -217,8 +186,6 @@ func (RichCheckNoop) effectIfTrue(*RootAssertionNode) {}
 func (RichCheckNoop) effectIfFalse(*RootAssertionNode) {}
 
 func (RichCheckNoop) isNoop() bool { return true }
-
-func (RichCheckNoop) String() string { return "<RichCheckNoop>" }
 
 func (RichCheckNoop) equals(effect RichCheckEffect) bool {
 	_, isNoop := effect.(RichCheckNoop)
@@ -265,14 +232,13 @@ func parseExpr(rootNode *RootAssertionNode, expr ast.Expr) TrackableExpr {
 // It matches on `AssignStmt`s of the form `v, ok := mp[k]` and `v, ok := <-ch`
 // nilable(result 0)
 func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardNonceGenerator, node ast.Node) ([]RichCheckEffect, bool) {
-	assignStmt, ok := node.(*ast.AssignStmt)
-
-	if !ok || len(assignStmt.Lhs) != 2 || len(assignStmt.Rhs) != 1 {
+	lhs, rhs := asthelper.ExtractLHSRHS(node)
+	if len(lhs) != 2 || len(rhs) != 1 {
 		return nil, false
 	}
 
-	valueExpr := assignStmt.Lhs[0]
-	okExpr := assignStmt.Lhs[1]
+	valueExpr := lhs[0]
+	okExpr := lhs[1]
 	lhsValueParsed := parseExpr(rootNode, valueExpr)
 	lhsOkParsed := parseExpr(rootNode, okExpr)
 	if lhsOkParsed == nil {
@@ -282,7 +248,7 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 
 	var effects []RichCheckEffect
 
-	switch rhs := assignStmt.Rhs[0].(type) {
+	switch rhs := rhs[0].(type) {
 	case *ast.IndexExpr:
 		rhsXType := rootNode.Pass().TypesInfo.Types[rhs.X].Type
 		if util.TypeIsDeeplyMap(rhsXType) {
@@ -344,13 +310,13 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 // it matches on calls to functions with error-returning types
 // nilable(result 0)
 func NodeTriggersFuncErrRet(rootNode *RootAssertionNode, nonceGenerator *util.GuardNonceGenerator, node ast.Node) ([]RichCheckEffect, bool) {
-	assignStmt, ok := node.(*ast.AssignStmt)
+	lhs, rhs := asthelper.ExtractLHSRHS(node)
 
-	if !ok || len(assignStmt.Rhs) != 1 {
+	if len(lhs) == 0 || len(rhs) != 1 {
 		return nil, false
 	}
 
-	callExpr, ok := assignStmt.Rhs[0].(*ast.CallExpr)
+	callExpr, ok := rhs[0].(*ast.CallExpr)
 
 	if !ok {
 		// rhs is not a function call
@@ -375,12 +341,12 @@ func NodeTriggersFuncErrRet(rootNode *RootAssertionNode, nonceGenerator *util.Gu
 
 	results := rhsFuncDecl.Type().(*types.Signature).Results()
 	n := results.Len()
-	if len(assignStmt.Lhs) != n {
+	if len(lhs) != n {
 		panic(fmt.Sprintf("ERROR: AssignStmt found with %d operands on left, "+
-			"and a %d-returning function on right", len(assignStmt.Lhs), n))
+			"and a %d-returning function on right", len(lhs), n))
 	}
 
-	errExpr := assignStmt.Lhs[n-1]
+	errExpr := lhs[n-1]
 	errExprParsed := parseExpr(rootNode, errExpr)
 
 	if errExprParsed == nil {
@@ -392,7 +358,7 @@ func NodeTriggersFuncErrRet(rootNode *RootAssertionNode, nonceGenerator *util.Gu
 	someEffect := false
 
 	for i := 0; i < n-1; i++ {
-		lhsExpr := assignStmt.Lhs[i]
+		lhsExpr := lhs[i]
 		lhsExprParsed := parseExpr(rootNode, lhsExpr)
 
 		if lhsExprParsed == nil || util.ExprBarsNilness(rootNode.Pass(), lhsExpr) {

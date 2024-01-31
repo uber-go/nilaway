@@ -49,8 +49,9 @@ type ProducingAnnotationTrigger interface {
 	NeedsGuardMatch() bool
 
 	// SetNeedsGuard sets the underlying Guard-Neediness of this ProduceTrigger, if present
-	// This should be very sparingly used, and only with utter conviction of correctness
-	SetNeedsGuard(bool) ProducingAnnotationTrigger
+	// This should be very sparingly used, and only with utter conviction of correctness.
+	// Default setting for ProduceTriggers is to not need a guard.
+	SetNeedsGuard(bool)
 
 	Prestring() Prestring
 
@@ -60,16 +61,20 @@ type ProducingAnnotationTrigger interface {
 	// UnderlyingSite returns the underlying site this trigger's nilability depends on. If the
 	// trigger always or never fires, the site is nil.
 	UnderlyingSite() Key
+
+	// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+	equals(ProducingAnnotationTrigger) bool
 }
 
 // TriggerIfNilable is a general trigger indicating that the bad case occurs when a certain Annotation
 // key is nilable
 type TriggerIfNilable struct {
-	Ann Key
+	Ann        Key
+	NeedsGuard bool
 }
 
 // Prestring returns this Prestring as a Prestring
-func (TriggerIfNilable) Prestring() Prestring {
+func (*TriggerIfNilable) Prestring() Prestring {
 	return TriggerIfNilablePrestring{}
 }
 
@@ -81,37 +86,40 @@ func (TriggerIfNilablePrestring) String() string {
 }
 
 // CheckProduce returns true if the underlying annotation is present in the passed map and nilable
-func (t TriggerIfNilable) CheckProduce(annMap Map) bool {
+func (t *TriggerIfNilable) CheckProduce(annMap Map) bool {
 	ann, ok := t.Ann.Lookup(annMap)
 	return ok && ann.IsNilable
 }
 
-// NeedsGuardMatch for a `TriggerIfNilable` is default false, as guarding
-// applies mostly to deep reads, but this behavior is overriden
-// for `VariadicFuncParamDeep`s, which have the semantics of
-// deep reads despite consulting shallow annotations
-func (TriggerIfNilable) NeedsGuardMatch() bool { return false }
+// NeedsGuardMatch returns true if this trigger needs to be matched with a guarded consumer
+func (t *TriggerIfNilable) NeedsGuardMatch() bool { return t.NeedsGuard }
 
-// SetNeedsGuard for a `TriggerIfNilable` is, by default, a noop, as guarding
-// applies mostly to deep reads, but this behavior is overriden
-// for `VariadicFuncParamDeep`s, which have the semantics of
-// deep reads despite consulting shallow annotations
-func (t TriggerIfNilable) SetNeedsGuard(bool) ProducingAnnotationTrigger { return t }
+// SetNeedsGuard sets the underlying Guard-Neediness of this ProduceTrigger, if present
+func (t *TriggerIfNilable) SetNeedsGuard(b bool) { t.NeedsGuard = b }
 
 // Kind returns Conditional.
-func (t TriggerIfNilable) Kind() TriggerKind { return Conditional }
+func (t *TriggerIfNilable) Kind() TriggerKind { return Conditional }
 
 // UnderlyingSite returns the underlying site this trigger's nilability depends on.
-func (t TriggerIfNilable) UnderlyingSite() Key { return t.Ann }
+func (t *TriggerIfNilable) UnderlyingSite() Key { return t.Ann }
+
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (t *TriggerIfNilable) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*TriggerIfNilable); ok {
+		return t.Ann.equals(other.Ann) && t.NeedsGuard == other.NeedsGuard
+	}
+	return false
+}
 
 // TriggerIfDeepNilable is a general trigger indicating the the bad case occurs when a certain Annotation
 // key is deeply nilable
 type TriggerIfDeepNilable struct {
-	Ann Key
+	Ann        Key
+	NeedsGuard bool
 }
 
 // Prestring returns this Prestring as a Prestring
-func (TriggerIfDeepNilable) Prestring() Prestring {
+func (*TriggerIfDeepNilable) Prestring() Prestring {
 	return TriggerIfDeepNilablePrestring{}
 }
 
@@ -123,50 +131,53 @@ func (TriggerIfDeepNilablePrestring) String() string {
 }
 
 // CheckProduce returns true if the underlying annotation is present in the passed map and deeply nilable
-func (t TriggerIfDeepNilable) CheckProduce(annMap Map) bool {
+func (t *TriggerIfDeepNilable) CheckProduce(annMap Map) bool {
 	ann, ok := t.Ann.Lookup(annMap)
 	return ok && ann.IsDeepNilable
 }
 
-// NeedsGuardMatch for a `TriggerIfDeepNilable` is default false,
-// but overridden for most concrete triggers to read a boolean
-// field
-func (TriggerIfDeepNilable) NeedsGuardMatch() bool { return false }
+// NeedsGuardMatch returns true if this trigger needs to be matched with a guarded consumer
+func (t *TriggerIfDeepNilable) NeedsGuardMatch() bool { return t.NeedsGuard }
 
-// SetNeedsGuard for a `TriggerIfDeepNilable` is, by default, a noop,
-// but overridden for most concrete triggers to set an underlying field
-func (t TriggerIfDeepNilable) SetNeedsGuard(bool) ProducingAnnotationTrigger { return t }
+// SetNeedsGuard sets the underlying Guard-Neediness of this ProduceTrigger, if present
+func (t *TriggerIfDeepNilable) SetNeedsGuard(b bool) { t.NeedsGuard = b }
 
 // Kind returns DeepConditional.
-func (t TriggerIfDeepNilable) Kind() TriggerKind { return DeepConditional }
+func (t *TriggerIfDeepNilable) Kind() TriggerKind { return DeepConditional }
 
 // UnderlyingSite returns the underlying site this trigger's nilability depends on.
-func (t TriggerIfDeepNilable) UnderlyingSite() Key { return t.Ann }
+func (t *TriggerIfDeepNilable) UnderlyingSite() Key { return t.Ann }
+
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (t *TriggerIfDeepNilable) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*TriggerIfDeepNilable); ok {
+		return t.Ann.equals(other.Ann) && t.NeedsGuard == other.NeedsGuard
+	}
+	return false
+}
 
 // ProduceTriggerTautology is used for trigger producers that will always result in nil
-type ProduceTriggerTautology struct{}
+type ProduceTriggerTautology struct {
+	NeedsGuard bool
+}
 
 // CheckProduce returns true
-func (ProduceTriggerTautology) CheckProduce(Map) bool {
+func (*ProduceTriggerTautology) CheckProduce(Map) bool {
 	return true
 }
 
-// NeedsGuardMatch for a ProduceTriggerTautology is false - there is no wiggle room with these
-func (ProduceTriggerTautology) NeedsGuardMatch() bool { return false }
-
-// SetNeedsGuard for a ProduceTriggerTautology is a noop
-func (p ProduceTriggerTautology) SetNeedsGuard(bool) ProducingAnnotationTrigger { return p }
-
-// Prestring returns this Prestring as a Prestring
-func (ProduceTriggerTautology) Prestring() Prestring {
-	return ProduceTriggerTautologyPrestring{}
+// NeedsGuardMatch returns true if this trigger needs to be matched with a guarded consumer
+func (p *ProduceTriggerTautology) NeedsGuardMatch() bool {
+	return p.NeedsGuard
 }
 
-// Kind returns Always.
-func (ProduceTriggerTautology) Kind() TriggerKind { return Always }
+// SetNeedsGuard sets the underlying Guard-Neediness of this ProduceTrigger, if present
+func (p *ProduceTriggerTautology) SetNeedsGuard(b bool) { p.NeedsGuard = b }
 
-// UnderlyingSite always returns nil.
-func (ProduceTriggerTautology) UnderlyingSite() Key { return nil }
+// Prestring returns this Prestring as a Prestring
+func (*ProduceTriggerTautology) Prestring() Prestring {
+	return ProduceTriggerTautologyPrestring{}
+}
 
 // ProduceTriggerTautologyPrestring is a Prestring storing the needed information to compactly encode a ProduceTriggerTautology
 type ProduceTriggerTautologyPrestring struct{}
@@ -175,11 +186,27 @@ func (ProduceTriggerTautologyPrestring) String() string {
 	return "nilable value"
 }
 
+// Kind returns Always.
+func (*ProduceTriggerTautology) Kind() TriggerKind { return Always }
+
+// UnderlyingSite always returns nil.
+func (*ProduceTriggerTautology) UnderlyingSite() Key { return nil }
+
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (p *ProduceTriggerTautology) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*ProduceTriggerTautology); ok {
+		return p.NeedsGuard == other.NeedsGuard
+	}
+	return false
+}
+
 // ProduceTriggerNever is used for trigger producers that will never be nil
-type ProduceTriggerNever struct{}
+type ProduceTriggerNever struct {
+	NeedsGuard bool
+}
 
 // Prestring returns this Prestring as a Prestring
-func (ProduceTriggerNever) Prestring() Prestring {
+func (*ProduceTriggerNever) Prestring() Prestring {
 	return ProduceTriggerNeverPrestring{}
 }
 
@@ -191,21 +218,29 @@ func (ProduceTriggerNeverPrestring) String() string {
 }
 
 // CheckProduce returns true false
-func (ProduceTriggerNever) CheckProduce(Map) bool {
+func (*ProduceTriggerNever) CheckProduce(Map) bool {
 	return false
 }
 
-// NeedsGuardMatch for a ProduceTriggerNever is false, like ProduceTriggerTautology
-func (ProduceTriggerNever) NeedsGuardMatch() bool { return false }
+// NeedsGuardMatch returns true if this trigger needs to be matched with a guarded consumer
+func (p *ProduceTriggerNever) NeedsGuardMatch() bool { return p.NeedsGuard }
 
-// SetNeedsGuard for a ProduceTriggerNever is a noop, like ProduceTriggerTautology
-func (p ProduceTriggerNever) SetNeedsGuard(bool) ProducingAnnotationTrigger { return p }
+// SetNeedsGuard sets the underlying Guard-Neediness of this ProduceTrigger, if present
+func (p *ProduceTriggerNever) SetNeedsGuard(b bool) { p.NeedsGuard = b }
 
 // Kind returns Never.
-func (ProduceTriggerNever) Kind() TriggerKind { return Never }
+func (*ProduceTriggerNever) Kind() TriggerKind { return Never }
 
 // UnderlyingSite always returns nil.
-func (ProduceTriggerNever) UnderlyingSite() Key { return nil }
+func (*ProduceTriggerNever) UnderlyingSite() Key { return nil }
+
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (p *ProduceTriggerNever) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*ProduceTriggerNever); ok {
+		return p.NeedsGuard == other.NeedsGuard
+	}
+	return false
+}
 
 // note: each of the following two productions, ExprOkCheck, and RangeIndexAssignment, should be
 // obselete now that we don't add consumptions for basic-typed expressions like ints and bools to
@@ -214,22 +249,46 @@ func (ProduceTriggerNever) UnderlyingSite() Key { return nil }
 // ExprOkCheck is used when a value is determined to flow from the second argument of a map or typecast
 // operation that necessarily makes it boolean and thus non-nil
 type ExprOkCheck struct {
-	ProduceTriggerNever
+	*ProduceTriggerNever
+}
+
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (e *ExprOkCheck) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*ExprOkCheck); ok {
+		return e.ProduceTriggerNever.equals(other.ProduceTriggerNever)
+	}
+	return false
 }
 
 // RangeIndexAssignment is used when a value is determined to flow from the first argument of a
 // range loop, and thus be an integer and non-nil
 type RangeIndexAssignment struct {
-	ProduceTriggerNever
+	*ProduceTriggerNever
+}
+
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (r *RangeIndexAssignment) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*RangeIndexAssignment); ok {
+		return r.ProduceTriggerNever.equals(other.ProduceTriggerNever)
+	}
+	return false
 }
 
 // PositiveNilCheck is used when a value is checked in a conditional to BE nil
 type PositiveNilCheck struct {
-	ProduceTriggerTautology
+	*ProduceTriggerTautology
+}
+
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (p *PositiveNilCheck) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*PositiveNilCheck); ok {
+		return p.ProduceTriggerTautology.equals(other.ProduceTriggerTautology)
+	}
+	return false
 }
 
 // Prestring returns this Prestring as a Prestring
-func (PositiveNilCheck) Prestring() Prestring {
+func (*PositiveNilCheck) Prestring() Prestring {
 	return PositiveNilCheckPrestring{}
 }
 
@@ -242,11 +301,19 @@ func (PositiveNilCheckPrestring) String() string {
 
 // NegativeNilCheck is used when a value is checked in a conditional to NOT BE nil
 type NegativeNilCheck struct {
-	ProduceTriggerNever
+	*ProduceTriggerNever
+}
+
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (n *NegativeNilCheck) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*NegativeNilCheck); ok {
+		return n.ProduceTriggerNever.equals(other.ProduceTriggerNever)
+	}
+	return false
 }
 
 // Prestring returns this Prestring as a Prestring
-func (NegativeNilCheck) Prestring() Prestring {
+func (*NegativeNilCheck) Prestring() Prestring {
 	return NegativeNilCheckPrestring{}
 }
 
@@ -261,21 +328,45 @@ func (NegativeNilCheckPrestring) String() string {
 // For example, a map value `m` that was read from in a `v, ok := m[k]` check followed by a positive check of `ok`, implies `m` is non-nil.
 // This is valid because nil maps contain no keys.
 type OkReadReflCheck struct {
-	ProduceTriggerNever
+	*ProduceTriggerNever
+}
+
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (o *OkReadReflCheck) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*OkReadReflCheck); ok {
+		return o.ProduceTriggerNever.equals(other.ProduceTriggerNever)
+	}
+	return false
 }
 
 // RangeOver is used when a value is ranged over - and thus nonnil in its range body
 type RangeOver struct {
-	ProduceTriggerNever
+	*ProduceTriggerNever
+}
+
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (r *RangeOver) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*RangeOver); ok {
+		return r.ProduceTriggerNever.equals(other.ProduceTriggerNever)
+	}
+	return false
 }
 
 // ConstNil is when a value is determined to flow from a constant nil expression
 type ConstNil struct {
-	ProduceTriggerTautology
+	*ProduceTriggerTautology
+}
+
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (c *ConstNil) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*ConstNil); ok {
+		return c.ProduceTriggerTautology.equals(other.ProduceTriggerTautology)
+	}
+	return false
 }
 
 // Prestring returns this Prestring as a Prestring
-func (ConstNil) Prestring() Prestring {
+func (*ConstNil) Prestring() Prestring {
 	return ConstNilPrestring{}
 }
 
@@ -288,11 +379,19 @@ func (ConstNilPrestring) String() string {
 
 // UnassignedFld is when a field of struct is not assigned at initialization
 type UnassignedFld struct {
-	ProduceTriggerTautology
+	*ProduceTriggerTautology
+}
+
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (u *UnassignedFld) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*UnassignedFld); ok {
+		return u.ProduceTriggerTautology.equals(other.ProduceTriggerTautology)
+	}
+	return false
 }
 
 // Prestring returns this Prestring as a Prestring
-func (UnassignedFld) Prestring() Prestring {
+func (*UnassignedFld) Prestring() Prestring {
 	return UnassignedFldPrestring{}
 }
 
@@ -305,12 +404,20 @@ func (UnassignedFldPrestring) String() string {
 
 // NoVarAssign is when a value is determined to flow from a variable that wasn't assigned to
 type NoVarAssign struct {
-	ProduceTriggerTautology
+	*ProduceTriggerTautology
 	VarObj *types.Var
 }
 
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (n *NoVarAssign) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*NoVarAssign); ok {
+		return n.ProduceTriggerTautology.equals(other.ProduceTriggerTautology) && n.VarObj == other.VarObj
+	}
+	return false
+}
+
 // Prestring returns this Prestring as a Prestring
-func (n NoVarAssign) Prestring() Prestring {
+func (n *NoVarAssign) Prestring() Prestring {
 	return NoVarAssignPrestring{
 		VarName: n.VarObj.Name(),
 	}
@@ -327,20 +434,36 @@ func (n NoVarAssignPrestring) String() string {
 
 // BlankVarReturn is when a value is determined to flow from a blank variable ('_') to a return of the function
 type BlankVarReturn struct {
-	ProduceTriggerTautology
+	*ProduceTriggerTautology
 }
 
-func (BlankVarReturn) String() string {
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (b *BlankVarReturn) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*BlankVarReturn); ok {
+		return b.ProduceTriggerTautology.equals(other.ProduceTriggerTautology)
+	}
+	return false
+}
+
+// Prestring returns this Prestring as a Prestring
+func (*BlankVarReturn) Prestring() Prestring {
+	return BlankVarReturnPrestring{}
+}
+
+// BlankVarReturnPrestring is a Prestring storing the needed information to compactly encode a BlankVarReturn
+type BlankVarReturnPrestring struct{}
+
+func (BlankVarReturnPrestring) String() string {
 	return "return via a blank variable `_`"
 }
 
 // DuplicateParamProducer duplicates a given produce trigger, assuming the given produce trigger
 // is of FuncParam.
 func DuplicateParamProducer(t *ProduceTrigger, location token.Position) *ProduceTrigger {
-	key := t.Annotation.(FuncParam).TriggerIfNilable.Ann.(ParamAnnotationKey)
+	key := t.Annotation.(*FuncParam).TriggerIfNilable.Ann.(*ParamAnnotationKey)
 	return &ProduceTrigger{
-		Annotation: FuncParam{
-			TriggerIfNilable: TriggerIfNilable{
+		Annotation: &FuncParam{
+			TriggerIfNilable: &TriggerIfNilable{
 				Ann: NewCallSiteParamKey(key.FuncDecl, key.ParamNum, location)}},
 		Expr: t.Expr,
 	}
@@ -353,15 +476,23 @@ func DuplicateParamProducer(t *ProduceTrigger, location token.Position) *Produce
 // CallSiteParamAnnotationKey is specifically used for functions with contracts since we need to
 // duplicate the sites for context sensitivity.
 type FuncParam struct {
-	TriggerIfNilable
+	*TriggerIfNilable
+}
+
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (f *FuncParam) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*FuncParam); ok {
+		return f.TriggerIfNilable.equals(other.TriggerIfNilable)
+	}
+	return false
 }
 
 // Prestring returns this FuncParam as a Prestring
-func (f FuncParam) Prestring() Prestring {
+func (f *FuncParam) Prestring() Prestring {
 	switch key := f.Ann.(type) {
-	case ParamAnnotationKey:
+	case *ParamAnnotationKey:
 		return FuncParamPrestring{key.ParamNameString(), key.FuncDecl.Name(), ""}
-	case CallSiteParamAnnotationKey:
+	case *CallSiteParamAnnotationKey:
 		return FuncParamPrestring{key.ParamNameString(), key.FuncDecl.Name(), key.Location.String()}
 	default:
 		panic(fmt.Sprintf("Expected ParamAnnotationKey or CallSiteParamAnnotationKey but got: %T", key))
@@ -388,12 +519,20 @@ func (f FuncParamPrestring) String() string {
 
 // MethodRecv is used when a value is determined to flow from a method receiver
 type MethodRecv struct {
-	TriggerIfNilable
+	*TriggerIfNilable
 	VarDecl *types.Var
 }
 
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (m *MethodRecv) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*MethodRecv); ok {
+		return m.TriggerIfNilable.equals(other.TriggerIfNilable) && m.VarDecl == other.VarDecl
+	}
+	return false
+}
+
 // Prestring returns this MethodRecv as a Prestring
-func (m MethodRecv) Prestring() Prestring {
+func (m *MethodRecv) Prestring() Prestring {
 	return MethodRecvPrestring{m.VarDecl.Name()}
 }
 
@@ -408,12 +547,20 @@ func (m MethodRecvPrestring) String() string {
 
 // MethodRecvDeep is used when a value is determined to flow deeply from a method receiver
 type MethodRecvDeep struct {
-	TriggerIfDeepNilable
+	*TriggerIfDeepNilable
 	VarDecl *types.Var
 }
 
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (m *MethodRecvDeep) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*MethodRecvDeep); ok {
+		return m.TriggerIfDeepNilable.equals(other.TriggerIfDeepNilable) && m.VarDecl == other.VarDecl
+	}
+	return false
+}
+
 // Prestring returns this MethodRecv as a Prestring
-func (m MethodRecvDeep) Prestring() Prestring {
+func (m *MethodRecvDeep) Prestring() Prestring {
 	return MethodRecvDeepPrestring{m.VarDecl.Name()}
 }
 
@@ -429,12 +576,20 @@ func (m MethodRecvDeepPrestring) String() string {
 // VariadicFuncParam is used when a value is determined to flow from a variadic function parameter,
 // and thus always be nilable
 type VariadicFuncParam struct {
-	ProduceTriggerTautology
+	*ProduceTriggerTautology
 	VarDecl *types.Var
 }
 
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (v *VariadicFuncParam) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*VariadicFuncParam); ok {
+		return v.ProduceTriggerTautology.equals(other.ProduceTriggerTautology) && v.VarDecl == other.VarDecl
+	}
+	return false
+}
+
 // Prestring returns this Prestring as a Prestring
-func (v VariadicFuncParam) Prestring() Prestring {
+func (v *VariadicFuncParam) Prestring() Prestring {
 	return VariadicFuncParamPrestring{v.VarDecl.Name()}
 }
 
@@ -449,11 +604,19 @@ func (v VariadicFuncParamPrestring) String() string {
 
 // TrustedFuncNilable is used when a value is determined to be nilable by a trusted function call
 type TrustedFuncNilable struct {
-	ProduceTriggerTautology
+	*ProduceTriggerTautology
+}
+
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (t *TrustedFuncNilable) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*TrustedFuncNilable); ok {
+		return t.ProduceTriggerTautology.equals(other.ProduceTriggerTautology)
+	}
+	return false
 }
 
 // Prestring returns this Prestring as a Prestring
-func (TrustedFuncNilable) Prestring() Prestring {
+func (*TrustedFuncNilable) Prestring() Prestring {
 	return TrustedFuncNilablePrestring{}
 }
 
@@ -466,11 +629,19 @@ func (TrustedFuncNilablePrestring) String() string {
 
 // TrustedFuncNonnil is used when a value is determined to be nonnil by a trusted function call
 type TrustedFuncNonnil struct {
-	ProduceTriggerNever
+	*ProduceTriggerNever
+}
+
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (t *TrustedFuncNonnil) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*TrustedFuncNonnil); ok {
+		return t.ProduceTriggerNever.equals(other.ProduceTriggerNever)
+	}
+	return false
 }
 
 // Prestring returns this Prestring as a Prestring
-func (TrustedFuncNonnil) Prestring() Prestring {
+func (*TrustedFuncNonnil) Prestring() Prestring {
 	return TrustedFuncNonnilPrestring{}
 }
 
@@ -483,15 +654,23 @@ func (TrustedFuncNonnilPrestring) String() string {
 
 // FldRead is used when a value is determined to flow from a read to a field
 type FldRead struct {
-	TriggerIfNilable
+	*TriggerIfNilable
+}
+
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (f *FldRead) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*FldRead); ok {
+		return f.TriggerIfNilable.equals(other.TriggerIfNilable)
+	}
+	return false
 }
 
 // Prestring returns this FldRead as a Prestring
-func (f FldRead) Prestring() Prestring {
-	if ek, ok := f.Ann.(EscapeFieldAnnotationKey); ok {
+func (f *FldRead) Prestring() Prestring {
+	if ek, ok := f.Ann.(*EscapeFieldAnnotationKey); ok {
 		return FldReadPrestring{ek.FieldDecl.Name()}
 	}
-	return FldReadPrestring{f.Ann.(FieldAnnotationKey).FieldDecl.Name()}
+	return FldReadPrestring{f.Ann.(*FieldAnnotationKey).FieldDecl.Name()}
 }
 
 // FldReadPrestring is a Prestring storing the needed information to compactly encode a FldRead
@@ -506,12 +685,20 @@ func (f FldReadPrestring) String() string {
 // ParamFldRead is used when a struct field value is determined to flow from the param of a function to a consumption
 // site within the body of the function
 type ParamFldRead struct {
-	TriggerIfNilable
+	*TriggerIfNilable
+}
+
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (f *ParamFldRead) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*ParamFldRead); ok {
+		return f.TriggerIfNilable.equals(other.TriggerIfNilable)
+	}
+	return false
 }
 
 // Prestring returns this ParamFldRead as a Prestring
-func (f ParamFldRead) Prestring() Prestring {
-	ann := f.Ann.(ParamFieldAnnotationKey)
+func (f *ParamFldRead) Prestring() Prestring {
+	ann := f.Ann.(*ParamFieldAnnotationKey)
 	return ParamFldReadPrestring{
 		FieldName: ann.FieldDecl.Name(),
 	}
@@ -528,12 +715,24 @@ func (f ParamFldReadPrestring) String() string {
 
 // FldReturn is used when a struct field value is determined to flow from a return value of a function
 type FldReturn struct {
-	TriggerIfNilable
+	*TriggerIfNilable
+}
+
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (f *FldReturn) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*FldReturn); ok {
+		return f.TriggerIfNilable.equals(other.TriggerIfNilable)
+	}
+	return false
+}
+
+func (f FldReturn) String() string {
+	return f.Prestring().String()
 }
 
 // Prestring returns this FldReturn as a Prestring
-func (f FldReturn) Prestring() Prestring {
-	key := f.Ann.(RetFieldAnnotationKey)
+func (f *FldReturn) Prestring() Prestring {
+	key := f.Ann.(*RetFieldAnnotationKey)
 	return FldReturnPrestring{key.RetNum, key.FuncDecl.Name(), key.FieldDecl.Name()}
 }
 
@@ -555,16 +754,23 @@ func (f FldReturnPrestring) String() string {
 // is specifically used for functions with contracts since we need to duplicate the sites for
 // context sensitivity.
 type FuncReturn struct {
-	TriggerIfNilable
-	Guarded bool
+	*TriggerIfNilable
+}
+
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (f *FuncReturn) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*FuncReturn); ok {
+		return f.TriggerIfNilable.equals(other.TriggerIfNilable)
+	}
+	return false
 }
 
 // Prestring returns this FuncReturn as a Prestring
-func (f FuncReturn) Prestring() Prestring {
+func (f *FuncReturn) Prestring() Prestring {
 	switch key := f.Ann.(type) {
-	case RetAnnotationKey:
+	case *RetAnnotationKey:
 		return FuncReturnPrestring{key.RetNum, key.FuncDecl.Name(), ""}
-	case CallSiteRetAnnotationKey:
+	case *CallSiteRetAnnotationKey:
 		return FuncReturnPrestring{key.RetNum, key.FuncDecl.Name(), key.Location.String()}
 	default:
 		panic(fmt.Sprintf("Expected RetAnnotationKey or CallSiteRetAnnotationKey but got: %T", key))
@@ -589,26 +795,22 @@ func (f FuncReturnPrestring) String() string {
 	return sb.String()
 }
 
-// NeedsGuardMatch for a FuncReturn returns whether this function return is guarded.
-// Function returns should be guarded iff they are the non-error return of an error-returning function
-func (f FuncReturn) NeedsGuardMatch() bool {
-	return f.Guarded
-}
-
-// SetNeedsGuard for a FuncReturn sets its Guarded field - but right now there is no valid use case for this
-func (f FuncReturn) SetNeedsGuard(b bool) ProducingAnnotationTrigger {
-	f.Guarded = b
-	return f
-}
-
 // MethodReturn is used when a value is determined to flow from the return of a method
 type MethodReturn struct {
-	TriggerIfNilable
+	*TriggerIfNilable
+}
+
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (m *MethodReturn) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*MethodReturn); ok {
+		return m.TriggerIfNilable.equals(other.TriggerIfNilable)
+	}
+	return false
 }
 
 // Prestring returns this MethodReturn as a Prestring
-func (m MethodReturn) Prestring() Prestring {
-	retKey := m.Ann.(RetAnnotationKey)
+func (m *MethodReturn) Prestring() Prestring {
+	retKey := m.Ann.(*RetAnnotationKey)
 	return MethodReturnPrestring{retKey.RetNum, retKey.FuncDecl.Name()}
 }
 
@@ -624,13 +826,23 @@ func (m MethodReturnPrestring) String() string {
 
 // MethodResultReachesInterface is used when a result of a method is determined to flow into a result of an interface using inheritance
 type MethodResultReachesInterface struct {
-	TriggerIfNilable
+	*TriggerIfNilable
 	AffiliationPair
 }
 
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (m *MethodResultReachesInterface) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*MethodResultReachesInterface); ok {
+		return m.TriggerIfNilable.equals(other.TriggerIfNilable) &&
+			m.AffiliationPair.InterfaceMethod == other.AffiliationPair.InterfaceMethod &&
+			m.AffiliationPair.ImplementingMethod == other.AffiliationPair.ImplementingMethod
+	}
+	return false
+}
+
 // Prestring returns this MethodResultReachesInterface as a Prestring
-func (m MethodResultReachesInterface) Prestring() Prestring {
-	retAnn := m.Ann.(RetAnnotationKey)
+func (m *MethodResultReachesInterface) Prestring() Prestring {
+	retAnn := m.Ann.(*RetAnnotationKey)
 	return MethodResultReachesInterfacePrestring{
 		retAnn.RetNum,
 		util.PartiallyQualifiedFuncName(retAnn.FuncDecl),
@@ -651,13 +863,23 @@ func (m MethodResultReachesInterfacePrestring) String() string {
 
 // InterfaceParamReachesImplementation is used when a param of a method is determined to flow into the param of an implementing method
 type InterfaceParamReachesImplementation struct {
-	TriggerIfNilable
+	*TriggerIfNilable
 	AffiliationPair
 }
 
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (i *InterfaceParamReachesImplementation) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*InterfaceParamReachesImplementation); ok {
+		return i.TriggerIfNilable.equals(other.TriggerIfNilable) &&
+			i.AffiliationPair.InterfaceMethod == other.AffiliationPair.InterfaceMethod &&
+			i.AffiliationPair.ImplementingMethod == other.AffiliationPair.ImplementingMethod
+	}
+	return false
+}
+
 // Prestring returns this InterfaceParamReachesImplementation as a Prestring
-func (i InterfaceParamReachesImplementation) Prestring() Prestring {
-	paramAnn := i.Ann.(ParamAnnotationKey)
+func (i *InterfaceParamReachesImplementation) Prestring() Prestring {
+	paramAnn := i.Ann.(*ParamAnnotationKey)
 	return InterfaceParamReachesImplementationPrestring{
 		paramAnn.ParamNameString(),
 		util.PartiallyQualifiedFuncName(paramAnn.FuncDecl),
@@ -678,12 +900,20 @@ func (i InterfaceParamReachesImplementationPrestring) String() string {
 
 // GlobalVarRead is when a value is determined to flow from a read to a global variable
 type GlobalVarRead struct {
-	TriggerIfNilable
+	*TriggerIfNilable
+}
+
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (g *GlobalVarRead) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*GlobalVarRead); ok {
+		return g.TriggerIfNilable.equals(other.TriggerIfNilable)
+	}
+	return false
 }
 
 // Prestring returns this GlobalVarRead as a Prestring
-func (g GlobalVarRead) Prestring() Prestring {
-	key := g.Ann.(GlobalVarAnnotationKey)
+func (g *GlobalVarRead) Prestring() Prestring {
+	key := g.Ann.(*GlobalVarAnnotationKey)
 	return GlobalVarReadPrestring{
 		key.VarDecl.Name(),
 	}
@@ -701,13 +931,20 @@ func (g GlobalVarReadPrestring) String() string {
 // MapRead is when a value is determined to flow from a map index expression
 // These should always be instantiated with NeedsGuard = true
 type MapRead struct {
-	TriggerIfDeepNilable
-	NeedsGuard bool
+	*TriggerIfDeepNilable
+}
+
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (m *MapRead) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*MapRead); ok {
+		return m.TriggerIfDeepNilable.equals(other.TriggerIfDeepNilable)
+	}
+	return false
 }
 
 // Prestring returns this MapRead as a Prestring
-func (m MapRead) Prestring() Prestring {
-	key := m.Ann.(TypeNameAnnotationKey)
+func (m *MapRead) Prestring() Prestring {
+	key := m.Ann.(*TypeNameAnnotationKey)
 	return MapReadPrestring{key.TypeDecl.Name()}
 }
 
@@ -720,23 +957,22 @@ func (m MapReadPrestring) String() string {
 	return fmt.Sprintf("index of a map of type `%s`", m.TypeName)
 }
 
-// NeedsGuardMatch for a map read is always true - map reads are always intended to be guarded unless checked
-func (m MapRead) NeedsGuardMatch() bool { return m.NeedsGuard }
-
-// SetNeedsGuard for a map read sets the field NeedsGuard
-func (m MapRead) SetNeedsGuard(b bool) ProducingAnnotationTrigger {
-	m.NeedsGuard = b
-	return m
-}
-
 // ArrayRead is when a value is determined to flow from an array index expression
 type ArrayRead struct {
-	TriggerIfDeepNilable
+	*TriggerIfDeepNilable
+}
+
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (a *ArrayRead) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*ArrayRead); ok {
+		return a.TriggerIfDeepNilable.equals(other.TriggerIfDeepNilable)
+	}
+	return false
 }
 
 // Prestring returns this ArrayRead as a Prestring
-func (a ArrayRead) Prestring() Prestring {
-	key := a.Ann.(TypeNameAnnotationKey)
+func (a *ArrayRead) Prestring() Prestring {
+	key := a.Ann.(*TypeNameAnnotationKey)
 	return ArrayReadPrestring{key.TypeDecl.Name()}
 }
 
@@ -751,12 +987,20 @@ func (a ArrayReadPrestring) String() string {
 
 // SliceRead is when a value is determined to flow from a slice index expression
 type SliceRead struct {
-	TriggerIfDeepNilable
+	*TriggerIfDeepNilable
+}
+
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (s *SliceRead) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*SliceRead); ok {
+		return s.TriggerIfDeepNilable.equals(other.TriggerIfDeepNilable)
+	}
+	return false
 }
 
 // Prestring returns this SliceRead as a Prestring
-func (s SliceRead) Prestring() Prestring {
-	key := s.Ann.(TypeNameAnnotationKey)
+func (s *SliceRead) Prestring() Prestring {
+	key := s.Ann.(*TypeNameAnnotationKey)
 	return SliceReadPrestring{key.TypeDecl.Name()}
 }
 
@@ -771,13 +1015,21 @@ func (s SliceReadPrestring) String() string {
 
 // PtrRead is when a value is determined to flow from a read to a pointer
 type PtrRead struct {
-	TriggerIfDeepNilable
+	*TriggerIfDeepNilable
 }
 
 // Prestring returns this PtrRead as a Prestring
-func (p PtrRead) Prestring() Prestring {
-	key := p.Ann.(TypeNameAnnotationKey)
+func (p *PtrRead) Prestring() Prestring {
+	key := p.Ann.(*TypeNameAnnotationKey)
 	return PtrReadPrestring{key.TypeDecl.Name()}
+}
+
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (p *PtrRead) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*PtrRead); ok {
+		return p.TriggerIfDeepNilable.equals(other.TriggerIfDeepNilable)
+	}
+	return false
 }
 
 // PtrReadPrestring is a Prestring storing the needed information to compactly encode a PtrRead
@@ -791,13 +1043,20 @@ func (p PtrReadPrestring) String() string {
 
 // ChanRecv is when a value is determined to flow from a channel receive
 type ChanRecv struct {
-	TriggerIfDeepNilable
-	NeedsGuard bool
+	*TriggerIfDeepNilable
+}
+
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (c *ChanRecv) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*ChanRecv); ok {
+		return c.TriggerIfDeepNilable.equals(other.TriggerIfDeepNilable)
+	}
+	return false
 }
 
 // Prestring returns this ChanRecv as a Prestring
-func (c ChanRecv) Prestring() Prestring {
-	key := c.Ann.(TypeNameAnnotationKey)
+func (c *ChanRecv) Prestring() Prestring {
+	key := c.Ann.(*TypeNameAnnotationKey)
 	return ChanRecvPrestring{key.TypeDecl.Name()}
 }
 
@@ -810,25 +1069,22 @@ func (c ChanRecvPrestring) String() string {
 	return fmt.Sprintf("received from a channel of type `%s`", c.TypeName)
 }
 
-// NeedsGuardMatch for a ChanRecv reads the field NeedsGuard of the
-// struct - set to indicate whether the channel receive is in the `v, ok := <- ch` form
-func (c ChanRecv) NeedsGuardMatch() bool { return c.NeedsGuard }
-
-// SetNeedsGuard for a channel receive sets the field NeedsGuard if it is in the `v, ok := <- ch` form
-func (c ChanRecv) SetNeedsGuard(b bool) ProducingAnnotationTrigger {
-	c.NeedsGuard = b
-	return c
-}
-
 // FuncParamDeep is used when a value is determined to flow deeply from a function parameter
 type FuncParamDeep struct {
-	TriggerIfDeepNilable
-	NeedsGuard bool
+	*TriggerIfDeepNilable
+}
+
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (f *FuncParamDeep) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*FuncParamDeep); ok {
+		return f.TriggerIfDeepNilable.equals(other.TriggerIfDeepNilable)
+	}
+	return false
 }
 
 // Prestring returns this FuncParamDeep as a Prestring
-func (f FuncParamDeep) Prestring() Prestring {
-	key := f.Ann.(ParamAnnotationKey)
+func (f *FuncParamDeep) Prestring() Prestring {
+	key := f.Ann.(*ParamAnnotationKey)
 	return FuncParamDeepPrestring{key.ParamNameString()}
 }
 
@@ -841,26 +1097,23 @@ func (f FuncParamDeepPrestring) String() string {
 	return fmt.Sprintf("deep read from parameter `%s`", f.ParamName)
 }
 
-// NeedsGuardMatch for a FuncParamDeep reads the field NeedsGuard of the
-// struct - set to indicate whether the func param is of type `map` or `channel`
-func (f FuncParamDeep) NeedsGuardMatch() bool { return f.NeedsGuard }
-
-// SetNeedsGuard for a FuncParamDeep sets the field NeedsGuard
-func (f FuncParamDeep) SetNeedsGuard(b bool) ProducingAnnotationTrigger {
-	f.NeedsGuard = b
-	return f
-}
-
 // VariadicFuncParamDeep is used when a value is determined to flow deeply from a variadic function
 // parameter, and thus be nilable iff the shallow Annotation on that parameter is nilable
 type VariadicFuncParamDeep struct {
-	TriggerIfNilable
-	NeedsGuard bool
+	*TriggerIfNilable
+}
+
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (v *VariadicFuncParamDeep) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*VariadicFuncParamDeep); ok {
+		return v.TriggerIfNilable.equals(other.TriggerIfNilable)
+	}
+	return false
 }
 
 // Prestring returns this VariadicFuncParamDeep as a Prestring
-func (v VariadicFuncParamDeep) Prestring() Prestring {
-	return VariadicFuncParamDeepPrestring{v.Ann.(ParamAnnotationKey).ParamNameString()}
+func (v *VariadicFuncParamDeep) Prestring() Prestring {
+	return VariadicFuncParamDeepPrestring{v.Ann.(*ParamAnnotationKey).ParamNameString()}
 }
 
 // VariadicFuncParamDeepPrestring is a Prestring storing the needed information to compactly encode a VariadicFuncParamDeep
@@ -872,26 +1125,23 @@ func (v VariadicFuncParamDeepPrestring) String() string {
 	return fmt.Sprintf("index of variadic parameter `%s`", v.ParamName)
 }
 
-// NeedsGuardMatch for a VariadicFuncParamDeep reads the field NeedsGuard of the
-// struct - set to indicate whether the variadic func param is of type `map` or `channel`
-func (v VariadicFuncParamDeep) NeedsGuardMatch() bool { return v.NeedsGuard }
-
-// SetNeedsGuard for a VariadicFuncParamDeep sets its underlying field NeedsGuard
-func (v VariadicFuncParamDeep) SetNeedsGuard(b bool) ProducingAnnotationTrigger {
-	v.NeedsGuard = b
-	return v
-}
-
 // FuncReturnDeep is used when a value is determined to flow from the deep Annotation of the return
 // of a function
 type FuncReturnDeep struct {
-	TriggerIfDeepNilable
-	NeedsGuard bool
+	*TriggerIfDeepNilable
+}
+
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (f *FuncReturnDeep) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*FuncReturnDeep); ok {
+		return f.TriggerIfDeepNilable.equals(other.TriggerIfDeepNilable)
+	}
+	return false
 }
 
 // Prestring returns this FuncReturnDeep as a Prestring
-func (f FuncReturnDeep) Prestring() Prestring {
-	key := f.Ann.(RetAnnotationKey)
+func (f *FuncReturnDeep) Prestring() Prestring {
+	key := f.Ann.(*RetAnnotationKey)
 	return FuncReturnDeepPrestring{key.RetNum, key.FuncDecl.Name()}
 }
 
@@ -905,26 +1155,23 @@ func (f FuncReturnDeepPrestring) String() string {
 	return fmt.Sprintf("deep read from result %d of `%s()`", f.RetNum, f.FuncName)
 }
 
-// NeedsGuardMatch for a FuncReturnDeep reads the field NeedsGuard of the
-// struct - set to indicate whether the func return is of type `map` or `channel`
-func (f FuncReturnDeep) NeedsGuardMatch() bool { return f.NeedsGuard }
-
-// SetNeedsGuard for a FuncReturnDeep sets the field NeedsGuard
-func (f FuncReturnDeep) SetNeedsGuard(b bool) ProducingAnnotationTrigger {
-	f.NeedsGuard = b
-	return f
-}
-
 // FldReadDeep is used when a value is determined to flow from the deep Annotation of a field that is
 // read and then indexed into - for example x.f[0]
 type FldReadDeep struct {
-	TriggerIfDeepNilable
-	NeedsGuard bool
+	*TriggerIfDeepNilable
+}
+
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (f *FldReadDeep) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*FldReadDeep); ok {
+		return f.TriggerIfDeepNilable.equals(other.TriggerIfDeepNilable)
+	}
+	return false
 }
 
 // Prestring returns this FldReadDeep as a Prestring
-func (f FldReadDeep) Prestring() Prestring {
-	key := f.Ann.(FieldAnnotationKey)
+func (f *FldReadDeep) Prestring() Prestring {
+	key := f.Ann.(*FieldAnnotationKey)
 	return FldReadDeepPrestring{key.FieldDecl.Name()}
 }
 
@@ -937,27 +1184,23 @@ func (f FldReadDeepPrestring) String() string {
 	return fmt.Sprintf("deep read from field `%s`", f.FieldName)
 }
 
-// NeedsGuardMatch for a FldReadDeep reads the field NeedsGuard of the
-// struct - set to indicate whether the field read is of type `map` or `channel`
-func (f FldReadDeep) NeedsGuardMatch() bool { return f.NeedsGuard }
-
-// SetNeedsGuard for a FldReadDeep sets its underlying field NeedsGuard
-func (f FldReadDeep) SetNeedsGuard(b bool) ProducingAnnotationTrigger {
-	f.NeedsGuard = b
-	return f
+// LocalVarReadDeep is when a value is determined to flow deeply from a local variable.
+type LocalVarReadDeep struct {
+	*TriggerIfDeepNilable
 }
 
-// LocalVarReadDeep is when a value is determined to flow deeply from a local variable. It is never nilable
-// if appropriately guarded.
-type LocalVarReadDeep struct {
-	ProduceTriggerNever
-	NeedsGuard bool
-	ReadVar    *types.Var
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (v *LocalVarReadDeep) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*LocalVarReadDeep); ok {
+		return v.TriggerIfDeepNilable.equals(other.TriggerIfDeepNilable)
+	}
+	return false
 }
 
 // Prestring returns this LocalVarReadDeep as a Prestring
 func (v LocalVarReadDeep) Prestring() Prestring {
-	return LocalVarReadDeepPrestring{v.ReadVar.Name()}
+	varAnn := v.Ann.(*LocalVarAnnotationKey)
+	return LocalVarReadDeepPrestring{varAnn.VarDecl.Name()}
 }
 
 // LocalVarReadDeepPrestring is a Prestring storing the needed information to compactly encode a LocalVarReadDeep
@@ -966,29 +1209,26 @@ type LocalVarReadDeepPrestring struct {
 }
 
 func (v LocalVarReadDeepPrestring) String() string {
-	return fmt.Sprintf("deep read from variable `%s`", v.VarName)
-}
-
-// NeedsGuardMatch for a LocalVarReadDeep reads the field NeedsGuard of the
-// struct - set to indicate whether the global variable is of map or channel type
-func (v LocalVarReadDeep) NeedsGuardMatch() bool { return v.NeedsGuard }
-
-// SetNeedsGuard for a VarReadDeep writes the field NeedsGuard
-func (v LocalVarReadDeep) SetNeedsGuard(b bool) ProducingAnnotationTrigger {
-	v.NeedsGuard = b
-	return v
+	return fmt.Sprintf("deep read from local variable `%s`", v.VarName)
 }
 
 // GlobalVarReadDeep is when a value is determined to flow from the deep Annotation of a global variable
 // that is read and indexed into
 type GlobalVarReadDeep struct {
-	TriggerIfDeepNilable
-	NeedsGuard bool
+	*TriggerIfDeepNilable
+}
+
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (g *GlobalVarReadDeep) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*GlobalVarReadDeep); ok {
+		return g.TriggerIfDeepNilable.equals(other.TriggerIfDeepNilable)
+	}
+	return false
 }
 
 // Prestring returns this GlobalVarReadDeep as a Prestring
-func (g GlobalVarReadDeep) Prestring() Prestring {
-	key := g.Ann.(GlobalVarAnnotationKey)
+func (g *GlobalVarReadDeep) Prestring() Prestring {
+	key := g.Ann.(*GlobalVarAnnotationKey)
 	return GlobalVarReadDeepPrestring{key.VarDecl.Name()}
 }
 
@@ -999,16 +1239,6 @@ type GlobalVarReadDeepPrestring struct {
 
 func (g GlobalVarReadDeepPrestring) String() string {
 	return fmt.Sprintf("deep read from global variable `%s`", g.VarName)
-}
-
-// NeedsGuardMatch for a GlobalVarReadDeep reads the field NeedsGuard of the
-// struct - set to indicate whether the global variable is of type `map` or `channel`
-func (g GlobalVarReadDeep) NeedsGuardMatch() bool { return g.NeedsGuard }
-
-// SetNeedsGuard for a GlobalVarReadDeep writes the field NeedsGuard
-func (g GlobalVarReadDeep) SetNeedsGuard(b bool) ProducingAnnotationTrigger {
-	g.NeedsGuard = b
-	return g
 }
 
 // GuardMissing is when a value is determined to flow from a site that requires a guard,
@@ -1022,12 +1252,20 @@ func (g GlobalVarReadDeep) SetNeedsGuard(b bool) ProducingAnnotationTrigger {
 // For example, from a read to map without the `v, ok := m[k]` form, thus always resulting in nilable
 // regardless of `m`'s deep nilability
 type GuardMissing struct {
-	ProduceTriggerTautology
+	*ProduceTriggerTautology
 	OldAnnotation ProducingAnnotationTrigger
 }
 
+// equals returns true if the passed ProducingAnnotationTrigger is equal to this one
+func (g *GuardMissing) equals(other ProducingAnnotationTrigger) bool {
+	if other, ok := other.(*GuardMissing); ok {
+		return g.ProduceTriggerTautology.equals(other.ProduceTriggerTautology) && g.OldAnnotation.equals(other.OldAnnotation)
+	}
+	return false
+}
+
 // Prestring returns this GuardMissing as a Prestring
-func (g GuardMissing) Prestring() Prestring {
+func (g *GuardMissing) Prestring() Prestring {
 	return GuardMissingPrestring{g.OldAnnotation.Prestring()}
 }
 
