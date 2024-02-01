@@ -52,7 +52,6 @@ var initStructsConsumingAnnotationTrigger = []any{
 	&VariadicParamAssignDeep{TriggerIfNonNil: &TriggerIfNonNil{Ann: newMockKey()}},
 	&FieldAssignDeep{TriggerIfDeepNonNil: &TriggerIfDeepNonNil{Ann: newMockKey()}},
 	&GlobalVarAssignDeep{TriggerIfDeepNonNil: &TriggerIfDeepNonNil{Ann: newMockKey()}},
-	&ChanAccess{ConsumeTriggerTautology: &ConsumeTriggerTautology{}},
 	&LocalVarAssignDeep{TriggerIfDeepNonNil: &TriggerIfDeepNonNil{Ann: newMockKey()}},
 	&ChanSend{TriggerIfDeepNonNil: &TriggerIfDeepNonNil{Ann: newMockKey()}},
 	&FldEscape{TriggerIfNonNil: &TriggerIfNonNil{Ann: newMockKey()}},
