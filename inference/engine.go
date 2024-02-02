@@ -505,7 +505,6 @@ func GobRegister() {
 	gob.RegisterName(nextStr(), annotation.MapAccessPrestring{})
 	gob.RegisterName(nextStr(), annotation.MapWrittenToPrestring{})
 	gob.RegisterName(nextStr(), annotation.SliceAccessPrestring{})
-	gob.RegisterName(nextStr(), annotation.ChanAccessPrestring{})
 	gob.RegisterName(nextStr(), annotation.FldAccessPrestring{})
 	gob.RegisterName(nextStr(), annotation.UseAsErrorResultPrestring{})
 	gob.RegisterName(nextStr(), annotation.FldAssignPrestring{})

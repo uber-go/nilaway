@@ -101,26 +101,20 @@ func test9(m map[int]*int) {
 	print(*y) //want "`m\\[0\\]` to `x`"
 }
 
-func test10(ch chan *int) {
-	x := <-ch //want "nil channel accessed"
-	y := x
-	print(*y)
+// nilable(nilableChan) nonnil(nonnilDeeplyNonnilChan, <-nonnilDeeplyNonnilChan)
+func test10(nilableChan chan *int, nonnilDeeplyNonnilChan chan *int) {
+	x := 1
+	nilableChan <- &x
+	// Sending nilable values to nonnil and deeply nonnil channels is not OK.
+	var y *int
+	nonnilDeeplyNonnilChan <- y //want "`y` assigned deeply into parameter arg `nonnilDeeplyNonnilChan`"
 }
 
-func callTest10() {
-	var ch chan *int
-	test10(ch)
-}
-
+// nilable(s)
 func test11(s []*int) {
 	x := s[0] //want "`s` sliced into"
 	y := x
 	print(*y)
-}
-
-func callTest11() {
-	var s []*int
-	test11(s)
 }
 
 func test12(mp map[int]S, i int) {

@@ -116,13 +116,13 @@ func backpropAcrossNode(rootNode *RootAssertionNode, node ast.Node) error {
 // backpropAcrossSend handles backpropagation for send statements. It is designed to be called from
 // backpropAcrossNode as a special handler.
 func backpropAcrossSend(rootNode *RootAssertionNode, node *ast.SendStmt) error {
-	// Added this consumer since sending over a nil channel can cause panic
-	rootNode.AddConsumption(&annotation.ConsumeTrigger{
-		Annotation: &annotation.ChanAccess{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
-		Expr:       node.Chan,
-		Guards:     util.NoGuards(),
-	})
-
+	// Note that for channel sends, we have:
+	// (1) A send to a nil channel blocks forever;
+	// (2) A send to a closed channel panics.
+	// (1) falls out of scope for NilAway and hence we do not create a consumer here for the
+	// channel variable. For (2), since we do not track the state of the channels, we currently
+	// cannot support it.
+	// TODO: rethink our strategy of handling channels (#192).
 	consumer, err := exprAsAssignmentConsumer(rootNode, node, nil)
 	if err != nil {
 		return err

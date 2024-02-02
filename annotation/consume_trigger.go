@@ -1615,45 +1615,6 @@ func (g GlobalVarAssignDeepPrestring) String() string {
 	return sb.String()
 }
 
-// ChanAccess is when a channel is accessed for sending, and thus must be non-nil
-type ChanAccess struct {
-	*ConsumeTriggerTautology
-}
-
-// equals returns true if the passed ConsumingAnnotationTrigger is equal to this one
-func (c *ChanAccess) equals(other ConsumingAnnotationTrigger) bool {
-	if other, ok := other.(*ChanAccess); ok {
-		return c.ConsumeTriggerTautology.equals(other.ConsumeTriggerTautology)
-	}
-	return false
-}
-
-// Copy returns a deep copy of this ConsumingAnnotationTrigger
-func (c *ChanAccess) Copy() ConsumingAnnotationTrigger {
-	copyConsumer := *c
-	copyConsumer.ConsumeTriggerTautology = c.ConsumeTriggerTautology.Copy().(*ConsumeTriggerTautology)
-	return &copyConsumer
-}
-
-// Prestring returns this MapWrittenTo as a Prestring
-func (c *ChanAccess) Prestring() Prestring {
-	return ChanAccessPrestring{
-		AssignmentStr: c.assignmentFlow.String(),
-	}
-}
-
-// ChanAccessPrestring is a Prestring storing the needed information to compactly encode a ChanAccess
-type ChanAccessPrestring struct {
-	AssignmentStr string
-}
-
-func (c ChanAccessPrestring) String() string {
-	var sb strings.Builder
-	sb.WriteString("uninitialized; nil channel accessed")
-	sb.WriteString(c.AssignmentStr)
-	return sb.String()
-}
-
 // LocalVarAssignDeep is when a value flows to a point where it is assigned deeply into a local variable of deeply nonnil type
 type LocalVarAssignDeep struct {
 	*TriggerIfDeepNonNil
