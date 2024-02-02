@@ -39,11 +39,11 @@ func TestWriteDiff(t *testing.T) {
 	var buf bytes.Buffer
 	base := map[Diagnostic]bool{
 		// Same in both.
-		Diagnostic{Posn: "src/file1:10:2", Message: "nil pointer dereference"}: true,
+		{Posn: "src/file1:10:2", Message: "nil pointer dereference"}: true,
 	}
 	test := map[Diagnostic]bool{
 		// Same in both.
-		Diagnostic{Posn: "src/file1:10:2", Message: "nil pointer dereference"}: true,
+		{Posn: "src/file1:10:2", Message: "nil pointer dereference"}: true,
 	}
 	branches := [2]*BranchResult{
 		{Name: "base", ShortSHA: "123456", Result: base},
@@ -70,19 +70,19 @@ func TestDiff(t *testing.T) {
 
 	base := map[Diagnostic]bool{
 		// Same in both.
-		Diagnostic{Posn: "src/file1:10:2", Message: "nil pointer dereference"}: true,
+		{Posn: "src/file1:10:2", Message: "nil pointer dereference"}: true,
 		// Differs in position.
-		Diagnostic{Posn: "src/file2:10:2", Message: "nil pointer dereference"}: true,
+		{Posn: "src/file2:10:2", Message: "nil pointer dereference"}: true,
 		// Differs in message.
-		Diagnostic{Posn: "src/file4:10:2", Message: "foo error"}: true,
+		{Posn: "src/file4:10:2", Message: "foo error"}: true,
 	}
 	test := map[Diagnostic]bool{
 		// Same in both.
-		Diagnostic{Posn: "src/file1:10:2", Message: "nil pointer dereference"}: true,
+		{Posn: "src/file1:10:2", Message: "nil pointer dereference"}: true,
 		// Differs in position.
-		Diagnostic{Posn: "src/file3:10:2", Message: "nil pointer dereference"}: true,
+		{Posn: "src/file3:10:2", Message: "nil pointer dereference"}: true,
 		// Differs in message.
-		Diagnostic{Posn: "src/file4:10:2", Message: "bar error"}: true,
+		{Posn: "src/file4:10:2", Message: "bar error"}: true,
 	}
 
 	minuses := Diff(base, test)
