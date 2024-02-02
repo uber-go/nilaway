@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// <nilaway struct enable>
 package optimization
 
 // This is a simple test to check the effectiveness of the optimization added via the `struct field analyzer` that enables NilAway to

@@ -12,11 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*
-Package global
-This test checks if the struct initialization checker works as expected on the global variables.
-<nilaway struct enable>
-*/
+// Package global checks if the struct initialization checker works as expected on the global variables.
 package global
 
 // Negative test

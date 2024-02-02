@@ -12,10 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*
-Package paramfield Tests when nilability flows through the field of param of a function or a method
-<nilaway struct enable>
-*/
+// Package paramfield Tests when nilability flows through the field of param of a function or a method
 package paramfield
 
 // Negative example
