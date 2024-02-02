@@ -29,7 +29,8 @@ type Diagnostic struct {
 
 // BranchResult stores the information about a branch, and the diagnostics reported on that branch.
 type BranchResult struct {
-	// Name is the friendly name of the branch (if available, otherwise it is equal to its ShortSHA).
+	// Name is the friendly name of the branch (if available and not "HEAD", otherwise it is equal
+	// to its ShortSHA).
 	Name string
 	// ShortSHA is the short SHA of the branch.
 	ShortSHA string
@@ -65,9 +66,16 @@ func Run(writer io.Writer, baseBranch, testBranch string) error {
 	// Get the current branch name and switch back to it after the golden test.
 	out, err = exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD").CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("get current branch: %w", err)
+		return fmt.Errorf("get current branch name: %w", err)
 	}
 	originalBranch := strings.TrimSpace(string(out))
+	if originalBranch == "" || originalBranch == "HEAD" {
+		out, err = exec.Command("git", "rev-parse", "--short", "HEAD").CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("get short commit hash of HEAD: %w, output: %q", err, out)
+		}
+		originalBranch = strings.TrimSpace(string(out))
+	}
 	defer func() {
 		_, err := exec.Command("git", "checkout", originalBranch).CombinedOutput()
 		if err != nil {
@@ -93,11 +101,13 @@ func Run(writer io.Writer, baseBranch, testBranch string) error {
 
 	// Now the golden test starts. From here on, we should use the `branches` variable to refer to
 	// the base and test branches.
-	log.Printf("running golden test on base branch %q and test branch %q\n", branches[0].Name, branches[1].Name)
+	log.Printf("running golden test on base branch %q (%s) and test branch %q (%s)\n",
+		branches[0].Name, branches[0].ShortSHA, branches[1].Name, branches[1].ShortSHA,
+	)
 
 	for _, branch := range branches {
 		commands := [][]string{
-			{"git", "checkout", branch.Name},
+			{"git", "checkout", branch.ShortSHA},
 			{"make", "build"},
 		}
 		for _, command := range commands {
