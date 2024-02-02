@@ -813,7 +813,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 		// (1) falls out of scope of NilAway, and we have a lot of valid Go code that receives
 		// from nil channels (e.g., select statements with nilable channels). So we do not create
 		// consumer for the channel variable here. For (2), since we currently do not track the
-		// state of channels, we currently can not support it either.
+		// state of channels, we currently cannot support it either.
 		// TODO: rethink our strategy of handling channels (#192).
 		r.AddComputation(expr.X)
 	case *ast.FuncLit:
