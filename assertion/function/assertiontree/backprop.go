@@ -121,7 +121,7 @@ func backpropAcrossSend(rootNode *RootAssertionNode, node *ast.SendStmt) error {
 	// (2) A send to a closed channel panics.
 	// (1) falls out of scope for NilAway and hence we do not create a consumer here for the
 	// channel variable. For (2), since we do not track the state of the channels, we currently
-	// can not support it.
+	// cannot support it.
 	// TODO: rethink our strategy of handling channels (#192).
 	consumer, err := exprAsAssignmentConsumer(rootNode, node, nil)
 	if err != nil {
