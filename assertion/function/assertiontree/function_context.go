@@ -20,7 +20,6 @@ import (
 
 	"go.uber.org/nilaway/assertion/anonymousfunc"
 	"go.uber.org/nilaway/assertion/function/functioncontracts"
-	"go.uber.org/nilaway/config"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -68,9 +67,9 @@ type FunctionContext struct {
 
 // FunctionConfig is meant to hold all the user set configuration for analyzing a function
 type FunctionConfig struct {
-	// StructInitCheckType holds the value of the StructInitCheckType config
-	StructInitCheckType config.StructInitCheckType
-	// EnableAnonymousFunc is a flag to enable checking anonymous functions
+	// EnableStructInitCheck is a flag to enable tracking struct initializations.
+	EnableStructInitCheck bool
+	// EnableAnonymousFunc is a flag to enable checking anonymous functions.
 	EnableAnonymousFunc bool
 }
 
@@ -134,9 +133,4 @@ func (fc *FunctionContext) findFakeIdent(ident *ast.Ident) types.Object {
 		return obj
 	}
 	return fc.pkgFakeIdentMap[ident]
-}
-
-// isDepthOneFieldCheck returns true if configuration flag StructInitCheckType is set to DepthOneFieldCheck
-func (fc *FunctionContext) isDepthOneFieldCheck() bool {
-	return fc.functionConfig.StructInitCheckType == config.DepthOneFieldCheck
 }

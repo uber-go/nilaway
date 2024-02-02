@@ -160,7 +160,7 @@ func computeAndConsumeResults(rootNode *RootAssertionNode, node *ast.ReturnStmt)
 				if !util.IsEmptyExpr(retVariable) {
 					rootNode.AddConsumption(consumer)
 
-					if rootNode.functionContext.isDepthOneFieldCheck() {
+					if rootNode.functionContext.functionConfig.EnableStructInitCheck {
 						rootNode.addConsumptionsForFieldsOfReturns(results[i], i)
 					}
 				} else {
@@ -218,7 +218,7 @@ func computeAndConsumeResults(rootNode *RootAssertionNode, node *ast.ReturnStmt)
 			Guards: util.NoGuards(),
 		})
 
-		if rootNode.functionContext.isDepthOneFieldCheck() {
+		if rootNode.functionContext.functionConfig.EnableStructInitCheck {
 			rootNode.addConsumptionsForFieldsOfReturns(node.Results[i], i)
 		}
 	}
@@ -286,7 +286,7 @@ func handleErrorReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, re
 		}
 
 		// TODO: handle struct init in the context of error return in a better way in a follow up diff
-		if rootNode.functionContext.isDepthOneFieldCheck() {
+		if rootNode.functionContext.functionConfig.EnableStructInitCheck {
 			for i := range results {
 				rootNode.addConsumptionsForFieldsOfReturns(results[i], i)
 			}
@@ -299,7 +299,7 @@ func handleErrorReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, re
 		createSpecialConsumersForAllReturns(rootNode, nonErrRetExpr, errRetExpr, errRetIndex, retStmt, isNamedReturn)
 
 		// TODO: handle struct init in the context of error return in a better way in a follow up diff
-		if rootNode.functionContext.isDepthOneFieldCheck() {
+		if rootNode.functionContext.functionConfig.EnableStructInitCheck {
 			for i := range results {
 				rootNode.addConsumptionsForFieldsOfReturns(results[i], i)
 			}
@@ -567,7 +567,7 @@ func exprAsAssignmentConsumer(rootNode *RootAssertionNode, expr ast.Node, exprRH
 			}
 		}
 
-		if rootNode.functionContext.isDepthOneFieldCheck() {
+		if rootNode.functionContext.functionConfig.EnableStructInitCheck {
 			if head := util.GetSelectorExprHeadIdent(expr); head != nil {
 				if obj, ok := rootNode.ObjectOf(head).(*types.Var); ok {
 					if !annotation.VarIsGlobal(obj) {

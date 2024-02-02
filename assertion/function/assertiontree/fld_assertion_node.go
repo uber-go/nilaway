@@ -54,7 +54,7 @@ func (f *fldAssertionNode) GetAncestorVarAssertionNode() *varAssertionNode {
 
 // DefaultTrigger for a field node is that field's annotation
 func (f *fldAssertionNode) DefaultTrigger() annotation.ProducingAnnotationTrigger {
-	if f.functionContext.isDepthOneFieldCheck() {
+	if f.functionContext.functionConfig.EnableStructInitCheck {
 		varNode := f.GetAncestorVarAssertionNode()
 		// If the field is not produced by a variable we default to the FieldAnnotationKey
 		// Similarly, for a global variable we default to the FieldAnnotationKey

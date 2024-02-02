@@ -268,7 +268,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 				// uninitialized with a `new(S)`.
 				// TODO: below logic won't be required once we standardize the calls by replacing `new(S)` with `&S{}`
 				//  in the preprocessing phase after  is implemented.
-				if r.functionContext.isDepthOneFieldCheck() && fun.Name == BuiltinNew {
+				if r.functionContext.functionConfig.EnableStructInitCheck && fun.Name == BuiltinNew {
 					rproducer := r.parseStructCreateExprAsProducer(expr.Args[0], nil)
 					if rproducer != nil {
 						return nil, []producer.ParsedProducer{rproducer}
@@ -393,7 +393,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 		return r.ParseExprAsProducer(expr.X, doNotTrack)
 
 	case *ast.CompositeLit:
-		if r.functionContext.isDepthOneFieldCheck() {
+		if r.functionContext.functionConfig.EnableStructInitCheck {
 			rproducer := r.parseStructCreateExprAsProducer(expr, expr.Elts)
 			if rproducer != nil {
 				return nil, []producer.ParsedProducer{rproducer}
@@ -427,7 +427,7 @@ func (r *RootAssertionNode) getFuncReturnProducers(ident *ast.Ident, expr *ast.C
 
 		var fieldProducers []*annotation.ProduceTrigger
 
-		if r.functionContext.isDepthOneFieldCheck() {
+		if r.functionContext.functionConfig.EnableStructInitCheck {
 			fieldProducers = r.getFieldProducersForFuncReturns(funcObj, i)
 		}
 
