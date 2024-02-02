@@ -15,10 +15,8 @@
 package inference
 
 import (
-	"go/ast"
-	"strings"
-
 	"go.uber.org/nilaway/config"
+	"go.uber.org/nilaway/util/asthelper"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -42,21 +40,9 @@ const (
 // docstring is found, multi-package inference is used (returns FullInfer).
 func DetermineMode(pass *analysis.Pass) ModeOfInference {
 	for _, file := range pass.Files {
-		if docContains(file.Doc, config.NilAwayNoInferString) {
+		if asthelper.DocContains(file.Doc, config.NilAwayNoInferString) {
 			return NoInfer
 		}
 	}
 	return FullInfer
-}
-
-// docContains checks if the comment group contains a certain string.
-func docContains(group *ast.CommentGroup, s string) bool {
-	if group != nil {
-		for _, comment := range group.List {
-			if strings.Contains(comment.Text, s) {
-				return true
-			}
-		}
-	}
-	return false
 }

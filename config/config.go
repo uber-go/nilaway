@@ -22,6 +22,7 @@ import (
 	"reflect"
 	"strings"
 
+	"go.uber.org/nilaway/util/asthelper"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -79,7 +80,7 @@ func (c *Config) IsFileInScope(file *ast.File) bool {
 		}
 
 		for _, exclude := range c.excludeFileDocStrings {
-			if strings.Contains(comment.Text(), exclude) {
+			if asthelper.DocContains(comment, exclude) {
 				return false
 			}
 		}

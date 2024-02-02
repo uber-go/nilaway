@@ -404,35 +404,6 @@ func GetSelectorExprHeadIdent(selExpr *ast.SelectorExpr) *ast.Ident {
 	return nil
 }
 
-// DocContainsStructInitCheck is used by analyzers to check if the struct initialization check enabling string is present
-// in the comments.
-func DocContainsStructInitCheck(group *ast.CommentGroup) config.StructInitCheckType {
-	if docContainsString(config.NilAwayStructInitCheckString)(group) {
-		return config.DepthOneFieldCheck
-	}
-	return config.NoCheck
-}
-
-// DocContainsAnonymousFuncCheck is used by analyzers to check if the anonymous function check enabling string is present
-// in the comments.
-func DocContainsAnonymousFuncCheck(group *ast.CommentGroup) bool {
-	return docContainsString(config.NilAwayAnonymousFuncCheckString)(group)
-}
-
-// docContainsString is used to check if the file comments contain a string s.
-func docContainsString(s string) func(*ast.CommentGroup) bool {
-	return func(group *ast.CommentGroup) bool {
-		if group != nil {
-			for _, comment := range group.List {
-				if strings.Contains(comment.Text, s) {
-					return true
-				}
-			}
-		}
-		return false
-	}
-}
-
 // IsLiteral returns true if `expr` is a literal that matches with one of the given literal values (e.g., "nil", "true", "false)
 func IsLiteral(expr ast.Expr, literals ...string) bool {
 	if ident, ok := expr.(*ast.Ident); ok {
