@@ -13,7 +13,6 @@
 // limitations under the License.
 
 // This package aims to test nilability behavior for simple cases in anonymous functions.
-// <nilaway anonymous function enable>
 package anonymousfunction
 
 // We currently do not parse annotations for anonymous functions, and there is no simple way to

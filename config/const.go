@@ -32,23 +32,3 @@ const DirLevelsToPrintForTriggers = 1
 
 // DefaultNilableNamedTypes is the list of type names that we interpret as default nilable.
 var DefaultNilableNamedTypes = [...]string{}
-
-// StructInitCheckType Config for setting the level of struct initialization check
-type StructInitCheckType int
-
-const (
-	// NoCheck if the checker is not enabled (current default)
-	NoCheck StructInitCheckType = iota
-
-	// DepthOneFieldCheck in this setting we track the nilability of fields at depth 1
-	// i.e. we track nilability of x.y, but we do not track x.y.z
-	DepthOneFieldCheck
-)
-
-// NilAwayStructInitCheckString is the string that may be inserted into the docstring for a package to
-// force NilAway to enable struct init checking
-const NilAwayStructInitCheckString = "<nilaway struct enable>"
-
-// NilAwayAnonymousFuncCheckString is the string that may be inserted into the docstring for a package to
-// force NilAway to enable anonymous func checking
-const NilAwayAnonymousFuncCheckString = "<nilaway anonymous function enable>"

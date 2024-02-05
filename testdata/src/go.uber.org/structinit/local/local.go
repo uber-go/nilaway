@@ -12,11 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*
-Package local
-This test checks if the struct initialization checker catches use of uninitialized fields in the structs.
-<nilaway struct enable>
-*/
+// Package local checks if the struct initialization checker catches use of uninitialized fields in the structs.
 package local
 
 // Tests nil flow within a single function

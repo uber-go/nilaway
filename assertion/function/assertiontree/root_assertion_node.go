@@ -682,7 +682,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 			// so we can mark its arguments as consumed
 			consumeArg = consumeArgTrigger(r.ObjectOf(fun).(*types.Func))
 
-			if r.functionContext.isDepthOneFieldCheck() {
+			if r.functionContext.functionConfig.EnableStructInitCheck {
 				// Add Productions for struct field params
 				r.addProductionForFuncCallArgAndReceiverFields(expr, fun)
 
@@ -807,15 +807,14 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 		// doesn't need to be non-nil, but really should be
 		r.AddComputation(expr.X)
 	case *ast.UnaryExpr:
-		// channel receive case
-		if expr.Op == token.ARROW {
-			// added this consumer since receiving over a nil channel can cause panic
-			r.AddConsumption(&annotation.ConsumeTrigger{
-				Annotation: &annotation.ChanAccess{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
-				Expr:       expr.X,
-				Guards:     util.NoGuards(),
-			})
-		}
+		// Note if expr.Op == token.ARROW it represents a channel receive (<-X), and we have:
+		// (1) A receive from a nil channel blocks forever;
+		// (2) A receive from a closed channel returns the zero value immediately.
+		// (1) falls out of scope of NilAway, and we have a lot of valid Go code that receives
+		// from nil channels (e.g., select statements with nilable channels). So we do not create
+		// consumer for the channel variable here. For (2), since we currently do not track the
+		// state of channels, we currently cannot support it either.
+		// TODO: rethink our strategy of handling channels (#192).
 		r.AddComputation(expr.X)
 	case *ast.FuncLit:
 		// TODO: analyze the bodies of anonymous functions
@@ -939,7 +938,7 @@ func (r *RootAssertionNode) ProcessEntry() {
 		child := r.Children()[0]
 		builtExpr := child.BuildExpr(r.Pass(), nil)
 
-		if r.functionContext.isDepthOneFieldCheck() {
+		if r.functionContext.functionConfig.EnableStructInitCheck {
 			// process field Assertion nodes of function parameters
 			r.addProductionsForParamFields(child, builtExpr)
 		}

@@ -24,7 +24,6 @@ import (
 	"strconv"
 
 	"go.uber.org/nilaway/config"
-	"go.uber.org/nilaway/util"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -106,7 +105,7 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 	funcLitMap := make(map[*ast.FuncLit]*FuncLitInfo)
 
 	for _, file := range pass.Files {
-		if !conf.IsFileInScope(file) || !util.DocContainsAnonymousFuncCheck(file.Doc) {
+		if !conf.IsFileInScope(file) || !conf.ExperimentalAnonymousFuncEnable {
 			continue
 		}
 

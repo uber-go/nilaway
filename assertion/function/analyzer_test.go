@@ -26,7 +26,6 @@ import (
 	"go.uber.org/nilaway/assertion/anonymousfunc"
 	"go.uber.org/nilaway/assertion/function/assertiontree"
 	"go.uber.org/nilaway/assertion/function/functioncontracts"
-	"go.uber.org/nilaway/config"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
 	"golang.org/x/tools/go/analysis/passes/ctrlflow"
@@ -58,8 +57,8 @@ func TestTimeout(t *testing.T) {
 	// (1) Enable all features flags (will not actually make a difference since our test code does
 	// not really require such features).
 	funcConfig := assertiontree.FunctionConfig{
-		StructInitCheckType: config.DepthOneFieldCheck,
-		EnableAnonymousFunc: true,
+		EnableStructInitCheck: true,
+		EnableAnonymousFunc:   true,
 	}
 	// (2) Construct an empty function context. In normal NilAway execution the func lit map and
 	// pkg fake ident map will be created from the separate anonymous function analyzer. However,

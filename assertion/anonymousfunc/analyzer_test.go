@@ -17,11 +17,13 @@ package anonymousfunc
 import (
 	"go/ast"
 	"go/token"
+	"log"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"go.uber.org/nilaway/config"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
 )
@@ -156,5 +158,13 @@ func findExpectedClosure(pass *analysis.Pass) map[*ast.FuncLit][]string {
 }
 
 func TestMain(m *testing.M) {
+	// Enable anonymous function flag for tests. It is OK to not unset this flag since Go builds
+	// tests for each package into separate binaries and execute them in parallel [1]. So the
+	// config.Analyzer here is actually not shared with other tests in other packages.
+	// [1]: https://pkg.go.dev/cmd/go/internal/test
+	err := config.Analyzer.Flags.Set(config.ExperimentalAnonymousFunctionFlag, "true")
+	if err != nil {
+		log.Fatalf("Error setting anonymous function flag for tests: %q", err)
+	}
 	goleak.VerifyTestMain(m)
 }

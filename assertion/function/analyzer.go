@@ -107,9 +107,18 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 	}()
 
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
-
 	if !conf.IsPkgInScope(pass.Pkg) {
 		return Result{}, nil
+	}
+
+	// Construct experimental features. By default, enable all features on NilAway itself.
+	functionConfig := assertiontree.FunctionConfig{}
+	if strings.HasPrefix(pass.Pkg.Path(), config.NilAwayPkgPathPrefix) { //nolint:revive
+		// TODO: enable struct initialization flag (tracked in Issue #23).
+		// TODO: enable anonymous function flag.
+	} else {
+		functionConfig.EnableStructInitCheck = conf.ExperimentalStructInitEnable
+		functionConfig.EnableAnonymousFunc = conf.ExperimentalAnonymousFuncEnable
 	}
 
 	ctrlflowResult := pass.ResultOf[ctrlflow.Analyzer].(*ctrlflow.CFGs)
@@ -136,17 +145,6 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 			continue
 		}
 
-		// Construct config for analyzing the functions in this file. By default, enable all checks
-		// on NilAway itself.
-		functionConfig := assertiontree.FunctionConfig{}
-		if strings.HasPrefix(pass.Pkg.Path(), config.NilAwayPkgPathPrefix) { //nolint:revive
-			// TODO: enable struct initialization flag (tracked in Issue #23).
-			// TODO: enable anonymous function flag.
-		} else {
-			functionConfig.StructInitCheckType = util.DocContainsStructInitCheck(file.Doc)
-			functionConfig.EnableAnonymousFunc = util.DocContainsAnonymousFuncCheck(file.Doc)
-		}
-
 		// Collect all function declarations and function literals if anonymous function support
 		// is enabled.
 		var funcs []ast.Node
@@ -156,11 +154,10 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 			}
 		}
 		if functionConfig.EnableAnonymousFunc {
-			// Due to , we need a stable order of triggers for inference. However, the
+			// We need a stable order of triggers for inference. However, the
 			// fake func decl nodes generated from the anonymous function analyzer are stored in
 			// a map. Hence, here we traverse the file and append the fake func decl nodes in
 			// depth-first order.
-			// TODO: remove this once  is done.
 			ast.Inspect(file, func(node ast.Node) bool {
 				if f, ok := node.(*ast.FuncLit); ok {
 					funcs = append(funcs, f)

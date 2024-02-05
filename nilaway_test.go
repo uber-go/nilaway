@@ -90,12 +90,6 @@ func TestGoQuirks(t *testing.T) {
 	testdata := analysistest.TestData()
 	analysistest.Run(t, testdata, Analyzer, "go.uber.org/goquirks")
 }
-func TestStructInit(t *testing.T) {
-	t.Parallel()
-
-	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/structinit/funcreturnfields", "go.uber.org/structinit/local", "go.uber.org/structinit/global", "go.uber.org/structinit/paramfield", "go.uber.org/structinit/paramsideeffect", "go.uber.org/structinit/defaultfield", "go.uber.org/structinit/optimization")
-}
 
 func TestGlobalVars(t *testing.T) {
 	t.Parallel()
@@ -197,13 +191,6 @@ func TestIgnorePackage(t *testing.T) {
 	analysistest.Run(t, testdata, Analyzer, "ignoredpkg1", "ignoredpkg2")
 }
 
-func TestAnonymousFunction(t *testing.T) {
-	t.Parallel()
-
-	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/anonymousfunction")
-}
-
 func TestReceivers(t *testing.T) {
 	t.Parallel()
 
@@ -237,6 +224,34 @@ func TestErrorMessage(t *testing.T) {
 
 	testdata := analysistest.TestData()
 	analysistest.Run(t, testdata, Analyzer, "go.uber.org/errormessage")
+}
+
+func TestStructInit(t *testing.T) { //nolint:paralleltest
+	// We specifically do not set this test to be parallel since we need to enable the
+	// experimental support for struct initialization to test this feature.
+	err := config.Analyzer.Flags.Set(config.ExperimentalStructInitEnableFlag, "true")
+	require.NoError(t, err)
+	defer func() {
+		err := config.Analyzer.Flags.Set(config.ExperimentalStructInitEnableFlag, "false")
+		require.NoError(t, err)
+	}()
+
+	testdata := analysistest.TestData()
+	analysistest.Run(t, testdata, Analyzer, "go.uber.org/structinit/funcreturnfields", "go.uber.org/structinit/local", "go.uber.org/structinit/global", "go.uber.org/structinit/paramfield", "go.uber.org/structinit/paramsideeffect", "go.uber.org/structinit/defaultfield", "go.uber.org/structinit/optimization")
+}
+
+func TestAnonymousFunction(t *testing.T) { //nolint:paralleltest
+	// We specifically do not set this test to be parallel since we need to enable the
+	// experimental support for anonymous function to test this feature.
+	err := config.Analyzer.Flags.Set(config.ExperimentalAnonymousFunctionFlag, "true")
+	require.NoError(t, err)
+	defer func() {
+		err := config.Analyzer.Flags.Set(config.ExperimentalAnonymousFunctionFlag, "false")
+		require.NoError(t, err)
+	}()
+
+	testdata := analysistest.TestData()
+	analysistest.Run(t, testdata, Analyzer, "go.uber.org/anonymousfunction")
 }
 
 func TestPrettyPrint(t *testing.T) { //nolint:paralleltest

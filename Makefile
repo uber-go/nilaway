@@ -4,6 +4,9 @@ export GOBIN = $(PROJECT_ROOT)/bin
 
 GOLANGCI_LINT_VERSION := $(shell golangci-lint --version 2>/dev/null)
 
+# Directories containing independent Go modules.
+MODULE_DIRS = . ./tools
+
 .PHONY: all
 all: build lint test
 
@@ -17,12 +20,14 @@ build:
 
 .PHONY: test
 test:
-	go test -v -race ./...
+	@$(foreach mod,$(MODULE_DIRS),(cd $(mod) && go test -race ./...) &&) true
 
 .PHONY: cover
 cover:
-	go test -v -race -coverprofile=cover.out -coverpkg=./... -v ./...
-	go tool cover -html=cover.out -o cover.html
+	@$(foreach mod,$(MODULE_DIRS), ( \
+		cd $(mod) && \
+		go test -race -coverprofile=cover.out -coverpkg=./... ./... \
+		&& go tool cover -html=cover.out -o cover.html) &&) true
 
 .PHONY: golden-test
 golden-test:
@@ -39,17 +44,22 @@ ifdef GOLANGCI_LINT_VERSION
 else
 	$(error "golangci-lint not found, please install it from https://golangci-lint.run/usage/install/#local-installation")
 endif
-	@echo "[lint] golangci-lint run"
-	@golangci-lint run
+	@$(foreach mod,$(MODULE_DIRS), \
+		(cd $(mod) && \
+		echo "[lint] golangci-lint: $(mod)" && \
+		golangci-lint run --path-prefix $(mod)) &&) true
 
 .PHONY: tidy-lint
 tidy-lint:
-	@echo "[lint] go mod tidy"
-	@go mod tidy && \
-		git diff --exit-code -- go.mod go.sum || \
-		(echo "'go mod tidy' changed files" && false)
+	@$(foreach mod,$(MODULE_DIRS), \
+		(cd $(mod) && \
+		echo "[lint] mod tidy: $(mod)" && \
+		go mod tidy && \
+		git diff --exit-code -- go.mod go.sum) &&) true
 
 .PHONY: nilaway-lint
 nilaway-lint: build
-	@echo "[lint] nilaway linting itself"
-	@$(GOBIN)/nilaway -include-pkgs="go.uber.org/nilaway" ./...
+	@$(foreach mod,$(MODULE_DIRS), \
+		(cd $(mod) && \
+		echo "[lint] nilaway linting itself: $(mod)" && \
+		$(GOBIN)/nilaway -include-pkgs="go.uber.org/nilaway" ./...) &&) true

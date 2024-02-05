@@ -116,13 +116,13 @@ func backpropAcrossNode(rootNode *RootAssertionNode, node ast.Node) error {
 // backpropAcrossSend handles backpropagation for send statements. It is designed to be called from
 // backpropAcrossNode as a special handler.
 func backpropAcrossSend(rootNode *RootAssertionNode, node *ast.SendStmt) error {
-	// Added this consumer since sending over a nil channel can cause panic
-	rootNode.AddConsumption(&annotation.ConsumeTrigger{
-		Annotation: &annotation.ChanAccess{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
-		Expr:       node.Chan,
-		Guards:     util.NoGuards(),
-	})
-
+	// Note that for channel sends, we have:
+	// (1) A send to a nil channel blocks forever;
+	// (2) A send to a closed channel panics.
+	// (1) falls out of scope for NilAway and hence we do not create a consumer here for the
+	// channel variable. For (2), since we do not track the state of the channels, we currently
+	// cannot support it.
+	// TODO: rethink our strategy of handling channels (#192).
 	consumer, err := exprAsAssignmentConsumer(rootNode, node, nil)
 	if err != nil {
 		return err
@@ -147,7 +147,7 @@ func backpropAcrossReturn(rootNode *RootAssertionNode, node *ast.ReturnStmt) err
 	// we have to handle the case that a multiply-returning function is being returned, and split
 	// the productions appropriate instead of just calling computeAndConsumeResults directly in that case
 
-	if rootNode.functionContext.isDepthOneFieldCheck() {
+	if rootNode.functionContext.functionConfig.EnableStructInitCheck {
 		rootNode.addConsumptionsForFieldsOfParams()
 	}
 
@@ -572,7 +572,7 @@ buildShadowMask:
 				if rpath != nil {
 					// Both lhsVal and rhsVal are trackable! we're in case C
 
-					if rootNode.functionContext.isDepthOneFieldCheck() {
+					if rootNode.functionContext.functionConfig.EnableStructInitCheck {
 						// If rhs is a function call that is tracked then we just add field producers before detaching
 						// the assertion nodes
 						_, rproducers := rootNode.ParseExprAsProducer(rhsVal, true)
@@ -614,7 +614,7 @@ buildShadowMask:
 							Expr:       lhsVal,
 						})
 					case 1:
-						if rootNode.functionContext.isDepthOneFieldCheck() {
+						if rootNode.functionContext.functionConfig.EnableStructInitCheck {
 							fieldProducers := rproducers[0].GetFieldProducers()
 							rootNode.addProductionsForAssignmentFields(fieldProducers, lhsVal)
 						}
@@ -708,7 +708,7 @@ func backpropAcrossManyToOneAssignment(rootNode *RootAssertionNode, lhs, rhs []a
 		}
 
 		// Phase 1
-		if rootNode.functionContext.isDepthOneFieldCheck() {
+		if rootNode.functionContext.functionConfig.EnableStructInitCheck {
 			fieldProducers := producers[i].GetFieldProducers()
 			rootNode.addProductionsForAssignmentFields(fieldProducers, lhsVal)
 		}

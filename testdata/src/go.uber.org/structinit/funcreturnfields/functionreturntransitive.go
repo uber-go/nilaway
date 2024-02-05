@@ -12,10 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*
-Package funcreturnfields Tests when nilability flows through the field of return of a function or a method
-<nilaway struct enable>
-*/
+// Package funcreturnfields Tests when nilability flows through the field of return of a function or a method
 package funcreturnfields
 
 // Testing with direct return of a composite literal initialization of struct

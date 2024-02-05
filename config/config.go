@@ -22,6 +22,7 @@ import (
 	"reflect"
 	"strings"
 
+	"go.uber.org/nilaway/util/asthelper"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -29,6 +30,11 @@ import (
 type Config struct {
 	// PrettyPrint indicates whether the error messages should be pretty printed.
 	PrettyPrint bool
+	// ExperimentalStructInitEnable indicates whether experimental struct initialization is enabled.
+	ExperimentalStructInitEnable bool
+	// ExperimentalAnonymousFuncEnable indicates whether experimental anonymous function support is enabled.
+	ExperimentalAnonymousFuncEnable bool
+
 	// includePkgs is the list of packages to analyze.
 	includePkgs []string
 	// excludePkgs is the list of packages to exclude from analysis. Exclude list takes
@@ -79,7 +85,7 @@ func (c *Config) IsFileInScope(file *ast.File) bool {
 		}
 
 		for _, exclude := range c.excludeFileDocStrings {
-			if strings.Contains(comment.Text(), exclude) {
+			if asthelper.DocContains(comment, exclude) {
 				return false
 			}
 		}
@@ -121,6 +127,10 @@ const (
 	ExcludePkgsFlag = "exclude-pkgs"
 	// ExcludeFileDocStringsFlag is the flag name for the docstrings that exclude files from analysis.
 	ExcludeFileDocStringsFlag = "exclude-file-docstrings"
+	// ExperimentalStructInitEnableFlag is the flag name for the experimental struct init support.
+	ExperimentalStructInitEnableFlag = "experimental-struct-init"
+	// ExperimentalAnonymousFunctionFlag is the flag name for the experimental anonymous function support.
+	ExperimentalAnonymousFunctionFlag = "experimental-anonymous-function"
 )
 
 // newFlagSet returns a flag set to be used in the nilaway config analyzer.
@@ -133,6 +143,8 @@ func newFlagSet() flag.FlagSet {
 	_ = fs.String(IncludePkgsFlag, "", "Comma-separated list of packages to analyze")
 	_ = fs.String(ExcludePkgsFlag, "", "Comma-separated list of packages to exclude from analysis")
 	_ = fs.String(ExcludeFileDocStringsFlag, "", "Comma-separated list of docstrings to exclude from analysis")
+	_ = fs.Bool(ExperimentalStructInitEnableFlag, false, "Whether to enable experimental struct initialization support")
+	_ = fs.Bool(ExperimentalAnonymousFunctionFlag, false, "Whether to enable experimental anonymous function support")
 
 	return *fs
 }
@@ -149,6 +161,12 @@ func run(pass *analysis.Pass) (any, error) {
 	// Override default values if the user provides flags.
 	if prettyPrint, ok := pass.Analyzer.Flags.Lookup(PrettyPrintFlag).Value.(flag.Getter).Get().(bool); ok {
 		conf.PrettyPrint = prettyPrint
+	}
+	if enableStructInit, ok := pass.Analyzer.Flags.Lookup(ExperimentalStructInitEnableFlag).Value.(flag.Getter).Get().(bool); ok {
+		conf.ExperimentalStructInitEnable = enableStructInit
+	}
+	if enableAnonymousFunc, ok := pass.Analyzer.Flags.Lookup(ExperimentalAnonymousFunctionFlag).Value.(flag.Getter).Get().(bool); ok {
+		conf.ExperimentalAnonymousFuncEnable = enableAnonymousFunc
 	}
 	if include, ok := pass.Analyzer.Flags.Lookup(IncludePkgsFlag).Value.(flag.Getter).Get().(string); ok && include != "" {
 		conf.includePkgs = strings.Split(include, ",")
