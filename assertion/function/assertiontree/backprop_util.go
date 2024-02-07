@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
+	"go/constant"
 	"go/token"
 	"go/types"
 
@@ -141,10 +142,8 @@ func computeAndConsumeResults(rootNode *RootAssertionNode, node *ast.ReturnStmt)
 				return nil
 			}
 
-			if util.FuncIsOkReturning(rootNode.FuncObj()) {
-				if ok := handleBooleanReturns(rootNode, node, results, true /* isNamedReturn */); ok {
-					return nil
-				}
+			if ok := handleBooleanReturns(rootNode, node, results, true /* isNamedReturn */); ok {
+				return nil
 			}
 
 			// below is the normal handling for named return variables
@@ -210,10 +209,8 @@ func computeAndConsumeResults(rootNode *RootAssertionNode, node *ast.ReturnStmt)
 		handleErrorReturns(rootNode, node, node.Results, false /* isNamedReturn */)
 		return nil
 	}
-	if util.FuncIsOkReturning(rootNode.FuncObj()) {
-		if ok := handleBooleanReturns(rootNode, node, node.Results, false /* isNamedReturn */); ok {
-			return nil
-		}
+	if ok := handleBooleanReturns(rootNode, node, node.Results, false /* isNamedReturn */); ok {
+		return nil
 	}
 
 	// we've excluded all abnormal cases - here, just really consume each result as a return value
@@ -320,29 +317,36 @@ func handleErrorReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, re
 }
 
 // handleBooleanReturns handles the special case for boolean (`ok`) returning functions (n-th result of type `bool`
-// which guards at least one of the first n-1 non-bool results). Similar to the handliong of error returning functions,
+// which guards at least one of the first n-1 non-bool results). Similar to the handling of error returning functions,
 // for boolean returns, we generate consumers by applying the following boolean contract:
 // (1) if boolean return value = true, create consumers for the non-boolean returns
 // TODO: currently we support only explicit boolean returns (i.e., `return r0, r1, ..., {true|false}`). We should also support implicit boolean returns, i.e., `return` or `return <expr>` in the future.
 //
 // handleBooleanReturns returns true if the above contract is satisfied and consumers are created, false otherwise
 func handleBooleanReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, results []ast.Expr, isNamedReturn bool) bool {
+	if !util.FuncIsOkReturning(rootNode.FuncObj()) {
+		return false
+	}
+
 	nRetIndex := len(results) - 1
 	nRetExpr := results[nRetIndex]          // n-th expression
 	nMinusOneRetExpr := results[:nRetIndex] // n-1 expressions
 
 	// check if the return statement is of the currently supported explicit boolean return form (`return ..., {true|false}`)
-	val, ok := nRetExpr.(*ast.Ident)
-	if !ok || (val.Name != "true" && val.Name != "false") {
+	typeAndValue, ok := rootNode.Pass().TypesInfo.Types[nRetExpr]
+	if !ok {
+		return false
+	}
+	v, ok := constant.Val(typeAndValue.Value).(bool)
+	if !ok {
 		return false
 	}
 
 	// If return is "true", then track its n-1 returns. Create return consume triggers for all n-1 return expressions.
 	// If return is "false", then do nothing, since we don't track boolean values.
-	if val.Name == "true" {
+	if v == true {
 		createGeneralReturnConsumers(rootNode, nMinusOneRetExpr, retStmt, isNamedReturn)
 	}
-
 	return true
 }
 

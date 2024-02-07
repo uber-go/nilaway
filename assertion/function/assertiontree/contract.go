@@ -323,7 +323,7 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 			return nil, false
 		}
 
-		rhsFuncDecl, ok := rootNode.Pass().TypesInfo.ObjectOf(callIdent).(*types.Func)
+		rhsFuncDecl, ok := rootNode.ObjectOf(callIdent).(*types.Func)
 
 		if !ok || !util.FuncIsOkReturning(rhsFuncDecl) {
 			return nil, false

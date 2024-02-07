@@ -731,3 +731,27 @@ func testMixedReturns() {
 func testMixedReturnsPassToAnotherFunc() (string, *int, bool) {
 	return retStrNilBool() //want "returned"
 }
+
+// below tests check for constants
+
+const falseVal = false
+const trueVal = true
+
+func retPtrBoolConst() (*int, bool) {
+	if dummy {
+		return nil, falseVal
+	}
+	return new(int), trueVal
+}
+
+func testConstants() {
+	// safe
+	if v, ok := retPtrBoolConst(); ok {
+		print(*v)
+	}
+
+	// unsafe
+	if v, ok := retPtrBoolConst(); !ok {
+		print(*v) //want "dereferenced"
+	}
+}
