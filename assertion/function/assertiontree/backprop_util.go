@@ -137,8 +137,7 @@ func computeAndConsumeResults(rootNode *RootAssertionNode, node *ast.ReturnStmt)
 			}
 
 			// if the function has named error return variable, then handle specially using the error handling logic
-			if util.FuncIsErrReturning(rootNode.FuncObj()) {
-				handleErrorReturns(rootNode, node, results, true /* isNamedReturn */)
+			if ok := handleErrorReturns(rootNode, node, results, true /* isNamedReturn */); ok {
 				return nil
 			}
 
@@ -205,8 +204,7 @@ func computeAndConsumeResults(rootNode *RootAssertionNode, node *ast.ReturnStmt)
 		)
 	}
 
-	if util.FuncIsErrReturning(rootNode.FuncObj()) {
-		handleErrorReturns(rootNode, node, node.Results, false /* isNamedReturn */)
+	if ok := handleErrorReturns(rootNode, node, node.Results, false /* isNamedReturn */); ok {
 		return nil
 	}
 	if ok := handleBooleanReturns(rootNode, node, node.Results, false /* isNamedReturn */); ok {
@@ -272,7 +270,11 @@ func isErrorReturnNonnil(rootNode *RootAssertionNode, errRet ast.Expr) bool {
 // (3) if error return value = unknown, create consumers for all returns (error and non-error), and defer applying of the error contract when the nilability status is known, such as at `ProcessEntry`
 //
 // Note that `results` should be explicitly passed since `retStmt` of a named return will contain no results
-func handleErrorReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, results []ast.Expr, isNamedReturn bool) {
+func handleErrorReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, results []ast.Expr, isNamedReturn bool) bool {
+	if !util.FuncIsErrReturning(rootNode.FuncObj()) {
+		return false
+	}
+
 	errRetIndex := len(results) - 1
 	errRetExpr := results[errRetIndex]     // n-th expression
 	nonErrRetExpr := results[:errRetIndex] // n-1 expressions
@@ -281,7 +283,7 @@ func handleErrorReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, re
 	for _, r := range nonErrRetExpr {
 		if util.ExprBarsNilness(rootNode.Pass(), r) {
 			// no need to further analyze and create triggers
-			return
+			return true
 		}
 	}
 
@@ -314,6 +316,7 @@ func handleErrorReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, re
 			}
 		}
 	}
+	return true
 }
 
 // handleBooleanReturns handles the special case for boolean (`ok`) returning functions (n-th result of type `bool`
@@ -324,6 +327,8 @@ func handleErrorReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, re
 //
 // handleBooleanReturns returns true if the above contract is satisfied and consumers are created, false otherwise
 func handleBooleanReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, results []ast.Expr, isNamedReturn bool) bool {
+	// FuncIsOkReturning checks that the length of the results defined for the current function is at least 2, and that
+	// the last return type is a boolean, the value of which can be determined at compile time (e.g., return true)
 	if !util.FuncIsOkReturning(rootNode.FuncObj()) {
 		return false
 	}
@@ -337,14 +342,14 @@ func handleBooleanReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, 
 	if !ok {
 		return false
 	}
-	v, ok := constant.Val(typeAndValue.Value).(bool)
+	val, ok := constant.Val(typeAndValue.Value).(bool)
 	if !ok {
 		return false
 	}
 
 	// If return is "true", then track its n-1 returns. Create return consume triggers for all n-1 return expressions.
 	// If return is "false", then do nothing, since we don't track boolean values.
-	if v == true {
+	if val {
 		createGeneralReturnConsumers(rootNode, nMinusOneRetExpr, retStmt, isNamedReturn)
 	}
 	return true

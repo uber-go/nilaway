@@ -39,7 +39,7 @@ func TestContracts(t *testing.T) {
 	t.Parallel()
 
 	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/contracts")
+	analysistest.Run(t, testdata, Analyzer, "go.uber.org/contracts", "go.uber.org/contracts/namedtypes")
 }
 
 func TestTesting(t *testing.T) {
