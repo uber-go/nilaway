@@ -1205,7 +1205,6 @@ func (u *UseAsReturnDeep) Prestring() Prestring {
 	return UseAsReturnDeepPrestring{
 		key.FuncDecl.Name(),
 		key.RetNum,
-		u.IsNamedReturn,
 		key.FuncDecl.Type().(*types.Signature).Results().At(key.RetNum).Name(),
 		u.assignmentFlow.String(),
 	}
@@ -1215,7 +1214,6 @@ func (u *UseAsReturnDeep) Prestring() Prestring {
 type UseAsReturnDeepPrestring struct {
 	FuncName      string
 	RetNum        int
-	IsNamedReturn bool
 	RetName       string
 	AssignmentStr string
 }
@@ -1223,7 +1221,7 @@ type UseAsReturnDeepPrestring struct {
 func (u UseAsReturnDeepPrestring) String() string {
 	var sb strings.Builder
 	via := ""
-	if u.IsNamedReturn {
+	if u.RetName != "" && u.RetName != "_" {
 		via = fmt.Sprintf(" via named return `%s`", u.RetName)
 	}
 	sb.WriteString(fmt.Sprintf("returned deeply from `%s()`%s in position %d", u.FuncName, via, u.RetNum))
