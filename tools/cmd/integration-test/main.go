@@ -132,7 +132,7 @@ func Run() error {
 	}
 	for _, driver := range drivers {
 		name := reflect.TypeOf(driver).Elem().Name()
-		fmt.Printf("--- Running integration tests using %q driver\n", name)
+		fmt.Printf("--- Running integration tests using %q driver...", name)
 		collected, err := driver.Run(dir)
 		if err != nil {
 			return fmt.Errorf("%q driver: %w", name, err)
@@ -140,6 +140,8 @@ func Run() error {
 		if err := CompareDiagnostics(truths, collected); err != nil {
 			return fmt.Errorf("diagnostics mismatch: \n%w", err)
 		}
+		fmt.Println("PASSED")
+		fmt.Printf("\t%d diagnostics matched\n", len(collected))
 	}
 
 	return nil
