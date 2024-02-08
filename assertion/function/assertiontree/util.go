@@ -177,7 +177,7 @@ func inverseToken(t token.Token) token.Token {
 // For better performance by the caller, it also returns a boolean flag `isNoop` indicating whether
 // the returned function is a no-op
 func AddNilCheck(pass *analysis.Pass, expr ast.Expr) (trueCheck, falseCheck RootFunc, isNoop bool) {
-	noop := func(node *RootAssertionNode) {}
+	noop := func(_ *RootAssertionNode) {}
 
 	binExpr, ok := util.StripParens(expr).(*ast.BinaryExpr)
 
