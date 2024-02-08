@@ -59,6 +59,14 @@ func (S) blankNonPointerRecv(i int) *int {
 	return &i
 }
 
+func (_ *S) blankIdentifierPointerRecv(i int) *int {
+	return &i
+}
+
+func (_ S) blankIdentifierNonPointerRecv(i int) *int {
+	return &i
+}
+
 type myErr struct{}
 
 func (myErr) Error() string { return "myErr message" }
@@ -121,13 +129,19 @@ func testCaller(dummy bool, i int, e *E) {
 	case 5:
 		s.blankPointerRecv(0) //want "unassigned variable"
 
-	case 6:
+	case 7:
 		s.blankNonPointerRecv(0) //want "unassigned variable"
 
-	case 7:
+	case 8:
+		s.blankIdentifierPointerRecv(0) //want "unassigned variable"
+
+	case 9:
+		s.blankIdentifierNonPointerRecv(0) //want "unassigned variable"
+
+	case 10:
 		print(errObj.Error()) //want "unassigned variable"
 
-	case 8:
+	case 11:
 		e.errField = errObj
 		print(e.errField.Error()) //want "unassigned variable"
 	}

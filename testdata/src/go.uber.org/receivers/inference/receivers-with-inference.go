@@ -129,14 +129,19 @@ func (*A) nonnamedPointer() {}
 
 func (A) nonNamedNonPointer() {}
 
+func (_ *A) blankPointer()   {}
+func (_ A) blankNonPointer() {}
+
 func testBlankAndNonPointerReceivers() {
-	var s1, s2, s3, s4 *A
+	var s1, s2, s3, s4, s5, s6 *A
 	s1.namedPointer()    // safe at call site
 	s2.nonnamedPointer() // safe at call site
+	s5.blankPointer()    // safe at call site
 
 	// below two non-pointer cases are not safe at call site
 	s3.namedNonpointer()    //want "unassigned variable"
 	s4.nonNamedNonPointer() //want "unassigned variable"
+	s6.blankNonPointer()    //want "unassigned variable"
 }
 
 type myErr struct{}
