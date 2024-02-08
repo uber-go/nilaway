@@ -30,6 +30,9 @@ import (
 // ErrorType is the type of the builtin "error" interface.
 var ErrorType = types.Universe.Lookup("error").Type()
 
+// BoolType is the type of the builtin "bool" interface.
+var BoolType = types.Universe.Lookup("bool").Type()
+
 // BuiltinLen is the builtin "len" function object.
 var BuiltinLen = types.Universe.Lookup("len")
 
@@ -303,33 +306,41 @@ func IsEmptyExpr(expr ast.Expr) bool {
 	return false
 }
 
-// TypeIsErrorType checks if the type is an error type
-func TypeIsErrorType(typ types.Type) bool {
-	if typ, ok := typ.(*types.Named); ok {
-		return typ.String() == "error"
-	}
-	return false
-}
-
-// FuncIsErrReturning encodes the conditions that a function is deemed "error-returning"
-// this guards its results to require an `err` check before use as nonnil.
-// a function is deemed "error-returning" iff it has a single result of type `error`, and that
-// result is the last in the list of results.
-func FuncIsErrReturning(fdecl *types.Func) bool {
+// funcIsRichCheckEffectReturning encodes the conditions that a function is deemed "rich-check-effect-returning", i.e.,
+// it is an error-returning function or a bool(ok)-returning function.
+// A function is deemed "rich-check-effect-returning" iff it has a single result of type `typName` (error or bool),
+// and that result is the last in the list of results.
+func funcIsRichCheckEffectReturning(fdecl *types.Func, expectedType types.Type) bool {
 	results := fdecl.Type().(*types.Signature).Results()
 	n := results.Len()
 	if n == 0 {
 		return false
 	}
-	if !TypeIsErrorType(results.At(n - 1).Type()) {
+	if results.At(n-1).Type() != expectedType {
 		return false
 	}
 	for i := 0; i < n-1; i++ {
-		if TypeIsErrorType(results.At(i).Type()) {
+		if results.At(i).Type() == expectedType {
 			return false
 		}
 	}
 	return true
+}
+
+// FuncIsErrReturning encodes the conditions that a function is deemed "error-returning".
+// This guards its results to require an `err` check before use as nonnil.
+// A function is deemed "error-returning" iff it has a single result of type `error`, and that
+// result is the last in the list of results.
+func FuncIsErrReturning(fdecl *types.Func) bool {
+	return funcIsRichCheckEffectReturning(fdecl, ErrorType)
+}
+
+// FuncIsOkReturning encodes the conditions that a function is deemed "ok-returning".
+// This guards its results to require an `ok` check before use as nonnil.
+// A function is deemed "ok-returning" iff it has a single result of type `bool`, and that
+// result is the last in the list of results.
+func FuncIsOkReturning(fdecl *types.Func) bool {
+	return funcIsRichCheckEffectReturning(fdecl, BoolType)
 }
 
 // IsFieldSelectorChain returns true if the expr is chain of idents. e.g, x.y.z
