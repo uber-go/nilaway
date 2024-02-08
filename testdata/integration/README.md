@@ -1,8 +1,8 @@
 # NilAway Integration Test Folder
 
 To prevent functionality regressions when developing NilAway, we have leveraged `analysistest` 
-test framework to write unit tests (`testdata/src` folder). However, it has two major limitations
-that make it undesirable to ensure real-world behaviors:
+test framework to write a extensive test suite (`testdata/src` folder). However, it has two major 
+limitations that make it undesirable to ensure real-world behaviors:
 
 * It does not read the "want" comments in the upstream package when analyzing downstream packages. 
   This makes it impossible to test our multi-package inference algorithm: NilAway might report an 

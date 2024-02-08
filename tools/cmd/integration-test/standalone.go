@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"os/exec"
@@ -22,11 +21,9 @@ func (d *StandaloneDriver) Run(dir string) (map[Position]string, error) {
 	// Run the NilAway binary on the integration test project, with redirects to an internal buffer.
 	cmd := exec.Command("../../bin/nilaway", "-json", "-pretty-print=false", "./...")
 	cmd.Dir = dir
-	var buf bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &buf, &buf
-	err := cmd.Run()
+	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("run nilaway: %w\n%s", err, buf.String())
+		return nil, fmt.Errorf("run nilaway: %w\n%s", err, string(out))
 	}
 
 	// Parse the diagnostics.
@@ -36,7 +33,7 @@ func (d *StandaloneDriver) Run(dir string) (map[Position]string, error) {
 	}
 	// pkg name -> "nilaway" -> list of diagnostics.
 	var result map[string]map[string][]diagnostic
-	if err := json.NewDecoder(&buf).Decode(&result); err != nil {
+	if err := json.Unmarshal(out, &result); err != nil {
 		return nil, fmt.Errorf("decode nilaway output: %w", err)
 	}
 
@@ -44,12 +41,12 @@ func (d *StandaloneDriver) Run(dir string) (map[Position]string, error) {
 	for _, m := range result {
 		diagnostics, ok := m["nilaway"]
 		if !ok {
-			return nil, fmt.Errorf("expect \"nilaway\" key in result, got %v", m)
+			return nil, fmt.Errorf("expect \"nilaway\" key in result, got %+v", m)
 		}
 		for _, d := range diagnostics {
 			parts := strings.Split(d.Posn, ":")
 			if len(parts) != 3 {
-				return nil, fmt.Errorf("expect 3 parts in position string, got %v", d)
+				return nil, fmt.Errorf("expect 3 parts in position string, got %+v", d)
 			}
 			// Convert diagnostic output from NilAway to canonical form.
 			line, err := strconv.Atoi(parts[1])
