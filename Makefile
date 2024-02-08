@@ -8,7 +8,7 @@ GOLANGCI_LINT_VERSION := $(shell golangci-lint --version 2>/dev/null)
 MODULE_DIRS = . ./tools
 
 .PHONY: all
-all: build lint test
+all: build lint test integration-test
 
 .PHONY: clean
 clean:

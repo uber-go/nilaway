@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -19,7 +20,7 @@ func (d *StandaloneDriver) Run(dir string) (map[Position]string, error) {
 	}
 
 	// Run the NilAway binary on the integration test project, with redirects to an internal buffer.
-	cmd := exec.Command("../../bin/nilaway", "-json", "-pretty-print=false", "./...")
+	cmd := exec.Command(filepath.Join("..", "..", "bin", "nilaway"), "-json", "-pretty-print=false", "./...")
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -51,7 +52,7 @@ func (d *StandaloneDriver) Run(dir string) (map[Position]string, error) {
 			// Convert diagnostic output from NilAway to canonical form.
 			line, err := strconv.Atoi(parts[1])
 			if err != nil {
-				return nil, fmt.Errorf("convert line: %w", err)
+				return nil, fmt.Errorf("convert line number: %w", err)
 			}
 			pos := Position{Filename: parts[0], Line: line}
 			if current, ok := collected[pos]; ok {

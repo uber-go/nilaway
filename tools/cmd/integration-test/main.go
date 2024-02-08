@@ -74,10 +74,7 @@ func CollectGroundTruths(dir string, wd string) (map[Position]*regexp.Regexp, er
 
 // CompareDiagnostics compares the ground truths with the collected diagnostics and returns a
 // joined error containing the mismatched/missing/unexpected diagnostics (or nil if none).
-func CompareDiagnostics(truth map[Position]*regexp.Regexp, collected map[Position]string) error {
-	// Errors will be joined together.
-	var err error
-
+func CompareDiagnostics(truth map[Position]*regexp.Regexp, collected map[Position]string) (err error) {
 	// Keep track of the positions that we have seen.
 	hit := make(map[Position]bool, len(truth))
 	for pos, got := range collected {
