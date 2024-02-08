@@ -744,6 +744,13 @@ func retPtrBoolConst() (*int, bool) {
 	return new(int), trueVal
 }
 
+func retPtrBoolConstIncorrect() (*int, bool) {
+	if dummy {
+		return nil, trueVal //want "literal `nil` returned"
+	}
+	return new(int), falseVal
+}
+
 func testConstants() {
 	// safe
 	if v, ok := retPtrBoolConst(); ok {
