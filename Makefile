@@ -34,6 +34,11 @@ golden-test:
 	@cd tools && go install go.uber.org/nilaway/tools/cmd/golden-test
 	@$(GOBIN)/golden-test $(ARGS)
 
+.PHONY: integration-test
+integration-test:
+	@cd tools && go install go.uber.org/nilaway/tools/cmd/integration-test
+	@$(GOBIN)/integration-test
+
 .PHONY: lint
 lint: golangci-lint nilaway-lint tidy-lint
 
