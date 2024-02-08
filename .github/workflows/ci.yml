@@ -10,7 +10,7 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         name: Check out repository
 
       - name: Set up Go
@@ -35,7 +35,7 @@ jobs:
       matrix:
         go: [ "1.21.x", "1.22.x" ]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up Go
         uses: actions/setup-go@v4
@@ -68,7 +68,7 @@ jobs:
       matrix:
         go: [ "1.21.x", "1.22.x" ]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up Go
         uses: actions/setup-go@v4
