@@ -11,7 +11,6 @@ func test() {
 	upstream.NonnilParam(nil)
 
 	var s *upstream.S
-	// Error: dereference a nilable receiver in upstream package, which expects the receiver to be non-nil.
 	s.NonnilRecv()
 	s.NilableRecv() // safe
 }
