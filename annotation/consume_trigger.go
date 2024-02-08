@@ -861,6 +861,69 @@ func (a ArgPassPrestring) String() string {
 	return sb.String()
 }
 
+// ArgPassDeep is when a value deeply flows to a point where it is passed as an argument to a function
+type ArgPassDeep struct {
+	*TriggerIfDeepNonNil
+}
+
+// equals returns true if the passed ConsumingAnnotationTrigger is equal to this one
+func (a *ArgPassDeep) equals(other ConsumingAnnotationTrigger) bool {
+	if other, ok := other.(*ArgPassDeep); ok {
+		return a.TriggerIfDeepNonNil.equals(other.TriggerIfDeepNonNil)
+	}
+	return false
+}
+
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (a *ArgPassDeep) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *a
+	copyConsumer.TriggerIfDeepNonNil = a.TriggerIfDeepNonNil.Copy().(*TriggerIfDeepNonNil)
+	return &copyConsumer
+}
+
+// Prestring returns this ArgPassDeep as a Prestring
+func (a *ArgPassDeep) Prestring() Prestring {
+	switch key := a.Ann.(type) {
+	case *ParamAnnotationKey:
+		return ArgPassPrestring{
+			ParamName:     key.MinimalString(),
+			FuncName:      key.FuncDecl.Name(),
+			Location:      "",
+			AssignmentStr: a.assignmentFlow.String(),
+		}
+	case *CallSiteParamAnnotationKey:
+		return ArgPassPrestring{
+			ParamName:     key.MinimalString(),
+			FuncName:      key.FuncDecl.Name(),
+			Location:      key.Location.String(),
+			AssignmentStr: a.assignmentFlow.String(),
+		}
+	default:
+		panic(fmt.Sprintf(
+			"Expected ParamAnnotationKey or CallSiteParamAnnotationKey but got: %T", key))
+	}
+}
+
+// ArgPassDeepPrestring is a Prestring storing the needed information to compactly encode a ArgPassDeep
+type ArgPassDeepPrestring struct {
+	ParamName string
+	FuncName  string
+	// Location points to the code location of the argument pass at the call site for a ArgPass
+	// enclosing CallSiteParamAnnotationKey; Location is empty for a ArgPass enclosing ParamAnnotationKey.
+	Location      string
+	AssignmentStr string
+}
+
+func (a ArgPassDeepPrestring) String() string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("passed deeply as %s to `%s()`", a.ParamName, a.FuncName))
+	if a.Location != "" {
+		sb.WriteString(fmt.Sprintf(" at %s", a.Location))
+	}
+	sb.WriteString(a.AssignmentStr)
+	return sb.String()
+}
+
 // RecvPass is when a receiver value flows to a point where it is used to invoke a method.
 // E.g., `s.foo()`, here `s` is a receiver and forms the RecvPass Consumer
 type RecvPass struct {
@@ -1106,6 +1169,68 @@ func (u UseAsReturnPrestring) String() string {
 
 // overriding position value to point to the raw return statement, which is the source of the potential error
 func (u *UseAsReturn) customPos() (token.Pos, bool) {
+	if u.IsNamedReturn {
+		return u.RetStmt.Pos(), true
+	}
+	return 0, false
+}
+
+// UseAsReturnDeep is when a deep value flows to a point where it is returned from a function.
+type UseAsReturnDeep struct {
+	*TriggerIfDeepNonNil
+	IsNamedReturn bool
+	RetStmt       *ast.ReturnStmt
+}
+
+// equals returns true if the passed ConsumingAnnotationTrigger is equal to this one
+func (u *UseAsReturnDeep) equals(other ConsumingAnnotationTrigger) bool {
+	if other, ok := other.(*UseAsReturnDeep); ok {
+		return u.TriggerIfDeepNonNil.equals(other.TriggerIfDeepNonNil) &&
+			u.IsNamedReturn == other.IsNamedReturn &&
+			u.RetStmt == other.RetStmt
+	}
+	return false
+}
+
+// Copy returns a deep copy of this ConsumingAnnotationTrigger
+func (u *UseAsReturnDeep) Copy() ConsumingAnnotationTrigger {
+	copyConsumer := *u
+	copyConsumer.TriggerIfDeepNonNil = u.TriggerIfDeepNonNil.Copy().(*TriggerIfDeepNonNil)
+	return &copyConsumer
+}
+
+// Prestring returns this UseAsReturn as a Prestring
+func (u *UseAsReturnDeep) Prestring() Prestring {
+	key := u.Ann.(*RetAnnotationKey)
+	return UseAsReturnDeepPrestring{
+		key.FuncDecl.Name(),
+		key.RetNum,
+		key.FuncDecl.Type().(*types.Signature).Results().At(key.RetNum).Name(),
+		u.assignmentFlow.String(),
+	}
+}
+
+// UseAsReturnDeepPrestring is a Prestring storing the needed information to compactly encode a UseAsReturnDeep
+type UseAsReturnDeepPrestring struct {
+	FuncName      string
+	RetNum        int
+	RetName       string
+	AssignmentStr string
+}
+
+func (u UseAsReturnDeepPrestring) String() string {
+	var sb strings.Builder
+	via := ""
+	if u.RetName != "" && u.RetName != "_" {
+		via = fmt.Sprintf(" via named return `%s`", u.RetName)
+	}
+	sb.WriteString(fmt.Sprintf("returned deeply from `%s()`%s in position %d", u.FuncName, via, u.RetNum))
+	sb.WriteString(u.AssignmentStr)
+	return sb.String()
+}
+
+// overriding position value to point to the raw return statement, which is the source of the potential error
+func (u UseAsReturnDeep) customPos() (token.Pos, bool) {
 	if u.IsNamedReturn {
 		return u.RetStmt.Pos(), true
 	}
