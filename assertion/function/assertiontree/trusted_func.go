@@ -145,7 +145,7 @@ var negatedSelfExpr action = func(call *ast.CallExpr, argIndex int, _ *analysis.
 	}
 }
 
-var nonnilProducer action = func(call *ast.CallExpr, argIndex int, _ *analysis.Pass) any {
+var nonnilProducer action = func(call *ast.CallExpr, _ int, _ *analysis.Pass) any {
 	return &annotation.ProduceTrigger{
 		Annotation: &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
 		Expr:       call,
