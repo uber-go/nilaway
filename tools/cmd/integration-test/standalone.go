@@ -9,11 +9,11 @@ import (
 	"strings"
 )
 
-type StandaloneDriver struct {
-	Dir string
-}
+// StandaloneDriver implements Driver for running NilAway as a standalone binary.
+type StandaloneDriver struct{}
 
-func (d *StandaloneDriver) Run() (map[Position]string, error) {
+// Run runs NilAway as a standalone binary on the test project and returns the diagnostics.
+func (d *StandaloneDriver) Run(dir string) (map[Position]string, error) {
 	// Build NilAway first.
 	if _, err := exec.Command("make", "build").CombinedOutput(); err != nil {
 		return nil, fmt.Errorf("build NilAway: %w", err)
@@ -21,7 +21,7 @@ func (d *StandaloneDriver) Run() (map[Position]string, error) {
 
 	// Run the NilAway binary on the integration test project, with redirects to an internal buffer.
 	cmd := exec.Command("../../bin/nilaway", "-json", "-pretty-print=false", "./...")
-	cmd.Dir = d.Dir
+	cmd.Dir = dir
 	var buf bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &buf, &buf
 	err := cmd.Run()

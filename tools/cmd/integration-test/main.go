@@ -1,3 +1,7 @@
+// Package main implements the integration test framework for checking cross-package inference with
+// different analyzer drivers. It compares the diagnostics reported by running NilAway separately
+// and the diagnostics specified in the comments of the `testdata/integration` project.
+// See `testdata/integration/README.md` for more details.
 package main
 
 import (
@@ -13,22 +17,30 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
+// Position represents a line position in a file.
 type Position struct {
 	Filename string
 	Line     int
 }
 
+// Driver is the analyzer driver interface that runs NilAway on the test project.
 type Driver interface {
-	Run() (map[Position]string, error)
+	// Run runs NilAway on the test project specified by dir and returns the diagnostics reported
+	// by NilAway (in a map from Position to the diagnostic message).
+	Run(dir string) (map[Position]string, error)
 }
 
+// CollectGroundTruths collects the ground truths from the test project specified by the "//want"
+// comments in the test code (see `testdata/integration` for more details).
 func CollectGroundTruths(dir string, wd string) (map[Position]*regexp.Regexp, error) {
 	if err := os.Chdir(dir); err != nil {
 		return nil, fmt.Errorf("chdir: %w", err)
 	}
 	defer func() {
 		// Switch back to the original directory.
-		os.Chdir(wd)
+		if err := os.Chdir(wd); err != nil {
+			panic(err)
+		}
 	}()
 
 	// First load all packages.
@@ -60,6 +72,8 @@ func CollectGroundTruths(dir string, wd string) (map[Position]*regexp.Regexp, er
 	return truths, nil
 }
 
+// CompareDiagnostics compares the ground truths with the collected diagnostics and returns a
+// joined error containing the mismatched/missing/unexpected diagnostics (or nil if none).
 func CompareDiagnostics(truth map[Position]*regexp.Regexp, collected map[Position]string) error {
 	// Errors will be joined together.
 	var err error
@@ -90,6 +104,7 @@ func CompareDiagnostics(truth map[Position]*regexp.Regexp, collected map[Positio
 	return err
 }
 
+// Run runs the integration test.
 func Run() error {
 	// Make sure we are at the root of the git repository.
 	out, err := exec.Command("git", "rev-parse", "--show-toplevel").CombinedOutput()
@@ -113,12 +128,12 @@ func Run() error {
 	}
 
 	drivers := []Driver{
-		&StandaloneDriver{Dir: dir},
+		&StandaloneDriver{},
 	}
 	for _, driver := range drivers {
 		name := reflect.TypeOf(driver).Elem().Name()
 		fmt.Printf("--- Running integration tests using %q driver\n", name)
-		collected, err := driver.Run()
+		collected, err := driver.Run(dir)
 		if err != nil {
 			return fmt.Errorf("%q driver: %w", name, err)
 		}
