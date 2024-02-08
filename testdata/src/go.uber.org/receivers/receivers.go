@@ -160,3 +160,70 @@ func (s *myString) testShallowAndDeepTypeRecv(i int) {
 	x := *s   //want "dereferenced"
 	_ = *x[0] //want "sliced into"
 }
+
+// below tests check for nilable receivers in case of named types
+
+type myInt int
+
+func (m *myInt) nonnilNamedRecv() {
+	_ = *m
+}
+
+// nilable(m)
+func (m *myInt) nilableNamedRecv() {
+	if m != nil {
+		_ = *m
+	}
+}
+
+func testNamedTypes(dummy bool, i int) {
+	var m *myInt
+	value := myInt(1)
+
+	switch i {
+	case 1:
+		m.nonnilNamedRecv() //want "unassigned variable `m` used as receiver"
+	case 2:
+		m.nilableNamedRecv() // safe at call site
+	case 3:
+		m = &value
+		m.nonnilNamedRecv()
+	case 4:
+		if dummy {
+			m = &value
+		}
+		m.nonnilNamedRecv() //want "used as receiver to call"
+	case 5:
+		if m != nil {
+			if dummy {
+				m.nonnilNamedRecv()
+			}
+			if dummy {
+				if dummy {
+					m = nil // DECL_2: m is assigned nil
+					if dummy {
+						m.nonnilNamedRecv() //want "used as receiver to call"
+					}
+				}
+				if dummy {
+					m.nonnilNamedRecv() //want "used as receiver to call"
+				}
+			} else {
+				if dummy {
+					m.nonnilNamedRecv()
+				}
+				if dummy {
+					m = &value
+				}
+				if dummy {
+					m.nonnilNamedRecv()
+				}
+			}
+			if dummy {
+				m.nonnilNamedRecv() //want "used as receiver to call"
+			}
+		}
+		// here - two different flows result in a nilable (DECL_1 and DECL_2)
+		m.nonnilNamedRecv() //want "used as receiver to call" "used as receiver to call"
+	}
+}

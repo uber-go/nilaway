@@ -155,6 +155,18 @@ func TypeAsDeeplyStruct(typ types.Type) *types.Struct {
 	return nil
 }
 
+// TypeIsDeeplyInterface returns true if `t` is of struct type, including
+// transitively through Named types
+func TypeIsDeeplyInterface(t types.Type) bool {
+	if _, ok := t.(*types.Interface); ok {
+		return true
+	}
+	if t, ok := t.(*types.Named); ok {
+		return TypeIsDeeplyInterface(t.Underlying())
+	}
+	return false
+}
+
 // UnwrapPtr unwraps a pointer type and returns the element type. For all other types it returns
 // the type unmodified.
 func UnwrapPtr(t types.Type) types.Type {
