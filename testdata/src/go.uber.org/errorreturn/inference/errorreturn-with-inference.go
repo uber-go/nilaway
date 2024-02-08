@@ -210,3 +210,19 @@ func testMixedReturns() {
 func testMixedReturnsPassToAnotherFunc() (string, *int, error) { //want "returned"
 	return retStrNilErr()
 }
+
+type myPointer *int
+
+func retAliasedNilStrErr() (string, myPointer, error) {
+	if dummy2 {
+		return "abc", nil, nil
+	}
+	return "", nil, &myErr2{}
+}
+
+func testAliasedMixedReturns() {
+	if _, x, err := retAliasedNilStrErr(); err == nil {
+		print(*x) //want "dereferenced"
+	}
+
+}

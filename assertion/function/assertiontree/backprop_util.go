@@ -280,13 +280,6 @@ func handleErrorReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, re
 	nonErrRetExpr := results[:errRetIndex] // n-1 expressions
 
 	// check if the error return is at all guarding any nilable returns, such as pointers, maps, and slices
-	for _, r := range nonErrRetExpr {
-		if util.ExprBarsNilness(rootNode.Pass(), r) {
-			// no need to further analyze and create triggers
-			return true
-		}
-	}
-
 	if isErrorReturnNil(rootNode, errRetExpr) {
 		// if error is the only return expression in the statement, then create a consumer for it, else create consumers for the non-error return expressions
 		if len(nonErrRetExpr) == 0 {
