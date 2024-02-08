@@ -175,6 +175,22 @@ func testCasesWithNonExplicitBool() {
 	}
 }
 
+func retPtrBoolShadowBuiltIn() (*int, bool) {
+	if dummy {
+		// this is a false positive since we don't support variables shadowing built-in types yet
+		var false bool = false
+		return nil, false //want "literal `nil` returned"
+	}
+	var true bool = true
+	return new(int), true
+}
+
+func testShadowBuiltIn() {
+	if v, ok := retPtrBoolShadowBuiltIn(); ok {
+		print(*v)
+	}
+}
+
 // below tests are relevant excerpts from the `errorreturn` test suite adapted to the "ok" form for user defined functions
 
 // nilable(result 0)
