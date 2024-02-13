@@ -7,7 +7,6 @@ require (
 	github.com/klauspost/compress v1.17.6
 	github.com/stretchr/testify v1.8.4
 	go.uber.org/goleak v1.3.0
-	golang.org/x/exp v0.0.0-20240213143201-ec583247a57a
 	golang.org/x/tools v0.18.0
 )
 

@@ -1159,10 +1159,10 @@ func (r *RootAssertionNode) isType(expr ast.Expr) bool {
 // isZeroSlicing returns if the given slice expression is a special case that will not cause panic
 // even when the slice itself is nil, i.e, one of [:0] [0:0] [0:] [:] [:0:0] [0:0:0]
 func (r *RootAssertionNode) isZeroSlicing(expr *ast.SliceExpr) bool {
-	lo, hi, max := expr.Low, expr.High, expr.Max
-	return ((lo == nil || r.isIntZero(lo)) && r.isIntZero(hi) && max == nil) || // [:0] [0:0]
-		((lo == nil || r.isIntZero(lo)) && hi == nil && max == nil) || // [0:] [:]
-		((lo == nil || r.isIntZero(lo)) && r.isIntZero(hi) && r.isIntZero(max)) // [:0:0] [0:0:0]
+	l, h, m := expr.Low, expr.High, expr.Max
+	return ((l == nil || r.isIntZero(l)) && r.isIntZero(h) && m == nil) || // [:0] [0:0]
+		((l == nil || r.isIntZero(l)) && h == nil && m == nil) || // [0:] [:]
+		((l == nil || r.isIntZero(l)) && r.isIntZero(h) && r.isIntZero(m)) // [:0:0] [0:0:0]
 }
 
 // isIntZero returns if the given expression is evaluated to integer zero at compile time. For

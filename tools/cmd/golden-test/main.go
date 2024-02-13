@@ -5,6 +5,7 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -242,10 +243,10 @@ func Diff(first, second map[Diagnostic]bool) []Diagnostic {
 	}
 	// Sort the diff such that we have stable ordering for the same runs.
 	slices.SortFunc(diff, func(i, j Diagnostic) int {
-		if n := strings.Compare(i.Posn, j.Posn); n != 0 {
+		if n := cmp.Compare(i.Posn, j.Posn); n != 0 {
 			return n
 		}
-		return strings.Compare(i.Message, j.Message)
+		return cmp.Compare(i.Message, j.Message)
 	})
 	return diff
 }
