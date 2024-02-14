@@ -525,6 +525,8 @@ func GobRegister() {
 	gob.RegisterName(nextStr(), annotation.GlobalVarAssignDeepPrestring{})
 	gob.RegisterName(nextStr(), annotation.LocalVarAssignDeepPrestring{})
 	gob.RegisterName(nextStr(), annotation.ChanSendPrestring{})
+	gob.RegisterName(nextStr(), annotation.ArgPassDeepPrestring{})
+	gob.RegisterName(nextStr(), annotation.UseAsReturnDeepPrestring{})
 
 	gob.RegisterName(nextStr(), annotation.TriggerIfNilablePrestring{})
 	gob.RegisterName(nextStr(), annotation.TriggerIfDeepNilablePrestring{})

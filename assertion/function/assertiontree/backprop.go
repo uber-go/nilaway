@@ -198,12 +198,12 @@ func backpropAcrossReturn(rootNode *RootAssertionNode, node *ast.ReturnStmt) err
 						// this nil check reflects programmer logic
 						return errors.New("producers variable is nil")
 					}
-
-					isErrReturning := util.FuncIsErrReturning(funcObj)
-
 					// since we don't individually track the returns of a multiply returning function,
 					// we form full triggers for each return whose type doesn't bar nilness
 					if !util.TypeBarsNilness(funcObj.Type().(*types.Signature).Results().At(i).Type()) {
+						isErrReturning := util.FuncIsErrReturning(funcObj)
+						isOkReturning := util.FuncIsOkReturning(funcObj)
+
 						rootNode.AddNewTriggers(annotation.FullTrigger{
 							Producer: &annotation.ProduceTrigger{
 								// since the value is being returned directly, only its shallow nilability
@@ -225,7 +225,7 @@ func backpropAcrossReturn(rootNode *RootAssertionNode, node *ast.ReturnStmt) err
 								// if an error returning function returns directly as the result of
 								// another error returning function, then its results can safely be
 								// interpreted as guarded
-								GuardMatched: isErrReturning,
+								GuardMatched: isErrReturning || isOkReturning,
 							},
 						})
 					}

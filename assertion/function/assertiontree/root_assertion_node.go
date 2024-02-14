@@ -673,6 +673,35 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 						Guards: util.NoGuards(),
 					}
 					r.AddConsumption(&consumer)
+
+					// If arg is a deep type, we add a full trigger for it to track its deep nilability.
+					// ```
+					// E.g., func bar(s []*int) {
+					//   foo(s) // <-- track shallow and deep nilability of `s` here
+					// }
+					// ```
+					if util.TypeIsDeep(util.TypeOf(r.Pass(), arg)) {
+						deepProducer := &annotation.ProduceTrigger{
+							Annotation: exprAsDeepProducer(r, arg),
+							Expr:       arg,
+						}
+						deepConsumer := &annotation.ConsumeTrigger{
+							Annotation: &annotation.ArgPassDeep{
+								TriggerIfDeepNonNil: &annotation.TriggerIfDeepNonNil{
+									Ann: paramKey,
+								}},
+							Expr:   arg,
+							Guards: util.NoGuards(),
+						}
+						// since this is an implicit tracking of the deep nilability of arg, we don't need to
+						// check for its guarding
+						deepConsumer.Annotation.SetNeedsGuard(false)
+
+						r.AddNewTriggers(annotation.FullTrigger{
+							Producer: deepProducer,
+							Consumer: deepConsumer,
+						})
+					}
 				}
 			}
 		}
@@ -730,41 +759,48 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 		//       with so far the only known case being of method invocations for supporting nilable receivers. Our support
 		//       is currently limited to enabling this analysis only if the below criteria is satisfied.
 		//       - Check 1: selector expression is a method invocation (e.g., `s.foo()`)
+		//       - Check 2: receiver is a pointer receiver (e.g., `func (s *S) foo()` or `func (*S) foo()`). Go automatically
+		//			dereferences a value (non-pointer) receiver when a method is called on a pointer to the type. This means that
+		//			this is not a candidate for analyzing nilable receiver, instead we should check for nilablilty of the
+		//			receiver at the call site itself.
 		//       - In-scope flow:
-		//       	- Check 2: the invoked method is in scope
-		//       	- Check 3: the invoking expression (caller) is of struct type. (We are restricting support only for structs
-		//            due to the challenges of secret nil for interfaces.)
+		//       	- Check 3: the invoked method is in scope
+		//       	- Check 4: the invoking expression (caller) is of a non-interface type (e.g., struct or named). (We are
+		//       		restricting support only for non-interfaces due to the challenges of secret nil for interfaces.)
 		//       - Out-of-scope flow:
-		//          - Check 4: consider the criteria satisfied to support optimistic default
+		//          - Check 5: consider the criteria satisfied to support optimistic default
 		//
 		// - (2) Don't allow the expression X to be nilable by creating a FldAccess (ConsumeTriggerTautology) consumer for it.
 		//       This is default behavior which gets triggered if the above special case is not satisfied.
 
 		allowNilable := false
 		if funcObj, ok := r.ObjectOf(expr.Sel).(*types.Func); ok { // Check 1:  selector expression is a method invocation
-			conf := r.Pass().ResultOf[config.Analyzer].(*config.Config)
-			if conf.IsPkgInScope(funcObj.Pkg()) { // Check 2: invoked method is in scope
-				t := util.TypeOf(r.Pass(), expr.X)
-				// Here, `t` can only be of type struct or interface, of which we only support for structs.
-				if util.TypeAsDeeplyStruct(t) != nil { // Check 3: invoking expression (caller) is of struct type
+			recv := funcObj.Type().(*types.Signature).Recv()
+			if util.TypeIsDeeplyPtr(recv.Type()) { // Check 2: receiver is a pointer receiver
+				conf := r.Pass().ResultOf[config.Analyzer].(*config.Config)
+				if conf.IsPkgInScope(funcObj.Pkg()) { // Check 3: invoked method is in scope
+					t := util.TypeOf(r.Pass(), expr.X)
+					// Here, `t` can only be of type interface, struct, or named, of which we only support for struct and named types.
+					if !util.TypeIsDeeplyInterface(t) { // Check 4: invoking expression (caller) is of a non-interface type (e.g., struct or named)
+						allowNilable = true
+						// We are in the special case of supporting nilable receivers! Can be nilable depending on declaration annotation/inferred nilability.
+						r.AddConsumption(&annotation.ConsumeTrigger{
+							Annotation: &annotation.RecvPass{
+								TriggerIfNonNil: &annotation.TriggerIfNonNil{
+									Ann: &annotation.RecvAnnotationKey{
+										FuncDecl: funcObj,
+									},
+								}},
+							Expr:   expr.X,
+							Guards: util.NoGuards(),
+						})
+					}
+				} else { // Check 5: invoked method is out of scope
+					// We are setting an optimistic default here for methods out of scope, specifically to avoid
+					// false positives being reported for methods in generated code. It means that such external
+					// methods are assumed to be safely handling nil receivers
 					allowNilable = true
-					// We are in the special case of supporting nilable receivers! Can be nilable depending on declaration annotation/inferred nilability.
-					r.AddConsumption(&annotation.ConsumeTrigger{
-						Annotation: &annotation.RecvPass{
-							TriggerIfNonNil: &annotation.TriggerIfNonNil{
-								Ann: &annotation.RecvAnnotationKey{
-									FuncDecl: funcObj,
-								},
-							}},
-						Expr:   expr.X,
-						Guards: util.NoGuards(),
-					})
 				}
-			} else { // Check 4: invoked method is out of scope
-				// We are setting an optimistic default here for methods out of scope, specifically to avoid
-				// false positives being reported for methods in generated code. It means that such external
-				// methods are assumed to be safely handling nil receivers
-				allowNilable = true
 			}
 		}
 		if !allowNilable {
@@ -775,6 +811,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 				Guards:     util.NoGuards(),
 			})
 		}
+
 		r.AddComputation(expr.X)
 	case *ast.SliceExpr:
 		// similar to index case

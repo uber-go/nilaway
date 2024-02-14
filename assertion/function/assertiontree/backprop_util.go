@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
+	"go/constant"
 	"go/token"
 	"go/types"
 
@@ -115,6 +116,7 @@ func exprCallsKnownNilableErrFunc(expr ast.Expr) bool {
 // in particular, this function is responsible for splitting returns into the cases:
 // 1: Normal Return - all results yield consume triggers eventually enforcing their annotated/inferred nilability
 // 2: Error Return - consume triggers are created based on the error contract. i.e., based on the nilabiity status of the error return expression
+// 3. Ok return - consume triggers are created based on the nilability status of the boolean (`ok`) return expression
 func computeAndConsumeResults(rootNode *RootAssertionNode, node *ast.ReturnStmt) error {
 	// no matter what case the consumption of these returns ends up as - each must be computed
 	for i := range node.Results {
@@ -135,30 +137,21 @@ func computeAndConsumeResults(rootNode *RootAssertionNode, node *ast.ReturnStmt)
 			}
 
 			// if the function has named error return variable, then handle specially using the error handling logic
-			if util.FuncIsErrReturning(rootNode.FuncObj()) {
-				handleErrorReturns(rootNode, node, results, true /* isNamedReturn */)
+			if ok := handleErrorReturns(rootNode, node, results, true /* isNamedReturn */); ok {
+				return nil
+			}
+
+			if ok := handleBooleanReturns(rootNode, node, results, true /* isNamedReturn */); ok {
 				return nil
 			}
 
 			// below is the normal handling for named return variables
 			for i, retVariable := range results {
-				consumer := &annotation.ConsumeTrigger{
-					Annotation: &annotation.UseAsReturn{
-						TriggerIfNonNil: &annotation.TriggerIfNonNil{
-							Ann: annotation.RetKeyFromRetNum(
-								rootNode.ObjectOf(rootNode.FuncNameIdent()).(*types.Func),
-								i,
-							)},
-						IsNamedReturn: true,
-						RetStmt:       node,
-					},
-					Expr:   retVariable,
-					Guards: util.NoGuards(),
-				}
+				retKey := annotation.RetKeyFromRetNum(rootNode.ObjectOf(rootNode.FuncNameIdent()).(*types.Func), i)
 
 				// default handling if retVariable is not a blank identifier (e.g., i *int)
 				if !util.IsEmptyExpr(retVariable) {
-					rootNode.AddConsumption(consumer)
+					addReturnConsumers(rootNode, node, retVariable, retKey, true /* isNamedReturn */)
 
 					if rootNode.functionContext.functionConfig.EnableStructInitCheck {
 						rootNode.addConsumptionsForFieldsOfReturns(results[i], i)
@@ -172,7 +165,16 @@ func computeAndConsumeResults(rootNode *RootAssertionNode, node *ast.ReturnStmt)
 						}
 						fullTrigger := annotation.FullTrigger{
 							Producer: producer,
-							Consumer: consumer,
+							Consumer: &annotation.ConsumeTrigger{
+								Annotation: &annotation.UseAsReturn{
+									TriggerIfNonNil: &annotation.TriggerIfNonNil{
+										Ann: retKey},
+									IsNamedReturn: true,
+									RetStmt:       node,
+								},
+								Expr:   retVariable,
+								Guards: util.NoGuards(),
+							},
 						}
 						rootNode.AddNewTriggers(fullTrigger)
 					}
@@ -199,24 +201,17 @@ func computeAndConsumeResults(rootNode *RootAssertionNode, node *ast.ReturnStmt)
 		)
 	}
 
-	if util.FuncIsErrReturning(rootNode.FuncObj()) {
-		handleErrorReturns(rootNode, node, node.Results, false /* isNamedReturn */)
+	if ok := handleErrorReturns(rootNode, node, node.Results, false /* isNamedReturn */); ok {
+		return nil
+	}
+	if ok := handleBooleanReturns(rootNode, node, node.Results, false /* isNamedReturn */); ok {
 		return nil
 	}
 
 	// we've excluded all abnormal cases - here, just really consume each result as a return value
 	for i := range node.Results {
-		rootNode.AddConsumption(&annotation.ConsumeTrigger{
-			Annotation: &annotation.UseAsReturn{
-				TriggerIfNonNil: &annotation.TriggerIfNonNil{
-					Ann: annotation.RetKeyFromRetNum(
-						rootNode.ObjectOf(rootNode.FuncNameIdent()).(*types.Func),
-						i,
-					)},
-				RetStmt: node},
-			Expr:   node.Results[i],
-			Guards: util.NoGuards(),
-		})
+		retKey := annotation.RetKeyFromRetNum(rootNode.ObjectOf(rootNode.FuncNameIdent()).(*types.Func), i)
+		addReturnConsumers(rootNode, node, node.Results[i], retKey, false /* isNamedReturn */)
 
 		if rootNode.functionContext.functionConfig.EnableStructInitCheck {
 			rootNode.addConsumptionsForFieldsOfReturns(node.Results[i], i)
@@ -263,19 +258,16 @@ func isErrorReturnNonnil(rootNode *RootAssertionNode, errRet ast.Expr) bool {
 // (3) if error return value = unknown, create consumers for all returns (error and non-error), and defer applying of the error contract when the nilability status is known, such as at `ProcessEntry`
 //
 // Note that `results` should be explicitly passed since `retStmt` of a named return will contain no results
-func handleErrorReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, results []ast.Expr, isNamedReturn bool) {
+func handleErrorReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, results []ast.Expr, isNamedReturn bool) bool {
+	if !util.FuncIsErrReturning(rootNode.FuncObj()) {
+		return false
+	}
+
 	errRetIndex := len(results) - 1
 	errRetExpr := results[errRetIndex]     // n-th expression
 	nonErrRetExpr := results[:errRetIndex] // n-1 expressions
 
 	// check if the error return is at all guarding any nilable returns, such as pointers, maps, and slices
-	for _, r := range nonErrRetExpr {
-		if util.ExprBarsNilness(rootNode.Pass(), r) {
-			// no need to further analyze and create triggers
-			return
-		}
-	}
-
 	if isErrorReturnNil(rootNode, errRetExpr) {
 		// if error is the only return expression in the statement, then create a consumer for it, else create consumers for the non-error return expressions
 		if len(nonErrRetExpr) == 0 {
@@ -305,6 +297,43 @@ func handleErrorReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, re
 			}
 		}
 	}
+	return true
+}
+
+// handleBooleanReturns handles the special case for boolean (`ok`) returning functions (n-th result of type `bool`
+// which guards at least one of the first n-1 non-bool results). Similar to the handling of error returning functions,
+// for boolean returns, we generate consumers by applying the following boolean contract:
+// (1) if boolean return value = true, create consumers for the non-boolean returns
+// TODO: currently we support only explicit boolean returns (i.e., `return r0, r1, ..., {true|false}`). We should also support implicit boolean returns, i.e., `return` or `return <expr>` in the future.
+//
+// handleBooleanReturns returns true if the above contract is satisfied and consumers are created, false otherwise
+func handleBooleanReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, results []ast.Expr, isNamedReturn bool) bool {
+	// FuncIsOkReturning checks that the length of the results defined for the current function is at least 2, and that
+	// the last return type is a boolean, the value of which can be determined at compile time (e.g., return true)
+	if !util.FuncIsOkReturning(rootNode.FuncObj()) {
+		return false
+	}
+
+	nRetIndex := len(results) - 1
+	nRetExpr := results[nRetIndex]          // n-th expression
+	nMinusOneRetExpr := results[:nRetIndex] // n-1 expressions
+
+	// check if the return statement is of the currently supported explicit boolean return form (`return ..., {true|false}`)
+	typeAndValue, ok := rootNode.Pass().TypesInfo.Types[nRetExpr]
+	if !ok {
+		return false
+	}
+	val, ok := constant.Val(typeAndValue.Value).(bool)
+	if !ok {
+		return false
+	}
+
+	// If return is "true", then track its n-1 returns. Create return consume triggers for all n-1 return expressions.
+	// If return is "false", then do nothing, since we don't track boolean values.
+	if val {
+		createGeneralReturnConsumers(rootNode, nMinusOneRetExpr, retStmt, isNamedReturn)
+	}
+	return true
 }
 
 // createConsumerForErrorReturn creates a consumer for the error return enforcing it to be non-nil
@@ -773,4 +802,51 @@ func addAssignmentToConsumer(lhs, rhs ast.Expr, pass *analysis.Pass, consumer an
 	})
 
 	return nil
+}
+
+func addReturnConsumers(rootNode *RootAssertionNode, node *ast.ReturnStmt, expr ast.Expr, retKey *annotation.RetAnnotationKey, isNamedReturn bool) {
+	// add shallow consumer
+	rootNode.AddConsumption(&annotation.ConsumeTrigger{
+		Annotation: &annotation.UseAsReturn{
+			TriggerIfNonNil: &annotation.TriggerIfNonNil{
+				Ann: retKey},
+			IsNamedReturn: isNamedReturn,
+			RetStmt:       node},
+		Expr:   expr,
+		Guards: util.NoGuards(),
+	})
+
+	// If expr is a deep type, then we track its deep nilability as well.
+	// ```
+	// E.g., func foo(s []*int) []*int {
+	//   s[0] = nil
+	//   return s  // <-- track shallow and deep nilability of `s` here
+	// }
+	// ```
+	if util.TypeIsDeep(util.TypeOf(rootNode.Pass(), expr)) {
+		producer := &annotation.ProduceTrigger{
+			Annotation: exprAsDeepProducer(rootNode, expr),
+			Expr:       expr,
+		}
+		consumer := &annotation.ConsumeTrigger{
+			Annotation: &annotation.UseAsReturnDeep{
+				TriggerIfDeepNonNil: &annotation.TriggerIfDeepNonNil{
+					Ann: retKey},
+				IsNamedReturn: isNamedReturn,
+				RetStmt:       node},
+			Expr:   expr,
+			Guards: util.NoGuards(),
+		}
+		// since this is an implicit tracking of the deep nilability of expr, we don't need to
+		// check for its guarding.
+		consumer.Annotation.SetNeedsGuard(false)
+
+		// We add a full trigger here directly because if we add only a deep consumer here, then it gets added
+		// to the same assertion node in the assertion tree as for the shallow consumer above. This is a problem
+		// since a producer actually meant for the shallow consumer also incorrectly matches the deep consumer.
+		rootNode.AddNewTriggers(annotation.FullTrigger{
+			Producer: producer,
+			Consumer: consumer,
+		})
+	}
 }
