@@ -17,7 +17,7 @@
 package functioncontracts
 
 import (
-	"context"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/types"
@@ -84,14 +84,18 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 		return Result{FunctionContracts: Map{}}, nil
 	}
 
-	return Result{FunctionContracts: collectFunctionContracts(pass)}, nil
+	contracts, err := collectFunctionContracts(pass)
+	if err != nil {
+		return Result{Errors: []error{err}}, nil
+	}
+	return Result{FunctionContracts: contracts}, nil
 }
 
 // collectFunctionContracts collects all the function contracts and returns a map that associates
 // every function with its contracts if it has any. We prefer to parse handwritten contracts from
 // the comments at the top of each function. Only when there are no handwritten contracts there,
 // do we try to automatically infer contracts.
-func collectFunctionContracts(pass *analysis.Pass) Map {
+func collectFunctionContracts(pass *analysis.Pass) (Map, error) {
 	// Collect ssa for every function.
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
 	ssaInput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
@@ -108,8 +112,6 @@ func collectFunctionContracts(pass *analysis.Pass) Map {
 	}
 
 	// Set up variables for synchronization and communication.
-	_, cancel := context.WithCancel(context.Background())
-	defer cancel()
 	var wg sync.WaitGroup
 	funcChan := make(chan functionResult)
 
@@ -161,9 +163,27 @@ func collectFunctionContracts(pass *analysis.Pass) Map {
 				// function.
 				continue
 			}
-			wg.Add(1)
+
 			// Infer contracts for a function that does not have any contracts specified.
-			go inferContractsToChannel(funcObj, fnssa, funcChan, &wg)
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+
+				// As a last resort, convert the panics into errors and return.
+				defer func() {
+					if r := recover(); r != nil {
+						e := fmt.Errorf("INTERNAL PANIC: %s\n%s", r, string(debug.Stack()))
+						funcChan <- functionResult{err: e, funcObj: funcObj, contracts: []*FunctionContract{}}
+					}
+				}()
+
+				if contracts := inferContracts(fnssa); len(contracts) != 0 {
+					funcChan <- functionResult{
+						funcObj:   funcObj,
+						contracts: contracts,
+					}
+				}
+			}()
 		}
 	}
 
@@ -175,34 +195,11 @@ func collectFunctionContracts(pass *analysis.Pass) Map {
 	}()
 
 	// Collect inferred contracts from the channel.
+	var err error
 	for r := range funcChan {
-		if len(r.contracts) != 0 {
-			m[r.funcObj] = r.contracts
-		}
+		m[r.funcObj] = r.contracts
+		err = errors.Join(err, r.err)
 	}
-	return m
-}
 
-// inferContractsToChannel infers contracts for a function that does not have any contracts
-// specified and sends the result to the channel.
-func inferContractsToChannel(
-	funcObj *types.Func,
-	fnssa *ssa.Function,
-	fnChan chan functionResult,
-	wg *sync.WaitGroup,
-) {
-	defer wg.Done()
-
-	// As a last resort, convert the panics into errors and return.
-	defer func() {
-		if r := recover(); r != nil {
-			e := fmt.Errorf("INTERNAL PANIC: %s\n%s", r, string(debug.Stack()))
-			fnChan <- functionResult{err: e, funcObj: funcObj, contracts: []*FunctionContract{}}
-		}
-	}()
-
-	fnChan <- functionResult{
-		funcObj:   funcObj,
-		contracts: inferContracts(fnssa),
-	}
+	return m, err
 }
