@@ -78,6 +78,16 @@ func infiniteAssertion() {
 	for dummyBool() {
 		a = a.f //want "accessed field `f`"
 	}
+
+	var cond bool
+	for cond {
+		a = a.f //want "accessed field `f`"
+	}
+
+	// infinite while loop
+	for {
+		a = a.f //want "accessed field `f`"
+	}
 }
 
 // This is a known false negative. The analysis can be sound in this case if config.StableRoundLimit >= 9. However, that

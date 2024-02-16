@@ -664,9 +664,14 @@ func blocksAndPreprocessingFromCFG(
 		Index: int32(numBlocks),
 		Live:  true,
 	})
-	// link all returning blocks to the "return" block
+	// add "return" block as a successor for:
+	// - all returning blocks
+	// - while loops (`for <EXPR> {}` or `for {}`)
 	for i := 0; i < numBlocks; i++ {
-		if blocks[i].Return() != nil {
+		// TODO: storing `blocks[i].Succs` in a local variable should not be needed. But NilAway complaints about slicing
+		//  of the field `blocks[i].Succs` in the if condition. This should be fixed.
+		succ := blocks[i].Succs
+		if blocks[i].Return() != nil || (len(succ) == 1 && succ[0].Index == blocks[i].Index) {
 			blocks[i].Succs = append(blocks[i].Succs, blocks[numBlocks])
 		}
 	}
