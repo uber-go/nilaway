@@ -23,16 +23,28 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/assertion/anonymousfunc"
 	"go.uber.org/nilaway/assertion/function/assertiontree"
 	"go.uber.org/nilaway/assertion/function/functioncontracts"
+	"go.uber.org/nilaway/util/analysishelper"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
 	"golang.org/x/tools/go/analysis/passes/ctrlflow"
 	"golang.org/x/tools/go/cfg"
 )
 
-func TestTimeout(t *testing.T) {
+func TestAnalyzer(t *testing.T) {
+	t.Parallel()
+
+	// Intentionally give a nil pass variable to trigger a panic, but we should recover from it
+	// and convert it to an error via the result struct.
+	r, err := Analyzer.Run(nil /* pass */)
+	require.NoError(t, err)
+	require.ErrorContains(t, r.(*analysishelper.Result[[]annotation.FullTrigger]).Err, "INTERNAL PANIC")
+}
+
+func TestCancelledContext(t *testing.T) {
 	t.Parallel()
 
 	testdata := analysistest.TestData()

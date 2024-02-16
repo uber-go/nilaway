@@ -20,10 +20,10 @@ import (
 	"go/ast"
 	"go/types"
 	"reflect"
-	"runtime/debug"
 	"strconv"
 
 	"go.uber.org/nilaway/config"
+	"go.uber.org/nilaway/util/analysishelper"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -34,21 +34,9 @@ const _doc = "Collect variables from closure that are being assigned and/or acce
 var Analyzer = &analysis.Analyzer{
 	Name:       "nilaway_anonymous_func_analyzer",
 	Doc:        _doc,
-	Run:        run,
-	ResultType: reflect.TypeOf((*Result)(nil)).Elem(),
+	Run:        analysishelper.WrapRun(run),
+	ResultType: reflect.TypeOf((*analysishelper.Result[map[*ast.FuncLit]*FuncLitInfo])(nil)),
 	Requires:   []*analysis.Analyzer{config.Analyzer},
-}
-
-// Result is the result struct for the Analyzer.
-type Result struct {
-	// FuncLitMap maps each func lit node to a FuncLitInfo struct storing auxiliary information
-	// our analyzer gathered. This field will always be nonnil even if anonymous function support
-	// is off (in which case an empty map will be set).
-	FuncLitMap map[*ast.FuncLit]*FuncLitInfo
-	// Errors is the slice of errors if errors happened during analysis. We put the errors here as
-	// part of the result of this sub-analyzer so that the upper-level analyzers can decide what
-	// to do with them.
-	Errors []error
 }
 
 // FuncLitInfo is the struct that stores auxiliary information (e.g., the closure variables it uses,
@@ -80,26 +68,11 @@ type VarInfo struct {
 // It contains an illegal character to avoid collisions with other variables.
 const _fakeFuncDeclPrefix = "__anonymousFunction$"
 
-func run(pass *analysis.Pass) (result interface{}, _ error) {
-	// As a last resort, we recover from a panic when running the analyzer, convert the panic to
-	// an error and return.
-	defer func() {
-		if r := recover(); r != nil {
-			// Deferred functions are executed after a result is generated, so here we modify the
-			// return value `result` in-place.
-			e := fmt.Errorf("INTERNAL PANIC: %s\n%s", r, string(debug.Stack()))
-			if retResult, ok := result.(Result); ok {
-				retResult.Errors = append(retResult.Errors, e)
-			} else {
-				result = Result{Errors: []error{e}}
-			}
-		}
-	}()
-
+func run(pass *analysis.Pass) (map[*ast.FuncLit]*FuncLitInfo, error) {
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
 
 	if !conf.IsPkgInScope(pass.Pkg) {
-		return Result{}, nil
+		return nil, nil
 	}
 
 	funcLitMap := make(map[*ast.FuncLit]*FuncLitInfo)
@@ -131,7 +104,7 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 		}
 	}
 
-	return Result{FuncLitMap: funcLitMap}, nil
+	return funcLitMap, nil
 }
 
 // createFakeFuncDecl creates a fake function declaration (AST node and a type object) for the
