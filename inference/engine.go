@@ -17,13 +17,13 @@
 package inference
 
 import (
+	"cmp"
 	"encoding/gob"
 	"fmt"
-	"strings"
+	"slices"
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/assertion/function/assertiontree"
-	"golang.org/x/exp/slices"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -93,7 +93,7 @@ func (e *Engine) ObserveUpstream() {
 	// important for determinism in NilAway since our inference algorithm depends on the order of
 	// trigger / site nilability applications.
 	slices.SortFunc(facts, func(i, j analysis.PackageFact) int {
-		return strings.Compare(i.Package.Path(), j.Package.Path())
+		return cmp.Compare(i.Package.Path(), j.Package.Path())
 	})
 
 	for _, f := range facts {

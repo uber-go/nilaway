@@ -23,11 +23,11 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"slices"
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
-	"golang.org/x/exp/slices"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/cfg"
 )
@@ -963,14 +963,10 @@ func BackpropAcrossFunc(ctx context.Context, pass *analysis.Pass, decl *ast.Func
 		// Move variables from this round to last round and create new ones for next round.
 		// For best performance, we reuse the slices by simply swapping them and clearing the
 		// slices for next rounds.
-		// We do not actually need to allocate a new slice for nextAssertions. However, currently
-		// NilAway thinks nextAssertions is a deeply-nonnil slice, and we cannot assign nil to it.
-		// TODO: investigate and further optimize this.
-		currAssertions, nextAssertions = nextAssertions, make([]*RootAssertionNode, len(blocks))
+		currAssertions, nextAssertions = nextAssertions, currAssertions
+		clear(nextAssertions)
 		updatedLastRound, updatedThisRound = updatedThisRound, updatedLastRound
-		for i := range blocks {
-			updatedThisRound[i] = false
-		}
+		clear(updatedThisRound)
 		currRootAssertionNode, nextRootAssertionNode = nextRootAssertionNode, nil
 	}
 
