@@ -72,18 +72,14 @@ func NewEngine(pass *analysis.Pass) *Engine {
 
 		// The file will be fake (conceptually "\n" * 65535) if it is imported from archive. So we
 		// check if there are any gaps between the line starts to determine if the file is fake.
-		// TODO: Go 1.21 introduced a new "token.File.Lines()" API to directly get the underlying
-		//  lines slice, which should allow faster checks since calling "token.File.LineStart"
-		//  repeatedly is slow due to locks/unlocks.
 		isFake := true
-		var prev token.Pos
-		for i := 1; i <= file.LineCount(); i++ {
-			p := file.LineStart(i)
-			if prev.IsValid() && p-prev > 1 {
+		prev := -1
+		for _, pos := range file.Lines() {
+			if prev != -1 && pos-prev > 1 {
 				isFake = false
 				break
 			}
-			prev = p
+			prev = pos
 		}
 		files[name] = fileInfo{
 			file:   file,
