@@ -32,19 +32,12 @@ type Driver interface {
 
 // CollectGroundTruths collects the ground truths from the test project specified by the "//want"
 // comments in the test code (see `testdata/integration` for more details).
-func CollectGroundTruths(dir string, wd string) (map[Position]*regexp.Regexp, error) {
-	if err := os.Chdir(dir); err != nil {
-		return nil, fmt.Errorf("chdir: %w", err)
+func CollectGroundTruths(dir string) (map[Position]*regexp.Regexp, error) {
+	// First load all packages in the directory.
+	config := &packages.Config{
+		Mode: packages.NeedName | packages.NeedSyntax | packages.NeedFiles | packages.NeedTypes,
+		Dir:  dir,
 	}
-	defer func() {
-		// Switch back to the original directory.
-		if err := os.Chdir(wd); err != nil {
-			panic(err)
-		}
-	}()
-
-	// First load all packages.
-	config := &packages.Config{Mode: packages.NeedName | packages.NeedSyntax | packages.NeedFiles | packages.NeedTypes}
 	pkgs, err := packages.Load(config, "./...")
 	if err != nil {
 		return nil, fmt.Errorf("load packages: %w", err)
@@ -119,7 +112,7 @@ func Run() error {
 	dir := filepath.Join(wd, "testdata", "integration")
 
 	// Collect ground truths first.
-	truths, err := CollectGroundTruths(dir, wd)
+	truths, err := CollectGroundTruths(dir)
 	if err != nil {
 		return fmt.Errorf("collect want strings: %w", err)
 	}
