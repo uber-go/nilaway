@@ -125,9 +125,11 @@ func Run() error {
 		fmt.Printf("--- Running integration tests using %q driver...", name)
 		collected, err := driver.Run(dir)
 		if err != nil {
+			fmt.Println("FAILED")
 			return fmt.Errorf("%q driver: %w", name, err)
 		}
 		if err := CompareDiagnostics(truths, collected); err != nil {
+			fmt.Println("FAILED")
 			return fmt.Errorf("diagnostics mismatch: \n%w", err)
 		}
 		fmt.Println("PASSED")
@@ -139,7 +141,7 @@ func Run() error {
 
 func main() {
 	if err := Run(); err != nil {
-		fmt.Printf("Integration test failed: %s\n", err)
+		fmt.Printf("FAILED: %s\n", err)
 		os.Exit(1)
 	}
 	fmt.Println("PASSED")

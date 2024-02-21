@@ -15,8 +15,8 @@ type StandaloneDriver struct{}
 // Run runs NilAway as a standalone binary on the test project and returns the diagnostics.
 func (d *StandaloneDriver) Run(dir string) (map[Position]string, error) {
 	// Build NilAway first.
-	if _, err := exec.Command("make", "build").CombinedOutput(); err != nil {
-		return nil, fmt.Errorf("build NilAway: %w", err)
+	if out, err := exec.Command("make", "build").CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("build NilAway: %w: %q", err, string(out))
 	}
 
 	// Run the NilAway binary on the integration test project, with redirects to an internal buffer.
