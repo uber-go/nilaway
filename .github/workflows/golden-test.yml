@@ -27,8 +27,10 @@ jobs:
       - name: Golden Test
         id: golden_test
         # Run golden test by comparing HEAD and the base branch (the target branch of the PR).
+        # GitHub Actions terminates the job if it hits the resource limits. Here we limit the
+        # memory usage to 8GiB to avoid that.
         run: |
-          make golden-test ARGS="-base-branch ${{ github.event.pull_request.base.ref }} -result-file ${{ runner.temp }}/golden-test-result.md"
+          make golden-test GOMEMLIMIT=8192MiB ARGS="-base-branch ${{ github.event.pull_request.base.ref }} -result-file ${{ runner.temp }}/golden-test-result.md"
 
       - uses: actions/github-script@v7
         with:

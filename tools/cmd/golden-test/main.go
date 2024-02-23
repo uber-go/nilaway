@@ -122,6 +122,9 @@ func Run(writer io.Writer, baseBranch, testBranch string) error {
 		var buf bytes.Buffer
 		cmd := exec.Command("bin/nilaway", "-include-errors-in-files", "/", "-json", "-pretty-print=false", "std")
 		cmd.Stdout = &buf
+		// Inherit env vars such that users can control the resource usages via GOMEMLIMIT, GOGC
+		// etc. env vars.
+		cmd.Env = os.Environ()
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("run NilAway: %w", err)
 		}

@@ -1,8 +1,19 @@
-/*
-This package aims to test function contracts.
+//  Copyright (c) 2023 Uber Technologies, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
-<nilaway no inference>
-*/
+// This package aims to test hand-written function contracts in no inference mode.
+// <nilaway no inference>
 package functioncontracts
 
 import "math/rand"
@@ -176,4 +187,23 @@ func barNoCallSiteAnnoatation() {
 	// annotations.
 	v := fooNoCallSiteAnnoatation(a) // want "passed"
 	print(*v)                        // want "dereferenced"
+}
+
+// Contract below isn't useful, since return is always nonnil and argument is ignored, but added to
+// check we don't crash on unnamed parameters.
+// contract(nonnil -> nonnil)
+func fooUnnamedParam(_ *int) *int {
+	return new(int)
+}
+
+func barUnnamedParam1() {
+	var a1 *int
+	b1 := fooUnnamedParam(a1) // nilable(param 0) nonnil(result 0)
+	print(*b1) // No error here.
+}
+
+func barUnnamedParam2() {
+	var a2 *int
+	b2 := fooUnnamedParam(a2) // nilable(param 0) nonnil(result 0)
+	print(*b2) // No error here.
 }

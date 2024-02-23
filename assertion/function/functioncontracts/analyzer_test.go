@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"go.uber.org/nilaway/util/analysishelper"
+	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
@@ -41,7 +42,7 @@ func TestContractCollection(t *testing.T) {
 
 	testdata := analysistest.TestData()
 
-	r := analysistest.Run(t, testdata, Analyzer, "go.uber.org/functioncontracts")
+	r := analysistest.Run(t, testdata, Analyzer, "go.uber.org/functioncontracts/parse")
 	require.Equal(t, 1, len(r))
 	require.NotNil(t, r[0])
 
@@ -57,23 +58,20 @@ func TestContractCollection(t *testing.T) {
 		actualNameToContracts[funcObj] = contracts
 	}
 
-	var getFuncObj = func(name string) *types.Func {
-		return pass.Pkg.Scope().Lookup(name).(*types.Func)
-	}
 	expectedNameToContracts := map[*types.Func][]*FunctionContract{
-		getFuncObj("f1"): {
+		getFuncObj(pass, "f1"): {
 			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		},
-		getFuncObj("f2"): {
+		getFuncObj(pass, "f2"): {
 			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{True}},
 		},
-		getFuncObj("f3"): {
+		getFuncObj(pass, "f3"): {
 			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{False}},
 		},
-		getFuncObj("multipleValues"): {
+		getFuncObj(pass, "multipleValues"): {
 			&FunctionContract{Ins: []ContractVal{Any, NonNil}, Outs: []ContractVal{NonNil, True}},
 		},
-		getFuncObj("multipleContracts"): {
+		getFuncObj(pass, "multipleContracts"): {
 			&FunctionContract{Ins: []ContractVal{Any, NonNil}, Outs: []ContractVal{NonNil, True}},
 			&FunctionContract{Ins: []ContractVal{NonNil, Any}, Outs: []ContractVal{NonNil, True}},
 		},
@@ -82,6 +80,65 @@ func TestContractCollection(t *testing.T) {
 	if diff := cmp.Diff(expectedNameToContracts, actualNameToContracts); diff != "" {
 		require.Fail(t, fmt.Sprintf("parsed contracts mismatch (-want +got):\n%s", diff))
 	}
+}
+func TestInfer(t *testing.T) {
+	t.Parallel()
+
+	testdata := analysistest.TestData()
+	r := analysistest.Run(t, testdata, Analyzer, "go.uber.org/functioncontracts/infer")
+
+	require.Equal(t, 1, len(r))
+	require.NotNil(t, r[0])
+
+	pass, result := r[0].Pass, r[0].Result
+	require.IsType(t, &analysishelper.Result[Map]{}, result)
+	funcContractsMap := result.(*analysishelper.Result[Map]).Res
+
+	require.NotNil(t, funcContractsMap)
+
+	actualNameToContracts := map[*types.Func][]*FunctionContract{}
+	for funcObj, contracts := range funcContractsMap {
+		actualNameToContracts[funcObj] = contracts
+	}
+
+	expectedNameToContracts := map[*types.Func][]*FunctionContract{
+		getFuncObj(pass, "onlyLocalVar"): {
+			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+		},
+		getFuncObj(pass, "unknownCondition"): {
+			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+		},
+		getFuncObj(pass, "noLocalVar"): {
+			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+		},
+		getFuncObj(pass, "learnUnderlyingFromOuterMakeInterface"): {
+			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+		},
+		getFuncObj(pass, "twoCondsMerge"): {
+			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+		},
+		getFuncObj(pass, "unknownToUnknownButSameValue"): {
+			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+		},
+		// other functions should not exist in the map as the contract nonnil->nonnil does not hold
+		// for them.
+
+		// TODO: uncomment this when we support field access when inferring contracts.
+		// getFuncObj(pass, "field"): {
+		//	&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+		// },
+		// TODO: uncomment this when we support nonempty slice to nonnil.
+		// getFuncObj(pass, "nonEmptySliceToNonnil"): {
+		//	&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+		// },
+	}
+	if diff := cmp.Diff(expectedNameToContracts, actualNameToContracts); diff != "" {
+		require.Fail(t, fmt.Sprintf("inferred contracts mismatch (-want +got):\n%s", diff))
+	}
+}
+
+func getFuncObj(pass *analysis.Pass, name string) *types.Func {
+	return pass.Pkg.Scope().Lookup(name).(*types.Func)
 }
 
 func TestMain(m *testing.M) {

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package functioncontracts
+package parse
 
 // contract(nonnil -> nonnil)
 func f1(x *int) *int {
