@@ -19,6 +19,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"go/types"
+	"testing"
 
 	"github.com/klauspost/compress/s2"
 	"go.uber.org/nilaway/annotation"
@@ -109,6 +110,28 @@ func (i *InferredMap) Export(pass *analysis.Pass) {
 		return
 	}
 
+	// If we are testing, we encode and decode the inferred map to ensure that the gob encoding
+	// works correctly (i.e., there are no un-registered types to Gob encoding).
+	// This is a little hacky given that this should belong to the test logic instead of production
+	// logic. However, our current analyzer architecture (i.e., the accumulation.Analyzer generates
+	// the diagnostics and exports the facts, where the top-level nilaway.Analyzer only does the
+	// reporting) prevents us from accessing the facts of accumulation.Analyzer in the test logic,
+	// since facts are assumed to be "private" to an analysis. In the meantime, we do not want to
+	// merge the accumulation.Analyzer and the top-level nilaway.Analyzer since the `analysistest`
+	// framework will then require us to write "want" strings for facts as well.
+	// We also encode/decode the entire map instead of the incremental map to have as much coverage
+	// as possible.
+	if testing.Testing() {
+		var buf bytes.Buffer
+		if err := gob.NewEncoder(&buf).Encode(i); err != nil {
+			panic(err)
+		}
+		var m *InferredMap
+		if err := gob.NewDecoder(&buf).Decode(&m); err != nil {
+			panic(err)
+		}
+	}
+
 	// First create a new map containing only the sites and their inferred values that we would
 	// like to export.
 	exported := orderedmap.New[primitiveSite, InferredVal]()
@@ -134,6 +157,7 @@ func (i *InferredMap) Export(pass *analysis.Pass) {
 		// the current package.
 		m := newInferredMap(nil /* primitive */)
 		m.mapping = exported
+
 		pass.ExportPackageFact(m)
 	}
 }
