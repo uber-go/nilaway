@@ -15,7 +15,6 @@
 package functioncontracts
 
 import (
-	"fmt"
 	"go/token"
 	"go/types"
 
@@ -32,12 +31,6 @@ const _maxNumTablesPerBlock = 1024
 // returns a list of inferred contracts, which may be empty if no contract is inferred but is never
 // nil.
 func inferContracts(fn *ssa.Function) []*FunctionContract {
-	if len(fn.Blocks) == 0 {
-		panic(
-			fmt.Sprintf("The function %s (%s) has no blocks even though it declared return values",
-				fn.Name(), fn.Signature.String()))
-	}
-
 	nilnessTableSetByBB := make(map[*ssa.BasicBlock]nilnessTableSet)
 	retInstrs := getReturnInstrs(fn) // TODO: Consider *ssa.Panic
 	// No need of an expensive dataflow analysis if we can derive contracts from the return

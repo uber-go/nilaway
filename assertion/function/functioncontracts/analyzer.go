@@ -138,6 +138,12 @@ func collectFunctionContracts(pass *analysis.Pass) (Map, error) {
 				// function.
 				continue
 			}
+			if len(fnssa.Blocks) == 0 {
+				// For external functions (e.g., C functions or functions from runtime), we do not
+				// actually have Go source code for them, and there will be no blocks (see the
+				// documentation of the ssa package). Therefore, we ignore such functions.
+				continue
+			}
 
 			// Infer contracts for a function that does not have any contracts specified.
 			wg.Add(1)
