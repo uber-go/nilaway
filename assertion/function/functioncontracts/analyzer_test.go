@@ -22,11 +22,22 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"go.uber.org/nilaway/util/analysishelper"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
-func TestParse(t *testing.T) {
+func TestAnalyzer(t *testing.T) {
+	t.Parallel()
+
+	// Intentionally give a nil pass variable to trigger a panic, but we should recover from it
+	// and convert it to an error via the result struct.
+	r, err := Analyzer.Run(nil /* pass */)
+	require.NoError(t, err)
+	require.ErrorContains(t, r.(*analysishelper.Result[Map]).Err, "INTERNAL PANIC")
+}
+
+func TestContractCollection(t *testing.T) {
 	t.Parallel()
 
 	testdata := analysistest.TestData()
@@ -36,8 +47,9 @@ func TestParse(t *testing.T) {
 	require.NotNil(t, r[0])
 
 	pass, result := r[0].Pass, r[0].Result
-	require.IsType(t, Result{}, result)
-	funcContractsMap := result.(Result).FunctionContracts
+	require.IsType(t, &analysishelper.Result[Map]{}, result)
+	funcContractsMap := result.(*analysishelper.Result[Map]).Res
+	require.NoError(t, result.(*analysishelper.Result[Map]).Err)
 
 	require.NotNil(t, funcContractsMap)
 

@@ -25,205 +25,57 @@ import (
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
-// For descriptions of the purpose of each of the following tests, consult their source files
-// located in testdata/src/<testname>/<testname>.go
-
-func TestInference(t *testing.T) {
-	t.Parallel()
-
-	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/inference")
-}
-
-func TestContracts(t *testing.T) {
-	t.Parallel()
-
-	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/contracts", "go.uber.org/contracts/namedtypes")
-}
-
-func TestTesting(t *testing.T) {
-	t.Parallel()
-
-	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/testing")
-}
-
-func TestErrorReturn(t *testing.T) {
-	t.Parallel()
-
-	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/errorreturn", "go.uber.org/errorreturn/inference")
-}
-
-func TestMaps(t *testing.T) {
-	t.Parallel()
-
-	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/maps")
-}
-
-func TestSlices(t *testing.T) {
-	t.Parallel()
-
-	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/slices", "go.uber.org/slices/inference")
-}
-
-func TestArrays(t *testing.T) {
-	t.Parallel()
-
-	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/arrays")
-}
-
-func TestChannels(t *testing.T) {
-	t.Parallel()
-
-	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/channels")
-}
-
-func TestGoQuirks(t *testing.T) {
-	t.Parallel()
-
-	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/goquirks")
-}
-
-func TestGlobalVars(t *testing.T) {
-	t.Parallel()
-
-	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/globalvars")
-}
-
-func TestDeepNil(t *testing.T) {
-	t.Parallel()
-
-	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/deepnil", "go.uber.org/deepnil/inference")
-}
-
-func TestNilableTypes(t *testing.T) {
+func TestNilAway(t *testing.T) {
 	t.Parallel()
 
 	testdata := analysistest.TestData()
 
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/nilabletypes")
-}
+	// For descriptions of the purpose of each of the following tests, consult their source files
+	// located in testdata/src/<package>.
 
-func TestHelloWorld(t *testing.T) {
-	t.Parallel()
-	testdata := analysistest.TestData()
+	tests := []struct {
+		name     string
+		patterns []string
+	}{
+		{name: "Inference", patterns: []string{"go.uber.org/inference"}},
+		{name: "Contracts", patterns: []string{"go.uber.org/contracts", "go.uber.org/contracts/namedtypes"}},
+		{name: "Testing", patterns: []string{"go.uber.org/testing"}},
+		{name: "ErrorReturn", patterns: []string{"go.uber.org/errorreturn", "go.uber.org/errorreturn/inference"}},
+		{name: "Maps", patterns: []string{"go.uber.org/maps"}},
+		{name: "Slices", patterns: []string{"go.uber.org/slices", "go.uber.org/slices/inference"}},
+		{name: "Arrays", patterns: []string{"go.uber.org/arrays"}},
+		{name: "Channels", patterns: []string{"go.uber.org/channels"}},
+		{name: "GoQuirks", patterns: []string{"go.uber.org/goquirks"}},
+		{name: "GlobalVars", patterns: []string{"go.uber.org/globalvars"}},
+		{name: "DeepNil", patterns: []string{"go.uber.org/deepnil", "go.uber.org/deepnil/inference"}},
+		{name: "NilableTypes", patterns: []string{"go.uber.org/nilabletypes"}},
+		{name: "HelloWorld", patterns: []string{"go.uber.org/helloworld"}},
+		{name: "MultiFilePackage", patterns: []string{"go.uber.org/multifilepackage", "go.uber.org/multifilepackage/firstpackage", "go.uber.org/multifilepackage/secondpackage"}},
+		{name: "MultipleAssignment", patterns: []string{"go.uber.org/multipleassignment"}},
+		{name: "AnnotationParse", patterns: []string{"go.uber.org/annotationparse"}},
+		{name: "NilCheck", patterns: []string{"go.uber.org/nilcheck"}},
+		{name: "SimpleFlow", patterns: []string{"go.uber.org/simpleflow"}},
+		{name: "LoopFlow", patterns: []string{"go.uber.org/loopflow"}},
+		{name: "MethodImplementation", patterns: []string{"go.uber.org/methodimplementation", "go.uber.org/methodimplementation/mergedDependencies", "go.uber.org/methodimplementation/chainedDependencies", "go.uber.org/methodimplementation/multipackage", "go.uber.org/methodimplementation/embedding"}},
+		{name: "NamedReturn", patterns: []string{"go.uber.org/namedreturn"}},
+		{name: "IgnoreGenerated", patterns: []string{"go.uber.org/ignoregenerated"}},
+		{name: "IgnorePackage", patterns: []string{"ignoredpkg1", "ignoredpkg2"}},
+		{name: "Receivers", patterns: []string{"go.uber.org/receivers", "go.uber.org/receivers/inference"}},
+		{name: "Generics", patterns: []string{"go.uber.org/generics"}},
+		{name: "FunctionContracts", patterns: []string{"go.uber.org/functioncontracts", "go.uber.org/functioncontracts/inference"}},
+		{name: "Constants", patterns: []string{"go.uber.org/consts"}},
+		{name: "ErrorMessage", patterns: []string{"go.uber.org/errormessage"}},
+	}
 
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/helloworld")
-}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			t.Logf("Running test for packages %s", tt.patterns)
 
-func TestMultiFilePackage(t *testing.T) {
-	t.Parallel()
-
-	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/multifilepackage", "go.uber.org/multifilepackage/firstpackage", "go.uber.org/multifilepackage/secondpackage")
-}
-
-func TestMultipleAssignment(t *testing.T) {
-	t.Parallel()
-
-	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/multipleassignment")
-}
-
-func TestAnnotationParse(t *testing.T) {
-	t.Parallel()
-
-	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/annotationparse")
-}
-
-func TestNilCheck(t *testing.T) {
-	t.Parallel()
-
-	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/nilcheck")
-}
-
-func TestSimpleFlow(t *testing.T) {
-	t.Parallel()
-
-	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/simpleflow")
-}
-
-func TestLoopFlow(t *testing.T) {
-	t.Parallel()
-
-	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/loopflow")
-}
-
-func TestMethodImplementation(t *testing.T) {
-	t.Parallel()
-
-	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/methodimplementation", "go.uber.org/methodimplementation/mergedDependencies", "go.uber.org/methodimplementation/chainedDependencies", "go.uber.org/methodimplementation/multipackage", "go.uber.org/methodimplementation/embedding")
-
-}
-
-func TestNamedReturn(t *testing.T) {
-	t.Parallel()
-
-	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/namedreturn")
-}
-
-func TestIgnoreGenerated(t *testing.T) {
-	t.Parallel()
-
-	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/ignoregenerated")
-}
-
-func TestIgnorePackage(t *testing.T) {
-	t.Parallel()
-
-	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "ignoredpkg1", "ignoredpkg2")
-}
-
-func TestReceivers(t *testing.T) {
-	t.Parallel()
-
-	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/receivers", "go.uber.org/receivers/inference")
-}
-
-func TestGenerics(t *testing.T) {
-	t.Parallel()
-
-	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/generics")
-}
-
-func TestFunctionContracts(t *testing.T) {
-	t.Parallel()
-
-	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/functioncontracts", "go.uber.org/functioncontracts/inference")
-}
-
-func TestConstants(t *testing.T) {
-	t.Parallel()
-
-	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/consts")
-}
-
-func TestErrorMessage(t *testing.T) {
-	t.Parallel()
-
-	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/errormessage")
+			analysistest.Run(t, testdata, Analyzer, tt.patterns...)
+		})
+	}
 }
 
 func TestStructInit(t *testing.T) { //nolint:paralleltest
@@ -282,5 +134,6 @@ func TestMain(m *testing.M) {
 			os.Exit(1)
 		}
 	}
+
 	goleak.VerifyTestMain(m)
 }

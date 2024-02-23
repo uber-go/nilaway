@@ -18,6 +18,7 @@
 package accumulation
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"runtime/debug"
@@ -28,6 +29,7 @@ import (
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/diagnostic"
 	"go.uber.org/nilaway/inference"
+	"go.uber.org/nilaway/util/analysishelper"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -39,12 +41,10 @@ const _doc = "Read the assertions and annotations from this package as Results f
 // Analyzer here is the accumulator that combines assertions and annotations to generate a list of
 // triggered assertions that will become errors in the next Analyzer
 var Analyzer = &analysis.Analyzer{
-	Name: "nilaway_accumulation_analyzer",
-	Doc:  _doc,
-	Run:  run,
-	FactTypes: []analysis.Fact{
-		new(inference.InferredMap),
-	},
+	Name:       "nilaway_accumulation_analyzer",
+	Doc:        _doc,
+	Run:        run,
+	FactTypes:  []analysis.Fact{new(inference.InferredMap)},
 	Requires:   []*analysis.Analyzer{config.Analyzer, assertion.Analyzer, annotation.Analyzer},
 	ResultType: reflect.TypeOf(([]analysis.Diagnostic)(nil)),
 }
@@ -97,18 +97,14 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 		return ([]analysis.Diagnostic)(nil), nil
 	}
 
-	assertionsResult := pass.ResultOf[assertion.Analyzer].(assertion.Result)
-	annotationsResult := pass.ResultOf[annotation.Analyzer].(annotation.Result)
-	var errs []error
-	for _, resultErrs := range [...][]error{assertionsResult.Errors, annotationsResult.Errors} {
-		errs = append(errs, resultErrs...)
-	}
-
-	// For now, if there are any errors in the sub-analyzers, we directly emit diagnostics on the
-	// errors. However, in the future we could implement error recovery and make use of the partial
-	// information to continue the analysis.
-	if len(errs) != 0 {
-		return errorsToDiagnostics(errs), nil
+	assertionsResult := pass.ResultOf[assertion.Analyzer].(*analysishelper.Result[[]annotation.FullTrigger])
+	annotationsResult := pass.ResultOf[annotation.Analyzer].(*analysishelper.Result[*annotation.ObservedMap])
+	if err := errors.Join(annotationsResult.Err, assertionsResult.Err); err != nil {
+		// For now, if there are any errors in the sub-analyzers, we directly emit diagnostics on the
+		// errors. However, in the future we could implement error recovery and make use of the partial
+		// information to continue the analysis.
+		// Diagnostics with invalid positions (<= 0) will be silently suppressed, so here we use 1.
+		return []analysis.Diagnostic{{Pos: 1, Message: fmt.Sprintf("INTERNAL ERROR(s):\n%s", err)}}, nil
 	}
 
 	diagnosticEngine := diagnostic.NewEngine(pass)
@@ -123,7 +119,7 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 
 	// First observe all annotations from annotationsResult (observes only syntactic annotations
 	// for FullInfer mode, otherwise all annotations for NoInfer)
-	inferenceEngine.ObserveAnnotations(annotationsResult.AnnotationMap, mode)
+	inferenceEngine.ObserveAnnotations(annotationsResult.Res, mode)
 
 	var (
 		inferredMap *inference.InferredMap
@@ -134,14 +130,14 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 		// Incorporate assertions from this package one-by-one into the inferredAnnotationMap, possibly
 		// determining local and upstream sites in the process. This is guaranteed not to determine any
 		// sites unless we really have a reason they have to be determined.
-		inferenceEngine.ObservePackage(assertionsResult.FullTriggers)
+		inferenceEngine.ObservePackage(assertionsResult.Res)
 		inferredMap = inferenceEngine.InferredMap()
 		diagnostics = diagnosticEngine.Diagnostics(true /* grouping */)
 
 	case inference.NoInfer:
 		// In non-inference case - use the classical assertionNode.CheckErrors method to determine error outputs
 		inferredMap = inferenceEngine.InferredMap()
-		checkErrors(assertionsResult.FullTriggers, inferredMap, diagnosticEngine)
+		checkErrors(assertionsResult.Res, inferredMap, diagnosticEngine)
 		// Retrieve the diagnostics from the engine. Note that we should not group the
 		// diagnostics for easier unit testing.
 		diagnostics = diagnosticEngine.Diagnostics(false /* grouping */)
@@ -162,16 +158,6 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 	inferredMap.Export(pass)
 
 	return diagnostics, nil
-}
-
-// errorsToDiagnostics converts the internal errors to a slice of analysis.Diagnostic to be reported.
-func errorsToDiagnostics(errs []error) []analysis.Diagnostic {
-	diagnostics := make([]analysis.Diagnostic, len(errs))
-	for i, err := range errs {
-		// Diagnostics with invalid positions (<= 0) will be silently suppressed, so here we use 1.
-		diagnostics[i] = analysis.Diagnostic{Pos: 1, Message: "INTERNAL ERROR: " + err.Error()}
-	}
-	return diagnostics
 }
 
 type conflictHandler interface {

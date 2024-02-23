@@ -17,58 +17,32 @@
 package structfield
 
 import (
-	"fmt"
 	"go/ast"
 	"reflect"
-	"runtime/debug"
 
 	"go.uber.org/nilaway/config"
+	"go.uber.org/nilaway/util/analysishelper"
 	"golang.org/x/tools/go/analysis"
 )
 
 const _doc = "Collect relevant struct fields being assigned and/or accessed from within each function to later allow creation of triggers applicable to only those fields"
 
-// Result is the result struct for the Analyzer.
-type Result struct {
-	// Context stores struct fields accessed (e.g., assignments) from within a function.
-	Context *FieldContext
-	// Errors is the slice of errors if errors happened during analysis. We put the errors here as
-	// part of the result of this sub-analyzer so that the upper-level analyzers can decide what
-	// to do with them.
-	Errors []error
-}
-
-// Analyzer collects struct fields accessed (e.g., assignments) from within a function
+// Analyzer collects struct fields accessed (e.g., assignments) from within a function.
 var Analyzer = &analysis.Analyzer{
 	Name:       "nilaway_struct_field_analyzer",
 	Doc:        _doc,
-	Run:        run,
-	ResultType: reflect.TypeOf((*Result)(nil)).Elem(),
+	Run:        analysishelper.WrapRun(run),
+	ResultType: reflect.TypeOf((*analysishelper.Result[*FieldContext])(nil)),
 	Requires:   []*analysis.Analyzer{config.Analyzer},
 }
 
-func run(pass *analysis.Pass) (result interface{}, _ error) {
-	// As a last resort, we recover from a panic when running the analyzer, convert the panic to
-	// an error and return.
-	defer func() {
-		if r := recover(); r != nil {
-			// Deferred functions are executed after a result is generated, so here we modify the
-			// return value `result` in-place.
-			e := fmt.Errorf("INTERNAL PANIC: %s\n%s", r, string(debug.Stack()))
-			if retResult, ok := result.(Result); ok {
-				retResult.Errors = append(retResult.Errors, e)
-			} else {
-				result = Result{Errors: []error{e}}
-			}
-		}
-	}()
-
+func run(pass *analysis.Pass) (*FieldContext, error) {
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
 
 	fieldContext := &FieldContext{fieldMap: make(relevantFieldsMap)}
 
 	if !conf.IsPkgInScope(pass.Pkg) {
-		return Result{Context: fieldContext}, nil
+		return fieldContext, nil
 	}
 
 	for _, file := range pass.Files {
@@ -83,5 +57,5 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 		}
 	}
 
-	return Result{Context: fieldContext}, nil
+	return fieldContext, nil
 }

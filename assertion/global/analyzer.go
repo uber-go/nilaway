@@ -16,58 +16,32 @@
 package global
 
 import (
-	"fmt"
 	"go/ast"
 	"go/token"
 	"reflect"
-	"runtime/debug"
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/config"
+	"go.uber.org/nilaway/util/analysishelper"
 	"golang.org/x/tools/go/analysis"
 )
 
 const _doc = "Nonnil global variables should be forced to provide a nonnil instantiation value at their declaration."
 
-// Result is the result struct for the Analyzer.
-type Result struct {
-	// FullTriggers is the slice of full triggers generated from the assertion analysis.
-	FullTriggers []annotation.FullTrigger
-	// Errors is the slice of errors if errors happened during analysis. We put the errors here as
-	// part of the result of this sub-analyzer so that the upper-level analyzers can decide what
-	// to do with them.
-	Errors []error
-}
-
 // Analyzer checks if the nonnill global variables are initialized.
 var Analyzer = &analysis.Analyzer{
 	Name:       "nilaway_global_var_analyzer",
 	Doc:        _doc,
-	Run:        run,
-	ResultType: reflect.TypeOf((*Result)(nil)).Elem(),
+	Run:        analysishelper.WrapRun(run),
+	ResultType: reflect.TypeOf((*analysishelper.Result[[]annotation.FullTrigger])(nil)),
 	Requires:   []*analysis.Analyzer{config.Analyzer},
 }
 
-func run(pass *analysis.Pass) (result interface{}, _ error) {
-	// As a last resort, we recover from a panic when running the analyzer, convert the panic to
-	// an error and return.
-	defer func() {
-		if r := recover(); r != nil {
-			// Deferred functions are executed after a result is generated, so here we modify the
-			// return value `result` in-place.
-			e := fmt.Errorf("INTERNAL PANIC: %s\n%s", r, string(debug.Stack()))
-			if retResult, ok := result.(Result); ok {
-				retResult.Errors = append(retResult.Errors, e)
-			} else {
-				result = Result{Errors: []error{e}}
-			}
-		}
-	}()
-
+func run(pass *analysis.Pass) ([]annotation.FullTrigger, error) {
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
 
 	if !conf.IsPkgInScope(pass.Pkg) {
-		return Result{}, nil
+		return nil, nil
 	}
 
 	var fullTriggers []annotation.FullTrigger
@@ -87,5 +61,5 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 		}
 	}
 
-	return Result{FullTriggers: fullTriggers}, nil
+	return fullTriggers, nil
 }

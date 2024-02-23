@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"go.uber.org/nilaway/config"
+	"go.uber.org/nilaway/util/analysishelper"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
 )
@@ -34,6 +35,16 @@ const _wantClosurePrefix = "expect_closure:"
 func TestAnalyzer(t *testing.T) {
 	t.Parallel()
 
+	// Intentionally give a nil pass variable to trigger a panic, but we should recover from it
+	// and convert it to an error via the result struct.
+	r, err := Analyzer.Run(nil /* pass */)
+	require.NoError(t, err)
+	require.ErrorContains(t, r.(*analysishelper.Result[map[*ast.FuncLit]*FuncLitInfo]).Err, "INTERNAL PANIC")
+}
+
+func TestClosureCollection(t *testing.T) {
+	t.Parallel()
+
 	testdata := analysistest.TestData()
 
 	r := analysistest.Run(t, testdata, Analyzer, "go.uber.org/anonymousfunc")
@@ -41,12 +52,12 @@ func TestAnalyzer(t *testing.T) {
 	require.NotNil(t, r[0])
 
 	pass, result := r[0].Pass, r[0].Result
-	require.IsType(t, Result{}, result)
+	require.IsType(t, &analysishelper.Result[map[*ast.FuncLit]*FuncLitInfo]{}, result)
 
 	// Iterate over the result of the anonymous function analyzer to see if there
 	// is a missmatch between the expected result written in the test file with the
 	// collected result from the analyzer.
-	funcLitMap := result.(Result).FuncLitMap
+	funcLitMap := result.(*analysishelper.Result[map[*ast.FuncLit]*FuncLitInfo]).Res
 	require.NotZero(t, len(funcLitMap))
 
 	// Get the expected closure vars from comments written for each function literal in the test file.
