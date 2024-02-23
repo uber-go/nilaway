@@ -138,6 +138,9 @@ func collectFunctionContracts(pass *analysis.Pass) (Map, error) {
 				// function.
 				continue
 			}
+			if fnssa.Blocks == nil {
+
+			}
 
 			// Infer contracts for a function that does not have any contracts specified.
 			wg.Add(1)

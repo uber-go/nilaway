@@ -34,8 +34,8 @@ const _maxNumTablesPerBlock = 1024
 func inferContracts(fn *ssa.Function) []*FunctionContract {
 	if len(fn.Blocks) == 0 {
 		panic(
-			fmt.Sprintf("The function %s has no blocks even though it declared return values",
-				fn.Signature.String()))
+			fmt.Sprintf("The function %s (%s) has no blocks even though it declared return values",
+				fn.Name(), fn.Signature.String()))
 	}
 
 	nilnessTableSetByBB := make(map[*ssa.BasicBlock]nilnessTableSet)
