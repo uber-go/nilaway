@@ -26,8 +26,8 @@ import (
 	"sync"
 
 	"go.uber.org/nilaway/config"
-	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/util/analysishelper"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
@@ -42,14 +42,7 @@ var Analyzer = &analysis.Analyzer{
 	Doc:        _doc,
 	Run:        analysishelper.WrapRun(run),
 	ResultType: reflect.TypeOf((*analysishelper.Result[Map])(nil)),
-	Requires:   []*analysis.Analyzer{config.Analyzer},
-}
-
-// functionResult is the struct that is received from the channel for each function.
-type functionResult struct {
-	funcObj   *types.Func
-	contracts []*FunctionContract
-	err       error
+	Requires:   []*analysis.Analyzer{config.Analyzer, buildssa.Analyzer},
 }
 
 func run(pass *analysis.Pass) (Map, error) {
@@ -61,9 +54,16 @@ func run(pass *analysis.Pass) (Map, error) {
 
 	contracts, err := collectFunctionContracts(pass)
 	if err != nil {
-		return Result{Errors: []error{err}}, nil
+		return nil, err
 	}
-	return Result{FunctionContracts: contracts}, nil
+	return contracts, nil
+}
+
+// functionResult is the struct that is received from the channel for each function.
+type functionResult struct {
+	funcObj   *types.Func
+	contracts []*FunctionContract
+	err       error
 }
 
 // collectFunctionContracts collects all the function contracts and returns a map that associates

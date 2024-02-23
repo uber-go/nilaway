@@ -91,8 +91,8 @@ func TestInfer(t *testing.T) {
 	require.NotNil(t, r[0])
 
 	pass, result := r[0].Pass, r[0].Result
-	require.IsType(t, Result{}, result)
-	funcContractsMap := result.(Result).FunctionContracts
+	require.IsType(t, &analysishelper.Result[Map]{}, result)
+	funcContractsMap := result.(*analysishelper.Result[Map]).Res
 
 	require.NotNil(t, funcContractsMap)
 
@@ -124,13 +124,13 @@ func TestInfer(t *testing.T) {
 		// for them.
 
 		// TODO: uncomment this when we support field access when inferring contracts.
-		//getFuncObj(pass, "field"): {
+		// getFuncObj(pass, "field"): {
 		//	&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
-		//},
+		// },
 		// TODO: uncomment this when we support nonempty slice to nonnil.
-		//getFuncObj(pass, "nonEmptySliceToNonnil"): {
+		// getFuncObj(pass, "nonEmptySliceToNonnil"): {
 		//	&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
-		//},
+		// },
 	}
 	if diff := cmp.Diff(expectedNameToContracts, actualNameToContracts); diff != "" {
 		require.Fail(t, fmt.Sprintf("inferred contracts mismatch (-want +got):\n%s", diff))

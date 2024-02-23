@@ -1,6 +1,6 @@
 package downstream
 
-import "go.uber.org/nilaway/integration/upstream"
+import "go.uber.org/nilaway/integration/simple/upstream"
 
 func test() {
 	print(*upstream.NilableValue) //want "global variable `NilableValue` dereferenced"
