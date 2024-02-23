@@ -14,10 +14,10 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 
 	"github.com/fatih/color"
-	"golang.org/x/exp/slices"
 )
 
 // Diagnostic is the diagnostic reported by NilAway.
