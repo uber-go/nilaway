@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 )
 
 func TestParseDiagnostics(t *testing.T) {
@@ -111,4 +112,8 @@ func TestMustFprint(t *testing.T) {
 	require.NotPanics(t, func() {
 		MustFprint(0, nil)
 	})
+}
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
 }
