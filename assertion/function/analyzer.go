@@ -17,6 +17,7 @@ package function
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/types"
@@ -32,6 +33,7 @@ import (
 	"go.uber.org/nilaway/assertion/structfield"
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/util/analysishelper"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/ctrlflow"
 	"golang.org/x/tools/go/cfg"
@@ -41,23 +43,13 @@ const _doc = "Build the trees of assertions for each function in this package, p
 	"entry and then matching them with possible sources of production to create a list of triggers " +
 	"that can then be matched against a set of annotations to generate nil flow errors"
 
-// Result is the result struct for the Analyzer.
-type Result struct {
-	// FullTriggers is the slice of full triggers generated from the assertion analysis.
-	FullTriggers []annotation.FullTrigger
-	// Errors is the slice of errors if errors happened during analysis. We put the errors here as
-	// part of the result of this sub-analyzer so that the upper-level analyzers can decide what
-	// to do with them.
-	Errors []error
-}
-
 // Analyzer here is the analyzer than generates assertions and passes them onto the accumulator to
 // be matched against annotations
 var Analyzer = &analysis.Analyzer{
 	Name:       "nilaway_function_analyzer",
 	Doc:        _doc,
-	Run:        run,
-	ResultType: reflect.TypeOf((*Result)(nil)).Elem(),
+	Run:        analysishelper.WrapRun(run),
+	ResultType: reflect.TypeOf((*analysishelper.Result[[]annotation.FullTrigger])(nil)),
 	Requires: []*analysis.Analyzer{
 		config.Analyzer,
 		ctrlflow.Analyzer,
@@ -90,25 +82,10 @@ type functionResult struct {
 	funcDecl *ast.FuncDecl
 }
 
-func run(pass *analysis.Pass) (result interface{}, _ error) {
-	// As a last resort, we recover from a panic when running the analyzer, convert the panic to
-	// an error and return.
-	defer func() {
-		if r := recover(); r != nil {
-			// Deferred functions are executed after a result is generated, so here we modify the
-			// return value `result` in-place.
-			e := fmt.Errorf("INTERNAL PANIC: %s\n%s", r, string(debug.Stack()))
-			if retResult, ok := result.(Result); ok {
-				retResult.Errors = append(retResult.Errors, e)
-			} else {
-				result = Result{Errors: []error{e}}
-			}
-		}
-	}()
-
+func run(pass *analysis.Pass) ([]annotation.FullTrigger, error) {
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
 	if !conf.IsPkgInScope(pass.Pkg) {
-		return Result{}, nil
+		return nil, nil
 	}
 
 	// Construct experimental features. By default, enable all features on NilAway itself.
@@ -122,8 +99,13 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 	}
 
 	ctrlflowResult := pass.ResultOf[ctrlflow.Analyzer].(*ctrlflow.CFGs)
-	funcLitMap := pass.ResultOf[anonymousfunc.Analyzer].(anonymousfunc.Result).FuncLitMap
-	funcContracts := pass.ResultOf[functioncontracts.Analyzer].(functioncontracts.Result).FunctionContracts
+	anonymousFuncResult := pass.ResultOf[anonymousfunc.Analyzer].(*analysishelper.Result[map[*ast.FuncLit]*anonymousfunc.FuncLitInfo])
+	contractsResult := pass.ResultOf[functioncontracts.Analyzer].(*analysishelper.Result[functioncontracts.Map])
+	if err := errors.Join(anonymousFuncResult.Err, contractsResult.Err); err != nil {
+		return nil, err
+	}
+
+	funcLitMap, funcContracts := anonymousFuncResult.Res, contractsResult.Res
 
 	// Create a fake ident map for the fake func decl nodes to be shared for all function contexts.
 	pkgFakeIdentMap := make(map[*ast.Ident]types.Object)
@@ -219,13 +201,13 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 	// as if the analyses were done serially). So we first store the result triggers in order,
 	// then flatten the slice.
 	// TODO: remove this extra logic once  is done.
-	var errs []error
+	var err error
 	funcTriggers := make([][]annotation.FullTrigger, funcIndex)
 	triggerCount := 0
 	funcResults := map[*types.Func]*functionResult{}
 	for r := range funcChan {
 		if r.err != nil {
-			errs = append(errs, r.err)
+			err = errors.Join(err, r.err)
 		} else {
 			funcTriggers[r.index] = r.triggers
 			triggerCount += len(r.triggers)
@@ -251,7 +233,7 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 		triggers = append(triggers, s...)
 	}
 
-	return Result{FullTriggers: triggers, Errors: errs}, nil
+	return triggers, err
 }
 
 // duplicateFullTriggersFromContractedFunctionsToCallers duplicates all the full triggers that have

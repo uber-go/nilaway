@@ -21,6 +21,7 @@ import (
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/assertion/structfield"
 	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/util/analysishelper"
 )
 
 // addProductionsForAssignmentFields adds production for each produce trigger in fieldProducers.
@@ -242,12 +243,12 @@ func (r *RootAssertionNode) addProductionsForParamFieldNode(selExpr *ast.Selecto
 // the call expression and adds consumptions for each param and receiver by calling addConsumptionsForArgFields and
 // addConsumptionsForReceiverFields respectively
 func (r *RootAssertionNode) addConsumptionsForArgAndReceiverFields(call *ast.CallExpr, funcIdent *ast.Ident) {
-	result := r.Pass().ResultOf[structfield.Analyzer].(structfield.Result)
+	result := r.Pass().ResultOf[structfield.Analyzer].(*analysishelper.Result[*structfield.FieldContext])
 
-	r.addConsumptionsForArgFields(call, funcIdent, result.Context)
+	r.addConsumptionsForArgFields(call, funcIdent, result.Res)
 
 	// In case we are dealing with a method call or a function call in another package (and not dot-imported)
-	r.addConsumptionsForReceiverFields(call, result.Context)
+	r.addConsumptionsForReceiverFields(call, result.Res)
 }
 
 // addConsumptionsForReceiverFields adds consumptions for receiver fields at function call
@@ -352,12 +353,12 @@ func (r *RootAssertionNode) addConsumptionsForArgFieldsAtIndex(arg ast.Expr, fun
 // addProductionForFuncCallArgAndReceiverFields is called while consuming a function call. Productions for fields of params
 // and receivers are added to track the effect the function call can have on the fields.
 func (r *RootAssertionNode) addProductionForFuncCallArgAndReceiverFields(call *ast.CallExpr, funcIdent *ast.Ident) {
-	result := r.Pass().ResultOf[structfield.Analyzer].(structfield.Result)
+	result := r.Pass().ResultOf[structfield.Analyzer].(*analysishelper.Result[*structfield.FieldContext])
 
-	r.addProductionForFuncCallArgFields(funcIdent, call, result.Context)
+	r.addProductionForFuncCallArgFields(funcIdent, call, result.Res)
 
 	// In case we are dealing with a method call or call to other package
-	r.addProductionForFuncCallReceiverFields(call, result.Context)
+	r.addProductionForFuncCallReceiverFields(call, result.Res)
 }
 
 // addProductionForFuncCallReceiverFields adds productions for fields of receivers are added to track the
@@ -425,7 +426,7 @@ func (r *RootAssertionNode) addProductionForFuncCallArgFieldsAtIndex(arg ast.Exp
 // addConsumptionsForFieldsOfParams is called at the return statement of the function during backprop. This consumption captures the
 // possible side effect on the fields of params that the function call can have
 func (r *RootAssertionNode) addConsumptionsForFieldsOfParams() {
-	result := r.Pass().ResultOf[structfield.Analyzer].(structfield.Result)
+	result := r.Pass().ResultOf[structfield.Analyzer].(*analysishelper.Result[*structfield.FieldContext])
 
 	funcSig := r.FuncObj().Type().(*types.Signature)
 	for i := 0; i < funcSig.Params().Len(); i++ {
@@ -433,7 +434,7 @@ func (r *RootAssertionNode) addConsumptionsForFieldsOfParams() {
 
 		paramNode := util.GetFunctionParamNode(r.FuncDecl(), param)
 		if paramNode != nil {
-			r.addConsumptionsForFieldsOfParam(param, paramNode, i, result.Context)
+			r.addConsumptionsForFieldsOfParam(param, paramNode, i, result.Res)
 		}
 	}
 
@@ -450,7 +451,7 @@ func (r *RootAssertionNode) addConsumptionsForFieldsOfParams() {
 		// The length of receivers can only be 0 (unnamed receiver) or 1 (named receiver).
 		// We only need to handle the named case if it is not an empty (`_`) receiver.
 		if len(receivers) != 0 && !util.IsEmptyExpr(receivers[0]) {
-			r.addConsumptionsForFieldsOfParam(funcSig.Recv(), receivers[0], annotation.ReceiverParamIndex, result.Context)
+			r.addConsumptionsForFieldsOfParam(funcSig.Recv(), receivers[0], annotation.ReceiverParamIndex, result.Res)
 		}
 	}
 }
