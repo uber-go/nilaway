@@ -139,9 +139,9 @@ func collectFunctionContracts(pass *analysis.Pass) (Map, error) {
 				continue
 			}
 			if len(fnssa.Blocks) == 0 {
-				// For external functions (e.g., C functions or functions from runtime), we do not
-				// actually have Go source code for them, and there will be no blocks (see the
-				// documentation of the ssa package). Therefore, we ignore such functions.
+				// For external functions whose function bodies are defined outside Go (e.g.,
+				// assembly), we do not actually have Go source code for them, and there will be no
+				// blocks (see the documentation of the ssa package). Therefore, we ignore such functions.
 				continue
 			}
 

@@ -13,3 +13,7 @@
 // limitations under the License.
 
 package infer
+
+// external is a function declaration whose body is defined outside of Go (e.g., assembly). The
+// SSA builder will not generate any blocks for this function, and we should handle this gracefully.
+func external(v *int) *int

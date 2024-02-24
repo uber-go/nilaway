@@ -93,6 +93,7 @@ func TestInfer(t *testing.T) {
 	pass, result := r[0].Pass, r[0].Result
 	require.IsType(t, &analysishelper.Result[Map]{}, result)
 	funcContractsMap := result.(*analysishelper.Result[Map]).Res
+	require.NoError(t, result.(*analysishelper.Result[Map]).Err)
 
 	require.NotNil(t, funcContractsMap)
 
