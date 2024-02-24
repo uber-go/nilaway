@@ -71,3 +71,6 @@ func fooThatConsumesErrs() interface{} {
 		return d
 	}
 }
+
+// external is only a function declaration whose body is defined outside Go (e.g., assembly).
+func external(v *int) *int
