@@ -24,8 +24,8 @@ linters-settings:
     values:
       regexp:
         any-year: \d{4}
-    template: |
-      Copyright (c) {{ any-year }} Uber Technologies, Inc.
+    template: |-
+      Copyright (c) {{ ANY-YEAR }} Uber Technologies, Inc.
     
       Licensed under the Apache License, Version 2.0 (the "License");
       you may not use this file except in compliance with the License.
