@@ -18,10 +18,12 @@
 package diagnostic
 
 import (
+	"cmp"
 	"fmt"
 	"go/token"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/inference"
@@ -44,6 +46,9 @@ type Engine struct {
 	// for faster lookup when converting correct upstream position back to local token.Pos for
 	// reporting purposes.
 	files map[string]fileInfo
+	// cwd is the current working directory for trimming the file names to get truly package- and
+	// build-system- (bazel for example adds a random sandbox prefix) independent positions.
+	cwd string
 }
 
 // NewEngine creates a new diagnostic engine.
@@ -88,24 +93,35 @@ func NewEngine(pass *analysis.Pass) *Engine {
 		return true
 	})
 
-	return &Engine{pass: pass, files: files}
+	return &Engine{pass: pass, files: files, cwd: cwd}
 }
 
 // Diagnostics generates diagnostics from the internally-stored conflicts. The grouping parameter
 // controls whether the conflicts with the same nil flow -- the part in the complete nil flow going
-// from a nilable source point to the conflict point -- are grouped together for concise reporting.
+// from a nilable source point to the conflict point -- are grouped together (under the first
+// diagnostic) for concise reporting. The returned slice of diagnostics are sorted by file names
+// and then offsets in the file.
 func (e *Engine) Diagnostics(grouping bool) []analysis.Diagnostic {
+	// First sort the conflicts by position such that similar conflicts are grouped under the
+	// first diagnostic.
+	slices.SortFunc(e.conflicts, func(a, b conflict) int {
+		if n := cmp.Compare(a.position.Filename, b.position.Filename); n != 0 {
+			return n
+		}
+		return cmp.Compare(a.position.Offset, b.position.Offset)
+	})
+
 	conflicts := e.conflicts
 	if grouping {
-		// group conflicts with the same nil path together for concise reporting
+		// Group conflicts with the same nil path together for concise reporting.
 		conflicts = groupConflicts(e.conflicts)
 	}
 
-	// build diagnostics from conflicts
+	// Build diagnostics from conflicts.
 	diagnostics := make([]analysis.Diagnostic, 0, len(conflicts))
 	for _, c := range conflicts {
 		diagnostics = append(diagnostics, analysis.Diagnostic{
-			Pos:     c.pos,
+			Pos:     e.toPos(c.position),
 			Message: c.String(),
 		})
 	}
@@ -118,9 +134,16 @@ func (e *Engine) AddSingleAssertionConflict(trigger annotation.FullTrigger) {
 	flow := nilFlow{}
 	flow.addNonNilPathNode(producer, consumer)
 
+	position := e.pass.Fset.Position(trigger.Consumer.Expr.Pos())
+	// Try to trim the build system prefix (i.e., the current working directory) from the position.
+	// If NilAway is running in a driver that does not add such prefix, we will hit an error here,
+	// but that is fine, and we just do not need to do anything.
+	if filename, err := filepath.Rel(e.cwd, position.Filename); err == nil {
+		position.Filename = filename
+	}
 	e.conflicts = append(e.conflicts, conflict{
-		pos:  trigger.Consumer.Expr.Pos(),
-		flow: flow,
+		position: position,
+		flow:     flow,
 	})
 }
 
@@ -172,8 +195,8 @@ func (e *Engine) AddOverconstraintConflict(nilReason, nonnilReason inference.Exp
 	}
 
 	e.conflicts = append(e.conflicts, conflict{
-		pos:  e.toPos(reportPosition),
-		flow: flow,
+		position: reportPosition,
+		flow:     flow,
 	})
 }
 
