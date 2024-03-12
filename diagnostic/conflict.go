@@ -21,9 +21,12 @@ import (
 )
 
 type conflict struct {
-	pos              token.Pos   // stores position where the error should be reported (note that this field is used only within the current, and should NOT be exported)
-	flow             nilFlow     // stores nil flow from source to dereference point
-	similarConflicts []*conflict // stores other conflicts that are similar to this one
+	// position is the package-independent position where the conflict should be reported.
+	position token.Position
+	// flow stores nil flow from source to dereference point
+	flow nilFlow
+	// similarConflicts stores other conflicts that are similar to this one.
+	similarConflicts []*conflict
 }
 
 func (c *conflict) String() string {
