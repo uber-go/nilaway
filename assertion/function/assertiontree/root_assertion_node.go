@@ -545,24 +545,28 @@ func (r *RootAssertionNode) consumeIndexExpr(expr ast.Expr) {
 // basic semantics: any ast node with an ast.Expr field recurs into that field
 func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 	switch expr := expr.(type) {
-	// we seek to recur through the AST to look for any sites at which an expression
+	// We seek to recur through the AST to look for any sites at which an expression
 	// must be non-nil we ignore any expressions that provide types not values since
 	// assignments and branching can't happen within expressions in Go, the order in
 	// which we recur doesn't matter
 	case *ast.BinaryExpr:
-		// process the binary expression `X op Y` in reverse, i.e., add consumers for Y first and then X
+		// Process the binary expression `X op Y` in reverse, i.e., add consumers for Y first and then X
 		r.AddComputation(expr.Y)
 
-		// if the binary expr is a short-circuiting `&&`, check if the `X` part of the binary expression is a negative nil check
-		// If true, add a producer right away to match with any consumer that may have appeared in the `Y` part
-		// e.g., in `return x != nil && x.f == 1`, consumer trigger for the dereference `x.f` is marked safe and matched with the produce trigger created below for `x != nil`
+		// If the binary expr is a short-circuiting `&&`, check if the `X` part of the binary expression contains a
+		// negative nil check. If true, add a producer right away to match with any consumer that may have appeared in
+		// the `Y` part.
+		// E.g., in `return x != nil && x.f != nil && x.f.g == 1`, consume trigger for the field access `x.f` is marked
+		// safe and matched with the produce trigger created below for `x != nil`. Similarly, the consume trigger for
+		// `x.f.g` is marked safe and matched with the produce trigger created below for `x.f != nil`.
 		if expr.Op == token.LAND {
-			if retExpr, retType := asNilCheckExpr(expr.X); retType == _negativeNilCheck {
-				r.AddProduction(&annotation.ProduceTrigger{
-					Annotation: &annotation.NegativeNilCheck{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
-					Expr:       retExpr,
-				})
-				return
+			for _, e := range [...]ast.Expr{expr.Y, expr.X} {
+				if retExpr, retType := asNilCheckExpr(e); retType == _negativeNilCheck {
+					r.AddProduction(&annotation.ProduceTrigger{
+						Annotation: &annotation.NegativeNilCheck{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
+						Expr:       retExpr,
+					})
+				}
 			}
 		}
 

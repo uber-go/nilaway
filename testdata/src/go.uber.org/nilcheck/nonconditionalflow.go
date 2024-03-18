@@ -186,7 +186,19 @@ type H struct {
 }
 
 // nilable(x)
-func testChainedAccesses(x *X) bool {
-	// Below gives False Positives for the field accesses of `f` and `g`. Fix this in a follow-up diff. Issue tracked in
-	return x != nil && x.f != nil && x.f.g != nil && x.f.g.h == 4 //want "field .* accessed" "field .* accessed" "field .* accessed"
+func testChainedAccesses(x *X, i int) bool {
+	switch i {
+	case 0:
+		return x != nil && x.f != nil && x.f.g != nil
+	case 1:
+		return x != nil && x.f != nil && x.f.g != nil && x.f.g.h == 4
+	case 2:
+		return x != nil && x.f != nil && x.f.g.h == 4 //want "field `g` accessed field `h`"
+	case 3:
+		// safe, but condition interspersed with different irrelevant checks
+		return x != nil && retNil() == nil && x.f != nil && *x.f == G{} && x.f.g != nil && dummy && x.f.g.h == 4
+	case 4:
+		return x != nil && x.f != nil && x.f.g.h == 4 && x.f.g != nil //want "field `g` accessed field `h`"
+	}
+	return false
 }
