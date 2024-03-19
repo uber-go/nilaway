@@ -42,6 +42,19 @@ jobs:
             const repo = context.repo.repo;
             const body = await fsp.readFile(`${{ runner.temp }}/golden-test-result.md`, 'utf8');
             
+            // GitHub API has a limit of 65536 bytes for a comment body, so here we shrink the 
+            // diff part (anything between <details> and </details>) to 10,000 characters if it
+            // is too long.
+            const pattern = /(<details>)([\s\S]*?)(<\/details>)/g;
+            
+            const output = body.replace(pattern, function(match, p1, p2, p3) {
+              if (p2.length > 10000) {
+                return p1 + p2.substring(0, 5000) + '\n\n ...(truncated)...\n\n' + p2.substring(p2.length - 5000) + p3;
+              }
+              // No need to change anything if it is not too long.
+              return match;
+            });
+            
             // First find the comments made by the bot.
             const comments = await github.rest.issues.listComments({
               owner: owner,
