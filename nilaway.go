@@ -36,7 +36,6 @@ var Analyzer = &analysis.Analyzer{
 	Requires:  []*analysis.Analyzer{config.Analyzer, accumulation.Analyzer},
 }
 
-// nilable(result 0)
 func run(pass *analysis.Pass) (interface{}, error) {
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
 	deferredErrors := pass.ResultOf[accumulation.Analyzer].([]analysis.Diagnostic)
