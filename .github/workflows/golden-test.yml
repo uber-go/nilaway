@@ -47,7 +47,7 @@ jobs:
             // is too long.
             const pattern = /(<details>)([\s\S]*?)(<\/details>)/;
             
-            const body = rawData.replace(rawData, function(match, p1, p2, p3) {
+            const body = rawData.replace(pattern, function(match, p1, p2, p3) {
               if (p2.length > 10000) {
                 return p1 + p2.substring(0, 5000) + '\n\n ...(truncated)...\n\n' + p2.substring(p2.length - 5000) + p3;
               }
