@@ -553,12 +553,19 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 		// Process the binary expression `X op Y` in reverse, i.e., add consumers for Y first and then X
 		r.AddComputation(expr.Y)
 
-		// If the binary expr is a short-circuiting `&&`, check if the `X` part of the binary expression contains a
-		// negative nil check. If true, add a producer right away to match with any consumer that may have appeared in
-		// the `Y` part.
-		// E.g., in `return x != nil && x.f != nil && x.f.g == 1`, consume trigger for the field access `x.f` is marked
-		// safe and matched with the produce trigger created below for `x != nil`. Similarly, the consume trigger for
-		// `x.f.g` is marked safe and matched with the produce trigger created below for `x.f != nil`.
+		// Consider the example of the binary expression in: `x != nil && x.f != nil && x.f.g == 1`.
+		// If the binary expr is a short-circuiting `&&`, recursively iterate through every sub-expression in a
+		// right-to-left manner to check if any of the previous expressions contain appropriate negative nil checks that
+		// can mark the subsequent dereference of that expression as safe. For example, `x.f != nil` can mark the field
+		// access `x.f.g` as safe. Similarly, `x != nil` makes `x.f` safe. The expressions are marked safe by adding a
+		// producer right away to match with a consumer for that expression.
+		//
+		// An AST binary expression has two parts: X and Y. We recursively iterate through Y first and then X to achieve
+		// the right-to-left processing described above. We use `asNilCheckExpr()` to check if the expression is an
+		// atomic nil check, i.e., not compound with other expressions. Considering the above example,
+		// round 1: expr.Y: x.f.g == 1, and expr.X: x != nil && x.f != nil =>  asNilCheckExpr() returns unsuccessful
+		// round 2: expr.Y: x.f != nil, and expr.X: x != nil => asNilCheckExpr() returns successfully for both X and Y,
+		// where Y marks x.f.g as safe and X marks x.f as safe
 		if expr.Op == token.LAND {
 			for _, e := range [...]ast.Expr{expr.Y, expr.X} {
 				if retExpr, retType := asNilCheckExpr(e); retType == _negativeNilCheck {
