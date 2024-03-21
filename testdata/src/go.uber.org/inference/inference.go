@@ -105,12 +105,12 @@ func retsAndTakes() {
 
 // Below test checks the working of inference in the presence of annotations
 // nonnil(x) nilable(result 0)
-func foo(x *int) *int { // want "NONNIL because it is annotated as so"
+func foo(x *int) *int { //want "NONNIL because it is annotated as so"
 	print(*x)
 	return nil
 }
 
 func callFoo() {
 	ptr := foo(nil)
-	print(*ptr) // want "NILABLE because it is annotated as so"
+	print(*ptr) //want "NILABLE because it is annotated as so"
 }

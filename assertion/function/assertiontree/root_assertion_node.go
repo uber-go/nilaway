@@ -545,24 +545,35 @@ func (r *RootAssertionNode) consumeIndexExpr(expr ast.Expr) {
 // basic semantics: any ast node with an ast.Expr field recurs into that field
 func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 	switch expr := expr.(type) {
-	// we seek to recur through the AST to look for any sites at which an expression
+	// We seek to recur through the AST to look for any sites at which an expression
 	// must be non-nil we ignore any expressions that provide types not values since
 	// assignments and branching can't happen within expressions in Go, the order in
 	// which we recur doesn't matter
 	case *ast.BinaryExpr:
-		// process the binary expression `X op Y` in reverse, i.e., add consumers for Y first and then X
+		// Process the binary expression `X op Y` in reverse, i.e., add consumers for Y first and then X
 		r.AddComputation(expr.Y)
 
-		// if the binary expr is a short-circuiting `&&`, check if the `X` part of the binary expression is a negative nil check
-		// If true, add a producer right away to match with any consumer that may have appeared in the `Y` part
-		// e.g., in `return x != nil && x.f == 1`, consumer trigger for the dereference `x.f` is marked safe and matched with the produce trigger created below for `x != nil`
+		// Consider the example of the binary expression in: `x != nil && x.f != nil && x.f.g == 1`.
+		// If the binary expr is a short-circuiting `&&`, recursively iterate through every sub-expression in a
+		// right-to-left manner to check if any of the previous expressions contain appropriate negative nil checks that
+		// can mark the subsequent dereference of that expression as safe. For example, `x.f != nil` can mark the field
+		// access `x.f.g` as safe. Similarly, `x != nil` makes `x.f` safe. The expressions are marked safe by adding a
+		// producer right away to match with a consumer for that expression.
+		//
+		// An AST binary expression has two parts: X and Y. We recursively iterate through Y first and then X to achieve
+		// the right-to-left processing described above. We use `asNilCheckExpr()` to check if the expression is an
+		// atomic nil check, i.e., not compound with other expressions. Considering the above example,
+		// round 1: expr.Y: x.f.g == 1, and expr.X: x != nil && x.f != nil =>  asNilCheckExpr() returns unsuccessful
+		// round 2: expr.Y: x.f != nil, and expr.X: x != nil => asNilCheckExpr() returns successfully for both X and Y,
+		// where Y marks x.f.g as safe and X marks x.f as safe
 		if expr.Op == token.LAND {
-			if retExpr, retType := asNilCheckExpr(expr.X); retType == _negativeNilCheck {
-				r.AddProduction(&annotation.ProduceTrigger{
-					Annotation: &annotation.NegativeNilCheck{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
-					Expr:       retExpr,
-				})
-				return
+			for _, e := range [...]ast.Expr{expr.Y, expr.X} {
+				if retExpr, retType := asNilCheckExpr(e); retType == _negativeNilCheck {
+					r.AddProduction(&annotation.ProduceTrigger{
+						Annotation: &annotation.NegativeNilCheck{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
+						Expr:       retExpr,
+					})
+				}
 			}
 		}
 
