@@ -11,10 +11,10 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//
+
 // This file is meant for testing features in Go 1.22 and beyond.
 // TODO: Migrate these test cases in the mainstream test files once NilAway starts to support Go 1.22 is a base version.
-//
+
 //go:build go1.22
 
 package nilaway
