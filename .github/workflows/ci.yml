@@ -32,6 +32,9 @@ jobs:
           version: v${{ steps.golangci-version.outputs.GOLANGCI_VERSION }}
           args: -h
 
+      - name: Symlink installed golangci-lint to bin directory
+        run: mkdir -p bin && ln -s $(which golangci-lint) bin/golangci-lint
+
       - run: make lint
         name: Lint
 
