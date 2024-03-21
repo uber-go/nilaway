@@ -2,7 +2,8 @@
 PROJECT_ROOT = $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 export GOBIN = $(PROJECT_ROOT)/bin
 
-GOLANGCI_LINT_VERSION := $(shell golangci-lint --version 2>/dev/null)
+GOLANGCI_LINT_VERSION := $(shell $(GOBIN)/golangci-lint version --format short 2>/dev/null)
+REQUIRED_GOLANGCI_LINT_VERSION := $(shell cat .golangci.version)
 
 # Directories containing independent Go modules.
 MODULE_DIRS = . ./tools
@@ -42,17 +43,21 @@ integration-test:
 .PHONY: lint
 lint: golangci-lint nilaway-lint tidy-lint
 
+# Install golangci-lint with the required version in GOBIN if it is not already installed.
+.PHONY: install-golangci-lint
+install-golangci-lint:
+    ifneq ($(GOLANGCI_LINT_VERSION),$(REQUIRED_GOLANGCI_LINT_VERSION))
+		@echo "[lint] installing golangci-lint v$(REQUIRED_GOLANGCI_LINT_VERSION) since current version is \"$(GOLANGCI_LINT_VERSION)\""
+		@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOBIN) v$(REQUIRED_GOLANGCI_LINT_VERSION)
+    endif
+
 .PHONY: golangci-lint
-golangci-lint:
-ifdef GOLANGCI_LINT_VERSION
-	@echo "[lint] $(GOLANGCI_LINT_VERSION)"
-else
-	$(error "golangci-lint not found, please install it from https://golangci-lint.run/usage/install/#local-installation")
-endif
+golangci-lint: install-golangci-lint
+	@echo "[lint] $(shell $(GOBIN)/golangci-lint version 2>/dev/null)"
 	@$(foreach mod,$(MODULE_DIRS), \
 		(cd $(mod) && \
 		echo "[lint] golangci-lint: $(mod)" && \
-		golangci-lint run --path-prefix $(mod)) &&) true
+		$(GOBIN)/golangci-lint run --path-prefix $(mod)) &&) true
 
 .PHONY: tidy-lint
 tidy-lint:
