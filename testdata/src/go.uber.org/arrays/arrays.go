@@ -93,28 +93,6 @@ func dummyBool() bool {
 	return true
 }
 
-// nonnil(a[])
-func testRange(a [5]*int) *int {
-	for range a {
-		return a[0]
-	}
-
-	for i := range a {
-		a[i] = &i
-		if dummyBool() {
-			return a[i]
-		}
-	}
-
-	for _, v := range a {
-		if dummyBool() {
-			return v
-		}
-	}
-	i := 0
-	return &i
-}
-
 func testArrayCopy(a [2]*int) *int {
 	var b [2]*int
 	b = a

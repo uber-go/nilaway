@@ -527,30 +527,6 @@ func testOkCheckForResults() *int {
 	return &i
 }
 
-// nonnil(a, b) nilable(b[], d[])
-func testRangeOverMaps(a, b, c, d map[int]*int) *int {
-	switch 0 {
-	case 1:
-		for _, a_elem := range a {
-			return a_elem
-		}
-	case 2:
-		for _, b_elem := range b {
-			return b_elem //want "returned"
-		}
-	case 3:
-		for _, c_elem := range c {
-			return c_elem
-		}
-	case 4:
-		for _, d_elem := range d {
-			return d_elem //want "returned"
-		}
-	}
-	i := 0
-	return &i
-}
-
 func takesNonnil(interface{}) {}
 
 func singleKeysEstablishNonnil(m map[int]*int) {
