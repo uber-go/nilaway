@@ -65,6 +65,7 @@ func TestNilAway(t *testing.T) {
 		{name: "FunctionContracts", patterns: []string{"go.uber.org/functioncontracts", "go.uber.org/functioncontracts/inference"}},
 		{name: "Constants", patterns: []string{"go.uber.org/consts"}},
 		{name: "ErrorMessage", patterns: []string{"go.uber.org/errormessage"}},
+		{name: "LoopRange", patterns: []string{"go.uber.org/looprange"}},
 	}
 
 	for _, tt := range tests {

@@ -410,6 +410,13 @@ func backpropAcrossRange(rootNode *RootAssertionNode, lhs []ast.Expr, rhs ast.Ex
 			// still result in deeply produced lhs values
 			return nil
 		}
+
+		// Here the range is over basic types, such as integers (e.g., "for i := range 10").
+		// We do not need to do anything here, as the basic types are always presumed to be non-nil.
+		if _, ok := rhsType.(*types.Basic); ok {
+			return nil
+		}
+
 		if _, ok := rhsType.(*types.TypeParam); ok {
 			// We could be ranging over a generic slice (where rhsType is a *types.TypeParam) but
 			// we do not handle generics yet. Here we just assume generic slices are all deeply
@@ -417,7 +424,7 @@ func backpropAcrossRange(rootNode *RootAssertionNode, lhs []ast.Expr, rhs ast.Ex
 			// TODO: handle that.
 			return nil
 		}
-		return fmt.Errorf("unrecognized type of rhs in range statement: %s", rootNode.Pass().TypesInfo.Types[rhs].Type)
+		return fmt.Errorf("unrecognized type of rhs in range statement: %s", rhsType)
 	default:
 		return fmt.Errorf("unexpected LHS found in assignment to 'range' operator")
 	}

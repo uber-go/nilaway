@@ -16,7 +16,6 @@
 // <nilaway no inference>
 package channels
 
-
 // nilable(<-nilableChan)
 var nilableChan = make(chan *int)
 
@@ -493,30 +492,6 @@ func testOkChecksForGlobals() *int {
 		}
 	}
 
-	i := 0
-	return &i
-}
-
-// nonnil(a, b) nilable(<-b, <-d)
-func testRangeOverChans(a, b, c, d chan *int) *int {
-	switch 0 {
-	case 1:
-		for a_elem := range a {
-			return a_elem
-		}
-	case 2:
-		for b_elem := range b {
-			return b_elem //want "returned"
-		}
-	case 3:
-		for c_elem := range c {
-			return c_elem
-		}
-	case 4:
-		for d_elem := range d {
-			return d_elem //want "returned"
-		}
-	}
 	i := 0
 	return &i
 }
