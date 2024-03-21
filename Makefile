@@ -53,7 +53,7 @@ install-golangci-lint:
 
 .PHONY: golangci-lint
 golangci-lint: install-golangci-lint
-	@echo "[lint] $(shell $(GOBIN)/golangci-lint version 2>/dev/null)"
+	@echo "[lint] $(shell $(GOBIN)/golangci-lint version)"
 	@$(foreach mod,$(MODULE_DIRS), \
 		(cd $(mod) && \
 		echo "[lint] golangci-lint: $(mod)" && \
