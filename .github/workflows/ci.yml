@@ -14,16 +14,19 @@ jobs:
         name: Check out repository
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: 1.22.x
           cache: false
 
-      - uses: golangci/golangci-lint-action@v3
+      - uses: golangci/golangci-lint-action@v4
         name: Install golangci-lint
         with:
-          version: latest
-          args: --version
+          version: v1.57.1
+          # We do not really run golangci-lint here (hence the -h flag). We just use the
+          # golangci-lint action to install it and reuses its internal caching infrastructure.
+          # The actual execution is done in the Lint job (together with other custom linting tasks).
+          args: -h
 
       - run: make lint
         name: Lint
