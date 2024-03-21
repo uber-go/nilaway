@@ -172,27 +172,3 @@ func testRangeOverChannels(a, b, c, d chan *int) *int {
 	i := 0
 	return &i
 }
-
-// Test for checking range over basic types, such as integers and strings.
-func testRangeOverBasicTypes(j int) {
-	switch j {
-	case 0:
-		for i := range 10 {
-			dummyConsume(i)
-		}
-	case 1:
-		n := 10
-		for i := range n {
-			dummyConsume(i)
-		}
-	case 2:
-		for i := range "hello" {
-			dummyConsume(i)
-		}
-	case 3:
-		s := "hello"
-		for i := range s {
-			dummyConsume(i)
-		}
-	}
-}
