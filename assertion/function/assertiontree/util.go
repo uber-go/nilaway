@@ -179,10 +179,29 @@ func inverseToken(t token.Token) token.Token {
 func AddNilCheck(pass *analysis.Pass, expr ast.Expr) (trueCheck, falseCheck RootFunc, isNoop bool) {
 	noop := func(_ *RootAssertionNode) {}
 
-	binExpr, ok := astutil.Unparen(expr).(*ast.BinaryExpr)
+	expr = astutil.Unparen(expr)
+	var binExpr *ast.BinaryExpr
 
-	if !ok {
-		return noop, noop, true // is not a binary expression - do no work
+	switch e := expr.(type) {
+	case *ast.BinaryExpr:
+		binExpr = e
+	case *ast.UnaryExpr:
+		// Check if the unary expression is a negation of a binary expression.
+		// If the unary expression encloses a nil check binary expression, then the below code interchanges the true
+		// and false branches produced by the binary expression. For example, if`!(v != nil)`, then AddNilCheck on the inner
+		// expression `(v != nil)` returns trueCheck: produceNegativeNilCheck, falseCheck: noop, isNoop = false, implying a
+		// negative nil check for the true branch. But since it is preceded with a negation (!), the below code
+		// interchanges the true and false branches, and returns trueCheck: noop, falseCheck: produceNegativeNilCheck,
+		// implying a negative nil check for the false branch.
+		if e.Op == token.NOT {
+			trueNilCheck, falseNilCheck, isNoop := AddNilCheck(pass, e.X)
+			return falseNilCheck, trueNilCheck, isNoop
+		}
+	}
+
+	if binExpr == nil {
+		// `expr` is not a direct or indirect binary expression - do no work
+		return noop, noop, true
 	}
 
 	asLenCall := func(expr ast.Expr) (ast.Expr, bool) {

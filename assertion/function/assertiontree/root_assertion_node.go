@@ -562,18 +562,20 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 		// producer right away to match with a consumer for that expression.
 		//
 		// An AST binary expression has two parts: X and Y. We recursively iterate through Y first and then X to achieve
-		// the right-to-left processing described above. We use `asNilCheckExpr()` to check if the expression is an
-		// atomic nil check, i.e., not compound with other expressions. Considering the above example,
-		// round 1: expr.Y: x.f.g == 1, and expr.X: x != nil && x.f != nil =>  asNilCheckExpr() returns unsuccessful
-		// round 2: expr.Y: x.f != nil, and expr.X: x != nil => asNilCheckExpr() returns successfully for both X and Y,
-		// where Y marks x.f.g as safe and X marks x.f as safe
+		// the right-to-left processing described above. We use `AddNilCheck()` to check if the expression is an
+		// atomic nil check or len check, i.e., not compounded with other expressions, and get the function pointer for
+		// the appropriate action to be taken. For `x != nil`, `AddNilCheck()` returns a function pointer for adding a
+		// nil check producer for the true branch, while a noop for the false branch, and vice versa for `x == nil`.
+		// In this case, with a `&&` short-circuiting operator, we only need to care about the true branch since the Y
+		// expression won't be executed if the X expression is false.
+		//
+		// Considering the above example,
+		// round 1: expr.Y: x.f.g == 1, and expr.X: x != nil && x.f != nil =>  AddNilCheck() returns noop since Y is not a nil check and X is non-atomic.
+		// round 2: expr.Y: x.f != nil, and expr.X: x != nil => AddNilCheck() returns successfully for both X and Y, where Y marks x.f.g as safe and X marks x.f as safe
 		if expr.Op == token.LAND {
 			for _, e := range [...]ast.Expr{expr.Y, expr.X} {
-				if retExpr, retType := asNilCheckExpr(e); retType == _negativeNilCheck {
-					r.AddProduction(&annotation.ProduceTrigger{
-						Annotation: &annotation.NegativeNilCheck{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
-						Expr:       retExpr,
-					})
+				if trueNilCheck, _, isNoop := AddNilCheck(r.Pass(), e); !isNoop {
+					trueNilCheck(r)
 				}
 			}
 		}
