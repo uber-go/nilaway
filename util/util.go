@@ -233,14 +233,6 @@ func ExprIsAuthentic(pass *analysis.Pass, expr ast.Expr) bool {
 	return t != nil
 }
 
-// StripParens takes an ast node and strips it of any outmost parentheses
-func StripParens(expr ast.Node) ast.Node {
-	if parenExpr, ok := expr.(*ast.ParenExpr); ok {
-		return StripParens(parenExpr.X)
-	}
-	return expr
-}
-
 // IsSliceAppendCall checks if `node` represents the builtin append(slice []Type, elems ...Type) []Type
 // call on a slice.
 // The function checks 2 things,

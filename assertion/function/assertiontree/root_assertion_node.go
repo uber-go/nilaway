@@ -25,6 +25,7 @@ import (
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
 	"golang.org/x/tools/go/analysis"
+	"golang.org/x/tools/go/ast/astutil"
 )
 
 // RootAssertionNode is the object that will be directly handled by the propagation algorithm,
@@ -1230,8 +1231,8 @@ func (r *RootAssertionNode) isStable(expr ast.Expr) bool {
 // Between two stable expressions, check if we expect them to produce the same value
 // precondition: isStable(left) && isStable(right), then checks if left and right are equal
 func (r *RootAssertionNode) eqStable(left, right ast.Expr) bool {
-	right = util.StripParens(right).(ast.Expr)
-	switch left := util.StripParens(left).(type) {
+	right = astutil.Unparen(right).(ast.Expr)
+	switch left := astutil.Unparen(left).(type) {
 	case *ast.BasicLit:
 		if right, ok := right.(*ast.BasicLit); ok {
 			return left.Value == right.Value
