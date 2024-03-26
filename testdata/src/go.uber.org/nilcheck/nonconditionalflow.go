@@ -202,3 +202,50 @@ func testChainedAccesses(x *X, i int) bool {
 	}
 	return false
 }
+
+// ---- test len checks ----
+func testLenChecks(s []int, i int) bool {
+	var t []int
+
+	switch i {
+	case 0:
+		return len(s) > 0 && s[0] == 1
+	case 1:
+		return len(s) > 0 && s[i] == 1
+	case 2:
+		return len(s) >= 0 && s[0] == 1 //want "sliced into"
+	case 3:
+		return 0 < len(s) && s[0] == 1
+	case 4:
+		return 0 > len(s) && s[0] == 1 //want "sliced into"
+	case 5:
+		return len(s) == 0 && s[0] == 1 //want "sliced into"
+	case 6:
+		return len(s) == 1 && s[0] == 1
+	case 7:
+		return len(t) > 0 && len(s) == len(t) && s[0] == 1
+	case 8:
+		return !(len(s) > 0) && s[0] == 1 //want "sliced into"
+	case 9:
+		return !(!(len(s) > 0)) && s[0] == 1
+	case 10:
+		return (!(len(s) > 0)) && s[0] == 1 //want "sliced into"
+	case 11:
+		return !(!(!(!(!(len(s) > 0))))) && s[0] == 1 //want "sliced into"
+	case 12:
+		return len(s) > 0 || s[0] == 1 //want "sliced into"
+	case 13:
+		return len(s) < 0 && len(t) > 0 && s[0] == 1 //want "sliced into"
+	case 14:
+		return (len(s) == 0 || len(t) > 0) && s[0] == 1 //want "sliced into"
+	case 15:
+		return (len(t) > 0 && s[0] == 1) && (len(s) > 0 && t[0] == 0) //want "sliced into"
+	case 16:
+		return len(s) > 0 && len(t) > 0 && s[0] == 1 && t[0] == 0
+	case 17:
+		return len(s) > 0 || dummy && s[0] == 1 //want "sliced into"
+	case 18:
+		return (0 == len(s) || 0 > len(s)) && s[0] == 1 //want "sliced into"
+	}
+	return false
+}
