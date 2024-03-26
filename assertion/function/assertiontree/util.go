@@ -180,12 +180,8 @@ func AddNilCheck(pass *analysis.Pass, expr ast.Expr) (trueCheck, falseCheck Root
 	noop := func(_ *RootAssertionNode) {}
 
 	expr = astutil.Unparen(expr)
-	var binExpr *ast.BinaryExpr
 
-	switch e := expr.(type) {
-	case *ast.BinaryExpr:
-		binExpr = e
-	case *ast.UnaryExpr:
+	if e, ok := expr.(*ast.UnaryExpr); ok && e.Op == token.NOT {
 		// Check if the unary expression is a negation of a binary expression.
 		// If the unary expression encloses a nil check binary expression, then the below code interchanges the true
 		// and false branches produced by the binary expression. For example, if`!(v != nil)`, then AddNilCheck on the inner
@@ -193,13 +189,11 @@ func AddNilCheck(pass *analysis.Pass, expr ast.Expr) (trueCheck, falseCheck Root
 		// negative nil check for the true branch. But since it is preceded with a negation (!), the below code
 		// interchanges the true and false branches, and returns trueCheck: noop, falseCheck: produceNegativeNilCheck,
 		// implying a negative nil check for the false branch.
-		if e.Op == token.NOT {
-			trueNilCheck, falseNilCheck, isNoop := AddNilCheck(pass, e.X)
-			return falseNilCheck, trueNilCheck, isNoop
-		}
+		trueNilCheck, falseNilCheck, isNoop := AddNilCheck(pass, e.X)
+		return falseNilCheck, trueNilCheck, isNoop
 	}
-
-	if binExpr == nil {
+	binExpr, ok := expr.(*ast.BinaryExpr)
+	if !ok {
 		// `expr` is not a direct or indirect binary expression - do no work
 		return noop, noop, true
 	}
