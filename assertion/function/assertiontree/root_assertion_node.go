@@ -578,6 +578,12 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 					trueNilCheck(r)
 				}
 			}
+		} else if expr.Op == token.LOR {
+			for _, e := range [...]ast.Expr{expr.Y, expr.X} {
+				if _, falseNilCheck, isNoop := AddNilCheck(r.Pass(), e); !isNoop {
+					falseNilCheck(r)
+				}
+			}
 		}
 
 		r.AddComputation(expr.X)

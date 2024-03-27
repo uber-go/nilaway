@@ -70,6 +70,12 @@ func testReturn(i int, v *int) bool {
 		return !(v != v) && *v == 1 //want "dereferenced"
 	case 20:
 		return !(v != v) || *v == 1 //want "dereferenced"
+	case 21:
+		// This is currently a false negative
+		return !(v != nil && x == nil) && *v == 1
+		// if !(v != nil && x == nil) && *v == 1 {
+		// 	return true
+		// }
 	}
 	return true
 }
@@ -246,6 +252,22 @@ func testLenChecks(s []int, i int) bool {
 		return len(s) > 0 || dummy && s[0] == 1 //want "sliced into"
 	case 18:
 		return (0 == len(s) || 0 > len(s)) && s[0] == 1 //want "sliced into"
+	}
+	return false
+}
+
+// ---- test cases with short-circuit OR ----
+
+func testShortCircuitOr(i int) bool {
+	var x *int
+
+	switch i {
+	case 0:
+		return x == nil || *x == 1
+	case 1:
+		return x != nil || *x == 1 //want "dereferenced"
+	case 2:
+
 	}
 	return false
 }
