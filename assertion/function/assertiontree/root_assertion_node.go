@@ -572,6 +572,9 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 		// Considering the above example,
 		// round 1: expr.Y: x.f.g == 1, and expr.X: x != nil && x.f != nil =>  AddNilCheck() returns noop since Y is not a nil check and X is non-atomic.
 		// round 2: expr.Y: x.f != nil, and expr.X: x != nil => AddNilCheck() returns successfully for both X and Y, where Y marks x.f.g as safe and X marks x.f as safe
+		//
+		// A similar approach is followed for the `||` operator, where we only need to care about the false branch since the
+		// Y expression won't be executed if the X expression is true.
 		if expr.Op == token.LAND {
 			for _, e := range [...]ast.Expr{expr.Y, expr.X} {
 				if trueNilCheck, _, isNoop := AddNilCheck(r.Pass(), e); !isNoop {
