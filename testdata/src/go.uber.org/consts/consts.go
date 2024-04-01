@@ -39,9 +39,8 @@ func testConst(mp map[string]*string, i int) string {
 			return *mp[lib.MyStrConst]
 		}
 	case 3:
-		// variable is not considered a stable expression, hence an error would be reported here
 		var v = lib.MyStrConst
-		if mp[v] == nil || *mp[v] == "" { //want "deep read from parameter `mp`"
+		if mp[v] == nil || *mp[v] == "" {
 			return "nil"
 		}
 	case 4:
@@ -66,23 +65,23 @@ func testConst(mp map[string]*string, i int) string {
 
 var unexportedGlobalVar string = "local"
 
-// tests for checking the behavior of indexing with a global variable. It should not be considered a stable expression.
+// tests for checking the behavior of indexing with a global variable.
 // nonnil(mp, mp[])
 func testGlobalVar(mp map[string]*string, i int) string {
 	switch i {
 	case 0:
 		// locally defined unexported global variable
-		if mp[unexportedGlobalVar] == nil || *mp[unexportedGlobalVar] == "" { //want "dereferenced"
+		if mp[unexportedGlobalVar] == nil || *mp[unexportedGlobalVar] == "" {
 			return "nil"
 		} else {
-			return *mp[unexportedGlobalVar] //want "dereferenced"
+			return *mp[unexportedGlobalVar]
 		}
 	case 2:
 		// global variable defined in another package
-		if mp == nil || mp[lib.MyGlobalVar] == nil || *mp[lib.MyGlobalVar] == "" { //want "dereferenced"
+		if mp == nil || mp[lib.MyGlobalVar] == nil || *mp[lib.MyGlobalVar] == "" {
 			return "nil"
 		} else {
-			return *mp[lib.MyGlobalVar] //want "dereferenced"
+			return *mp[lib.MyGlobalVar]
 		}
 	}
 	return ""

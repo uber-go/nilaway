@@ -1156,6 +1156,12 @@ func (r *RootAssertionNode) isFunc(ident *ast.Ident) bool {
 	return ok
 }
 
+// checks if this expression is an instance of types.Var
+func (r *RootAssertionNode) isVariable(ident *ast.Ident) bool {
+	_, ok := r.ObjectOf(ident).(*types.Var)
+	return ok
+}
+
 // checks if this is a package name
 func (r *RootAssertionNode) isPkgName(expr ast.Expr) bool {
 	if ident, ok := expr.(*ast.Ident); ok {
@@ -1242,8 +1248,10 @@ func (r *RootAssertionNode) isStable(expr ast.Expr) bool {
 // Between two stable expressions, check if we expect them to produce the same value
 // precondition: isStable(left) && isStable(right), then checks if left and right are equal
 func (r *RootAssertionNode) eqStable(left, right ast.Expr) bool {
+	left = astutil.Unparen(left)
 	right = astutil.Unparen(right)
-	switch left := astutil.Unparen(left).(type) {
+
+	switch left := left.(type) {
 	case *ast.BasicLit:
 		if right, ok := right.(*ast.BasicLit); ok {
 			return left.Value == right.Value
@@ -1296,10 +1304,12 @@ func (r *RootAssertionNode) eqStable(left, right ast.Expr) bool {
 		return false
 	case *ast.SelectorExpr:
 		if right, ok := right.(*ast.SelectorExpr); ok {
-			if !r.eqStable(left.Sel, right.Sel) {
-				return false
-			}
-			return r.eqStable(left.X, right.X)
+			return r.eqStable(left.Sel, right.Sel) && r.eqStable(left.X, right.X)
+		}
+		return false
+	case *ast.IndexExpr:
+		if right, ok := right.(*ast.IndexExpr); ok {
+			return r.eqStable(left.X, right.X) && r.eqStable(left.Index, right.Index)
 		}
 		return false
 	default:

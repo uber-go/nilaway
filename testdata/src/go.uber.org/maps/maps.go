@@ -715,6 +715,44 @@ func testConsequentMapAccesses(mp map[int]*int, i int) *int {
 			mp[i] = new(int)
 		}
 		return mp[i]
+
+	// below cases test for non-literal for indices
+	case 7:
+		if _, ok := mp[i]; !ok {
+			mp[i] = new(int)
+		}
+		return mp[i]
+
+	case 8:
+		if _, ok := mp[i]; ok {
+			return mp[i]
+		}
+
+	case 9:
+		if _, ok := mp[i]; !ok {
+		}
+		return mp[i] //want "returned"
+
+	case 10:
+		if _, ok := mp[i]; ok {
+		}
+		return mp[i] //want "returned"
+
+	case 11:
+		v, ok := mp[i]
+		v2, ok2 := mp[i]
+		if ok && !ok2 {
+			v2 = v
+		}
+		return v2 //want "returned"
+
+	case 12:
+		if v, ok := mp[i]; ok {
+			if dummy {
+				return v
+			}
+			return mp[i]
+		}
 	}
 	return &i
 }
@@ -780,4 +818,96 @@ func testMixedRichCheckEffects(i int) *int {
 		return s.m["abc"]
 	}
 	return &i
+}
+
+// tests for checking non-literal map accesses
+
+func retInt() int {
+	return 0
+}
+
+type A struct {
+	f int
+	g int
+}
+
+// nonnil(mp, mp[])
+func testNonLiteralMapAccess(mp map[int]*int, i, j int) {
+	switch i {
+	case 0:
+		if mp[i] != nil {
+			print(*mp[i])
+		}
+
+	case 1:
+		if mp[i] == nil {
+			return
+		}
+		print(*mp[i])
+
+	case 3:
+		if mp[i] != nil {
+			i := 10
+			print(*mp[i]) //want "lacking guarding"
+		}
+
+	case 4:
+		if mp[i] != nil {
+			print(*mp[j]) //want "lacking guarding"
+		}
+
+	case 5:
+		localVar := 0
+		if mp[localVar] != nil {
+			print(mp[localVar])
+		}
+
+	case 6:
+		a := &A{}
+		if mp[a.f] != nil {
+			print(*mp[a.f])
+		}
+
+	case 7:
+		a1 := &A{}
+		a2 := &A{}
+		if mp[a1.f] != nil {
+			print(*mp[a2.f]) //want "lacking guarding"
+		}
+
+	case 8:
+		a := &A{}
+		if mp[a.f] != nil {
+			print(*mp[a.g]) //want "lacking guarding"
+		}
+
+	case 9:
+		var sl []*int
+		if mp[len(sl)-1] != nil {
+			print(*mp[len(sl)-1])
+		}
+
+	case 10:
+		// NilAway does not consider user-defined functions as stable, and hence reports an error here. It could be
+		// considered a false positive from a user perspective, but NilAway cannot guarantee the stability of the function
+		// without a more complex analysis. We are currently not choosing to do this since we believe this to be a rare
+		// case and also an anti-pattern since users should ideally create a local variable and use that instead.
+		if mp[retInt()] != nil {
+			print(*mp[retInt()]) //want "lacking guarding"
+		}
+
+		localVar := retInt()
+		if mp[localVar] != nil {
+			print(*mp[localVar])
+		}
+
+	case 11:
+		// TODO: This case is currently a false negative since NilAway does not track the value of integers (`i`).
+		//  However, this is not expected to be a common pattern, hence we plan to add support for this in a follow-up PR.
+		i = 0
+		if mp[i] != nil {
+			i = 100
+			print(*mp[i]) // TODO: report error here
+		}
+	}
 }
