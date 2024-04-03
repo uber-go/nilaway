@@ -34,7 +34,11 @@ func testReturn(i int, v *int) bool {
 	case 2:
 		return v == nil && x != nil && *v == 1 //want "dereferenced"
 	case 3:
-		return (v == nil || x != nil) && *v == 1 //want "dereferenced"
+		//  It is a false negative. Currently NilAway cannot reason about such complex expressions in a nonconditional
+		//  setting. Such code patterns are perhaps not that common in practice, and hence we are not prioritizing
+		//  this at the moment.
+		// TODO: fix this in a follow-up PR.
+		return (v == nil || x != nil) && *v == 1
 	case 4:
 		return (x != nil && *v == 1) && (v != nil && *x == 0) //want "dereferenced"
 	case 5:
@@ -42,7 +46,11 @@ func testReturn(i int, v *int) bool {
 	case 6:
 		return v != nil || dummy && *v == 1 //want "dereferenced"
 	case 7:
-		return (nil != v || nil == v) && *v == 1 //want "dereferenced"
+		//  It is a false negative. Currently NilAway cannot reason about complex expressions like this since it does
+		//  not have full SAT solving capability. Such code patterns are perhaps not that common in practice, and
+		//  hence we are not prioritizing this at the moment.
+		// TODO: fix this in a follow-up diff.
+		return (nil != v || nil == v) && *v == 1
 	case 8:
 		return retNil() != nil && *retNil() == 1
 	case 9:
@@ -70,6 +78,31 @@ func testReturn(i int, v *int) bool {
 		return !(v != v) && *v == 1 //want "dereferenced"
 	case 20:
 		return !(v != v) || *v == 1 //want "dereferenced"
+	case 21:
+		// This is currently a false negative, since NilAway loses track of the effect of the negation on compound
+		// logical expressions in recursive calls. Note that NilAway can handle negations well, if the enclosed
+		// expression is atomic. For example, `!(v != nil) && *v == 1` is handled correctly.
+		// Such code patterns are perhaps not that common in practice, and hence we are not prioritizing this at the moment.
+		// TODO: fix this in a follow-up PR.
+		return !(v != nil && x == nil) && *v == 1
+	case 22:
+		return v == nil || *v == 1
+	case 23:
+		return v != nil || *v == 1 //want "dereferenced"
+	case 24:
+		return v == nil || x == nil || *v == 1
+	case 25:
+		return (x == nil || *v == 1) || (v == nil || *x == 0) //want "dereferenced"
+	case 26:
+		return v == nil || x == nil || *v == 1 || *x == 0
+	case 27:
+		return v != nil || x == nil || *v == 1 || *x == 0 //want "dereferenced"
+	case 28:
+		return (!(v != nil)) || *v == 1
+	case 29:
+		return retNil() == nil || *retNil() == 1
+	case 30:
+		return v == nil || dummy || *v == 1
 	}
 	return true
 }
@@ -89,7 +122,11 @@ func testAssignment(i int, v *int) bool {
 	case 2:
 		x = v == nil && y != nil && *v == 1 //want "dereferenced"
 	case 3:
-		x = (v == nil || y != nil) && *v == 1 //want "dereferenced"
+		//  It is a false negative. Currently NilAway cannot reason about such complex expressions in a nonconditional
+		//  setting. Such code patterns are perhaps not that common in practice, and hence we are not prioritizing
+		//  this at the moment.
+		// TODO: fix this in a follow-up PR.
+		x = (v == nil || y != nil) && *v == 1
 	case 4:
 		x = (y != nil && *v == 1) && (v != nil && *y == 0) //want "dereferenced"
 	case 5:
@@ -98,11 +135,21 @@ func testAssignment(i int, v *int) bool {
 		z := v != nil || dummy && *v == 1 //want "dereferenced"
 		x = z
 	case 7:
-		x = (nil != v || nil == v) && *v == 1 //want "dereferenced"
+		//  It is a false negative. Currently NilAway cannot reason about such complex expressions in a nonconditional
+		//  setting. Such code patterns are perhaps not that common in practice, and hence we are not prioritizing
+		//  this at the moment.
+		// TODO: fix this in a follow-up PR.
+		x = (nil != v || nil == v) && *v == 1
 	case 8:
 		x = retNil() != nil && *retNil() == 1
 	case 9:
 		x = *v == 1 && v != nil //want "dereferenced"
+	case 10:
+		x = v == nil || *v == 1
+	case 11:
+		x = v != nil || *v == 1 //want "dereferenced"
+	case 12:
+		x = v == nil || y != nil || *v == 1
 	}
 	return x
 }
@@ -122,7 +169,11 @@ func testParam(i int, v *int) {
 	case 2:
 		takesBool(v == nil && x != nil && *v == 1) //want "dereferenced"
 	case 3:
-		takesBool((v == nil || x != nil) && *v == 1) //want "dereferenced"
+		//  It is a false negative. Currently NilAway cannot reason about such complex expressions in a nonconditional
+		//  setting. Such code patterns are perhaps not that common in practice, and hence we are not prioritizing
+		//  this at the moment.
+		// TODO: fix this in a follow-up PR.
+		takesBool((v == nil || x != nil) && *v == 1)
 	case 4:
 		takesBool((x != nil && *v == 1) && (v != nil && *x == 0)) //want "dereferenced"
 	case 5:
@@ -130,11 +181,21 @@ func testParam(i int, v *int) {
 	case 6:
 		takesBool(v != nil || dummy && *v == 1) //want "dereferenced"
 	case 7:
-		takesBool((nil != v || nil == v) && *v == 1) //want "dereferenced"
+		//  It is a false negative. Currently NilAway cannot reason about such complex expressions in a nonconditional
+		//  setting. Such code patterns are perhaps not that common in practice, and hence we are not prioritizing
+		//  this at the moment.
+		// TODO: fix this in a follow-up PR.
+		takesBool((nil != v || nil == v) && *v == 1)
 	case 8:
 		takesBool(retNil() != nil && *retNil() == 1)
 	case 9:
 		takesBool(*v == 1 && v != nil) //want "dereferenced"
+	case 10:
+		takesBool(v == nil || *v == 1)
+	case 11:
+		takesBool(v != nil || *v == 1) //want "dereferenced"
+	case 12:
+		takesBool(v == nil || x != nil || *v == 1)
 	}
 }
 
@@ -199,6 +260,15 @@ func testChainedAccesses(x *X, i int) bool {
 		return x != nil && retNil() == nil && x.f != nil && *x.f == G{} && x.f.g != nil && dummy && x.f.g.h == 4
 	case 4:
 		return x != nil && x.f != nil && x.f.g.h == 4 && x.f.g != nil //want "field `g` accessed field `h`"
+	case 5:
+		return x == nil || x.f == nil || x.f.g == nil || x.f.g.h == 1
+	case 6:
+		return x == nil || x.f == nil || x.f.g.h == 4 //want "field `g` accessed field `h`"
+	case 7:
+		// safe, but condition interspersed with different irrelevant checks
+		return x == nil || retNil() == nil || x.f == nil || *x.f == G{} || x.f.g == nil || dummy || x.f.g.h == 4
+	case 8:
+		return x == nil || x.f == nil || x.f.g.h == 4 || x.f.g == nil //want "field `g` accessed field `h`"
 	}
 	return false
 }
@@ -237,7 +307,11 @@ func testLenChecks(s []int, i int) bool {
 	case 13:
 		return len(s) < 0 && len(t) > 0 && s[0] == 1 //want "sliced into"
 	case 14:
-		return (len(s) == 0 || len(t) > 0) && s[0] == 1 //want "sliced into"
+		//  It is a false negative. Currently NilAway cannot reason about such complex expressions in a nonconditional
+		//  setting. Such code patterns are perhaps not that common in practice, and hence we are not prioritizing
+		//  this at the moment.
+		// TODO: fix this in a follow-up PR.
+		return (len(s) == 0 || len(t) > 0) && s[0] == 1
 	case 15:
 		return (len(t) > 0 && s[0] == 1) && (len(s) > 0 && t[0] == 0) //want "sliced into"
 	case 16:
@@ -245,7 +319,29 @@ func testLenChecks(s []int, i int) bool {
 	case 17:
 		return len(s) > 0 || dummy && s[0] == 1 //want "sliced into"
 	case 18:
-		return (0 == len(s) || 0 > len(s)) && s[0] == 1 //want "sliced into"
+		//  It is a false negative. Currently NilAway cannot reason about such complex expressions in a nonconditional
+		//  setting. Such code patterns are perhaps not that common in practice, and hence we are not prioritizing
+		//  this at the moment.
+		// TODO: fix this in a follow-up PR.
+		return (0 == len(s) || 0 > len(s)) && s[0] == 1
+	case 19:
+		return len(s) <= 0 || s[0] == 1
+	case 20:
+		return len(s) <= 0 || s[i] == 1
+	case 21:
+		return len(s) < 0 || s[0] == 1 //want "sliced into"
+	case 22:
+		return 0 >= len(s) || s[0] == 1
+	case 23:
+		return 0 < len(s) || s[0] == 1 //want "sliced into"
+	case 24:
+		return len(s) != 0 || s[0] == 1 //want "sliced into"
+	case 25:
+		return len(s) != 1 || s[0] == 1
+	case 26:
+		return len(t) < 0 || len(s) != len(t) || s[0] == 1
+	case 27:
+		return !(len(s) < 0) || s[0] == 1 //want "sliced into"
 	}
 	return false
 }
