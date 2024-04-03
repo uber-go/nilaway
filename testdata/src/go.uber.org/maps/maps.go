@@ -708,6 +708,13 @@ func testConsequentMapAccesses(mp map[int]*int, i int) *int {
 			}
 			return mp[0]
 		}
+
+	case 6:
+		const i = 0
+		if _, ok := mp[i]; !ok {
+			mp[i] = new(int)
+		}
+		return mp[i]
 	}
 	return &i
 }
