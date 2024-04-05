@@ -261,8 +261,7 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 
 		rhsXType := rootNode.Pass().TypesInfo.Types[rhs.X].Type
 		if util.TypeIsDeeplyMap(rhsXType) {
-			lhsValueParsed := parseExpr(rootNode, lhs[0])
-			if lhsValueParsed != nil {
+			if lhsValueParsed := parseExpr(rootNode, lhs[0]); lhsValueParsed != nil {
 				// here, the lhs `value` operand is trackable
 				effects = append(effects, &MapOkRead{
 					okRead{
@@ -270,6 +269,16 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 						value: lhsValueParsed,
 						ok:    lhsOkParsed,
 						guard: nonceGenerator.Next(lhs[0]),
+					}})
+			}
+
+			if rhsParsed := parseExpr(rootNode, rhs); rhsParsed != nil {
+				effects = append(effects, &MapOkRead{
+					okRead{
+						root:  rootNode,
+						value: rhsParsed,
+						ok:    lhsOkParsed,
+						guard: nonceGenerator.Next(rhs),
 					}})
 			}
 
@@ -484,9 +493,9 @@ func guardExpr(rootNode *RootAssertionNode, expr TrackableExpr, guard util.Guard
 		//		_ = *mp[0]
 		// }
 		// ```
-		for _, child := range lookedUpNode.Children() {
-			builtExpr := append(expr, child)
-			guardExpr(rootNode, builtExpr, guard)
-		}
+		// for _, child := range lookedUpNode.Children() {
+		// 	builtExpr := append(expr, child)
+		// 	guardExpr(rootNode, builtExpr, guard)
+		// }
 	}
 }

@@ -305,6 +305,7 @@ func backpropAcrossAssignment(rootNode *RootAssertionNode, lhs, rhs []ast.Expr) 
 
 			// Map read
 			if r, ok := rhsNode.(*ast.IndexExpr); ok {
+				rootNode.AddGuardMatch(r, ContinueTracking)
 				rootNode.AddGuardMatch(r.X, ProduceAsNonnil)
 				return backpropAcrossOneToOneAssignment(rootNode, lhs[0:1], rhs)
 			}

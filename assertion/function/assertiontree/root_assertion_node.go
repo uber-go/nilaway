@@ -537,9 +537,9 @@ func (r *RootAssertionNode) AddGuardMatch(expr ast.Expr, behavior GuardMatchBeha
 
 		currNode.SetConsumeTriggers(consumers)
 
-		for _, child := range currNode.Children() {
-			queue = append(queue, child.BuildExpr(r.Pass(), e))
-		}
+		// for _, child := range currNode.Children() {
+		// 	queue = append(queue, child.BuildExpr(r.Pass(), e))
+		// }
 	}
 }
 
