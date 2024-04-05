@@ -261,8 +261,9 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 
 		rhsXType := rootNode.Pass().TypesInfo.Types[rhs.X].Type
 		if util.TypeIsDeeplyMap(rhsXType) {
+			// Create a rich check effect for `v` part of the map read in `v, ok := mp[k]`
 			if lhsValueParsed := parseExpr(rootNode, lhs[0]); lhsValueParsed != nil {
-				// here, the lhs `value` operand is trackable
+				// Here, the lhs `value` operand is trackable
 				effects = append(effects, &MapOkRead{
 					okRead{
 						root:  rootNode,
@@ -272,7 +273,15 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 					}})
 			}
 
+			// Create a rich check effect for the map read `mp[k]` part of `v, ok := mp[k]`. This is important
+			// to support cases when consequent map reads are used instead of creating a local variable `v`. For example,
+			// ```
+			// if _, ok := mp[k]; ok {
+			//	  return *mp[k]
+			// }
+			// ```
 			if rhsParsed := parseExpr(rootNode, rhs); rhsParsed != nil {
+				// Here, the rhs `map read` itself is trackable
 				effects = append(effects, &MapOkRead{
 					okRead{
 						root:  rootNode,
@@ -282,8 +291,9 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 					}})
 			}
 
+			// Create a rich check effect for the map itself, `mp`, in `v, ok := mp[k]`
 			if rhsMapParsed := parseExpr(rootNode, rhs.X); rhsMapParsed != nil {
-				// here, the rhs `map` operand is trackable
+				// Here, the rhs `map` operand is trackable
 				effects = append(effects, &MapOkReadRefl{
 					okRead{
 						root:  rootNode,
@@ -480,22 +490,5 @@ func guardExpr(rootNode *RootAssertionNode, expr TrackableExpr, guard util.Guard
 		lookedUpNode.SetConsumeTriggers(
 			annotation.ConsumeTriggerSliceAsGuarded(
 				lookedUpNode.ConsumeTriggers(), guard))
-
-		// We apply the same guard to the children of the looked up node as well. For example, for map access as shown in
-		// below code snippet, consumer `PtrLoad` is added to the `indexAssertionNode` corresponding to `mp[0]`,
-		// while the `lookedUpNode` is `varAssertionNode` corresponding to `mp`. The below recursion ensures that the
-		// guard is applied to the `PtrLoad` consumer of the `indexAssertionNode` as well, not just to the consumers
-		// of the `varAssertionNode`.
-		// ```
-		// if _, ok := mp[0]; !ok {
-		//			mp[0] = new(int)
-		//		}
-		//		_ = *mp[0]
-		// }
-		// ```
-		// for _, child := range lookedUpNode.Children() {
-		// 	builtExpr := append(expr, child)
-		// 	guardExpr(rootNode, builtExpr, guard)
-		// }
 	}
 }
