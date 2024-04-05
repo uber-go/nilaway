@@ -470,19 +470,6 @@ const (
 // should be matched immediately with a ProduceTrigger indicating nonnil production. This behavior is
 // appropriate, for example, for the map itself in a read `v, ok := m[k]` - where consumptions of `m`
 // guarded by a check `ok == true` are guaranteed to be produced as nonnil
-//
-// To further support the guarding behavior, the function uses a queue to iterate over the children of the current node
-// to find any deeper assertion nodes, where the guarding behavior can be applied. For example, this is useful in tracking
-// consequent map reads, such as shown in the example below, where the guarding should importantly be applied to
-// `indexAssertion` mp[0], which appears as the child of `varAssertionNode` `mp` in the assertion tree.
-//
-//	if _, ok := mp[0]; !ok {
-//			mp[0] = new(int)
-//		}
-//		_ = *mp[0]
-//		}
-//
-// ```
 func (r *RootAssertionNode) AddGuardMatch(expr ast.Expr, behavior GuardMatchBehavior) {
 	guard, ok := r.GetNonce(expr)
 
@@ -490,57 +477,44 @@ func (r *RootAssertionNode) AddGuardMatch(expr ast.Expr, behavior GuardMatchBeha
 		return
 	}
 
-	var queue []ast.Expr
-	queue = append(queue, expr)
-	qIndex := 0
-
-	for qIndex < len(queue) {
-		e := queue[qIndex]
-		qIndex++
-
-		exprPath, _ := r.ParseExprAsProducer(e, false)
-		currNode, _ := r.lookupPath(exprPath)
-		if currNode == nil {
-			return // we don't care if this expression could become guarded because it's not tracked
-		}
-		consumers := currNode.ConsumeTriggers()
-		switch behavior {
-		case ContinueTracking:
-			for i, consumer := range consumers {
-				if consumer.Guards.Contains(guard) && !consumer.GuardMatched {
-					consumers[i] = &annotation.ConsumeTrigger{
-						Annotation:   consumer.Annotation,
-						Expr:         consumer.Expr,
-						Guards:       consumer.Guards,
-						GuardMatched: true,
-					}
-				}
-			}
-		case ProduceAsNonnil:
-			var newConsumers []*annotation.ConsumeTrigger
-			for _, consumer := range consumers {
-				if consumer.Guards.Contains(guard) {
-					r.AddNewTriggers(annotation.FullTrigger{
-						Producer: &annotation.ProduceTrigger{
-							Annotation: &annotation.OkReadReflCheck{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
-							Expr:       e,
-						},
-						Consumer: consumer,
-					},
-					)
-				} else {
-					newConsumers = append(newConsumers, consumer)
-				}
-			}
-			consumers = newConsumers
-		}
-
-		currNode.SetConsumeTriggers(consumers)
-
-		// for _, child := range currNode.Children() {
-		// 	queue = append(queue, child.BuildExpr(r.Pass(), e))
-		// }
+	exprPath, _ := r.ParseExprAsProducer(expr, false)
+	currNode, _ := r.lookupPath(exprPath)
+	if currNode == nil {
+		return // we don't care if this expression could become guarded because it's not tracked
 	}
+	consumers := currNode.ConsumeTriggers()
+	switch behavior {
+	case ContinueTracking:
+		for i, consumer := range consumers {
+			if consumer.Guards.Contains(guard) && !consumer.GuardMatched {
+				consumers[i] = &annotation.ConsumeTrigger{
+					Annotation:   consumer.Annotation,
+					Expr:         consumer.Expr,
+					Guards:       consumer.Guards,
+					GuardMatched: true,
+				}
+			}
+		}
+	case ProduceAsNonnil:
+		var newConsumers []*annotation.ConsumeTrigger
+		for _, consumer := range consumers {
+			if consumer.Guards.Contains(guard) {
+				r.AddNewTriggers(annotation.FullTrigger{
+					Producer: &annotation.ProduceTrigger{
+						Annotation: &annotation.OkReadReflCheck{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
+						Expr:       expr,
+					},
+					Consumer: consumer,
+				},
+				)
+			} else {
+				newConsumers = append(newConsumers, consumer)
+			}
+		}
+		consumers = newConsumers
+	}
+
+	currNode.SetConsumeTriggers(consumers)
 }
 
 func (r *RootAssertionNode) consumeIndexExpr(expr ast.Expr) {

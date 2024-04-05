@@ -490,22 +490,5 @@ func guardExpr(rootNode *RootAssertionNode, expr TrackableExpr, guard util.Guard
 		lookedUpNode.SetConsumeTriggers(
 			annotation.ConsumeTriggerSliceAsGuarded(
 				lookedUpNode.ConsumeTriggers(), guard))
-
-		// We apply the same guard to the children of the looked up node as well. For example, for map access as shown in
-		// below code snippet, consumer `PtrLoad` is added to the `indexAssertionNode` corresponding to `mp[0]`,
-		// while the `lookedUpNode` is `varAssertionNode` corresponding to `mp`. The below recursion ensures that the
-		// guard is applied to the `PtrLoad` consumer of the `indexAssertionNode` as well, not just to the consumers
-		// of the `varAssertionNode`.
-		// ```
-		// if _, ok := mp[0]; !ok {
-		//			mp[0] = new(int)
-		//		}
-		//		_ = *mp[0]
-		// }
-		// ```
-		// for _, child := range lookedUpNode.Children() {
-		// 	builtExpr := append(expr, child)
-		// 	guardExpr(rootNode, builtExpr, guard)
-		// }
 	}
 }

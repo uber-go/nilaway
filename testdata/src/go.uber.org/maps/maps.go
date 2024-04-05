@@ -719,56 +719,6 @@ func testConsequentMapAccesses(mp map[int]*int, i int) *int {
 	return &i
 }
 
-// nonnil(mp, mp[])
-func testConsequentMapAccesses(mp map[int]*int, i int) *int {
-	switch i {
-	case 0:
-		if _, ok := mp[0]; !ok {
-			mp[0] = new(int)
-		}
-		return mp[0]
-
-	case 1:
-		if _, ok := mp[0]; ok {
-			return mp[0]
-		}
-
-	case 2:
-		if _, ok := mp[0]; !ok {
-		}
-		return mp[0] //want "returned"
-
-	case 3:
-		if _, ok := mp[0]; ok {
-		}
-		return mp[0] //want "returned"
-
-	case 4:
-		v, ok := mp[0]
-		v2, ok2 := mp[0]
-		if ok && !ok2 {
-			v2 = v
-		}
-		return v2 //want "returned"
-
-	case 5:
-		if v, ok := mp[0]; ok {
-			if dummy {
-				return v
-			}
-			return mp[0]
-		}
-
-	case 6:
-		const i = 0
-		if _, ok := mp[i]; !ok {
-			mp[i] = new(int)
-		}
-		return mp[i]
-	}
-	return &i
-}
-
 // Below tests check the behavior in presence of two rich check effects: ok-returning function, and map access.
 // We should be able to handle both correctly.
 
