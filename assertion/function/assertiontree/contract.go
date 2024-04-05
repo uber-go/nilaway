@@ -503,9 +503,9 @@ func guardExpr(rootNode *RootAssertionNode, expr TrackableExpr, guard util.Guard
 		//		_ = *mp[0]
 		// }
 		// ```
-		for _, child := range lookedUpNode.Children() {
-			builtExpr := append(expr, child)
-			guardExpr(rootNode, builtExpr, guard)
-		}
+		// for _, child := range lookedUpNode.Children() {
+		// 	builtExpr := append(expr, child)
+		// 	guardExpr(rootNode, builtExpr, guard)
+		// }
 	}
 }
