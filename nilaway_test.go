@@ -64,7 +64,7 @@ func TestNilAway(t *testing.T) {
 		{name: "Generics", patterns: []string{"go.uber.org/generics"}},
 		{name: "FunctionContracts", patterns: []string{"go.uber.org/functioncontracts", "go.uber.org/functioncontracts/inference"}},
 		{name: "Constants", patterns: []string{"go.uber.org/consts"}},
-		{name: "ErrorMessage", patterns: []string{"go.uber.org/errormessage"}},
+		{name: "ErrorMessage", patterns: []string{"go.uber.org/errormessage", "go.uber.org/errormessage/inference"}},
 		{name: "LoopRange", patterns: []string{"go.uber.org/looprange"}},
 	}
 
