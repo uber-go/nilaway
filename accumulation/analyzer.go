@@ -132,7 +132,7 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 		// sites unless we really have a reason they have to be determined.
 		inferenceEngine.ObservePackage(assertionsResult.Res)
 		inferredMap = inferenceEngine.InferredMap()
-		diagnostics = diagnosticEngine.Diagnostics(true /* grouping */)
+		diagnostics = diagnosticEngine.Diagnostics(conf.GroupErrorMessages)
 
 	case inference.NoInfer:
 		// In non-inference case - use the classical assertionNode.CheckErrors method to determine error outputs

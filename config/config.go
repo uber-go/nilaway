@@ -30,6 +30,8 @@ import (
 type Config struct {
 	// PrettyPrint indicates whether the error messages should be pretty printed.
 	PrettyPrint bool
+	// GroupErrorMessages indicates whether similar error messages should be grouped.
+	GroupErrorMessages bool
 	// ExperimentalStructInitEnable indicates whether experimental struct initialization is enabled.
 	ExperimentalStructInitEnable bool
 	// ExperimentalAnonymousFuncEnable indicates whether experimental anonymous function support is enabled.
@@ -121,6 +123,8 @@ var Analyzer = &analysis.Analyzer{
 const (
 	// PrettyPrintFlag is the flag for pretty printing the error messages.
 	PrettyPrintFlag = "pretty-print"
+	// GroupErrorMessagesFlag is the flag for grouping similar error messages.
+	GroupErrorMessagesFlag = "group-error-messages"
 	// IncludePkgsFlag is the flag name for include package prefixes.
 	IncludePkgsFlag = "include-pkgs"
 	// ExcludePkgsFlag is the flag name for exclude package prefixes.
@@ -140,6 +144,7 @@ func newFlagSet() flag.FlagSet {
 	// We do not keep the returned pointer to the flags because we will not use them directly here.
 	// Instead, we will use the flags through the analyzer's Flags field later.
 	_ = fs.Bool(PrettyPrintFlag, true, "Pretty print the error messages")
+	_ = fs.Bool(GroupErrorMessagesFlag, true, "Group similar error messages")
 	_ = fs.String(IncludePkgsFlag, "", "Comma-separated list of packages to analyze")
 	_ = fs.String(ExcludePkgsFlag, "", "Comma-separated list of packages to exclude from analysis")
 	_ = fs.String(ExcludeFileDocStringsFlag, "", "Comma-separated list of docstrings to exclude from analysis")
@@ -152,7 +157,8 @@ func newFlagSet() flag.FlagSet {
 func run(pass *analysis.Pass) (any, error) {
 	// Set up default values for the config.
 	conf := &Config{
-		PrettyPrint: true,
+		PrettyPrint:        true,
+		GroupErrorMessages: true,
 		// If the user does not provide an include list, we give an empty package prefix to catch
 		// all packages.
 		includePkgs: []string{""},
@@ -161,6 +167,9 @@ func run(pass *analysis.Pass) (any, error) {
 	// Override default values if the user provides flags.
 	if prettyPrint, ok := pass.Analyzer.Flags.Lookup(PrettyPrintFlag).Value.(flag.Getter).Get().(bool); ok {
 		conf.PrettyPrint = prettyPrint
+	}
+	if groupErrorMessages, ok := pass.Analyzer.Flags.Lookup(GroupErrorMessagesFlag).Value.(flag.Getter).Get().(bool); ok {
+		conf.GroupErrorMessages = groupErrorMessages
 	}
 	if enableStructInit, ok := pass.Analyzer.Flags.Lookup(ExperimentalStructInitEnableFlag).Value.(flag.Getter).Get().(bool); ok {
 		conf.ExperimentalStructInitEnable = enableStructInit
