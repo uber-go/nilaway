@@ -135,6 +135,12 @@ func TestGroupErrorMessages(t *testing.T) { //nolint:paralleltest
 	err = config.Analyzer.Flags.Set(config.GroupErrorMessagesFlag, "false")
 	require.NoError(t, err)
 	analysistest.Run(t, testdata, Analyzer, "grouping/disabled")
+
+	// Reset the flag to its default value.
+	defer func() {
+		err := config.Analyzer.Flags.Set(config.GroupErrorMessagesFlag, "true")
+		require.NoError(t, err)
+	}()
 }
 
 func TestMain(m *testing.M) {
