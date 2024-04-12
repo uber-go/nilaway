@@ -124,9 +124,11 @@ func TestPrettyPrint(t *testing.T) { //nolint:paralleltest
 
 func TestGroupErrorMessages(t *testing.T) { //nolint:paralleltest
 	// We specifically do not set this test to be parallel such that this test is run separately
-	// from the parallel tests. This makes it possible to set the group error messages flag to true for
-	// testing and false for the other tests.
+	// from the parallel tests. This makes it possible to test the group error messages flag independently
+	// without affecting the other tests.
 	testdata := analysistest.TestData()
+
+	defaultValue := config.Analyzer.Flags.Lookup(config.GroupErrorMessagesFlag).Value.String()
 
 	err := config.Analyzer.Flags.Set(config.GroupErrorMessagesFlag, "true")
 	require.NoError(t, err)
@@ -138,7 +140,7 @@ func TestGroupErrorMessages(t *testing.T) { //nolint:paralleltest
 
 	// Reset the flag to its default value.
 	defer func() {
-		err := config.Analyzer.Flags.Set(config.GroupErrorMessagesFlag, "true")
+		err := config.Analyzer.Flags.Set(config.GroupErrorMessagesFlag, defaultValue)
 		require.NoError(t, err)
 	}()
 }
