@@ -12,9 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This package tests _single_ package inference. Due to limitations of `analysistest` framework,
-// multi-package inference is tested by our integration test suites. Please see
-// `testdata/README.md` for more details.
+// This package tests error messages for assignment flow tracking.
 
 // <nilaway no inference>
 package errormessage

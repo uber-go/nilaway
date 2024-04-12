@@ -66,8 +66,11 @@ func groupConflicts(allConflicts []conflict) []conflict {
 
 		// Handle the case of single assertion conflict separately
 		if len(c.flow.nilPath) == 0 && len(c.flow.nonnilPath) == 1 {
-			// This is the case of single assertion conflict. Use producer position and repr from the non-nil path as the key.
-			if p := c.flow.nonnilPath[0]; p.producerPosition.IsValid() {
+			// This is the case of single assertion conflict. Use producer position and repr from the non-nil path as
+			// the key, if present, else use the producer and consumer repr as a heuristic key to group conflicts.
+			p := c.flow.nonnilPath[0]
+			key = p.producerRepr + ";" + p.consumerRepr
+			if p.producerPosition.IsValid() {
 				key = p.producerPosition.String() + ": " + p.producerRepr
 			}
 		}
