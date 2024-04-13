@@ -19,7 +19,6 @@ import (
 	"go/types"
 
 	"go.uber.org/nilaway/annotation"
-	"golang.org/x/tools/go/analysis"
 )
 
 type indexAssertionNode struct {
@@ -45,7 +44,7 @@ func (i *indexAssertionNode) DefaultTrigger() annotation.ProducingAnnotationTrig
 }
 
 // BuildExpr for an index node adds that index to `expr`
-func (i *indexAssertionNode) BuildExpr(_ *analysis.Pass, expr ast.Expr) ast.Expr {
+func (i *indexAssertionNode) BuildExpr(expr ast.Expr) ast.Expr {
 	return &ast.IndexExpr{
 		X:      expr,
 		Lbrack: 0,
