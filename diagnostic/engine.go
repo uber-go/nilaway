@@ -114,7 +114,7 @@ func (e *Engine) Diagnostics(grouping bool) []analysis.Diagnostic {
 	conflicts := e.conflicts
 	if grouping {
 		// Group conflicts with the same nil path together for concise reporting.
-		conflicts = groupConflicts(e.conflicts)
+		conflicts = groupConflicts(e.conflicts, e.pass, e.cwd)
 	}
 
 	// Build diagnostics from conflicts.
