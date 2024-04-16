@@ -24,16 +24,12 @@ type A struct {
 
 func m() {
 	var b = &A{}
-	// TODO: all errors because of "aptr" uninitialized are grouped and reported on the line below,
-	// which is not correct. This should be fixed after https://github.com/uber-go/nilaway/issues/29 is implemented,
-	// and struct init producer expressions are updated accordingly with the original AST expressions.
-	// ERR_GROUP: represents a group of errors that are reported on the next line
-	print(b.aptr.ptr) //want "uninitialized (.|\n)* potential nil panic\\(s\\) at 6 other place\\(s\\)"
+	print(b.aptr.ptr) //want "uninitialized accessed field `ptr`"
 }
 
 func m2() {
 	var b = A{}
-	print(b.aptr.ptr) // (error here grouped with ERR_GROUP)
+	print(b.aptr.ptr) //want "uninitialized accessed field `ptr`"
 }
 
 func m3() {
@@ -59,7 +55,7 @@ func m6() {
 
 func m7() {
 	b := &A{}
-	print(b.aptr.ptr) // (error here grouped with ERR_GROUP)
+	print(b.aptr.ptr) //want "uninitialized accessed field `ptr`"
 }
 
 func m8() {
@@ -70,7 +66,7 @@ func m8() {
 func m9() {
 	var b *A
 	b = &A{}
-	print(b.aptr.ptr) // (error here grouped with ERR_GROUP)
+	print(b.aptr.ptr) //want "uninitialized accessed field `ptr`"
 }
 
 func m10() {
@@ -81,12 +77,12 @@ func m10() {
 
 func m14() {
 	b := new(A)
-	print(b.aptr.ptr) // (error here grouped with ERR_GROUP)
+	print(b.aptr.ptr) //want "uninitialized accessed field `ptr`"
 }
 
 func m15() {
 	var b A
-	print(b.aptr.ptr) // (error here grouped with ERR_GROUP)
+	print(b.aptr.ptr) //want "uninitialized accessed field `ptr`"
 }
 
 // this test checks that we only get error for `b` being nil, and not for its uninitialized fields
@@ -115,7 +111,7 @@ type A11 struct {
 
 func m11() {
 	var b = &A11{}
-	print(b.A11.ptr) // (error here grouped with ERR_GROUP)
+	print(b.A11.ptr) //want "uninitialized accessed field `ptr`"
 }
 
 // Tests use of promoted fields
