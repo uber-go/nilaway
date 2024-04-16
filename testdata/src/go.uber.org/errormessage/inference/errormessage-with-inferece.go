@@ -63,3 +63,24 @@ func (t *T) test5(str string) {
 	_ = p.f[0].f //want "accessed field `f`"
 	_ = p.f[1].g //want "accessed field `g`"
 }
+
+// Here, although the two error messages are similar for the pairs test8-test9 and test10-test11,
+// they should not be grouped together as they are from different functions.
+
+func test8(mp map[int]*int) {
+	_ = *mp[0] //want "dereferenced"
+}
+
+func test9(mp map[int]*int) {
+	_ = *mp[0] //want "dereferenced"
+}
+
+func test10() {
+	mp := make(map[int]*int)
+	_ = *mp[0] //want "dereferenced"
+}
+
+func test11() {
+	mp := make(map[int]*int)
+	_ = *mp[0] //want "dereferenced"
+}
