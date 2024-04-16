@@ -21,7 +21,6 @@ import (
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/util"
-	"golang.org/x/tools/go/analysis"
 )
 
 type varAssertionNode struct {
@@ -68,7 +67,7 @@ func (v *varAssertionNode) DefaultTrigger() annotation.ProducingAnnotationTrigge
 	if !util.TypeIsDeeplyPtr(v.decl.Type()) {
 		if structType := util.TypeAsDeeplyStruct(v.decl.Type()); structType != nil {
 			if v.Root().functionContext.functionConfig.EnableStructInitCheck {
-				v.Root().addProductionForVarFieldNode(v, v.BuildExpr(v.Root().Pass(), nil))
+				v.Root().addProductionForVarFieldNode(v, v.BuildExpr(nil))
 			}
 			return &annotation.ProduceTriggerNever{} // indicating that the struct object itself is not nil
 		}
@@ -78,7 +77,7 @@ func (v *varAssertionNode) DefaultTrigger() annotation.ProducingAnnotationTrigge
 }
 
 // BuildExpr for a varAssertionNode returns the underlying variable's AST node
-func (v *varAssertionNode) BuildExpr(_ *analysis.Pass, _ ast.Expr) ast.Expr {
+func (v *varAssertionNode) BuildExpr(_ ast.Expr) ast.Expr {
 	if v.Root() == nil {
 		panic("v.BuildExpr should only be called on nodes present in a valid assertion tree")
 	}

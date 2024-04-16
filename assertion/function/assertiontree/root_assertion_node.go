@@ -92,7 +92,7 @@ func (r *RootAssertionNode) DefaultTrigger() annotation.ProducingAnnotationTrigg
 }
 
 // BuildExpr is not well defined for root nodes
-func (r *RootAssertionNode) BuildExpr(*analysis.Pass, ast.Expr) ast.Expr {
+func (r *RootAssertionNode) BuildExpr(_ ast.Expr) ast.Expr {
 	panic("BuildExpr() not defined for RootAssertionNodes")
 }
 
@@ -379,7 +379,7 @@ func (r *RootAssertionNode) triggerProductions(node AssertionNode, producer *ann
 	var processChildren func(ast.Expr, AssertionNode)
 	processChildren = func(producingSubexpr ast.Expr, node AssertionNode) {
 		for _, child := range node.Children() {
-			producingExpr := child.BuildExpr(r.Pass(), producingSubexpr)
+			producingExpr := child.BuildExpr(producingSubexpr)
 
 			matchConsumeTriggers(child, &annotation.ProduceTrigger{
 				Annotation: child.DefaultTrigger(),
@@ -996,7 +996,7 @@ type RootFunc = func(*RootAssertionNode)
 func (r *RootAssertionNode) ProcessEntry() {
 	for len(r.Children()) > 0 {
 		child := r.Children()[0]
-		builtExpr := child.BuildExpr(r.Pass(), nil)
+		builtExpr := child.BuildExpr(nil)
 
 		if r.functionContext.functionConfig.EnableStructInitCheck {
 			// process field Assertion nodes of function parameters
