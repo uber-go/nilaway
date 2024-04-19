@@ -79,7 +79,7 @@ func groupConflicts(allConflicts []conflict, pass *analysis.Pass, cwd string) []
 				key = p.producerPosition.String() + ": " + p.producerRepr
 			} else {
 				// The heuristic of using producer and consumer repr as key may not work perfectly, especially when the
-				// the error messages in two different functions are exactly the same. Consider the following example:
+				// error messages in two different functions are exactly the same. Consider the following example:
 				// ```
 				// 	func f1() {
 				//		mp := make(map[int]*int)
