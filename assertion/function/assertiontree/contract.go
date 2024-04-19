@@ -261,9 +261,9 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 
 		rhsXType := rootNode.Pass().TypesInfo.Types[rhs.X].Type
 		if util.TypeIsDeeplyMap(rhsXType) {
-			lhsValueParsed := parseExpr(rootNode, lhs[0])
-			if lhsValueParsed != nil {
-				// here, the lhs `value` operand is trackable
+			// Create a rich check effect for `v` part of the map read in `v, ok := mp[k]`
+			if lhsValueParsed := parseExpr(rootNode, lhs[0]); lhsValueParsed != nil {
+				// Here, the lhs `value` operand is trackable
 				effects = append(effects, &MapOkRead{
 					okRead{
 						root:  rootNode,
@@ -273,8 +273,27 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 					}})
 			}
 
+			// Create a rich check effect for the map read `mp[k]` part of `v, ok := mp[k]`. This is important
+			// to support cases when consequent map reads are used instead of creating a local variable `v`. For example,
+			// ```
+			// if _, ok := mp[k]; ok {
+			//	  return *mp[k]
+			// }
+			// ```
+			if rhsParsed := parseExpr(rootNode, rhs); rhsParsed != nil {
+				// Here, the rhs `map read` itself is trackable
+				effects = append(effects, &MapOkRead{
+					okRead{
+						root:  rootNode,
+						value: rhsParsed,
+						ok:    lhsOkParsed,
+						guard: nonceGenerator.Next(rhs),
+					}})
+			}
+
+			// Create a rich check effect for the map itself, `mp`, in `v, ok := mp[k]`
 			if rhsMapParsed := parseExpr(rootNode, rhs.X); rhsMapParsed != nil {
-				// here, the rhs `map` operand is trackable
+				// Here, the rhs `map` operand is trackable
 				effects = append(effects, &MapOkReadRefl{
 					okRead{
 						root:  rootNode,
@@ -467,7 +486,7 @@ func exprMatchesTrackableExpr(rootNode *RootAssertionNode, expr ast.Expr, checks
 func guardExpr(rootNode *RootAssertionNode, expr TrackableExpr, guard util.GuardNonce) {
 	lookedUpNode, _ := rootNode.lookupPath(expr)
 	if lookedUpNode != nil {
-		// the passed expression is tracked, so mark its corresponding node as guarded
+		// The passed expression is tracked, so mark its corresponding node as guarded
 		lookedUpNode.SetConsumeTriggers(
 			annotation.ConsumeTriggerSliceAsGuarded(
 				lookedUpNode.ConsumeTriggers(), guard))

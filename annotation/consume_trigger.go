@@ -2128,9 +2128,10 @@ func ConsumeTriggerSliceAsGuarded(slice []*ConsumeTrigger, guards ...util.GuardN
 	var out []*ConsumeTrigger
 	for _, trigger := range slice {
 		out = append(out, &ConsumeTrigger{
-			Annotation: trigger.Annotation.Copy(),
-			Expr:       trigger.Expr,
-			Guards:     trigger.Guards.Copy().Add(guards...),
+			Annotation:   trigger.Annotation.Copy(),
+			Expr:         trigger.Expr,
+			Guards:       trigger.Guards.Copy().Add(guards...),
+			GuardMatched: trigger.GuardMatched,
 		})
 	}
 	return out

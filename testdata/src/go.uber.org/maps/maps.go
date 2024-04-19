@@ -668,3 +668,116 @@ func testExplicitBool(mp map[int]*int, i int) *int {
 	}
 	return &i
 }
+
+// nonnil(mp, mp[])
+func testConsequentMapAccesses(mp map[int]*int, i int) *int {
+	switch i {
+	case 0:
+		if _, ok := mp[0]; !ok {
+			mp[0] = new(int)
+		}
+		return mp[0]
+
+	case 1:
+		if _, ok := mp[0]; ok {
+			return mp[0]
+		}
+
+	case 2:
+		if _, ok := mp[0]; !ok {
+		}
+		return mp[0] //want "returned"
+
+	case 3:
+		if _, ok := mp[0]; ok {
+		}
+		return mp[0] //want "returned"
+
+	case 4:
+		v, ok := mp[0]
+		v2, ok2 := mp[0]
+		if ok && !ok2 {
+			v2 = v
+		}
+		return v2 //want "returned"
+
+	case 5:
+		if v, ok := mp[0]; ok {
+			if dummy {
+				return v
+			}
+			return mp[0]
+		}
+
+	case 6:
+		const i = 0
+		if _, ok := mp[i]; !ok {
+			mp[i] = new(int)
+		}
+		return mp[i]
+	}
+	return &i
+}
+
+// Below tests check the behavior in presence of two rich check effects: ok-returning function, and map access.
+// We should be able to handle both correctly.
+
+// nonnil(m)
+type S struct {
+	m map[string]*int
+}
+
+func retPtrBool() (*S, bool) {
+	if dummy {
+		return &S{m: make(map[string]*int)}, true
+	}
+	return nil, false
+}
+
+func testMixedRichCheckEffects(i int) *int {
+	switch i {
+	case 0:
+		// Here the ok-returning function is correctly guarded, but not the map access, for which error should be reported.
+		s, ok := retPtrBool()
+		if !ok {
+			return new(int)
+		}
+		return s.m["abc"] //want "returned"
+
+	case 1:
+		// Here the map access is correctly guarded, but not the ok-returning function, for which error should be reported.
+		s, _ := retPtrBool()
+		if v, ok := s.m["abc"]; ok { //want "accessed field"
+			return v
+		}
+
+	case 2:
+		// Here both the ok-returning function and the map access are not guarded, so error should be reported for both.
+		s, ok := retPtrBool()
+		_ = ok
+		return s.m["abc"] //want "accessed field" "returned"
+
+	case 3:
+		// Here both the ok-returning function and the map access are correctly guarded, so no error should be reported.
+		s, ok := retPtrBool()
+		if !ok {
+			return new(int)
+		}
+		if v, ok := s.m["abc"]; ok {
+			return v
+		}
+
+	case 4:
+		// This test case checks the behavior with consequent map accesses.
+		// Here both the ok-returning function and the map access are correctly guarded, so no error should be reported.
+		s, ok := retPtrBool()
+		if !ok {
+			return new(int)
+		}
+		if _, ok := s.m["abc"]; !ok {
+			s.m["abc"] = new(int)
+		}
+		return s.m["abc"]
+	}
+	return &i
+}
