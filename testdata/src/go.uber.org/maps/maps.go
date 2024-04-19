@@ -831,6 +831,8 @@ type A struct {
 	g int
 }
 
+type mapType map[string][]*string
+
 // nonnil(mp, mp[])
 func testNonLiteralMapAccess(mp map[int]*int, i, j int) {
 	switch i {
@@ -909,11 +911,25 @@ func testNonLiteralMapAccess(mp map[int]*int, i, j int) {
 			i = 100
 			print(*mp[i]) // TODO: report error here
 		}
+
+	case 12:
+		// test case for checking with map type
+		m := mapType{}
+		key := "key"
+		vs := m[key]
+		if len(vs) == 0 {
+			return
+		}
+		print(*vs[0])
 	}
 }
 
+type Node struct {
+	children map[rune]*Node
+}
+
 // nonnil(mapOfMap, mapOfMap[], mapOfmapOfMap, mapOfmapOfMap[])
-func testNestedMaps(mapOfMap map[string]map[string]*int, mapOfmapOfMap map[string]map[string]map[string]*int, i int) {
+func testNestedMaps(mapOfMap map[string]map[string]*int, mapOfmapOfMap map[string]map[string]map[string]*int, root *Node, i int) {
 	k1, k2, k3 := "key1", "key2", "key3"
 
 	switch i {
@@ -942,7 +958,7 @@ func testNestedMaps(mapOfMap map[string]map[string]*int, mapOfmapOfMap map[strin
 		mapOfmapOfMap[k1][k2][k3] = new(int)
 
 	case 3:
-		// same as case 2, but with multiple nested for loops
+		// test case simulated from issue #84
 		for _, s := range []string{"a", "b", "c"} {
 			if mapOfmapOfMap[s] == nil {
 				mapOfmapOfMap[s] = make(map[string]map[string]*int)
@@ -965,5 +981,24 @@ func testNestedMaps(mapOfMap map[string]map[string]*int, mapOfmapOfMap map[strin
 			mapOfmapOfMap[k1][k2] = make(map[string]*int) //want "lacking guarding"
 		}
 		mapOfmapOfMap[k1][k2][k3] = new(int)
+
+	case 6:
+		// test case simulated from issue #206
+		if root == nil {
+			return
+		}
+		current := root
+		for _, v := range k1 {
+			if current.children == nil {
+				current.children = make(map[rune]*Node)
+			}
+			if current.children[v] == nil {
+				current.children[v] = &Node{
+					children: make(map[rune]*Node),
+				}
+			}
+
+			current = current.children[v]
+		}
 	}
 }
