@@ -16,8 +16,13 @@ package diagnostic
 
 import (
 	"fmt"
+	"go/ast"
 	"go/token"
+	"path/filepath"
 	"strings"
+
+	"go.uber.org/nilaway/config"
+	"golang.org/x/tools/go/analysis"
 )
 
 type conflict struct {
@@ -57,7 +62,7 @@ func (c *conflict) addSimilarConflict(conflict conflict) {
 }
 
 // groupConflicts groups conflicts with the same nil path together and update conflicts list.
-func groupConflicts(allConflicts []conflict) []conflict {
+func groupConflicts(allConflicts []conflict, pass *analysis.Pass, cwd string) []conflict {
 	conflictsMap := make(map[string]int)  // key: nil path string, value: index in `allConflicts`
 	indicesToIgnore := make(map[int]bool) // indices of conflicts to be ignored from `allConflicts`, since they are grouped with other conflicts
 
@@ -72,6 +77,46 @@ func groupConflicts(allConflicts []conflict) []conflict {
 			key = p.producerRepr + ";" + p.consumerRepr
 			if p.producerPosition.IsValid() {
 				key = p.producerPosition.String() + ": " + p.producerRepr
+			} else {
+				// The heuristic of using producer and consumer repr as key may not work perfectly, especially when the
+				// error messages in two different functions are exactly the same. Consider the following example:
+				// ```
+				// 	func f1() {
+				//		mp := make(map[int]*int)
+				//		_ = *mp[0] // error message: "deep read from local variable `mp` lacking guarding; dereferenced"
+				// 	}
+				//
+				// 	func f2() {
+				//		mp := make(map[int]*int)
+				//		_ = *mp[0] // error message: "deep read from local variable `mp` lacking guarding; dereferenced"
+				// 	}
+				// ```
+				// Here, the two error messages are exactly the same, but they should not be grouped together as they are
+				// from different functions. To handle such cases, we prepend the enclosing function name to the key.
+				conf := pass.ResultOf[config.Analyzer].(*config.Config)
+				for _, file := range pass.Files {
+					// `fileName` stores the complete file path relative to the current working directory
+					fileName := pass.Fset.Position(file.FileStart).Filename
+					if fn, err := filepath.Rel(cwd, fileName); err == nil {
+						fileName = fn
+					}
+					// Check if the file is in scope and the conflict position is in the same file
+					if !conf.IsFileInScope(file) || fileName != c.position.Filename {
+						continue
+					}
+					for _, decl := range file.Decls {
+						// Check if the conflict position falls within the function's position range. If so, update the key to
+						// include the function name, and end the traversal.
+						if fd, ok := decl.(*ast.FuncDecl); ok {
+							functionStart := pass.Fset.Position(fd.Pos()).Offset
+							functionEnd := pass.Fset.Position(fd.End()).Offset
+							if c.position.Offset >= functionStart && c.position.Offset <= functionEnd {
+								key = fd.Name.Name + ":" + key
+								break
+							}
+						}
+					}
+				}
 			}
 		}
 
