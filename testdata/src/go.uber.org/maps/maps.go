@@ -911,3 +911,59 @@ func testNonLiteralMapAccess(mp map[int]*int, i, j int) {
 		}
 	}
 }
+
+// nonnil(mapOfMap, mapOfMap[], mapOfmapOfMap, mapOfmapOfMap[])
+func testNestedMaps(mapOfMap map[string]map[string]*int, mapOfmapOfMap map[string]map[string]map[string]*int, i int) {
+	k1, k2, k3 := "key1", "key2", "key3"
+
+	switch i {
+	case 0:
+		if _, ok := mapOfMap[k1]; !ok {
+			mapOfMap[k1] = map[string]*int{}
+		}
+		mapOfMap[k1][k2] = new(int)
+
+	case 1:
+		// same as case 0, but with for loop
+		for _, s := range []string{"a", "b", "c"} {
+			if _, ok := mapOfMap[s]; !ok {
+				mapOfMap[s] = map[string]*int{}
+			}
+			mapOfMap[s][k2] = new(int)
+		}
+
+	case 2:
+		if mapOfmapOfMap[k1] == nil {
+			mapOfmapOfMap[k1] = make(map[string]map[string]*int)
+		}
+		if _, ok := mapOfmapOfMap[k1][k2]; !ok {
+			mapOfmapOfMap[k1][k2] = make(map[string]*int)
+		}
+		mapOfmapOfMap[k1][k2][k3] = new(int)
+
+	case 3:
+		// same as case 2, but with multiple nested for loops
+		for _, s := range []string{"a", "b", "c"} {
+			if mapOfmapOfMap[s] == nil {
+				mapOfmapOfMap[s] = make(map[string]map[string]*int)
+			}
+			for _, t := range []string{"x", "y", "z"} {
+				if _, ok := mapOfmapOfMap[s][t]; !ok {
+					mapOfmapOfMap[s][t] = make(map[string]*int)
+				}
+				mapOfmapOfMap[s][t][k3] = new(int)
+			}
+		}
+
+	case 4:
+		if _, ok := mapOfMap[k1]; !ok {
+		}
+		mapOfMap[k1][k2] = new(int) //want "lacking guarding"
+
+	case 5:
+		if _, ok := mapOfmapOfMap[k1][k2]; !ok {
+			mapOfmapOfMap[k1][k2] = make(map[string]*int) //want "lacking guarding"
+		}
+		mapOfmapOfMap[k1][k2][k3] = new(int)
+	}
+}
