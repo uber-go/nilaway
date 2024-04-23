@@ -62,6 +62,65 @@ Then, run the linter by:
 nilaway -include-pkgs="<YOUR_PKG_PREFIX>,<YOUR_PKG_PREFIX_2>" ./...
 ```
 
+### golangci-lint (>= v1.57.0)
+
+NilAway, in its current form, still reports a fair number of false positives. This makes NilAway
+fail to be merged with [golangci-lint][golangci-lint] and be offered as a linter
+(see [PR#4045][pr-4045]). Therefore, you need to build NilAway as a plugin to golangci-lint to be
+executed as a private linter. There are two plugin systems in golangci-lint, and it is much easier
+to use the [Module Plugin System][golangci-lint-module-plugin] (introduced since v1.57.0), and it
+is the only supported approach to run NilAway in golangci-lint.
+
+(1) Create a `.custom-gcl.yml` file at the root of the repository if you have not done so, add the
+following content:
+
+```yaml
+# This has to be >= v1.57.0 for module plugin system support.
+version: v1.57.0
+plugins:
+  - module: "go.uber.org/nilaway"
+    import: "go.uber.org/nilaway/cmd/gclplugin"
+    version: latest # Or a fixed version for reproducible builds.
+```
+
+(2) Add NilAway to the linter configuration file `.golangci.yaml`:
+
+```yaml
+linters-settings:
+  custom:
+    nilaway:
+      type: "module"
+      description: Static analysis tool to detect potential nil panics in Go code.
+      settings:
+        # Settings must be a "map from string to string" to mimic command line flags: the keys are
+        # flag names and the values are the values to the particular flags.
+        include-pkgs: "<YOUR_PACKAGE_PREFIXES>"
+# NilAway can be referred to as `nilaway` just like any other golangci-lint analyzers in other 
+# parts of the configuration file.
+```
+
+(3) Build a custom golangci-lint binary with NilAway included:
+
+```shell
+# Note that your `golangci-lint` to bootstrap the custom binary must also be version >= v1.57.0.
+$ golangci-lint custom
+```
+
+By default, the custom binary will be built at `.` with the name `custom-gcl`, which can be further
+customized in `.custom-gcl.yml` file (see [Module Plugin System][golangci-lint-module-plugin] for
+instructions).
+
+> [!TIP]  
+> Cache the custom binary to avoid having to build it again to save resources, you can use the
+> hash of the `.custom-gcl.yml` file as the cache key.
+
+(4) Run the custom binary instead of `golangci-lint`:
+
+```shell
+# Arguments are the same as `golangci-lint`.
+$ ./custom-gcl run ./...
+```
+
 ### Bazel/nogo
 
 Running with bazel/nogo requires slightly more efforts. First follow the instructions from [rules_go][rules-go], 
@@ -104,65 +163,6 @@ $ bazel build --keep_going //...
 
 (5) See [nogo documentation][nogo-configure-analyzers] on how to pass a configuration JSON to the nogo driver, and see 
 our [wiki page][nogo-configure-nilaway] on how to pass configurations to NilAway.
-
-### golangci-lint (>= v1.57.0)
-
-NilAway, in its current form, still reports a fair number of false positives. This makes NilAway 
-fail to be merged with [golangci-lint][golangci-lint] and be offered as a linter 
-(see [PR#4045][pr-4045]). Therefore, you need to build NilAway as a plugin to golangci-lint to be
-executed as a private linter. There are two plugin systems in golangci-lint, and it is much easier
-to use the [Module Plugin System][golangci-lint-module-plugin] (introduced since v1.57.0), and it 
-is the only supported approach to run NilAway in golangci-lint.
-
-(1) Create a `.custom-gcl.yml` file at the root of the repository if you have not done so, add the
-following content:
-
-```yaml
-# This has to be >= v1.57.0 for module plugin system support.
-version: v1.57.0
-plugins:
-  - module: "go.uber.org/nilaway"
-    import: "go.uber.org/nilaway/cmd/gclplugin"
-    version: latest # Or a fixed version for reproducible builds.
-```
-
-(2) Add NilAway to the linter configuration file `.golangci.yaml`:
-
-```yaml
-linters-settings:
-  custom:
-    nilaway:
-      type: "module"
-      description: Static analysis tool to detect potential nil panics in Go code.
-      settings:
-        # Settings must be a "map from string to string" to mimic command line flags: the keys are
-        # flag names and the values are the values to the particular flags.
-        include-pkgs: "<YOUR_PACKAGE_PREFIXES>"
-# NilAway can be referred to as `nilaway` just like any other golangci-lint analyzers in other 
-# parts of the configuration file.
-```
-
-(3) Build a custom golangci-lint binary with NilAway included:
-
-```shell
-# Note that your `golangci-lint` to bootstrap the custom binary must also be version >= v1.57.0.
-$ golangci-lint custom
-```
-
-By default, the custom binary will be built at `.` with the name `custom-gcl`, which can be further
-customized in `.custom-gcl.yml` file (see [Module Plugin System][golangci-lint-module-plugin] for 
-instructions).
-
-> [!TIP]  
-> Cache the custom binary to avoid having to build it again to save resources, you can use the
-> hash of the `.custom-gcl.yml` file as the cache key.
-
-(4) Run the custom binary instead of `golangci-lint`:
-
-```shell
-# Arguments are the same as `golangci-lint`.
-$ ./custom-gcl run ./...
-```
 
 ## Code Examples
 
