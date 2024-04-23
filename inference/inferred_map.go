@@ -41,15 +41,17 @@ import (
 // inferredValDiff on shared keys is used to ensure that only
 // information present in `Mapping` but not `UpstreamMapping` is exported.
 type InferredMap struct {
-	primitive *primitivizer
-	mapping   *orderedmap.OrderedMap[primitiveSite, InferredVal]
+	primitive       *primitivizer
+	upstreamMapping map[primitiveSite]InferredVal
+	mapping         *orderedmap.OrderedMap[primitiveSite, InferredVal]
 }
 
 // newInferredMap returns a new, empty InferredMap.
 func newInferredMap(primitive *primitivizer) *InferredMap {
 	return &InferredMap{
-		primitive: primitive,
-		mapping:   orderedmap.New[primitiveSite, InferredVal](),
+		primitive:       primitive,
+		upstreamMapping: make(map[primitiveSite]InferredVal),
+		mapping:         orderedmap.New[primitiveSite, InferredVal](),
 	}
 }
 
@@ -140,7 +142,14 @@ func (i *InferredMap) Export(pass *analysis.Pass) {
 			continue
 		}
 
-		exported.Store(site, val)
+		if upstreamVal, upstreamPresent := i.upstreamMapping[site]; upstreamPresent {
+			diff, diffNonempty := inferredValDiff(val, upstreamVal)
+			if diffNonempty && diff != nil {
+				exported.Store(site, diff)
+			}
+		} else {
+			exported.Store(site, val)
+		}
 	}
 
 	if len(exported.Pairs) > 0 {
@@ -177,6 +186,7 @@ func (i *InferredMap) GobEncode() (b []byte, err error) {
 // GobDecode decodes the InferredMap from buffer.
 func (i *InferredMap) GobDecode(input []byte) error {
 	i.mapping = orderedmap.New[primitiveSite, InferredVal]()
+	i.upstreamMapping = make(map[primitiveSite]InferredVal)
 
 	buf := bytes.NewBuffer(input)
 	return gob.NewDecoder(s2.NewReader(buf)).Decode(&i.mapping)

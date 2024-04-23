@@ -15,6 +15,8 @@
 package inference
 
 import (
+	"fmt"
+
 	"go.uber.org/nilaway/util/orderedmap"
 )
 
@@ -32,6 +34,7 @@ import (
 // to indicate the state of multi-package inference between packages.
 type InferredVal interface {
 	isInferredVal()
+	copy() InferredVal
 }
 
 // An DeterminedVal placed on annotation site X in an InferredMap indicates that site X
@@ -45,6 +48,8 @@ type DeterminedVal struct {
 }
 
 func (e *DeterminedVal) isInferredVal() {}
+
+func (e *DeterminedVal) copy() InferredVal { return &DeterminedVal{Bool: e.Bool} }
 
 // An UndeterminedVal placed on annotation site X in an InferredMap indicates that we
 // have witnessed at least one assertion about site X, but those assertions do not fix a nilability to
@@ -68,4 +73,81 @@ type UndeterminedVal struct {
 	Implicates *orderedmap.OrderedMap[primitiveSite, primitiveFullTrigger]
 }
 
+func (e *UndeterminedVal) copy() InferredVal {
+	copySitesWithAssertions := func(s *orderedmap.OrderedMap[primitiveSite, primitiveFullTrigger]) *orderedmap.OrderedMap[primitiveSite, primitiveFullTrigger] {
+		out := orderedmap.New[primitiveSite, primitiveFullTrigger]()
+		for _, p := range s.Pairs {
+			site, trigger := p.Key, p.Value
+			out.Store(site, trigger)
+		}
+		return out
+	}
+
+	return &UndeterminedVal{
+		Implicants: copySitesWithAssertions(e.Implicants),
+		Implicates: copySitesWithAssertions(e.Implicates),
+	}
+}
+
 func (e *UndeterminedVal) isInferredVal() {}
+
+// inferredValDiff determines the incremental information that should be exported
+// if `old` was already observed as the InferredVal for a given AnnotationSite,
+// and `new` is determined to be a new value that should now replace that old value.
+// If the `new` value does not supersede the old value, i.e. overwriting one DeterminedVal
+// with a CONFLICTING DeterminedVal, a panic is thrown to indicate failure in programming logic.
+// Some notable cases here include replacing an UndeterminedVal with an DeterminedVal,
+// in which case we just export the DeterminedVal as the incremental update, and
+// replacing an UndeterminedVal with an UndeterminedVal with more edges, in which case
+// we just export an UndeterminedVal containing exactly the new edges - this ensures that
+// merging the incremental update and the existing upstream information yields the value `new`
+// for sue by downstream packages.
+// Additionally, a boolean flag is returned indicating whether there is new information to be
+// incrementally exported at all!
+// Summarizing output behavior: if `new` does not supersede `old`, the function panics
+// if `new` strictly supersedes `old`, (diff, true) is returned
+// if `new` offers the same information as `old`, (garbage, false) is returned.
+func inferredValDiff(newVal, oldVal InferredVal) (InferredVal, bool) {
+	noSupersede := func() {
+		panic(fmt.Sprintf("ERROR: new value %s does not supersede old value %s", newVal, oldVal))
+	}
+
+	sitesWithAssertionsDiff := func(new, old *orderedmap.OrderedMap[primitiveSite, primitiveFullTrigger]) (*orderedmap.OrderedMap[primitiveSite, primitiveFullTrigger], bool) {
+		diff := orderedmap.New[primitiveSite, primitiveFullTrigger]()
+		diffNonempty := false
+		for _, p := range new.Pairs {
+			site, trigger := p.Key, p.Value
+			if _, oldPresent := old.Load(site); !oldPresent {
+				diff.Store(site, trigger)
+				diffNonempty = true
+			}
+		}
+		return diff, diffNonempty
+	}
+
+	switch val := newVal.(type) {
+	case *DeterminedVal:
+		switch old := oldVal.(type) {
+		case *DeterminedVal:
+			if val.Bool.Val() != old.Bool.Val() {
+				noSupersede()
+			}
+			return nil, false
+		case *UndeterminedVal:
+			return val, true
+		}
+	case *UndeterminedVal:
+		switch old := oldVal.(type) {
+		case *DeterminedVal:
+			noSupersede()
+		case *UndeterminedVal:
+			implicants, implicantsDiffs := sitesWithAssertionsDiff(val.Implicants, old.Implicants)
+			implicates, implicatesDiffs := sitesWithAssertionsDiff(val.Implicates, old.Implicates)
+			return &UndeterminedVal{
+				Implicants: implicants,
+				Implicates: implicates,
+			}, implicantsDiffs || implicatesDiffs
+		}
+	}
+	panic(fmt.Sprintf("ERROR: unrecognized InferredAnnotationVals: %T, %T", newVal, oldVal))
+}

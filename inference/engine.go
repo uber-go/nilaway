@@ -119,6 +119,12 @@ func (e *Engine) ObserveUpstream() {
 			return true
 		})
 	}
+
+	// copy imported maps into upstreamMapping field
+	e.inferredMap.OrderedRange(func(site primitiveSite, val InferredVal) bool {
+		e.inferredMap.upstreamMapping[site] = val.copy()
+		return true
+	})
 }
 
 // ObserveAnnotations does one of two things. If the inferenceType is FullInfer, then it reads
