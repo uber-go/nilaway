@@ -26,7 +26,7 @@ import (
 func TestPlugin(t *testing.T) {
 	t.Parallel()
 
-	plugin, err := New(map[string]string{"pretty-print": "false"})
+	plugin, err := New(map[string]any{"pretty-print": "false"})
 	require.NoError(t, err)
 	require.NotNil(t, plugin)
 
@@ -51,7 +51,7 @@ func TestPlugin_IncorrectSettingsType(t *testing.T) {
 func TestPlugin_IncorrectSettings(t *testing.T) {
 	t.Parallel()
 
-	plugin, err := New(map[string]string{"invalid": "123"})
+	plugin, err := New(map[string]any{"invalid": "123"})
 	// The settings are applied when we build the analyzers, so the error should be thrown there.
 	require.NoError(t, err)
 	require.NotNil(t, plugin)
