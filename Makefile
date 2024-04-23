@@ -3,7 +3,7 @@ PROJECT_ROOT = $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 export GOBIN = $(PROJECT_ROOT)/bin
 
 GOLANGCI_LINT_VERSION := $(shell $(GOBIN)/golangci-lint version --format short 2>/dev/null)
-REQUIRED_GOLANGCI_LINT_VERSION := $(shell cat .golangci.version)
+REQUIRED_GOLANGCI_LINT_VERSION := $(shell awk '/^version:/ {print $2}' .custom-gcl.yaml)
 
 # Directories containing independent Go modules.
 MODULE_DIRS = . ./tools
@@ -50,6 +50,7 @@ install-golangci-lint:
 		@echo "[lint] installing golangci-lint v$(REQUIRED_GOLANGCI_LINT_VERSION) since current version is \"$(GOLANGCI_LINT_VERSION)\""
 		@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOBIN) v$(REQUIRED_GOLANGCI_LINT_VERSION)
     endif
+
 
 .PHONY: golangci-lint
 golangci-lint: install-golangci-lint
