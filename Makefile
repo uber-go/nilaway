@@ -51,7 +51,6 @@ install-golangci-lint:
 		@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOBIN) v$(REQUIRED_GOLANGCI_LINT_VERSION)
     endif
 
-
 .PHONY: golangci-lint
 golangci-lint: install-golangci-lint
 	@echo "[lint] $(shell $(GOBIN)/golangci-lint version)"
