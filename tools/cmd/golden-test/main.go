@@ -55,7 +55,7 @@ type BranchResult struct {
 
 // Run runs the golden tests on the base branch and the test branch and writes the summary and
 // diff to the writer.
-func Run(writer io.Writer, baseBranch, testBranch string) error {
+func Run(writer io.Writer, baseBranch, testBranch, groupingFlag string) error {
 	// First verify that the git repository is clean.
 	out, err := exec.Command("git", "status", "--porcelain=v1").CombinedOutput()
 	if err != nil {
@@ -134,7 +134,7 @@ func Run(writer io.Writer, baseBranch, testBranch string) error {
 
 		// Run the built NilAway binary on the stdlib and parse the diagnostics.
 		var buf bytes.Buffer
-		cmd := exec.Command("bin/nilaway", "-include-errors-in-files", "/", "-json", "-pretty-print=false", "-group-error-messages=true", "std")
+		cmd := exec.Command("bin/nilaway", "-include-errors-in-files", "/", "-json", "-pretty-print=false", "-group-error-messages="+groupingFlag, "std")
 		cmd.Stdout = &buf
 		// Inherit env vars such that users can control the resource usages via GOMEMLIMIT, GOGC
 		// etc. env vars.
@@ -281,6 +281,7 @@ func main() {
 	baseBranch := fset.String("base-branch", "main", "the base branch to compare against")
 	testBranch := fset.String("test-branch", "", "the test branch to run golden tests (default current branch)")
 	resultFile := fset.String("result-file", "", "the file to write the diff to, default stdout")
+	groupingFlag := fset.Bool("group-error-messages", true, "group similar error messages (default true)")
 	if err := fset.Parse(os.Args[1:]); err != nil {
 		log.Printf("failed to parse flags: %v\n", err)
 		flag.PrintDefaults()
@@ -296,7 +297,7 @@ func main() {
 		writer = w
 	}
 
-	if err := Run(writer, *baseBranch, *testBranch); err != nil {
+	if err := Run(writer, *baseBranch, *testBranch, fmt.Sprintf("%t", *groupingFlag)); err != nil {
 		log.Printf("failed to run golden test: %v", err)
 		var e *exec.ExitError
 		if errors.As(err, &e) {
