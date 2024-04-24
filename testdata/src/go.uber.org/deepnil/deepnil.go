@@ -206,15 +206,13 @@ func testsArrRets() *int {
 		return a[0]
 	case 13:
 		a := retsNilableArr(0)
-		// unfortunately, the type system here gives `a` the type []*int, which is not deeply nilable
-		return a[i] // TODO:  want "returned"
+		return a[i] //want "returned"
 	case 14:
 		a := retsNonNilArr(0)
 		return a[i]
 	case 15:
 		a := retsNilableArr(i)
-		// same flow error as case 13 above
-		return a[i] // TODO:  want "returned"
+		return a[i] //want "returned"
 	case 16:
 		a := retsNonNilArr(i)
 		return a[i]

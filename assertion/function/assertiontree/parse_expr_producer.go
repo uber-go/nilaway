@@ -326,16 +326,46 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 			return nil, parseDeepRead(recv, expr.X, expr, rproducers)
 		}
 		if recv != nil {
-			// receiver is trackable
-			if r.isStable(expr.Index) {
-				// receiver is trackable and index is stable, so return an augmented path
+			// X part of the expression is trackable. Now we need to check if the index is stable or trackable.
+			// If the index is not stable, it is still considered trackable if it falls into any of these categories:
+			// - Index is a variable (e.g., `m[i]`)
+			// - Index is a built-in function (e.g., `m[len(m)-1]`)
+			// - Index is a field selector chain (e.g., `m[g.h.i]`)
+			// TODO: above non-literal indices should only be considered trackable if no reassignment is found between
+			//  accesses. For example, `i := 0; if m[i] != nil { i = 10; return *m[i] }` should not be considered trackable
+			//  as the index `i` is reassigned between accesses. Towards, we plan to add another analyzer pass based on
+			//  SSA to determine if the index is reassigned between accesses.
+			var isIndexTrackable func(expr ast.Expr) bool
+			isIndexTrackable = func(expr ast.Expr) bool {
+				switch index := expr.(type) {
+				case *ast.Ident:
+					return r.isVariable(index) || r.isStable(expr)
+				case *ast.BinaryExpr:
+					if index.Op == token.SUB || index.Op == token.ADD {
+						return isIndexTrackable(index.X) && isIndexTrackable(index.Y)
+					}
+					return false
+				case *ast.CallExpr:
+					if fun, ok := index.Fun.(*ast.Ident); ok {
+						return r.isBuiltIn(fun)
+					}
+					return false
+				case *ast.SelectorExpr:
+					return util.IsFieldSelectorChain(index)
+				default:
+					return r.isStable(expr)
+				}
+			}
+
+			if isIndexTrackable(expr.Index) {
+				// receiver is trackable and index is stable or trackable, so return an augmented path
 				return append(recv, &indexAssertionNode{
 					index:    expr.Index,
 					valType:  r.Pass().TypesInfo.Types[expr].Type,
 					recvType: r.Pass().TypesInfo.Types[expr.X].Type,
 				}), nil
 			}
-			// index is non-literal, so the expression is not trackable, just return nilable for index without check
+			// index is non-trackable, so the expression is not trackable, just return nilable for index without check
 			return nil, parseDeepRead(recv, expr.X, expr, rproducers)
 		}
 		// reciever is non-trackable, just return nilable for index without check

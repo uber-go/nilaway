@@ -158,6 +158,34 @@ func testRequire(t *testing.T, x any, z any, m map[any]any) interface{} {
 		v, ok := m[0]
 		require.False(t, ok)
 		return v //want "returned"
+	case 23:
+		_, ok := m[x]
+		require.True(t, ok)
+		return m[x]
+	case 24:
+		_, ok := m[x]
+		require.False(t, ok)
+		return m[x] //want "returned"
+	case 25:
+		require.NotNil(t, m[x])
+		return m[x]
+	case 26:
+		require.Nil(t, m[x])
+		return m[x] //want "returned"
+	case 27:
+		require.True(t, m[x] != nil)
+		return m[x]
+	case 28:
+		require.True(t, m[x] == nil)
+		return m[x] //want "returned"
+	case 29:
+		mapOfSlice := map[any][]int{}
+		require.True(t, len(mapOfSlice[x]) == 1)
+		return mapOfSlice[x][0]
+	case 30:
+		mapOfSlice := map[any][]int{}
+		require.True(t, len(mapOfSlice[x]) == 0)
+		return mapOfSlice[x][0] //want "sliced into"
 	}
 	return 0
 }
