@@ -27,6 +27,8 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
+const _on = true
+
 // An InferredMap is the state accumulated by multi-package inference. It's
 // field `Mapping` maps a set of known annotation sites to InferredAnnotationVals - which can
 // be either a fixed bool value along with explanation for why it was fixed - an DeterminedVal
@@ -142,13 +144,17 @@ func (i *InferredMap) Export(pass *analysis.Pass) {
 			continue
 		}
 
-		if upstreamVal, upstreamPresent := i.upstreamMapping[site]; upstreamPresent {
-			diff, diffNonempty := inferredValDiff(val, upstreamVal)
-			if diffNonempty && diff != nil {
-				exported.Store(site, diff)
-			}
-		} else {
+		if _on {
 			exported.Store(site, val)
+		} else {
+			if upstreamVal, upstreamPresent := i.upstreamMapping[site]; upstreamPresent {
+				diff, diffNonempty := inferredValDiff(val, upstreamVal)
+				if diffNonempty && diff != nil {
+					exported.Store(site, diff)
+				}
+			} else {
+				exported.Store(site, val)
+			}
 		}
 	}
 
@@ -158,6 +164,15 @@ func (i *InferredMap) Export(pass *analysis.Pass) {
 		m := newInferredMap(nil /* primitive */)
 		m.mapping = exported
 
+		// Mimic the serialization.
+		var buf bytes.Buffer
+		if err := gob.NewEncoder(&buf).Encode(m); err != nil {
+			panic(err)
+		}
+		var mmm *InferredMap
+		if err := gob.NewDecoder(&buf).Decode(&mmm); err != nil {
+			panic(err)
+		}
 		pass.ExportPackageFact(m)
 	}
 }
