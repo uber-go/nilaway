@@ -913,6 +913,25 @@ func testNonLiteralMapAccess(mp map[int]*int, i, j int) {
 		}
 
 	case 12:
+		// TODO: Similar as above, this case is currently a false negative since NilAway does not track the value of integers (`i`).
+		//  However, this is not expected to be a common pattern, hence we plan to add support for this in a follow-up PR.
+		i = len(mp) - 1
+		if mp[i] != nil {
+			i = len(mp)
+			print(*mp[i]) // TODO: report error here
+		}
+
+	case 13:
+		// TODO: Similar as above, this case is currently a false negative since NilAway does not track the value of integers (`i`).
+		//  However, this is not expected to be a common pattern, hence we plan to add support for this in a follow-up PR.
+		a := &A{}
+		i = a.f
+		if mp[i] != nil {
+			i = a.g
+			print(*mp[i]) // TODO: report error here
+		}
+
+	case 14:
 		// test case for checking with map type
 		m := mapType{}
 		key := "key"

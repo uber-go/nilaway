@@ -331,6 +331,10 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 			// - Index is a variable (e.g., `m[i]`)
 			// - Index is a built-in function (e.g., `m[len(m)-1]`)
 			// - Index is a field selector chain (e.g., `m[g.h.i]`)
+			// TODO: above non-literal indices should only be considered trackable if no reassignment is found between
+			//  accesses. For example, `i := 0; if m[i] != nil { i = 10; return *m[i] }` should not be considered trackable
+			//  as the index `i` is reassigned between accesses. Towards, we plan to add another analyzer pass based on
+			//  SSA to determine if the index is reassigned between accesses.
 			var isIndexTrackable func(expr ast.Expr) bool
 			isIndexTrackable = func(expr ast.Expr) bool {
 				switch index := expr.(type) {
