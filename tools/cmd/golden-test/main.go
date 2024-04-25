@@ -149,7 +149,7 @@ func Run(writer io.Writer, baseBranch, testBranch, groupingFlag string) error {
 		branch.Result = diagnostics
 	}
 
-	WriteDiff(writer, branches)
+	WriteDiff(writer, branches, groupingFlag)
 	return nil
 }
 
@@ -178,12 +178,16 @@ func ParseDiagnostics(reader io.Reader) (map[Diagnostic]bool, error) {
 
 // WriteDiff writes the summary and the diff (if the base and test are different) between the base
 // and test diagnostics to the writer. If the writer is os.Stdout, it will write the diff in color.
-func WriteDiff(writer io.Writer, branches [2]*BranchResult) {
+func WriteDiff(writer io.Writer, branches [2]*BranchResult, groupingFlag string) {
 	// Compute the diagnostic differences between base and test branches.
 	minuses, pluses := Diff(branches[0].Result, branches[1].Result), Diff(branches[1].Result, branches[0].Result)
 
 	// Write the summary lines first.
-	MustFprint(fmt.Fprintf(writer, "## Golden Test\n\n"))
+	if groupingFlag == "true" {
+		MustFprint(fmt.Fprintf(writer, "## Golden Test w/ grouping\n\n"))
+	} else {
+		MustFprint(fmt.Fprintf(writer, "## Golden Test w/o grouping\n\n"))
+	}
 	if len(pluses) == 0 && len(minuses) == 0 {
 		MustFprint(fmt.Fprint(writer, "> [!NOTE]  \n"))
 		MustFprint(fmt.Fprintf(writer, "> ✅ NilAway errors reported on standard libraries are **identical**.\n"))

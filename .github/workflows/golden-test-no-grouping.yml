@@ -1,4 +1,4 @@
-name: Golden Test w/ grouping
+name: Golden Test w/o grouping
 
 # NilAway output may change due to introduction of new feature or bug fixes. Since NilAway is still
 # at early stage of development, constantly updating / maintaining the golden test output will be
@@ -8,8 +8,8 @@ on:
   pull_request:
 
 jobs:
-  golden-test:
-    name: Golden Test w/ grouping
+  golden-test-no-grouping:
+    name: Golden Test w/o grouping
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,13 +24,13 @@ jobs:
           go-version: 1.22.x
           cache: false
 
-      - name: Golden Test w/ grouping
-        id: golden_test
+      - name: Golden Test w/o grouping
+        id: golden_test_no_grouping
         # Run golden test by comparing HEAD and the base branch (the target branch of the PR).
         # GitHub Actions terminates the job if it hits the resource limits. Here we limit the
         # memory usage to 8GiB to avoid that.
         run: |
-          make golden-test GOMEMLIMIT=8192MiB ARGS="-base-branch ${{ github.event.pull_request.base.ref }} -result-file ${{ runner.temp }}/golden-test-result.md -group-error-messages=true"
+          make golden-test GOMEMLIMIT=8192MiB ARGS="-base-branch ${{ github.event.pull_request.base.ref }} -result-file ${{ runner.temp }}/golden-test-no-grouping-result.md -group-error-messages=false"
 
       - uses: actions/github-script@v7
         with:
@@ -40,7 +40,7 @@ jobs:
             const issueNumber = context.issue.number;
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-            const rawData = await fsp.readFile(`${{ runner.temp }}/golden-test-result.md`, 'utf8');
+            const rawData = await fsp.readFile(`${{ runner.temp }}/golden-test-no-grouping-result.md`, 'utf8');
             
             // GitHub API has a limit of 65536 bytes for a comment body, so here we shrink the 
             // diff part (anything between <details> and </details>) to 10,000 characters if it
@@ -61,7 +61,7 @@ jobs:
               repo: repo,
               issue_number: issueNumber
             });
-            const botComment = comments.data.find(comment => comment.user.login === 'github-actions[bot]' && comment.body.startsWith('## Golden Test') && comment.body.endsWith('w/ grouping'));
+            const botComment = comments.data.find(comment => comment.user.login === 'github-actions[bot]' && comment.body.startsWith('## Golden Test') && comment.body.endsWith('w/o grouping'));
             
             // Update or create the PR comment.
             if (botComment) {
