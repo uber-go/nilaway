@@ -35,7 +35,7 @@ jobs:
           cache: false
 
       - name: Golden Test ${{ matrix.grouping }}
-        id: ${{ matrix.test_id }}
+        id: golden_test
         # Run golden test by comparing HEAD and the base branch (the target branch of the PR).
         # GitHub Actions terminates the job if it hits the resource limits. Here we limit the
         # memory usage to 8GiB to avoid that.
@@ -71,7 +71,7 @@ jobs:
               repo: repo,
               issue_number: issueNumber
             });
-            const botComment = comments.data.find(comment => comment.user.login === 'github-actions[bot]' && comment.body.startsWith('## Golden Test') && comment.body.endsWith(${{ matrix.grouping }}));
+            const botComment = comments.data.find(comment => comment.user.login === 'github-actions[bot]' && comment.body.startsWith('## Golden Test ${{ matrix.grouping }}'));
             
             // Update or create the PR comment.
             if (botComment) {
