@@ -16,10 +16,8 @@ jobs:
         include:
           - grouping: 'w/ grouping'
             group_errors: 'true'
-            test_id: 'golden_test_with_grouping'
           - grouping: 'w/o grouping'
             group_errors: 'false'
-            test_id: 'golden_test_without_grouping'
 
     steps:
       - uses: actions/checkout@v4
