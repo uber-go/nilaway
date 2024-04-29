@@ -1,0 +1,15 @@
+# gazelle:exclude **/testdata
+load("@bazel_gazelle//:def.bzl", "gazelle")
+
+# gazelle:prefix go.uber.org/nilaway/testdata/integration
+gazelle(name = "gazelle")
+
+load("@io_bazel_rules_go//go:def.bzl", "nogo")
+
+nogo(
+    name = "nogo",
+    deps = [
+        "@org_uber_go_nilaway//:nilaway",
+    ],
+    visibility = ["//visibility:public"], # must have public visibility
+)

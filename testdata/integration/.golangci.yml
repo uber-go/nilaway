@@ -1,0 +1,7 @@
+linters-settings:
+  custom:
+    nilaway:
+      type: "module"
+      description: This is an example usage of a plugin linter.
+      settings:
+        pretty-print: "true"

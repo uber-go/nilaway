@@ -1,0 +1,35 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "functioncontracts",
+    srcs = [
+        "analyzer.go",
+        "function_contracts_map.go",
+        "infer.go",
+        "parse.go",
+    ],
+    importpath = "go.uber.org/nilaway/assertion/function/functioncontracts",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//config",
+        "//util",
+        "//util/analysishelper",
+        "@org_golang_x_tools//go/analysis:go_default_library",
+        "@org_golang_x_tools//go/analysis/passes/buildssa:go_default_library",
+        "@org_golang_x_tools//go/ssa:go_default_library",
+    ],
+)
+
+go_test(
+    name = "functioncontracts_test",
+    srcs = ["analyzer_test.go"],
+    embed = [":functioncontracts"],
+    deps = [
+        "//util/analysishelper",
+        "@com_github_google_go_cmp//cmp:go_default_library",
+        "@com_github_stretchr_testify//require:go_default_library",
+        "@org_golang_x_tools//go/analysis:go_default_library",
+        "@org_golang_x_tools//go/analysis/analysistest:go_default_library",
+        "@org_uber_go_goleak//:go_default_library",
+    ],
+)

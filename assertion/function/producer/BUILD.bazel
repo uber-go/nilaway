@@ -1,0 +1,13 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "producer",
+    srcs = [
+        "deep_parsed_producer.go",
+        "parsed_producer.go",
+        "shallow_parsed_producer.go",
+    ],
+    importpath = "go.uber.org/nilaway/assertion/function/producer",
+    visibility = ["//visibility:public"],
+    deps = ["//annotation"],
+)

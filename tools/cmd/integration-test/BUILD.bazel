@@ -1,0 +1,28 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+
+go_library(
+    name = "integration-test_lib",
+    srcs = [
+        "main.go",
+        "standalone.go",
+    ],
+    importpath = "go.uber.org/nilaway/tools/cmd/integration-test",
+    visibility = ["//visibility:private"],
+    deps = ["@org_golang_x_tools//go/packages:go_default_library"],
+)
+
+go_binary(
+    name = "integration-test",
+    embed = [":integration-test_lib"],
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "integration-test_test",
+    srcs = ["main_test.go"],
+    embed = [":integration-test_lib"],
+    deps = [
+        "@com_github_stretchr_testify//require:go_default_library",
+        "@org_uber_go_goleak//:go_default_library",
+    ],
+)

@@ -18,7 +18,10 @@ import (
 	"bytes"
 	"encoding/gob"
 	"errors"
+	"fmt"
 	"go/types"
+	"os"
+	"sync"
 	"testing"
 
 	"github.com/klauspost/compress/s2"
@@ -27,7 +30,7 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
-const _on = true
+const _on = false
 
 // An InferredMap is the state accumulated by multi-package inference. It's
 // field `Mapping` maps a set of known annotation sites to InferredAnnotationVals - which can
@@ -103,6 +106,22 @@ func (i *InferredMap) OrderedRange(f func(primitiveSite, InferredVal) bool) {
 	}
 }
 
+var mu sync.Mutex
+
+func WriteLog(s string) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	f, err := os.OpenFile("/tmp/nilaway_inference.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		panic(err)
+	}
+	_, err = fmt.Fprintf(f, "%s", s)
+	if err != nil {
+		panic(err)
+	}
+}
+
 // Export only encodes new information not already present in the upstream maps, and it does not
 // encode all (in the go sense; i.e. capitalized) annotation sites (See chooseSitesToExport).
 // This ensures that only _incremental_ information is exported by this package and plays a _vital_
@@ -145,14 +164,17 @@ func (i *InferredMap) Export(pass *analysis.Pass) {
 		}
 
 		if _on {
+			WriteLog(fmt.Sprintf("Exporting site %v with value %v\n", site, val))
 			exported.Store(site, val)
 		} else {
 			if upstreamVal, upstreamPresent := i.upstreamMapping[site]; upstreamPresent {
 				diff, diffNonempty := inferredValDiff(val, upstreamVal)
 				if diffNonempty && diff != nil {
+					WriteLog(fmt.Sprintf("Exporting site %v with value %v\n", site, val))
 					exported.Store(site, diff)
 				}
 			} else {
+				WriteLog(fmt.Sprintf("Exporting site %v with value %v\n", site, val))
 				exported.Store(site, val)
 			}
 		}

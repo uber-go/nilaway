@@ -1,0 +1,19 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "diagnostic",
+    srcs = [
+        "conflict.go",
+        "engine.go",
+        "nilflow.go",
+    ],
+    importpath = "go.uber.org/nilaway/diagnostic",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//annotation",
+        "//config",
+        "//inference",
+        "//util",
+        "@org_golang_x_tools//go/analysis:go_default_library",
+    ],
+)

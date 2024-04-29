@@ -1,3 +1,3 @@
-module go.uber.org/nilaway/integration
+module go.uber.org/nilaway/testdata/integration
 
 go 1.21

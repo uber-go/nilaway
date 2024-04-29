@@ -1,0 +1,31 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "anonymousfunc",
+    srcs = [
+        "analyzer.go",
+        "closure.go",
+    ],
+    importpath = "go.uber.org/nilaway/assertion/anonymousfunc",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//annotation",
+        "//config",
+        "//util/analysishelper",
+        "@org_golang_x_tools//go/analysis:go_default_library",
+    ],
+)
+
+go_test(
+    name = "anonymousfunc_test",
+    srcs = ["analyzer_test.go"],
+    embed = [":anonymousfunc"],
+    deps = [
+        "//config",
+        "//util/analysishelper",
+        "@com_github_stretchr_testify//require:go_default_library",
+        "@org_golang_x_tools//go/analysis:go_default_library",
+        "@org_golang_x_tools//go/analysis/analysistest:go_default_library",
+        "@org_uber_go_goleak//:go_default_library",
+    ],
+)

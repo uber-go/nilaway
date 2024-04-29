@@ -20,8 +20,10 @@ package accumulation
 import (
 	"errors"
 	"fmt"
+	"os"
 	"reflect"
 	"runtime/debug"
+	"sync"
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/assertion"
@@ -47,6 +49,22 @@ var Analyzer = &analysis.Analyzer{
 	FactTypes:  []analysis.Fact{new(inference.InferredMap)},
 	Requires:   []*analysis.Analyzer{config.Analyzer, assertion.Analyzer, annotation.Analyzer},
 	ResultType: reflect.TypeOf(([]analysis.Diagnostic)(nil)),
+}
+
+var mu sync.Mutex
+
+func WriteLog(s string) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	f, err := os.OpenFile("/tmp/nilaway_errors.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		panic(err)
+	}
+	_, err = fmt.Fprintf(f, "%s", s)
+	if err != nil {
+		panic(err)
+	}
 }
 
 // run is the primary driver function for NilAway's analysis.
@@ -157,6 +175,9 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 	// [gob encoding]: https://pkg.go.dev/encoding/gob#hdr-Basics
 	inferredMap.Export(pass)
 
+	for i, d := range diagnostics {
+		WriteLog(fmt.Sprintf("%d %v: %s\n", i, pass.Fset.Position(d.Pos), d.Message))
+	}
 	return diagnostics, nil
 }
 

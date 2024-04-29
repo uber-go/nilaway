@@ -1,0 +1,35 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+# gazelle:exclude **/testdata
+load("@bazel_gazelle//:def.bzl", "gazelle")
+
+# gazelle:prefix go.uber.org/nilaway
+gazelle(name = "gazelle")
+
+go_library(
+    name = "nilaway",
+    srcs = ["nilaway.go"],
+    importpath = "go.uber.org/nilaway",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//accumulation",
+        "//config",
+        "//util",
+        "@org_golang_x_tools//go/analysis:go_default_library",
+    ],
+)
+
+go_test(
+    name = "nilaway_test",
+    srcs = [
+        "nilaway_go122_plus_test.go",
+        "nilaway_test.go",
+    ],
+    embed = [":nilaway"],
+    deps = [
+        "//config",
+        "@com_github_stretchr_testify//require:go_default_library",
+        "@org_golang_x_tools//go/analysis/analysistest:go_default_library",
+        "@org_uber_go_goleak//:go_default_library",
+    ],
+)

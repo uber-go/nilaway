@@ -1,0 +1,18 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "orderedmap",
+    srcs = ["orderedmap.go"],
+    importpath = "go.uber.org/nilaway/util/orderedmap",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "orderedmap_test",
+    srcs = ["orderedmap_test.go"],
+    deps = [
+        ":orderedmap",
+        "@com_github_stretchr_testify//require:go_default_library",
+        "@org_uber_go_goleak//:go_default_library",
+    ],
+)

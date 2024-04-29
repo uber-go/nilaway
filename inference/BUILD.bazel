@@ -1,0 +1,36 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "inference",
+    srcs = [
+        "engine.go",
+        "explained_bool.go",
+        "inferred_map.go",
+        "inferred_value.go",
+        "mode.go",
+        "primitive.go",
+    ],
+    importpath = "go.uber.org/nilaway/inference",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//annotation",
+        "//assertion/function/assertiontree",
+        "//config",
+        "//util/asthelper",
+        "//util/orderedmap",
+        "@com_github_klauspost_compress//s2:go_default_library",
+        "@org_golang_x_tools//go/analysis:go_default_library",
+        "@org_golang_x_tools//go/types/objectpath:go_default_library",
+    ],
+)
+
+go_test(
+    name = "inference_test",
+    srcs = ["inferred_map_test.go"],
+    embed = [":inference"],
+    deps = [
+        "//annotation",
+        "@com_github_stretchr_testify//require:go_default_library",
+        "@org_uber_go_goleak//:go_default_library",
+    ],
+)

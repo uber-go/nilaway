@@ -1,0 +1,15 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "util",
+    srcs = [
+        "guard_nonce.go",
+        "util.go",
+    ],
+    importpath = "go.uber.org/nilaway/util",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//config",
+        "@org_golang_x_tools//go/analysis:go_default_library",
+    ],
+)

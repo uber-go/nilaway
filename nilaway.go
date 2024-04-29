@@ -43,7 +43,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		if conf.PrettyPrint {
 			e.Message = util.PrettyPrintErrorMessage(e.Message)
 		}
-		pass.Report(e)
+		// pass.Report(e)
 	}
 
 	return nil, nil

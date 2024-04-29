@@ -1,0 +1,38 @@
+diff --git a/go/tools/builders/compilepkg.go b/go/tools/builders/compilepkg.go
+index 360f69fe..a6e0bbd5 100644
+--- a/go/tools/builders/compilepkg.go
++++ b/go/tools/builders/compilepkg.go
+@@ -587,7 +587,9 @@ func runNogo(ctx context.Context, workDir string, nogoPath string, srcs []string
+ 				cmdLine := strings.Join(args, " ")
+ 				return fmt.Errorf("nogo command '%s' exited unexpectedly: %s", cmdLine, exitErr.String())
+ 			}
+-			return errors.New(string(relativizePaths(out.Bytes())))
++			// Print the diagnostics to stderr, instead of failing the build.
++			fmt.Fprint(os.Stderr, string(relativizePaths(out.Bytes())))
++			return nil
+ 		} else {
+ 			if out.Len() != 0 {
+ 				fmt.Fprintln(os.Stderr, out.String())
+diff --git a/go/tools/builders/nogo_main.go b/go/tools/builders/nogo_main.go
+index 23acdef0..a5abf2d0 100644
+--- a/go/tools/builders/nogo_main.go
++++ b/go/tools/builders/nogo_main.go
+@@ -87,14 +87,15 @@ func run(args []string) error {
+ 	if err != nil {
+ 		return fmt.Errorf("error running analyzers: %v", err)
+ 	}
+-	if diagnostics != "" {
+-		return fmt.Errorf("errors found by nogo during build-time code analysis:\n%s\n", diagnostics)
+-	}
++	// Store the facts regardless of errors to show all possible errors.
+ 	if *xPath != "" {
+ 		if err := ioutil.WriteFile(abs(*xPath), facts, 0o666); err != nil {
+ 			return fmt.Errorf("error writing facts: %v", err)
+ 		}
+ 	}
++	if diagnostics != "" {
++		return fmt.Errorf("errors found by nogo during build-time code analysis:\n%s\n", diagnostics)
++	}
+ 
+ 	return nil
+ }

@@ -1,0 +1,25 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+
+go_library(
+    name = "golden-test_lib",
+    srcs = ["main.go"],
+    importpath = "go.uber.org/nilaway/tools/cmd/golden-test",
+    visibility = ["//visibility:private"],
+    deps = ["@com_github_fatih_color//:go_default_library"],
+)
+
+go_binary(
+    name = "golden-test",
+    embed = [":golden-test_lib"],
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "golden-test_test",
+    srcs = ["main_test.go"],
+    embed = [":golden-test_lib"],
+    deps = [
+        "@com_github_stretchr_testify//require:go_default_library",
+        "@org_uber_go_goleak//:go_default_library",
+    ],
+)

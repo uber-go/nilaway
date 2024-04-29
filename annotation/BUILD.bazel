@@ -1,0 +1,49 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "annotation",
+    srcs = [
+        "affiliation.go",
+        "analyzer.go",
+        "consume_trigger.go",
+        "doc.go",
+        "full_trigger.go",
+        "key.go",
+        "map.go",
+        "produce_trigger.go",
+        "trigger.go",
+        "util.go",
+    ],
+    importpath = "go.uber.org/nilaway/annotation",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//config",
+        "//util",
+        "//util/analysishelper",
+        "//util/orderedmap",
+        "@org_golang_x_tools//go/analysis:go_default_library",
+    ],
+)
+
+go_test(
+    name = "annotation_test",
+    srcs = [
+        "analyzer_test.go",
+        "consume_trigger_test.go",
+        "copy_test.go",
+        "equals_test.go",
+        "helper_test.go",
+        "key_test.go",
+        "produce_trigger_test.go",
+    ],
+    embed = [":annotation"],
+    deps = [
+        "//util",
+        "//util/analysishelper",
+        "@com_github_stretchr_testify//mock:go_default_library",
+        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_stretchr_testify//suite:go_default_library",
+        "@org_golang_x_tools//go/packages:go_default_library",
+        "@org_uber_go_goleak//:go_default_library",
+    ],
+)

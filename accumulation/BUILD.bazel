@@ -1,0 +1,18 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "accumulation",
+    srcs = ["analyzer.go"],
+    importpath = "go.uber.org/nilaway/accumulation",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//annotation",
+        "//assertion",
+        "//assertion/function/assertiontree",
+        "//config",
+        "//diagnostic",
+        "//inference",
+        "//util/analysishelper",
+        "@org_golang_x_tools//go/analysis:go_default_library",
+    ],
+)

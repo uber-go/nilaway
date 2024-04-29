@@ -1,0 +1,40 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "function",
+    srcs = ["analyzer.go"],
+    importpath = "go.uber.org/nilaway/assertion/function",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//annotation",
+        "//assertion/anonymousfunc",
+        "//assertion/function/assertiontree",
+        "//assertion/function/functioncontracts",
+        "//assertion/structfield",
+        "//config",
+        "//util",
+        "//util/analysishelper",
+        "@org_golang_x_tools//go/analysis:go_default_library",
+        "@org_golang_x_tools//go/analysis/passes/ctrlflow:go_default_library",
+        "@org_golang_x_tools//go/cfg:go_default_library",
+    ],
+)
+
+go_test(
+    name = "function_test",
+    srcs = ["analyzer_test.go"],
+    embed = [":function"],
+    deps = [
+        "//annotation",
+        "//assertion/anonymousfunc",
+        "//assertion/function/assertiontree",
+        "//assertion/function/functioncontracts",
+        "//util/analysishelper",
+        "@com_github_stretchr_testify//require:go_default_library",
+        "@org_golang_x_tools//go/analysis:go_default_library",
+        "@org_golang_x_tools//go/analysis/analysistest:go_default_library",
+        "@org_golang_x_tools//go/analysis/passes/ctrlflow:go_default_library",
+        "@org_golang_x_tools//go/cfg:go_default_library",
+        "@org_uber_go_goleak//:go_default_library",
+    ],
+)

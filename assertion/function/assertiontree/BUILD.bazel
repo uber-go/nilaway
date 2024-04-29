@@ -1,0 +1,38 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "assertiontree",
+    srcs = [
+        "assertion_node.go",
+        "backprop.go",
+        "backprop_util.go",
+        "contract.go",
+        "fld_assertion_node.go",
+        "func_assertion_node.go",
+        "function_context.go",
+        "index_assertion_node.go",
+        "parse_expr_producer.go",
+        "preprocess_blocks.go",
+        "root_assertion_node.go",
+        "structinit_util.go",
+        "trusted_func.go",
+        "util.go",
+        "var_assertion_node.go",
+    ],
+    importpath = "go.uber.org/nilaway/assertion/function/assertiontree",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//annotation",
+        "//assertion/anonymousfunc",
+        "//assertion/function/functioncontracts",
+        "//assertion/function/producer",
+        "//assertion/structfield",
+        "//config",
+        "//util",
+        "//util/analysishelper",
+        "//util/asthelper",
+        "@org_golang_x_tools//go/analysis:go_default_library",
+        "@org_golang_x_tools//go/ast/astutil:go_default_library",
+        "@org_golang_x_tools//go/cfg:go_default_library",
+    ],
+)

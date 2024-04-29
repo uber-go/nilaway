@@ -1,0 +1,9 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "downstream",
+    srcs = ["downstream.go"],
+    importpath = "go.uber.org/nilaway/testdata/integration/simple/downstream",
+    visibility = ["//visibility:public"],
+    deps = ["//simple/upstream"],
+)
