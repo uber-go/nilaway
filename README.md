@@ -64,8 +64,7 @@ nilaway -include-pkgs="<YOUR_PKG_PREFIX>,<YOUR_PKG_PREFIX_2>" ./...
 
 ### golangci-lint (>= v1.57.0)
 
-NilAway, in its current form, still reports a fair number of false positives. This makes NilAway
-fail to be merged with [golangci-lint][golangci-lint] and be offered as a linter
+NilAway, in its current form, can report false positives. This unfortunately hinders its immediate merging in [golangci-lint][golangci-lint] and be offered as a linter
 (see [PR#4045][pr-4045]). Therefore, you need to build NilAway as a plugin to golangci-lint to be
 executed as a private linter. There are two plugin systems in golangci-lint, and it is much easier
 to use the [Module Plugin System][golangci-lint-module-plugin] (introduced since v1.57.0), and it
