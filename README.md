@@ -112,7 +112,9 @@ instructions).
 
 > [!TIP]  
 > Cache the custom binary to avoid having to build it again to save resources, you can use the
-> hash of the `.custom-gcl.yml` file as the cache key.
+> hash of the `.custom-gcl.yml` file as the cache key if you are using a fixed version of NilAway.
+> If you are using `latest` as NilAway version, you can append the date of build to the cache key 
+> to force cache expiration after certain time period.
 
 (4) Run the custom binary instead of `golangci-lint`:
 
