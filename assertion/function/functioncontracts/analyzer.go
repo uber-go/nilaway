@@ -72,8 +72,9 @@ type functionResult struct {
 // the comments at the top of each function. Only when there are no handwritten contracts there,
 // do we try to automatically infer contracts.
 func collectFunctionContracts(pass *analysis.Pass) (Map, error) {
-	// Collect ssa for every function.
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
+
+	// Collect ssa for every function.
 	ssaInput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 	ssaOfFunc := make(map[*types.Func]*ssa.Function, len(ssaInput.SrcFuncs))
 	for _, fnssa := range ssaInput.SrcFuncs {
