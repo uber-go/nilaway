@@ -14,10 +14,6 @@
 
 package functioncontracts
 
-import (
-	"go/types"
-)
-
 // ContractVal represents the possible value appearing in a function contract.
 type ContractVal string
 
@@ -58,6 +54,3 @@ type Contract struct {
 	// Outs is the list of output contract values, where the index is the index of the return.
 	Outs []ContractVal
 }
-
-// Map stores the mappings from *types.Func to associated function contracts.
-type Map map[*types.Func][]*Contract

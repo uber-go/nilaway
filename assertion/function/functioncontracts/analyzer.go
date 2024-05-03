@@ -46,6 +46,9 @@ var Analyzer = &analysis.Analyzer{
 	Requires:   []*analysis.Analyzer{config.Analyzer, buildssa.Analyzer},
 }
 
+// Map stores the mappings from *types.Func to associated function contracts.
+type Map map[*types.Func][]*Contract
+
 func run(pass *analysis.Pass) (Map, error) {
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
 
