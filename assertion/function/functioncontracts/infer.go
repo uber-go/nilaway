@@ -30,7 +30,7 @@ const _maxNumTablesPerBlock = 1024
 // inferContracts infers function contracts for a function if it has no contracts written. It
 // returns a list of inferred contracts, which may be empty if no contract is inferred but is never
 // nil.
-func inferContracts(fn *ssa.Function) []*FunctionContract {
+func inferContracts(fn *ssa.Function) []*Contract {
 	nilnessTableSetByBB := make(map[*ssa.BasicBlock]nilnessTableSet)
 	retInstrs := getReturnInstrs(fn) // TODO: Consider *ssa.Panic
 	// No need of an expensive dataflow analysis if we can derive contracts from the return
@@ -140,7 +140,7 @@ func inferContracts(fn *ssa.Function) []*FunctionContract {
 		// TODO: nicely handle exponential explosion of tables.
 		if len(nilnessTableSetByBB[b]) >= _maxNumTablesPerBlock {
 			// Too many tables, we should give up inferring contracts for this function.
-			return []*FunctionContract{}
+			return []*Contract{}
 		}
 
 		// Add successors to queue since the nilness table set of this block has been updated.
@@ -204,7 +204,7 @@ func learnNilness(succ *ssa.BasicBlock, pred *ssa.BasicBlock, table nilnessTable
 func deriveContracts(
 	retInstrs []*ssa.Return,
 	fn *ssa.Function,
-	nilnessTableSetByBB map[*ssa.BasicBlock]nilnessTableSet) []*FunctionContract {
+	nilnessTableSetByBB map[*ssa.BasicBlock]nilnessTableSet) []*Contract {
 	// TODO: verify other or multiple param/return contracts in the future; for now we consider
 	//  contract(nonnil->nonnil) only.
 	param := fn.Params[0]
@@ -258,7 +258,7 @@ func deriveContracts(
 				continue
 			}
 			// All the remaining cases are counterexamples to contract(nonnil->nonnil)
-			return []*FunctionContract{}
+			return []*Contract{}
 		}
 	}
 
@@ -274,14 +274,14 @@ func deriveContracts(
 	// infer nonnil->nonnil.
 	if (nilParamChoices == totalChoices && nonnilOrUnknownParamChoices == 0) ||
 		nonnilRetChoices == totalChoices {
-		return []*FunctionContract{}
+		return []*Contract{}
 	}
 
 	// totalChoices > nilParamChoices >= 0 && totalChoices >= nonnilOrUnknownParamChoices > 0 &&
 	// nonnilRetChoices < totalChoices
 
 	// nonnil->nonnil is valid at all exit blocks
-	return []*FunctionContract{
+	return []*Contract{
 		{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 	}
 }

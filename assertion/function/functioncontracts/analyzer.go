@@ -63,7 +63,7 @@ func run(pass *analysis.Pass) (Map, error) {
 // functionResult is the struct that is received from the channel for each function.
 type functionResult struct {
 	funcObj   *types.Func
-	contracts []*FunctionContract
+	contracts []*Contract
 	err       error
 }
 
@@ -155,7 +155,7 @@ func collectFunctionContracts(pass *analysis.Pass) (Map, error) {
 				defer func() {
 					if r := recover(); r != nil {
 						e := fmt.Errorf("INTERNAL PANIC: %s\n%s", r, string(debug.Stack()))
-						funcChan <- functionResult{err: e, funcObj: funcObj, contracts: []*FunctionContract{}}
+						funcChan <- functionResult{err: e, funcObj: funcObj, contracts: []*Contract{}}
 					}
 				}()
 

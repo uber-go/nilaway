@@ -37,22 +37,19 @@ var _contractRE = regexp.MustCompile(
 
 // parseContracts parses a slice of function contracts from a singe comment group. If no contract
 // is found from the comment group, an empty slice is returned.
-func parseContracts(doc *ast.CommentGroup) []*FunctionContract {
-	contracts := make([]*FunctionContract, 0)
+func parseContracts(doc *ast.CommentGroup) []*Contract {
 	if doc == nil {
-		return contracts
+		return nil
 	}
+
+	contracts := make([]*Contract, 0)
 	for _, lineComment := range doc.List {
-		res := _contractRE.FindAllStringSubmatch(lineComment.Text, -1)
-		if res == nil {
-			continue
-		}
-		for _, matching := range res {
+		for _, matching := range _contractRE.FindAllStringSubmatch(lineComment.Text, -1) {
 			// matching is a slice of three elements; the first is the whole matched string and the
 			// next two are the captured groups of contract values before and after `->`.
 			ins := parseListOfContractValues(matching[1])
 			outs := parseListOfContractValues(matching[2])
-			ctrt := &FunctionContract{
+			ctrt := &Contract{
 				Ins:  ins,
 				Outs: outs,
 			}
@@ -68,7 +65,7 @@ func parseListOfContractValues(wholeStr string) []ContractVal {
 	valKeywords := strings.Split(wholeStr, _sep)
 	contractVals := make([]ContractVal, len(valKeywords))
 	for i, v := range valKeywords {
-		contractVals[i] = stringToContractVal(strings.TrimSpace(v))
+		contractVals[i] = newContractVal(strings.TrimSpace(v))
 	}
 	return contractVals
 }
