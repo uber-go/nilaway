@@ -53,31 +53,31 @@ func TestContractCollection(t *testing.T) {
 
 	require.NotNil(t, funcContractsMap)
 
-	actualNameToContracts := map[*types.Func][]*Contract{}
+	actual := make(Map)
 	for funcObj, contracts := range funcContractsMap {
-		actualNameToContracts[funcObj] = contracts
+		actual[funcObj] = contracts
 	}
 
-	expectedNameToContracts := map[*types.Func][]*Contract{
+	expected := Map{
 		getFuncObj(pass, "f1"): {
-			&Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+			Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		},
 		getFuncObj(pass, "f2"): {
-			&Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{True}},
+			Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{True}},
 		},
 		getFuncObj(pass, "f3"): {
-			&Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{False}},
+			Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{False}},
 		},
 		getFuncObj(pass, "multipleValues"): {
-			&Contract{Ins: []ContractVal{Any, NonNil}, Outs: []ContractVal{NonNil, True}},
+			Contract{Ins: []ContractVal{Any, NonNil}, Outs: []ContractVal{NonNil, True}},
 		},
 		getFuncObj(pass, "multipleContracts"): {
-			&Contract{Ins: []ContractVal{Any, NonNil}, Outs: []ContractVal{NonNil, True}},
-			&Contract{Ins: []ContractVal{NonNil, Any}, Outs: []ContractVal{NonNil, True}},
+			Contract{Ins: []ContractVal{Any, NonNil}, Outs: []ContractVal{NonNil, True}},
+			Contract{Ins: []ContractVal{NonNil, Any}, Outs: []ContractVal{NonNil, True}},
 		},
 		// function contractCommentInOtherLine should not exist in the map as it has no contract.
 	}
-	if diff := cmp.Diff(expectedNameToContracts, actualNameToContracts); diff != "" {
+	if diff := cmp.Diff(expected, actual); diff != "" {
 		require.Fail(t, fmt.Sprintf("parsed contracts mismatch (-want +got):\n%s", diff))
 	}
 }
@@ -97,43 +97,43 @@ func TestInfer(t *testing.T) {
 
 	require.NotNil(t, funcContractsMap)
 
-	actualNameToContracts := map[*types.Func][]*Contract{}
+	actual := make(Map)
 	for funcObj, contracts := range funcContractsMap {
-		actualNameToContracts[funcObj] = contracts
+		actual[funcObj] = contracts
 	}
 
-	expectedNameToContracts := map[*types.Func][]*Contract{
+	expected := Map{
 		getFuncObj(pass, "onlyLocalVar"): {
-			&Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+			Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		},
 		getFuncObj(pass, "unknownCondition"): {
-			&Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+			Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		},
 		getFuncObj(pass, "noLocalVar"): {
-			&Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+			Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		},
 		getFuncObj(pass, "learnUnderlyingFromOuterMakeInterface"): {
-			&Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+			Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		},
 		getFuncObj(pass, "twoCondsMerge"): {
-			&Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+			Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		},
 		getFuncObj(pass, "unknownToUnknownButSameValue"): {
-			&Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+			Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		},
 		// other functions should not exist in the map as the contract nonnil->nonnil does not hold
 		// for them.
 
 		// TODO: uncomment this when we support field access when inferring contracts.
 		// getFuncObj(pass, "field"): {
-		//	&Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+		//	Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		// },
 		// TODO: uncomment this when we support nonempty slice to nonnil.
 		// getFuncObj(pass, "nonEmptySliceToNonnil"): {
-		//	&Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+		//	Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		// },
 	}
-	if diff := cmp.Diff(expectedNameToContracts, actualNameToContracts); diff != "" {
+	if diff := cmp.Diff(expected, actual); diff != "" {
 		require.Fail(t, fmt.Sprintf("inferred contracts mismatch (-want +got):\n%s", diff))
 	}
 }

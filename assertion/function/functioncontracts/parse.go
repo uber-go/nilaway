@@ -37,23 +37,22 @@ var _contractRE = regexp.MustCompile(
 
 // parseContracts parses a slice of function contracts from a singe comment group. If no contract
 // is found from the comment group, an empty slice is returned.
-func parseContracts(doc *ast.CommentGroup) []*Contract {
+func parseContracts(doc *ast.CommentGroup) Contracts {
 	if doc == nil {
 		return nil
 	}
 
-	contracts := make([]*Contract, 0)
+	var contracts Contracts
 	for _, lineComment := range doc.List {
 		for _, matching := range _contractRE.FindAllStringSubmatch(lineComment.Text, -1) {
 			// matching is a slice of three elements; the first is the whole matched string and the
 			// next two are the captured groups of contract values before and after `->`.
 			ins := parseListOfContractValues(matching[1])
 			outs := parseListOfContractValues(matching[2])
-			ctrt := &Contract{
+			contracts = append(contracts, Contract{
 				Ins:  ins,
 				Outs: outs,
-			}
-			contracts = append(contracts, ctrt)
+			})
 		}
 	}
 	return contracts

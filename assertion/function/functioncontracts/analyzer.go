@@ -46,8 +46,10 @@ var Analyzer = &analysis.Analyzer{
 	Requires:   []*analysis.Analyzer{config.Analyzer, buildssa.Analyzer},
 }
 
+type Contracts []Contract
+
 // Map stores the mappings from *types.Func to associated function contracts.
-type Map map[*types.Func][]*Contract
+type Map map[*types.Func]Contracts
 
 func run(pass *analysis.Pass) (Map, error) {
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
@@ -66,7 +68,7 @@ func run(pass *analysis.Pass) (Map, error) {
 // functionResult is the struct that is received from the channel for each function.
 type functionResult struct {
 	funcObj   *types.Func
-	contracts []*Contract
+	contracts Contracts
 	err       error
 }
 
@@ -159,7 +161,7 @@ func collectFunctionContracts(pass *analysis.Pass) (Map, error) {
 				defer func() {
 					if r := recover(); r != nil {
 						e := fmt.Errorf("INTERNAL PANIC: %s\n%s", r, string(debug.Stack()))
-						funcChan <- functionResult{err: e, funcObj: funcObj, contracts: []*Contract{}}
+						funcChan <- functionResult{err: e, funcObj: funcObj}
 					}
 				}()
 
