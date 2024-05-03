@@ -46,6 +46,7 @@ var Analyzer = &analysis.Analyzer{
 	Requires:   []*analysis.Analyzer{config.Analyzer, buildssa.Analyzer},
 }
 
+// Contracts represents the list of contracts for a function.
 type Contracts []Contract
 
 // Map stores the mappings from *types.Func to associated function contracts.
