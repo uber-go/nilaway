@@ -51,51 +51,53 @@ var Analyzer = &analysis.Analyzer{
 type Contracts []Contract
 
 // AFact enables use of the facts passing mechanism in Go's analysis framework.
-func (Contracts) AFact() {}
+func (*Contracts) AFact() {}
 
 // Map stores the mappings from *types.Func to associated function contracts.
 type Map map[*types.Func]Contracts
 
 func run(pass *analysis.Pass) (Map, error) {
-	contracts := make(Map)
-
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
 	if !conf.IsPkgInScope(pass.Pkg) {
-		return contracts, nil
+		return make(Map), nil
 	}
 
-	// Import contracts from upstream packages.
+	// Collect contracts from the current package.
+	contracts, err := collectFunctionContracts(pass)
+	if err != nil {
+		return nil, err
+	}
+
+	// The fact mechanism only allows exporting pointer types. However, internally we are using
+	// `Contract` as a value type because it is an underlying slice type (such that making it a
+	// pointer type will make the rest of the logic more complicated). Therefore, we strictly
+	// only convert it from/to a pointer type _here_ during the fact import/exports. Everywhere
+	// else in NilAway (this sub-analyzer, as well as the other analyzers) we treat `Contract`
+	// simply as a value type.
+
+	// Import contracts from upstream packages and merge it with the local contract map.
 	for _, fact := range pass.AllObjectFacts() {
 		fn, ok := fact.Object.(*types.Func)
 		if !ok {
 			continue
 		}
-		ctrts, ok := fact.Fact.(Contracts)
-		if !ok {
+		ctrts, ok := fact.Fact.(*Contracts)
+		if !ok || ctrts == nil {
 			continue
 		}
-		contracts[fn] = ctrts
-	}
-
-	// Collect contracts from the current package and merge it with the imported contracts.
-	localContracts, err := collectFunctionContracts(pass)
-	if err != nil {
-		return nil, err
-	}
-	for fn, ctrts := range localContracts {
 		// The existing contracts are imported from upstream packages about upstream functions,
 		// therefore there should not be any conflicts with contracts collected from the current package.
 		if _, ok := contracts[fn]; ok {
 			return nil, fmt.Errorf("function %s has multiple contracts", fn.Name())
 		}
-		contracts[fn] = ctrts
+		contracts[fn] = *ctrts
 	}
 
 	// Now, export the contracts for the _exported_ functions in the current package only.
 	for fn, ctrts := range contracts {
 		pp := fn.Scope().Parent().Parent()
 		if fn.Exported() && pp == pass.Pkg.Scope() {
-			pass.ExportObjectFact(fn, ctrts)
+			pass.ExportObjectFact(fn, &ctrts)
 		}
 	}
 	return contracts, nil

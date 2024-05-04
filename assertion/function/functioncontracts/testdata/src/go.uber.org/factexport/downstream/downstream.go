@@ -25,3 +25,13 @@ func foo() {
 	upstream.ExportedManual(nil)
 	upstream.ExportedInferred(nil)
 }
+
+// This is a local function that has a contract that should be combined with the imported facts.
+// contract(nonnil -> nonnil)
+func localManual(p *int) *int {
+	if p != nil {
+		a := 1
+		return &a
+	}
+	return nil
+}

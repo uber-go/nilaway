@@ -14,10 +14,10 @@
 
 package upstream
 
-// This tests the export of contracts from the upstream package to the downstream package.
+// This tests the export of contracts from the upstream package.
 
 //contract(nonnil -> nonnil)
-func ExportedManual(p *int) *int {
+func ExportedManual(p *int) *int { //want ExportedManual:"&\\[{\\[nonnil\\] \\[nonnil\\]}\\]"
 	if p != nil {
 		a := 1
 		return &a
@@ -25,7 +25,24 @@ func ExportedManual(p *int) *int {
 	return nil
 }
 
-func ExportedInferred(p *int) *int {
+func ExportedInferred(p *int) *int { //want ExportedInferred:"&\\[{\\[nonnil\\] \\[nonnil\\]}\\]"
+	if p != nil {
+		a := 1
+		return &a
+	}
+	return nil
+}
+
+//contract(nonnil -> nonnil)
+func unexportedManual(p *int) *int { // Notice here we do not want to export the contracts for it.
+	if p != nil {
+		a := 1
+		return &a
+	}
+	return nil
+}
+
+func unexportedInferred(p *int) *int { // Notice here we do not want to export the contracts for it.
 	if p != nil {
 		a := 1
 		return &a

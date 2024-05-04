@@ -17,6 +17,7 @@ package functioncontracts
 import (
 	"fmt"
 	"go/types"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -142,16 +143,56 @@ func TestFactExport(t *testing.T) {
 	t.Parallel()
 
 	testdata := analysistest.TestData()
-	r := analysistest.Run(t, testdata, Analyzer, "go.uber.org/factexport/upstream")
+	// The exported facts are asserted in the testdata file themselves in "want" strings.
+	analysistest.Run(t, testdata, Analyzer, "go.uber.org/factexport/upstream")
+}
+
+func TestFactImport(t *testing.T) {
+	t.Parallel()
+
+	// Now we test the import of the contract facts. The downstream package has a dependency on
+	// the upstream package (which contains several contracted functions). It should be able to
+	// import those facts, combine them with its own contracts, and return the combined map.
+
+	testdata := analysistest.TestData()
+	r := analysistest.Run(t, testdata, Analyzer, "go.uber.org/factexport/downstream")
 	require.Len(t, r, 1)
-	result := r[0]
-	require.NotNil(t, result)
-	require.NoError(t, result.Err)
-	require.NotEmpty(t, result.Facts)
+	pass, result := r[0].Pass, r[0].Result
+	require.IsType(t, &analysishelper.Result[Map]{}, result)
+	require.NoError(t, result.(*analysishelper.Result[Map]).Err)
+	actual := result.(*analysishelper.Result[Map]).Res
+
+	expected := Map{
+		getFuncObj(pass, "localManual"): {
+			Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+		},
+		getFuncObj(pass, "upstream.ExportedManual"): {
+			Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+		},
+		getFuncObj(pass, "upstream.ExportedInferred"): {
+			Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+		},
+	}
+	if diff := cmp.Diff(expected, actual); diff != "" {
+		require.Fail(t, fmt.Sprintf("inferred contracts mismatch (-want +got):\n%s", diff))
+	}
 }
 
 func getFuncObj(pass *analysis.Pass, name string) *types.Func {
-	return pass.Pkg.Scope().Lookup(name).(*types.Func)
+	parts := strings.Split(name, ".")
+	if len(parts) == 1 {
+		return pass.Pkg.Scope().Lookup(parts[0]).(*types.Func)
+	}
+	if len(parts) > 2 {
+		panic(fmt.Sprintf("invalid function name to look up, expected name or pkg.name, got %q", name))
+	}
+	for _, imported := range pass.Pkg.Imports() {
+		if imported.Name() == parts[0] {
+			return imported.Scope().Lookup(parts[1]).(*types.Func)
+		}
+	}
+
+	panic(fmt.Sprintf("cannot find function %q", name))
 }
 
 func TestMain(m *testing.M) {
