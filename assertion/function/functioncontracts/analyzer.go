@@ -43,25 +43,60 @@ var Analyzer = &analysis.Analyzer{
 	Doc:        _doc,
 	Run:        analysishelper.WrapRun(run),
 	ResultType: reflect.TypeOf((*analysishelper.Result[Map])(nil)),
+	FactTypes:  []analysis.Fact{new(Contracts)},
 	Requires:   []*analysis.Analyzer{config.Analyzer, buildssa.Analyzer},
 }
 
 // Contracts represents the list of contracts for a function.
 type Contracts []Contract
 
+// AFact enables use of the facts passing mechanism in Go's analysis framework.
+func (Contracts) AFact() {}
+
 // Map stores the mappings from *types.Func to associated function contracts.
 type Map map[*types.Func]Contracts
 
 func run(pass *analysis.Pass) (Map, error) {
-	conf := pass.ResultOf[config.Analyzer].(*config.Config)
+	contracts := make(Map)
 
+	conf := pass.ResultOf[config.Analyzer].(*config.Config)
 	if !conf.IsPkgInScope(pass.Pkg) {
-		return Map{}, nil
+		return contracts, nil
 	}
 
-	contracts, err := collectFunctionContracts(pass)
+	// Import contracts from upstream packages.
+	for _, fact := range pass.AllObjectFacts() {
+		fn, ok := fact.Object.(*types.Func)
+		if !ok {
+			continue
+		}
+		ctrts, ok := fact.Fact.(Contracts)
+		if !ok {
+			continue
+		}
+		contracts[fn] = ctrts
+	}
+
+	// Collect contracts from the current package and merge it with the imported contracts.
+	localContracts, err := collectFunctionContracts(pass)
 	if err != nil {
 		return nil, err
+	}
+	for fn, ctrts := range localContracts {
+		// The existing contracts are imported from upstream packages about upstream functions,
+		// therefore there should not be any conflicts with contracts collected from the current package.
+		if _, ok := contracts[fn]; ok {
+			return nil, fmt.Errorf("function %s has multiple contracts", fn.Name())
+		}
+		contracts[fn] = ctrts
+	}
+
+	// Now, export the contracts for the _exported_ functions in the current package only.
+	for fn, ctrts := range contracts {
+		pp := fn.Scope().Parent().Parent()
+		if fn.Exported() && pp == pass.Pkg.Scope() {
+			pass.ExportObjectFact(fn, ctrts)
+		}
 	}
 	return contracts, nil
 }
