@@ -138,6 +138,18 @@ func TestInfer(t *testing.T) {
 	}
 }
 
+func TestFactExport(t *testing.T) {
+	t.Parallel()
+
+	testdata := analysistest.TestData()
+	r := analysistest.Run(t, testdata, Analyzer, "go.uber.org/factexport/upstream")
+	require.Len(t, r, 1)
+	result := r[0]
+	require.NotNil(t, result)
+	require.NoError(t, result.Err)
+	require.NotEmpty(t, result.Facts)
+}
+
 func getFuncObj(pass *analysis.Pass, name string) *types.Func {
 	return pass.Pkg.Scope().Lookup(name).(*types.Func)
 }
