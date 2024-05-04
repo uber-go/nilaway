@@ -95,8 +95,16 @@ func run(pass *analysis.Pass) (Map, error) {
 
 	// Now, export the contracts for the _exported_ functions in the current package only.
 	for fn, ctrts := range contracts {
-		pp := fn.Scope().Parent().Parent()
-		if fn.Exported() && pp == pass.Pkg.Scope() {
+		// Check if the function is (1) exported by name (i.e., starts with a capital letter), (2)
+		// it is directly inside the package scope (such that it is really visible in downstream
+		// packages).
+		if fn.Exported() &&
+			// fn.Scope() -> the scope of the function body.
+			fn.Scope() != nil &&
+			// fn.Scope().Parent() -> the scope of the file.
+			fn.Scope().Parent() != nil &&
+			// fn.Scope().Parent().Parent() -> the scope of the package.
+			fn.Scope().Parent().Parent() == pass.Pkg.Scope() {
 			pass.ExportObjectFact(fn, &ctrts)
 		}
 	}
