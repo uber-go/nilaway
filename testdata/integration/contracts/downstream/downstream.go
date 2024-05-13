@@ -28,5 +28,7 @@ func GiveUpstreamNil() {
 func GiveUpstreamNonnil() {
 	a := 1
 	r := upstream.NonnilToNonnil(&a)
-	print(*r) // Safe!
+	// TODO: FP: this should be safe due to the contract. We should remove this once contract
+	//  support is fixed in NilAway.
+	print(*r) //want "result 0 of `NonnilToNonnil\(\)` dereferenced"
 }
