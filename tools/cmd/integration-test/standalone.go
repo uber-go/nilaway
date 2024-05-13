@@ -34,7 +34,12 @@ func (d *StandaloneDriver) Run(dir string) (map[Position]string, error) {
 	}
 
 	// Run the NilAway binary on the integration test project, with redirects to an internal buffer.
-	cmd := exec.Command(filepath.Join("..", "..", "bin", "nilaway"), "-json", "-pretty-print=false", "./...")
+	cmd := exec.Command(filepath.Join("..", "..", "bin", "nilaway"),
+		"-json", "-pretty-print=false",
+		// Disable group error messages to make the output accurate for comparisons.
+		"-group-error-messages=false",
+		"./...",
+	)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	if err != nil {
