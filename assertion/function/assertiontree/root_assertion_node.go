@@ -526,18 +526,6 @@ func (r *RootAssertionNode) consumeIndexExpr(expr ast.Expr) {
 			Guards:     util.NoGuards(),
 		})
 	}
-
-	// reads of nilable maps should not necessarily produce errors - the flag config.ErrorOnNilableMapRead
-	// encodes this optionality and is currently set to false
-	if config.ErrorOnNilableMapRead && util.TypeIsDeeplyMap(t) {
-		r.AddConsumption(&annotation.ConsumeTrigger{
-			Annotation: &annotation.MapAccess{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
-			Expr:       expr,
-			Guards:     util.NoGuards(),
-		})
-	}
-	// there are some weird types that can show up here (*internal/abi.IntArgRegBitmap for example)
-	// so don't error out if we don't recognize the type just no-op
 }
 
 // AddComputation takes the knowledge that the expression expr has to be computed to generate any necessary assertions to

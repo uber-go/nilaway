@@ -25,11 +25,6 @@ package config
 // to lower values, making it a good compromise for precise results.
 const StableRoundLimit = 5
 
-// ErrorOnNilableMapRead configures whether reading from nil maps should be considered an error.
-// Since Go does not panic on this, right now we do not interpret it as one, but this could be
-// considered undesirable behavior and worth catching in the future.
-const ErrorOnNilableMapRead = false
-
 // NilAwayNoInferString is the string that may be inserted into the docstring for a package to prevent
 // NilAway from inferring the annotations for that package - this is useful for unit tests
 const NilAwayNoInferString = "<nilaway no inference>"
