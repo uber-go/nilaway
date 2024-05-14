@@ -110,9 +110,9 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysis.Pass, upstre
 					// note that other n-to-1 assignments (e.g. v, ok := m[k]) are handled by the loop below, since only the first LHS element is
 					// being directly assigned to in a way we care about
 					if len(node.Rhs) == 1 && len(node.Lhs) > 1 {
-						if rhsSig, ok := util.TypeOf(pass, node.Rhs[0]).(*types.Tuple); ok && rhsSig.Len() == len(node.Lhs) {
+						if rhsSig, ok := pass.TypesInfo.TypeOf(node.Rhs[0]).(*types.Tuple); ok && rhsSig.Len() == len(node.Lhs) {
 							for i := range node.Lhs {
-								lhsType := util.TypeOf(pass, node.Lhs[i])
+								lhsType := pass.TypesInfo.TypeOf(node.Lhs[i])
 								rhsType := rhsSig.At(i).Type()
 								appendTypeToTypeTriggers(lhsType, rhsType)
 							}
@@ -121,15 +121,15 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysis.Pass, upstre
 					}
 					// e.g., var i I, var s *S, i = s, or more generally, i1, i2, i3 = s1, s2, s3
 					for i := 0; i < len(node.Lhs) && i < len(node.Rhs); i++ {
-						lhsType := util.TypeOf(pass, node.Lhs[i])
-						rhsType := util.TypeOf(pass, node.Rhs[i])
+						lhsType := pass.TypesInfo.TypeOf(node.Lhs[i])
+						rhsType := pass.TypesInfo.TypeOf(node.Rhs[i])
 						appendTypeToTypeTriggers(lhsType, rhsType)
 					}
 				case *ast.ValueSpec:
 					// e.g., var i I = &S{}
 					for i := 0; i < len(node.Values); i++ {
-						lhsType := util.TypeOf(pass, node.Type)
-						rhsType := util.TypeOf(pass, node.Values[i])
+						lhsType := pass.TypesInfo.TypeOf(node.Type)
+						rhsType := pass.TypesInfo.TypeOf(node.Values[i])
 						appendTypeToTypeTriggers(lhsType, rhsType)
 					}
 				case *ast.CallExpr:
@@ -139,8 +139,8 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysis.Pass, upstre
 							if fdecl, ok := declObj.(*types.Func); ok {
 								fsig := fdecl.Type().(*types.Signature)
 								for i := 0; i < fsig.Params().Len() && i < len(node.Args); i++ {
-									lhsType := fsig.Params().At(i).Type()      // receiver param of method declaration
-									rhsType := util.TypeOf(pass, node.Args[i]) // caller param
+									lhsType := fsig.Params().At(i).Type()          // receiver param of method declaration
+									rhsType := pass.TypesInfo.TypeOf(node.Args[i]) // caller param
 									appendTypeToTypeTriggers(lhsType, rhsType)
 								}
 							}
@@ -151,15 +151,15 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysis.Pass, upstre
 					if sliceType, ok := util.IsSliceAppendCall(node, pass); ok {
 						for i := 1; i < len(node.Args); i++ {
 							lhsType := sliceType.Elem()
-							rhsType := util.TypeOf(pass, node.Args[i])
+							rhsType := pass.TypesInfo.TypeOf(node.Args[i])
 							appendTypeToTypeTriggers(lhsType, rhsType)
 						}
 					}
 
 				case *ast.TypeAssertExpr:
 					// e.g., v, ok := i.(*S)
-					lhsType := util.TypeOf(pass, node.X)
-					rhsType := util.TypeOf(pass, node.Type)
+					lhsType := pass.TypesInfo.TypeOf(node.X)
+					rhsType := pass.TypesInfo.TypeOf(node.Type)
 					appendTypeToTypeTriggers(lhsType, rhsType)
 
 				case *ast.ReturnStmt:
@@ -170,8 +170,8 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysis.Pass, upstre
 						funcSigResultsList := results.List
 						for i := range node.Results {
 							if i < len(funcSigResultsList) {
-								lhsType := util.TypeOf(pass, funcSigResultsList[i].Type)
-								rhsType := util.TypeOf(pass, node.Results[i])
+								lhsType := pass.TypesInfo.TypeOf(funcSigResultsList[i].Type)
+								rhsType := pass.TypesInfo.TypeOf(node.Results[i])
 								appendTypeToTypeTriggers(lhsType, rhsType)
 							}
 						}
@@ -184,19 +184,19 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysis.Pass, upstre
 						// e.g., _ = []I{&S{}}
 						// TODO: currently, nested composite literal for ArrayType is not supported (e.g., _ = [][]I{{&A1{}}}).
 						//  Tracked in issue #46.
-						lhsType := util.TypeOf(pass, nodeType.Elt)
+						lhsType := pass.TypesInfo.TypeOf(nodeType.Elt)
 						for _, elt := range node.Elts {
-							appendTypeToTypeTriggers(lhsType, util.TypeOf(pass, elt))
+							appendTypeToTypeTriggers(lhsType, pass.TypesInfo.TypeOf(elt))
 						}
 					case *ast.MapType:
 						// Key, value, or both of a map declared of type interface, and initialized with a struct
 						// e.g., _ = map[int]I{0: &S{}}
-						keyType := util.TypeOf(pass, nodeType.Key)
-						valueType := util.TypeOf(pass, nodeType.Value)
+						keyType := pass.TypesInfo.TypeOf(nodeType.Key)
+						valueType := pass.TypesInfo.TypeOf(nodeType.Value)
 						for _, elt := range node.Elts {
 							if kv, ok := elt.(*ast.KeyValueExpr); ok {
-								appendTypeToTypeTriggers(keyType, util.TypeOf(pass, kv.Key))
-								appendTypeToTypeTriggers(valueType, util.TypeOf(pass, kv.Value))
+								appendTypeToTypeTriggers(keyType, pass.TypesInfo.TypeOf(kv.Key))
+								appendTypeToTypeTriggers(valueType, pass.TypesInfo.TypeOf(kv.Value))
 							}
 						}
 					case *ast.Ident:
@@ -208,13 +208,13 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysis.Pass, upstre
 							var lhsType, rhsType types.Type
 							if kv, ok := elt.(*ast.KeyValueExpr); ok {
 								// In this case the initialization is key-value based. E.g. s = &S{t: &T{}}
-								lhsType = util.TypeOf(pass, kv.Key)
-								rhsType = util.TypeOf(pass, kv.Value)
+								lhsType = pass.TypesInfo.TypeOf(kv.Key)
+								rhsType = pass.TypesInfo.TypeOf(kv.Value)
 							} else {
 								// In this case the initialization is serial. E.g. s = &S{&T{}}
-								if sObj := util.TypeAsDeeplyStruct(util.TypeOf(pass, node)); sObj != nil {
+								if sObj := util.TypeAsDeeplyStruct(pass.TypesInfo.TypeOf(node)); sObj != nil {
 									lhsType = sObj.Field(i).Type()
-									rhsType = util.TypeOf(pass, elt)
+									rhsType = pass.TypesInfo.TypeOf(elt)
 								}
 							}
 							if lhsType != nil && rhsType != nil {

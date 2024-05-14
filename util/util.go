@@ -176,11 +176,6 @@ func UnwrapPtr(t types.Type) types.Type {
 	return t
 }
 
-// TypeOf returns the type of the passed AST expression
-func TypeOf(pass *analysis.Pass, expr ast.Expr) types.Type {
-	return pass.TypesInfo.TypeOf(expr)
-}
-
 // FuncIdentFromCallExpr return a function identified from a call expression, nil otherwise
 // nilable(result 0)
 func FuncIdentFromCallExpr(expr *ast.CallExpr) *ast.Ident {
@@ -242,7 +237,7 @@ func IsSliceAppendCall(node *ast.CallExpr, pass *analysis.Pass) (*types.Slice, b
 	if funcName, ok := node.Fun.(*ast.Ident); ok {
 		if declObj := pass.TypesInfo.Uses[funcName]; declObj != nil {
 			if declObj.String() == "builtin append" {
-				if sliceType, ok := TypeOf(pass, node.Args[0]).(*types.Slice); ok {
+				if sliceType, ok := pass.TypesInfo.TypeOf(node.Args[0]).(*types.Slice); ok {
 					return sliceType, true
 				}
 			}
