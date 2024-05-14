@@ -703,7 +703,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 					//   foo(s) // <-- track shallow and deep nilability of `s` here
 					// }
 					// ```
-					if util.TypeIsDeep(util.TypeOf(r.Pass(), arg)) {
+					if util.TypeIsDeep(r.Pass().TypesInfo.TypeOf(arg)) {
 						deepProducer := &annotation.ProduceTrigger{
 							Annotation: exprAsDeepProducer(r, arg),
 							Expr:       arg,
@@ -802,9 +802,8 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 			if util.TypeIsDeeplyPtr(recv.Type()) { // Check 2: receiver is a pointer receiver
 				conf := r.Pass().ResultOf[config.Analyzer].(*config.Config)
 				if conf.IsPkgInScope(funcObj.Pkg()) { // Check 3: invoked method is in scope
-					t := util.TypeOf(r.Pass(), expr.X)
 					// Here, `t` can only be of type interface, struct, or named, of which we only support for struct and named types.
-					if !util.TypeIsDeeplyInterface(t) { // Check 4: invoking expression (caller) is of a non-interface type (e.g., struct or named)
+					if !util.TypeIsDeeplyInterface(r.Pass().TypesInfo.TypeOf(expr.X)) { // Check 4: invoking expression (caller) is of a non-interface type (e.g., struct or named)
 						allowNilable = true
 						// We are in the special case of supporting nilable receivers! Can be nilable depending on declaration annotation/inferred nilability.
 						r.AddConsumption(&annotation.ConsumeTrigger{
