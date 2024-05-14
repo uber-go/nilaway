@@ -413,8 +413,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 		}
 		if expr.Op == token.AND {
 			// we treat a struct object pointer (e.g., &A{}) and struct object (e.g., A{}) identically for creating field producers
-			t := util.TypeOf(r.Pass(), expr.X)
-			if s := util.TypeAsDeeplyStruct(t); s != nil {
+			if s := util.TypeAsDeeplyStruct(r.Pass().TypesInfo.TypeOf(expr.X)); s != nil {
 				return r.ParseExprAsProducer(expr.X, doNotTrack)
 			}
 		}

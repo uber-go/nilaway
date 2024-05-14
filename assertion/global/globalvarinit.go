@@ -68,7 +68,7 @@ func getGlobalConsumers(pass *analysis.Pass, valspec *ast.ValueSpec) []*annotati
 
 	for i, name := range valspec.Names {
 		// Types that are not nilable are eliminated here
-		if !util.TypeBarsNilness(util.TypeOf(pass, name)) && !util.IsEmptyExpr(name) {
+		if !util.TypeBarsNilness(pass.TypesInfo.TypeOf(name)) && !util.IsEmptyExpr(name) {
 			v := pass.TypesInfo.ObjectOf(name).(*types.Var)
 			consumers[i] = &annotation.ConsumeTrigger{
 				Annotation: &annotation.GlobalVarAssign{

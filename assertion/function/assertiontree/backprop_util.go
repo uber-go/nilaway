@@ -414,7 +414,7 @@ func typeIsString(t types.Type) bool {
 // nilable(result 0)
 func exprAsConsumedByAssignment(rootNode *RootAssertionNode, expr ast.Node) *annotation.ConsumeTrigger {
 	if exprType, ok := expr.(*ast.IndexExpr); ok {
-		t := util.TypeOf(rootNode.Pass(), exprType.X)
+		t := rootNode.Pass().TypesInfo.TypeOf(exprType.X)
 		if util.TypeIsDeeplyMap(t) {
 			return &annotation.ConsumeTrigger{
 				Annotation: &annotation.MapWrittenTo{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
@@ -828,7 +828,7 @@ func addReturnConsumers(rootNode *RootAssertionNode, node *ast.ReturnStmt, expr 
 	//   return s  // <-- track shallow and deep nilability of `s` here
 	// }
 	// ```
-	if util.TypeIsDeep(util.TypeOf(rootNode.Pass(), expr)) {
+	if util.TypeIsDeep(rootNode.Pass().TypesInfo.TypeOf(expr)) {
 		producer := &annotation.ProduceTrigger{
 			Annotation: exprAsDeepProducer(rootNode, expr),
 			Expr:       expr,
