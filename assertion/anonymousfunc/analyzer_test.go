@@ -25,7 +25,7 @@ import (
 	"go.uber.org/goleak"
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util/analysishelper"
-	"go.uber.org/nilaway/util/testhelper"
+	"go.uber.org/nilaway/util/nilawaytest"
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
@@ -64,7 +64,7 @@ func TestClosureCollection(t *testing.T) {
 	// FindExpectedValues inspects test files and gathers comment strings at the same line of the
 	// *ast.FuncLit nodes, so that we know which *ast.FuncLit node corresponds to which anonymous
 	// function comment in the source.
-	expectedValues := testhelper.FindExpectedValues(pass, _wantClosurePrefix)
+	expectedValues := nilawaytest.FindExpectedValues(pass, _wantClosurePrefix)
 	require.Equal(t, len(expectedValues), len(funcLitMap))
 
 	funcLitExpectedClosure := make(map[*ast.FuncLit][]string)

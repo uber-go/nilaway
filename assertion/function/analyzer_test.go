@@ -30,7 +30,7 @@ import (
 	"go.uber.org/nilaway/assertion/function/assertiontree"
 	"go.uber.org/nilaway/assertion/function/functioncontracts"
 	"go.uber.org/nilaway/util/analysishelper"
-	"go.uber.org/nilaway/util/testhelper"
+	"go.uber.org/nilaway/util/nilawaytest"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
 	"golang.org/x/tools/go/analysis/passes/ctrlflow"
@@ -184,7 +184,7 @@ func TestBackpropFixpointConvergence(t *testing.T) {
 		funcTriggers, roundCount, stableRoundCount, err := assertiontree.BackpropAcrossFunc(ctx, pass, funcDecl, funcContext, ctrlflowResult.FuncDecl(funcDecl))
 		require.NoError(t, err, "Backpropagation algorithm should not return an error")
 
-		expectedValues := testhelper.FindExpectedValues(pass, _wantFixpointPrefix)
+		expectedValues := nilawaytest.FindExpectedValues(pass, _wantFixpointPrefix)
 		expectedVals, ok := expectedValues[funcDecl]
 		if !ok {
 			// No expected values written in the test file, so we skip the comparison.
