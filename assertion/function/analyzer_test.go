@@ -16,8 +16,10 @@ package function
 
 import (
 	"context"
+	"fmt"
 	"go/ast"
 	"go/types"
+	"strconv"
 	"sync"
 	"testing"
 
@@ -28,11 +30,16 @@ import (
 	"go.uber.org/nilaway/assertion/function/assertiontree"
 	"go.uber.org/nilaway/assertion/function/functioncontracts"
 	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/testhelper"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
 	"golang.org/x/tools/go/analysis/passes/ctrlflow"
 	"golang.org/x/tools/go/cfg"
 )
+
+// _wantFixpointPrefix is a prefix that we use in the test file to specify the expected fixpoint from BackpropAcrossFunc().
+// Format: expect_fixpoint: <roundCount>,<stableRoundCount>,<number of triggers>
+const _wantFixpointPrefix = "expect_fixpoint:"
 
 func TestAnalyzer(t *testing.T) {
 	t.Parallel()
@@ -135,6 +142,62 @@ func TestAnalyzeFuncPanic(t *testing.T) {
 	res := <-resultChan
 	require.Equal(t, res.index, 0)
 	require.ErrorContains(t, res.err, "panic")
+}
+
+func TestBackpropFixpointConvergence(t *testing.T) {
+	t.Parallel()
+
+	testdata := analysistest.TestData()
+
+	// First do an analysis test run just to get the pass variable.
+	r := analysistest.Run(t, testdata, Analyzer, "go.uber.org/backprop")
+	pass := r[0].Pass
+
+	// Gather function declaration nodes from test.
+	var funcs []*ast.FuncDecl
+	for _, file := range pass.Files {
+		for _, decl := range file.Decls {
+			if f, ok := decl.(*ast.FuncDecl); ok {
+				funcs = append(funcs, f)
+			}
+		}
+	}
+	require.NotZero(t, len(funcs), "Cannot find any function declaration in test code")
+
+	for _, funcDecl := range funcs {
+		// Prepare the input variables for passing to BackpropAcrossFunc():
+		funcConfig := assertiontree.FunctionConfig{
+			EnableStructInitCheck: true,
+			EnableAnonymousFunc:   true,
+		}
+		emptyFuncLitMap := make(map[*ast.FuncLit]*anonymousfunc.FuncLitInfo)
+		emptyPkgFakeIdentMap := make(map[*ast.Ident]types.Object)
+		emptyFuncContracts := make(functioncontracts.Map)
+		funcContext := assertiontree.NewFunctionContext(pass, funcDecl, nil, /* funcLit */
+			funcConfig, emptyFuncLitMap, emptyPkgFakeIdentMap, emptyFuncContracts)
+		ctrlflowResult := pass.ResultOf[ctrlflow.Analyzer].(*ctrlflow.CFGs)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		// Run the backpropagation algorithm and collect the results.
+		funcTriggers, roundCount, stableRoundCount, err := assertiontree.BackpropAcrossFunc(ctx, pass, funcDecl, funcContext, ctrlflowResult.FuncDecl(funcDecl))
+		require.NoError(t, err, "Backpropagation algorithm should not return an error")
+
+		expectedValues := testhelper.FindExpectedValues(pass, _wantFixpointPrefix)
+		expectedVals, ok := expectedValues[funcDecl]
+		if !ok {
+			// No expected values written in the test file, so we skip the comparison.
+			continue
+		}
+
+		require.Equal(t, len(expectedVals), 3, "Expected fixpoint values must have 3 elements: roundCount, stableRoundCount, numTriggers")
+
+		// Compare the expected fixpoint values with the actual results.
+		actualVals := []string{strconv.Itoa(roundCount), strconv.Itoa(stableRoundCount), strconv.Itoa(len(funcTriggers))}
+		require.EqualValues(t, expectedVals, actualVals, fmt.Sprintf("Fixpoint values mismatch for round count, "+
+			"stable round count, or number of triggers for func `%s`", funcDecl.Name.Name))
+	}
 }
 
 func TestMain(m *testing.M) {

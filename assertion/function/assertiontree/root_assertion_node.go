@@ -963,9 +963,18 @@ func (r *RootAssertionNode) LiftFromPath(path TrackableExpr) (AssertionNode, boo
 func (r *RootAssertionNode) LandAtPath(path TrackableExpr, node AssertionNode) {
 	if path != nil {
 		newRoot := r.linkPath(path)
-		newNode := path[len(path)-1]
-		newNode.SetConsumeTriggers(node.ConsumeTriggers())
-		newNode.SetChildren(node.Children())
+		lastNode := path[len(path)-1]
+		lastNode.SetConsumeTriggers(node.ConsumeTriggers())
+
+		// To restrict the assertion tree from growing unboundedly, we add node.children to `newNode` iff
+		// they are not equal to `newNode` itself.
+		var childrenToAdd []AssertionNode
+		for _, child := range node.Children() {
+			if !r.eqNodes(child, lastNode) {
+				childrenToAdd = append(childrenToAdd, child)
+			}
+		}
+		lastNode.SetChildren(childrenToAdd)
 
 		r.mergeInto(r, newRoot)
 	}

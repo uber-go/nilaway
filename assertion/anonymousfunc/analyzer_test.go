@@ -25,7 +25,7 @@ import (
 	"go.uber.org/goleak"
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util/analysishelper"
-	"golang.org/x/tools/go/analysis"
+	"go.uber.org/nilaway/util/testhelper"
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
@@ -61,10 +61,20 @@ func TestClosureCollection(t *testing.T) {
 	require.NotZero(t, len(funcLitMap))
 
 	// Get the expected closure vars from comments written for each function literal in the test file.
-	expectedClosure := findExpectedClosure(pass)
-	require.Equal(t, len(expectedClosure), len(funcLitMap))
+	// FindExpectedValues inspects test files and gathers comment strings at the same line of the
+	// *ast.FuncLit nodes, so that we know which *ast.FuncLit node corresponds to which anonymous
+	// function comment in the source.
+	expectedValues := testhelper.FindExpectedValues(pass, _wantClosurePrefix)
+	require.Equal(t, len(expectedValues), len(funcLitMap))
 
-	for funcLit, expectedVars := range expectedClosure {
+	funcLitExpectedClosure := make(map[*ast.FuncLit][]string)
+	for node, closureVars := range expectedValues {
+		if funcLit, ok := node.(*ast.FuncLit); ok {
+			funcLitExpectedClosure[funcLit] = closureVars
+		}
+	}
+
+	for funcLit, expectedVars := range funcLitExpectedClosure {
 		info, ok := funcLitMap[funcLit]
 		require.True(t, ok)
 
@@ -118,54 +128,6 @@ func TestClosureCollection(t *testing.T) {
 		require.False(t, info.FakeFuncObj.Exported())
 		require.Equal(t, info.FakeFuncObj.Name(), info.FakeFuncDecl.Name.Name)
 	}
-}
-
-// findExpectedClosure inspects the files and gather the comment strings at the same line of the
-// *ast.FuncLit nodes, so that we know which *ast.FuncLit node corresponds to which anonymous
-// function comment in the source.
-func findExpectedClosure(pass *analysis.Pass) map[*ast.FuncLit][]string {
-	results := make(map[*ast.FuncLit][]string)
-
-	for _, file := range pass.Files {
-
-		// Store a mapping between single comment's line number to its text.
-		comments := make(map[int]string)
-		for _, group := range file.Comments {
-			if len(group.List) != 1 {
-				continue
-			}
-			comment := group.List[0]
-			comments[pass.Fset.Position(comment.Pos()).Line] = comment.Text
-		}
-
-		// Now, find all *ast.FuncLit nodes and find their comment.
-		ast.Inspect(file, func(node ast.Node) bool {
-			n, ok := node.(*ast.FuncLit)
-			if !ok {
-				return true
-			}
-			text, ok := comments[pass.Fset.Position(n.Pos()).Line]
-			if !ok {
-				// It is ok to not leave annotations for a func lit node - it simply does not use
-				// any closure variables. We still need to traverse further since there could be
-				// comments for nested func lit nodes.
-				results[n] = nil
-				return true
-			}
-
-			// Trim the trailing slashes and extra spaces and extract the set of expected values.
-			text = strings.TrimSpace(strings.TrimPrefix(text, "//"))
-			text = strings.TrimSpace(strings.TrimPrefix(text, _wantClosurePrefix))
-			// If no closure variables are written after _wantClosurePrefix, we simply ignore it.
-			results[n] = nil
-			if len(text) != 0 {
-				results[n] = strings.Split(text, " ")
-			}
-			return true
-		})
-	}
-
-	return results
 }
 
 func TestMain(m *testing.M) {
