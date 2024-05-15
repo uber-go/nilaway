@@ -31,7 +31,7 @@ import (
 	"go.uber.org/nilaway/assertion/function/functioncontracts"
 	"go.uber.org/nilaway/nilawaytest"
 	"go.uber.org/nilaway/util/analysishelper"
-	"go.uber.org/nilaway/util/testhelper"
+	"go.uber.org/nilaway/util/nilawaytest"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
 	"golang.org/x/tools/go/analysis/passes/ctrlflow"
