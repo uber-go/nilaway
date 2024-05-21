@@ -37,7 +37,7 @@ func (a *A) foo() {
 func noClosure() {
 	// For function literals that do not use closure variables, either write no comments or leave
 	// the list of closure variables empty after "expect_closure".
-	func() {
+	func() { // expect_closure:
 		func() { // expect_closure:
 			print("test")
 		}()
