@@ -111,3 +111,17 @@ func testAssignmentInLoop(m mapType, key string) { // expect_fixpoint: 6 2 4
 		}
 	}
 }
+
+// test map access with nested non-builtin call expression in the index expression
+
+type MessageBlock struct{}
+
+func (m *MessageBlock) Messages() []*int {
+	return []*int{new(int)}
+}
+
+func testNonBuiltinNestedIndex(msgSet []*MessageBlock) { // expect_fixpoint: 3 1 4
+	for _, msgBlock := range msgSet {
+		_ = *msgBlock.Messages()[len(msgBlock.Messages())-1]
+	}
+}
