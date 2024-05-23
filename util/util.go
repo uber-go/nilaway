@@ -63,6 +63,9 @@ func TypeAsDeepType(t types.Type) (types.Type, bool) {
 	case *types.Chan:
 		return t.Elem(), true
 	case *types.Pointer:
+		if _, ok := t.Elem().(*types.Basic); ok {
+			return nil, false
+		}
 		return t.Elem(), true
 	}
 	return nil, false
