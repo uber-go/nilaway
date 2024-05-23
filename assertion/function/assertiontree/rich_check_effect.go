@@ -23,6 +23,7 @@ import (
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/asthelper"
+	"golang.org/x/tools/go/cfg"
 )
 
 // A RichCheckEffect is the fact that a certain check is associated with an effect that can
@@ -491,4 +492,237 @@ func guardExpr(rootNode *RootAssertionNode, expr TrackableExpr, guard util.Guard
 			annotation.ConsumeTriggerSliceAsGuarded(
 				lookedUpNode.ConsumeTriggers(), guard))
 	}
+}
+
+// genInitialRichCheckEffects computes an initial array of RichCheckEffect slices for each block,
+// not doing any propagation over the CFG except for within each block to track nodes
+// that create RichCheckEffects (such as `v, ok := mp[k]`) and make sure it isn't invalidated
+// (such as by `ok = true`) before the end of the block.
+//
+// The returned RichCheckEffect slices represent the RichCheckEffects present at
+// the _end_ of each block.
+//
+// Important: do not duplicate any pointers: each returned RichCheckEffect should be a unique object
+func genInitialRichCheckEffects(graph *cfg.CFG, functionContext FunctionContext) (
+	[][]RichCheckEffect, util.ExprNonceMap) {
+	richCheckBlocks := make([][]RichCheckEffect, len(graph.Blocks))
+	nonceGenerator := util.NewGuardNonceGenerator()
+
+	// There is no canonical instance of RootAssertionNode until backpropAcrossFunc returns.
+	// We use a temporary root here as a means to pass contextual information like the function
+	// declaration and analysis pass.
+	rootNode := newRootAssertionNode(nonceGenerator.GetExprNonceMap(), functionContext)
+	for i, block := range graph.Blocks {
+		var richCheckEffects []RichCheckEffect
+		for _, node := range block.Nodes {
+
+			// invalidate any richCheckEffects that this node invalidates
+			for j, effect := range richCheckEffects {
+				if effect.isInvalidatedBy(node) {
+					richCheckEffects[j] = RichCheckNoop{}
+				}
+			}
+
+			// check if this node produces a new richCheckEffect
+			if effects, ok := RichCheckFromNode(rootNode, nonceGenerator, node); ok {
+				richCheckEffects = append(richCheckEffects, effects...)
+			}
+		}
+		// richCheckEffects is now fully populated
+
+		// strip out noops and write into richCheckBlocks
+		richCheckBlocks[i] = stripNoops(richCheckEffects)
+	}
+	return richCheckBlocks, nonceGenerator.GetExprNonceMap()
+}
+
+func genPreds(graph *cfg.CFG) [][]int32 {
+	out := make([][]int32, len(graph.Blocks))
+	for _, block := range graph.Blocks {
+		if block.Live {
+			for _, succ := range block.Succs {
+				out[succ.Index] = append(out[succ.Index], block.Index)
+			}
+		}
+	}
+	return out
+}
+
+// weakPropagateRichChecks performs a simple form of propagation of rich checks: for each effect, it
+// figures out which blocks are reachable from the block it was declared in.
+//
+// The results are returned as a map from `RichCheckEffect`s to arrays of booleans, representing for
+// each block whether it is reached by the block that effect is declared in
+func weakPropagateRichChecks(graph *cfg.CFG, richCheckBlocks [][]RichCheckEffect) map[RichCheckEffect][]bool {
+	reachability := make(map[RichCheckEffect][]bool)
+	for blockNum := range richCheckBlocks {
+		for _, check := range richCheckBlocks[blockNum] {
+			newCheck := make([]bool, len(richCheckBlocks))
+			newCheck[blockNum] = true // mark each check as reachable in its declaring block
+			reachability[check] = newCheck
+		}
+	}
+	done := false
+	for !done {
+		done = true
+		for blockNum := range richCheckBlocks {
+			for _, reachable := range reachability {
+				if reachable[blockNum] {
+					for _, nextBlock := range graph.Blocks[blockNum].Succs {
+						if !reachable[nextBlock.Index] {
+							reachable[nextBlock.Index] = true
+							done = false
+						}
+					}
+				}
+			}
+		}
+	}
+	return reachability
+}
+
+// propagateRichChecks takes an initial array richCheckBlocks and flows all of its contained checks
+// forwards through the CFG as long as they are not invalidated. A check created by a node in block A
+// is determined to flow to block B if every path from A to B does not invalidate the check. We capture
+// this criterion by first calling the function weakPropagateRichChecks above to do reachability
+// propagation without any knowledge of check invalidation. The real propagation done in this function
+// then tempers its computation of checks at a given block via intersection at control flow points by
+// including exactly those checks that are present in every predecessor of the block that is reachable
+// from the originator block of the check.
+func propagateRichChecks(graph *cfg.CFG, richCheckBlocks [][]RichCheckEffect) [][]RichCheckEffect {
+	n := len(graph.Blocks)
+	if len(richCheckBlocks) != n {
+		panic(fmt.Sprintf("richCheckBlocks (len %d) and graph.blocks (len %d) out of "+
+			"sync - fix generation pass in preprocess_blocks.go", len(richCheckBlocks), n))
+	}
+
+	effectReaches := weakPropagateRichChecks(graph, richCheckBlocks)
+
+	currBlocks := richCheckBlocks
+	nextBlocks := make([][]RichCheckEffect, n)
+
+	preds := genPreds(graph)
+	roundCount := 0
+
+	done := false
+
+	for !done {
+
+		done = true
+
+		for i := range preds {
+
+			// predRichCheckEffects will be populated with all the rich bool effects that flow
+			// into this block from one of its 0 or more predecessors
+			var predRichCheckEffects []RichCheckEffect
+
+			if len(preds[i]) >= 1 {
+				reachingEffects := make(map[RichCheckEffect]bool)
+
+				for _, predIndex := range preds[i] {
+					for _, effect := range currBlocks[predIndex] {
+						// for each effect in a predecessor, mark it as `true` in `reachingEffects`
+						// - performing a merge
+						reachingEffects[effect] = true
+					}
+				}
+
+				for _, predIndex := range preds[i] {
+					maskingEffects := make(map[RichCheckEffect]bool)
+					for effect := range reachingEffects {
+						if blocksEffectReaches, ok := effectReaches[effect]; ok &&
+							blocksEffectReaches[predIndex] {
+							maskingEffects[effect] = true
+						}
+					}
+					for _, effect := range currBlocks[predIndex] {
+						if maskingEffects[effect] {
+							maskingEffects[effect] = false
+						}
+					}
+					for effect, present := range maskingEffects {
+						if present {
+							reachingEffects[effect] = false
+						}
+					}
+				}
+
+				predRichCheckEffects = make([]RichCheckEffect, 0)
+
+				for effect := range reachingEffects {
+					if reachingEffects[effect] {
+						predRichCheckEffects = append(predRichCheckEffects, effect)
+					}
+				}
+
+				// This code performs a simple merge instead - but this is very unsound and NOT right
+				// 		predRichCheckEffects =
+				// 			append(make([]RichCheckEffect, 0, len(currBlocks[preds[i][0]])),
+				// 				currBlocks[preds[i][0]]...)
+				//
+				// 		for _, predNum := range preds[i][1:] {
+				// 			predRichCheckEffects = mergeSlices(false, predRichCheckEffects, currBlocks[predNum])
+				// 		}
+
+				for _, node := range graph.Blocks[i].Nodes {
+					// invalidate any richCheckEffects that this node invalidates
+					for j, effect := range predRichCheckEffects {
+						if effect.isInvalidatedBy(node) {
+							predRichCheckEffects[j] = RichCheckNoop{}
+						}
+					}
+				}
+			}
+
+			nextBlocks[i] = mergeSlices(false, currBlocks[i], stripNoops(predRichCheckEffects))
+			if len(nextBlocks[i]) > len(currBlocks[i]) {
+				done = false
+			}
+		}
+
+		currBlocks = nextBlocks
+		nextBlocks = make([][]RichCheckEffect, n)
+
+		roundCount++
+
+		checkCFGFixedPointRuntime("RichCheckEffect Forwards Propagation", roundCount, n)
+	}
+
+	// this strips duplicates from the RichCheckEffect slices
+	for i := range currBlocks {
+		currBlocks[i] = mergeSlices(true, currBlocks[i])
+	}
+
+	return currBlocks
+}
+
+func mergeSlices(useDeepEquality bool, left []RichCheckEffect, rights ...[]RichCheckEffect) []RichCheckEffect {
+	var eq func(first, second RichCheckEffect) bool
+	if useDeepEquality {
+		eq = func(first, second RichCheckEffect) bool {
+			return first.equals(second)
+		}
+	} else {
+		eq = func(first, second RichCheckEffect) bool {
+			return first == second
+		}
+	}
+	var out []RichCheckEffect
+	addToOut := func(effect RichCheckEffect) {
+		for _, outEffect := range out {
+			if eq(outEffect, effect) {
+				return
+			}
+		}
+		out = append(out, effect)
+	}
+	for _, l := range left {
+		addToOut(l)
+	}
+	for _, right := range rights {
+		for _, r := range right {
+			addToOut(r)
+		}
+	}
+	return out
 }
