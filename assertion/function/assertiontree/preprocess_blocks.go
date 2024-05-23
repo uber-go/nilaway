@@ -89,19 +89,6 @@ func copyGraph(graph *cfg.CFG) *cfg.CFG {
 	return newGraph
 }
 
-// stripNoops returns a copy of the passed slice `effects`, minus any no-ops
-func stripNoops(effects []RichCheckEffect) []RichCheckEffect {
-	var strippedEffects []RichCheckEffect
-
-	for _, effect := range effects {
-		if !effect.isNoop() {
-			strippedEffects = append(strippedEffects, effect)
-		}
-	}
-
-	return strippedEffects
-}
-
 // This function restructures a cfg to reflect short-circuiting and other interesting semantics:
 //
 // It performs the following short-circuiting:

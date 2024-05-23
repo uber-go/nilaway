@@ -536,6 +536,19 @@ func genInitialRichCheckEffects(graph *cfg.CFG, functionContext FunctionContext)
 	return richCheckBlocks, nonceGenerator.GetExprNonceMap()
 }
 
+// stripNoops returns a copy of the passed slice `effects`, minus any no-ops
+func stripNoops(effects []RichCheckEffect) []RichCheckEffect {
+	var strippedEffects []RichCheckEffect
+
+	for _, effect := range effects {
+		if !effect.isNoop() {
+			strippedEffects = append(strippedEffects, effect)
+		}
+	}
+
+	return strippedEffects
+}
+
 func genPreds(graph *cfg.CFG) [][]int32 {
 	out := make([][]int32, len(graph.Blocks))
 	for _, block := range graph.Blocks {
