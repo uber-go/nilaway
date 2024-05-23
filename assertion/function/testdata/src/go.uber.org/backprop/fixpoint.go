@@ -125,3 +125,19 @@ func testNonBuiltinNestedIndex(msgSet []*MessageBlock) { // expect_fixpoint: 3 1
 		_ = *msgBlock.Messages()[len(msgBlock.Messages())-1]
 	}
 }
+
+// test for validating that only the necessary number of triggers are created, and
+// no extra triggers (e.g., deep triggers) are created.
+
+func foo(x *int) *int { // expect_fixpoint: 2 1 1
+	if x == nil {
+		return nil
+	}
+	return new(int)
+}
+
+func testContract() { // expect_fixpoint: 2 1 2
+	a1 := new(int)
+	b1 := foo(a1)
+	print(*b1)
+}
