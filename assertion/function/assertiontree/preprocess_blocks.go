@@ -19,6 +19,7 @@ import (
 	"go/ast"
 	"go/token"
 
+	"go.uber.org/nilaway/assertion/function/trustedfunc"
 	"go.uber.org/nilaway/util"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/cfg"
@@ -140,7 +141,7 @@ func splitBlockOnTrustedFuncs(graph *cfg.CFG, thisBlock, failureBlock *cfg.Block
 		if call, ok = expr.X.(*ast.CallExpr); !ok {
 			continue
 		}
-		if retExpr, ok = AsTrustedFuncAction(call, pass); !ok {
+		if retExpr, ok = trustedfunc.As(call, pass); !ok {
 			continue
 		}
 		if trustedCond, ok = retExpr.(ast.Expr); !ok {

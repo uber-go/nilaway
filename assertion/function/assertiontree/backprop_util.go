@@ -23,6 +23,7 @@ import (
 	"go/types"
 
 	"go.uber.org/nilaway/annotation"
+	"go.uber.org/nilaway/assertion/function/trustedfunc"
 	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/asthelper"
 	"golang.org/x/tools/go/analysis"
@@ -244,7 +245,7 @@ func isErrorReturnNil(rootNode *RootAssertionNode, errRet ast.Expr) bool {
 // isErrorReturnNonnil returns true if the error return is guaranteed to be nonnil, false otherwise
 func isErrorReturnNonnil(rootNode *RootAssertionNode, errRet ast.Expr) bool {
 	t := rootNode.Pass().TypesInfo.TypeOf(errRet)
-	if _, ok := AsTrustedFuncAction(errRet, rootNode.Pass()); ok || util.TypeAsDeeplyStruct(t) != nil {
+	if _, ok := trustedfunc.As(errRet, rootNode.Pass()); ok || util.TypeAsDeeplyStruct(t) != nil {
 		return true
 	}
 
@@ -574,12 +575,11 @@ func exprAsAssignmentConsumer(rootNode *RootAssertionNode, expr ast.Node, exprRH
 
 	switch expr := expr.(type) {
 	case *ast.Ident:
-		funcObj := rootNode.FuncObj()
+		// This block checks if the rhs of the assignment is the builtin append function for slices.
 		varObj := rootNode.ObjectOf(expr).(*types.Var)
-		// This block checks if the rhs of the assignment is the builtin append function for slices
 		if call, ok := exprRHS.(*ast.CallExpr); ok && util.TypeIsSlice(varObj.Type()) {
-			if fun, ok := call.Fun.(*ast.Ident); ok && fun.Name == BuiltinAppend {
-				if annotation.VarIsParam(funcObj, varObj) {
+			if fun, ok := call.Fun.(*ast.Ident); ok && rootNode.ObjectOf(fun) == util.BuiltinAppend {
+				if annotation.VarIsParam(rootNode.FuncObj(), varObj) {
 					// If there is a deep assignment to a slice using append method
 					return handleDeepAssignmentToExpr(expr)
 				}
