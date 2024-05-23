@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package trustedfunc implements a trusted function framework where it hooks into different parts
+// of NilAway to provide additional context for certain function calls. This is useful for
+// well-known standard or 3rd party libraries where we can encode certain knowledge about them (
+// e.g., `assert.Nil(t, x)` implies `x == nil`) and use that to provide better analysis.
 package trustedfunc
 
 import (
