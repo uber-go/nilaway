@@ -161,3 +161,12 @@ func (s *myString) testNamedType() { // expect_fixpoint: 2 1 3
 	x := *s
 	_ = *x[0]
 }
+
+func testNestedPointer() { // expect_fixpoint: 4 2 4
+	a1 := &A{}
+	for i := 0; i < 10; i++ {
+		a2 := &a1
+		(*a2).ptr = new(int)
+		*a2 = nil
+	}
+}
