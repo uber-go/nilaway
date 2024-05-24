@@ -26,6 +26,7 @@ import (
 	"slices"
 
 	"go.uber.org/nilaway/annotation"
+	"go.uber.org/nilaway/assertion/function/preprocess"
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
 	"golang.org/x/tools/go/analysis"
@@ -823,7 +824,10 @@ func BackpropAcrossFunc(
 ) ([]annotation.FullTrigger, int, int, error) {
 	// We transform the CFG to have it reflect the implicit control flow that happens
 	// inside short-circuiting boolean expressions.
-	graph = preprocess(graph, functionContext.funcDecl, functionContext.pass)
+	preprocessor := preprocess.New(pass)
+	graph = preprocessor.CFG(graph, functionContext.funcDecl)
+
+	// Generate rick check effects.
 	richCheckBlocks, exprNonceMap := genInitialRichCheckEffects(graph, functionContext)
 	richCheckBlocks = propagateRichChecks(graph, richCheckBlocks)
 	blocks, preprocessing := blocksAndPreprocessingFromCFG(pass, graph, richCheckBlocks)

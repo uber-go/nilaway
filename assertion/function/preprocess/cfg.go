@@ -1,4 +1,4 @@
-//  Copyright (c) 2023 Uber Technologies, Inc.
+//  Copyright (c) 2024 Uber Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package assertiontree
+package preprocess
 
 import (
 	"fmt"
@@ -21,22 +21,51 @@ import (
 
 	"go.uber.org/nilaway/assertion/function/trustedfunc"
 	"go.uber.org/nilaway/util"
-	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/cfg"
 )
 
-// preprocess performs several passes on the CFG of utility to our analysis.
-// Notably, it also generates a slice of RichCheckEffects for each block and
-// returns it as a separate object, but does all other modification in place.
+// CFG performs several passes on the CFG of utility to our analysis and returns a shallow copy of
+// the modified CFG, with the original CFG untouched.
 //
-// The returned RichCheckEffect slices represent the RichCheckEffects present at
-// the _end_ of each block
-func preprocess(graph *cfg.CFG, funcDecl *ast.FuncDecl, pass *analysis.Pass) *cfg.CFG {
+// Specifically, it performs the following modifications to the CFG:
+//
+// Canonicalize conditionals:
+// - replace `if !cond {T} {F}` with `if cond {F} {T}` (swap successors)
+// - replace `if cond1 && cond2 {T} {F}` with `if cond1 {if cond2 {T} else {F}}{F}` (nesting)
+// - replace `if cond1 || cond2 {T} {F}` with `if cond1 {T} else {if cond2 {T} else {F}}` (nesting)
+//
+// Canonicalize nil comparisons:
+// It also performs the following useful transformation:
+// - replace `if x != nil {T} {F}` with `if x == nil {F} {T}` (swap successors)
+// - replace `nil == x {T} {F}` with `if x == nil {T} {F}` (swap comparison order)
+//
+// Canonicalize explicit boolean comparisons:
+// - replace `if x == true {T} {F}` with `if x {T} {F}`
+// - replace `if x == false {T} {F}` with `if !x {T} {F}`
+func (p *Preprocessor) CFG(graph *cfg.CFG, funcDecl *ast.FuncDecl) *cfg.CFG {
 	// The ASTs and CFGs are shared across all analyzers in the nogo framework, so we should never
 	// modify them directly. Here, we make a copy of the graph (and all blocks in it) and modify
 	// the copied graph instead.
 	graph = copyGraph(graph)
-	restructureBlocks(graph, pass)
+
+	// Important: add all new blocks to the end, don't try to "move around" any existing blocks
+	// because they're all referenced by index!
+
+	// Create a failure block at the end of the blocks list to be used for trusted functions.
+	failureBlock := &cfg.Block{Index: int32(len(graph.Blocks))}
+	graph.Blocks = append(graph.Blocks, failureBlock)
+
+	// Perform the (series of) CFG transformations.
+	for _, block := range graph.Blocks {
+		if block.Live {
+			p.splitBlockOnTrustedFuncs(graph, block, failureBlock)
+		}
+	}
+	for _, block := range graph.Blocks {
+		if block.Live {
+			p.restructureConditional(graph, block)
+		}
+	}
 
 	// Next, we need to re-insert information that is lost during CFG build for *ast.RangeStmt
 	// and *ast.SwitchStmt by iterating through all blocks. This requires knowing the links between
@@ -90,44 +119,7 @@ func copyGraph(graph *cfg.CFG) *cfg.CFG {
 	return newGraph
 }
 
-// This function restructures a cfg to reflect short-circuiting and other interesting semantics:
-//
-// It performs the following short-circuiting:
-// - replace if !cond {T} {F} with if cond {F} {T} (in CFG, swap successors)
-// - replace if cond1 && cond2 {T} {F} with if cond1 {if cond2 {T} else {F}}{F}
-// - replace if cond1 || cond2 {T} {F} with if cond1 {T} else {if cond2 {T} else {F}}
-//
-// It also performs the following useful transformation:
-// - replace if x != nil {T} {F} with if x == nil {F} {T} (i.e. swap successors)
-// - replace nil == x {T} {F} with if x == nil {T} {F} (i.e. swap comparison order)
-//
-// In addition, it also performs the following transformations to standardize explicit boolean comparisons:
-// - replace if x == true {T} {F} with if x {T} {F}
-// - replace if x == false {T} {F} with if !x {T} {F}
-func restructureBlocks(graph *cfg.CFG, pass *analysis.Pass) {
-	failureBlock := &cfg.Block{
-		Nodes: nil,
-		Succs: nil,
-		Index: int32(len(graph.Blocks)),
-		Live:  false,
-	}
-	graph.Blocks = append(graph.Blocks, failureBlock)
-
-	// important: add all new blocks to the end, don't try to "move around" any existing blocks because they're all
-	// referenced by index!
-	for _, block := range graph.Blocks {
-		if block.Live {
-			splitBlockOnTrustedFuncs(graph, block, failureBlock, pass)
-		}
-	}
-	for _, block := range graph.Blocks {
-		if block.Live {
-			restructureBlock(graph, block)
-		}
-	}
-}
-
-func splitBlockOnTrustedFuncs(graph *cfg.CFG, thisBlock, failureBlock *cfg.Block, pass *analysis.Pass) {
+func (p *Preprocessor) splitBlockOnTrustedFuncs(graph *cfg.CFG, thisBlock, failureBlock *cfg.Block) {
 	var expr *ast.ExprStmt
 	var call *ast.CallExpr
 	var retExpr any
@@ -141,7 +133,7 @@ func splitBlockOnTrustedFuncs(graph *cfg.CFG, thisBlock, failureBlock *cfg.Block
 		if call, ok = expr.X.(*ast.CallExpr); !ok {
 			continue
 		}
-		if retExpr, ok = trustedfunc.As(call, pass); !ok {
+		if retExpr, ok = trustedfunc.As(call, p.pass); !ok {
 			continue
 		}
 		if trustedCond, ok = retExpr.(ast.Expr); !ok {
@@ -162,20 +154,18 @@ func splitBlockOnTrustedFuncs(graph *cfg.CFG, thisBlock, failureBlock *cfg.Block
 			failureBlock,
 		}
 		failureBlock.Live = true
-		splitBlockOnTrustedFuncs(graph, newBlock, failureBlock, pass)
+		p.splitBlockOnTrustedFuncs(graph, newBlock, failureBlock)
 		return
 	}
 }
 
-func restructureBlock(graph *cfg.CFG, thisBlock *cfg.Block) {
-	// TODO: This check should not be needed since `getConditional != nil` implies
-	//  `thisBlock.Succs != nil` due to the length check inside `getConditional`. However, due to a
-	//  FP we have to add this redundant check. This should not be needed after  is fixed.
-	if thisBlock.Succs == nil {
+func (p *Preprocessor) restructureConditional(graph *cfg.CFG, thisBlock *cfg.Block) {
+	// We only restructure non-empty branching blocks.
+	if len(thisBlock.Nodes) == 0 || len(thisBlock.Succs) != 2 {
 		return
 	}
-	cond := getConditional(thisBlock)
-	if cond == nil {
+	cond, ok := thisBlock.Nodes[len(thisBlock.Nodes)-1].(ast.Expr)
+	if !ok {
 		return
 	}
 
@@ -203,13 +193,13 @@ func restructureBlock(graph *cfg.CFG, thisBlock *cfg.Block) {
 	case *ast.ParenExpr:
 		// if a parenexpr, strip and restart - this is done with recursion to account for ((((x)))) case
 		replaceCond(cond.X)
-		restructureBlock(graph, thisBlock) // recur within parens
+		p.restructureConditional(graph, thisBlock) // recur within parens
 	case *ast.UnaryExpr:
 		if cond.Op == token.NOT {
 			// swap successors - i.e. swap true and false branches
 			swapTrueFalseBranches()
 			replaceCond(cond.X)
-			restructureBlock(graph, thisBlock) // recur within NOT
+			p.restructureConditional(graph, thisBlock) // recur within NOT
 		}
 	case *ast.BinaryExpr:
 		// Logical AND and Logical OR actually require the exact same short circuiting behavior
@@ -230,8 +220,8 @@ func restructureBlock(graph *cfg.CFG, thisBlock *cfg.Block) {
 				replaceFalseBranch(newBlock)
 			}
 			graph.Blocks = append(graph.Blocks, newBlock)
-			restructureBlock(graph, thisBlock)
-			restructureBlock(graph, newBlock)
+			p.restructureConditional(graph, thisBlock)
+			p.restructureConditional(graph, newBlock)
 		}
 
 		// Standardize binary expressions to be of the form `expr OP literal` by swapping `x` and `y`, if `x` is a literal.
@@ -293,8 +283,8 @@ func restructureBlock(graph *cfg.CFG, thisBlock *cfg.Block) {
 					Op:    token.NOT,
 					X:     x,
 				}
-				replaceCond(newCond)               // replaces `ok != true` with `!ok`
-				restructureBlock(graph, thisBlock) // recur to swap true and false branches for the unary expr `!ok`
+				replaceCond(newCond)                       // replaces `ok != true` with `!ok`
+				p.restructureConditional(graph, thisBlock) // recur to swap true and false branches for the unary expr `!ok`
 			}
 
 		case token.EQL:
@@ -308,8 +298,8 @@ func restructureBlock(graph *cfg.CFG, thisBlock *cfg.Block) {
 					Op:    token.NOT,
 					X:     x,
 				}
-				replaceCond(newCond)               // replaces `ok == false` with `!ok`
-				restructureBlock(graph, thisBlock) // recur to swap true and false branches for the unary expr `!ok`
+				replaceCond(newCond)                       // replaces `ok == false` with `!ok`
+				p.restructureConditional(graph, thisBlock) // recur to swap true and false branches for the unary expr `!ok`
 			}
 		}
 	}
