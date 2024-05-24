@@ -21,6 +21,7 @@ import (
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/assertion/function/producer"
+	"go.uber.org/nilaway/assertion/function/trustedfunc"
 	"go.uber.org/nilaway/util"
 )
 
@@ -239,7 +240,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 			return true
 		}
 
-		if ret, ok := AsTrustedFuncAction(expr, r.Pass()); ok {
+		if ret, ok := trustedfunc.As(expr, r.Pass()); ok {
 			if prod, ok := ret.(*annotation.ProduceTrigger); ok {
 				return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: prod}}
 			}
@@ -254,7 +255,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 				// only two arguments and the first argument is the same as the lhs of assignment.
 				// Since in Go it is allowed to have only one argument in the append method, we need
 				// to have a check to make sure that len(expr.Args) > 1
-				if fun.Name == BuiltinAppend && len(expr.Args) > 1 {
+				if r.ObjectOf(fun) == util.BuiltinAppend && len(expr.Args) > 1 {
 					// TODO: handle the correlation of return type of append with its first argument .
 					// TODO: iterate over the arguments of the append call if it has more than two args
 					rec, producers := r.ParseExprAsProducer(expr.Args[1], false)
@@ -268,7 +269,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 				// uninitialized with a `new(S)`.
 				// TODO: below logic won't be required once we standardize the calls by replacing `new(S)` with `&S{}`
 				//  in the preprocessing phase after  is implemented.
-				if r.functionContext.functionConfig.EnableStructInitCheck && fun.Name == BuiltinNew {
+				if r.functionContext.functionConfig.EnableStructInitCheck && r.ObjectOf(fun) == util.BuiltinNew {
 					rproducer := r.parseStructCreateExprAsProducer(expr.Args[0], nil)
 					if rproducer != nil {
 						return nil, []producer.ParsedProducer{rproducer}

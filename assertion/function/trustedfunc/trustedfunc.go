@@ -12,7 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package assertiontree
+// Package trustedfunc implements a trusted function framework where it hooks into different parts
+// of NilAway to provide additional context for certain function calls. This is useful for
+// well-known standard or 3rd party libraries where we can encode certain knowledge about them (
+// e.g., `assert.Nil(t, x)` implies `x == nil`) and use that to provide better analysis.
+package trustedfunc
 
 import (
 	"go/ast"
@@ -28,10 +32,11 @@ import (
 
 // NOTE: in the future, when we implement  to add contracts, this trusted func mechanism can possibly be replaced with that one.
 
-// AsTrustedFuncAction checks a function call AST node to see if it is one of the trusted functions, and if it is then runs
-// the corresponding action and returns that as the output along with a bool indicating success or failure.
-// For example, a binary expression `x != nil` is returned for trusted function `assert.NotNil(t, x)`, while a `TrustedFuncNonnil` producer is returned for `errors.New(s)`
-func AsTrustedFuncAction(expr ast.Expr, p *analysis.Pass) (any, bool) {
+// As checks a function call AST node to see if it is one of the trusted functions, and if it is
+// then runs the corresponding action and returns that as the output along with a bool indicating
+// success or failure. For example, a binary expression `x != nil` is returned for trusted function
+// `assert.NotNil(t, x)`, while a `TrustedFuncNonnil` producer is returned for `errors.New(s)`
+func As(expr ast.Expr, p *analysis.Pass) (any, bool) {
 	if call, ok := expr.(*ast.CallExpr); ok {
 		for f, a := range trustedFuncs {
 			if f.match(call, p) {
@@ -470,9 +475,3 @@ var trustedFuncs = map[trustedFuncSig]trustedFuncAction{
 		funcNameRegex:  regexp.MustCompile(`^(Empty(f)?|NotEmpty(f)?)$`),
 	}: {action: requireZeroComparators, argIndex: 0},
 }
-
-// BuiltinAppend is used to check the builtin append method for slice
-const BuiltinAppend = "append"
-
-// BuiltinNew is used to check the builtin `new` function
-const BuiltinNew = "new"

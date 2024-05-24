@@ -36,6 +36,12 @@ var BoolType = types.Universe.Lookup("bool").Type()
 // BuiltinLen is the builtin "len" function object.
 var BuiltinLen = types.Universe.Lookup("len")
 
+// BuiltinAppend is the builtin "append" function object.
+var BuiltinAppend = types.Universe.Lookup("append")
+
+// BuiltinNew is the builtin "new" function object.
+var BuiltinNew = types.Universe.Lookup("new")
+
 // TypeIsDeep checks if a type is an expression that directly admits a deep nilability annotation - deep
 // nilability annotations on all other types are ignored
 func TypeIsDeep(t types.Type) bool {
