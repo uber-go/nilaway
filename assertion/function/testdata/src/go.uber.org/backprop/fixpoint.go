@@ -141,3 +141,23 @@ func testContract() { // expect_fixpoint: 2 1 2
 	b1 := foo(a1)
 	print(*b1)
 }
+
+func foo2(a *A) *A { // expect_fixpoint: 2 1 16
+	if a == nil {
+		return nil
+	}
+	return a.aptr
+}
+
+func testContract2() { // expect_fixpoint: 2 1 9
+	b1 := foo2(&A{})
+	print(*b1)
+}
+
+type myString []*string
+
+// nilable(s[])
+func (s *myString) testNamedType() { // expect_fixpoint: 2 1 3
+	x := *s
+	_ = *x[0]
+}
