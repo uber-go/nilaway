@@ -63,8 +63,9 @@ func TypeAsDeepType(t types.Type) (types.Type, bool) {
 	case *types.Chan:
 		return t.Elem(), true
 	case *types.Pointer:
-		// Only consider pointers to deep types (e.g., `var x *[]int`) as deep type, not pointers to basic types (e.g., `var x *int`)
-		if _, ok := t.Elem().(*types.Basic); !ok {
+		// Only consider pointers to deep types (e.g., `var x *[]int`) as deep type,
+		// not pointers to basic types (e.g., `var x *int`) or struct types (e.g., `var x *S`)
+		if _, ok := t.Elem().(*types.Basic); !ok && TypeAsDeeplyStruct(t.Elem()) == nil {
 			return t.Elem(), true
 		}
 	}

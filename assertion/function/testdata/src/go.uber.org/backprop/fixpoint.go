@@ -142,14 +142,14 @@ func testContract() { // expect_fixpoint: 2 1 2
 	print(*b1)
 }
 
-func foo2(a *A) *A { // expect_fixpoint: 2 1 16
+func foo2(a *A) *A { // expect_fixpoint: 2 1 15
 	if a == nil {
 		return nil
 	}
 	return a.aptr
 }
 
-func testContract2() { // expect_fixpoint: 2 1 9
+func testContract2() { // expect_fixpoint: 2 1 8
 	b1 := foo2(&A{})
 	print(*b1)
 }
