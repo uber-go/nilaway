@@ -116,16 +116,6 @@ func TypeIsDeeplyPtr(t types.Type) bool {
 	return false
 }
 
-func TypeAsDeeplyPtr(t types.Type) (*types.Pointer, bool) {
-	if p, ok := t.(*types.Pointer); ok {
-		return p, true
-	}
-	if t, ok := t.(*types.Named); ok {
-		return TypeAsDeeplyPtr(t.Underlying())
-	}
-	return nil, false
-}
-
 // TypeIsDeeplyChan returns true if `t` is of channel type, including
 // transitively through Named types
 func TypeIsDeeplyChan(t types.Type) bool {
