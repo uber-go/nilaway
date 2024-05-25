@@ -42,8 +42,7 @@ var BuiltinAppend = types.Universe.Lookup("append")
 // BuiltinNew is the builtin "new" function object.
 var BuiltinNew = types.Universe.Lookup("new")
 
-// TypeIsDeep checks if a type is an expression that directly admits a deep nilability annotation - deep
-// nilability annotations on all other types are ignored
+// TypeIsDeep checks if a type is an expression that admits deep nilability, such as maps, slices, arrays, etc.
 func TypeIsDeep(t types.Type) bool {
 	switch t := t.(type) {
 	case *types.Slice, *types.Array, *types.Map, *types.Chan:
