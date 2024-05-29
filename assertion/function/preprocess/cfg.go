@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"go/types"
+	"regexp"
 
 	"go.uber.org/nilaway/assertion/function/trustedfunc"
 	"go.uber.org/nilaway/util"
@@ -64,6 +66,11 @@ func (p *Preprocessor) CFG(graph *cfg.CFG, funcDecl *ast.FuncDecl) *cfg.CFG {
 	for _, block := range graph.Blocks {
 		if block.Live {
 			p.restructureConditional(graph, block)
+		}
+	}
+	for _, block := range graph.Blocks {
+		if block.Live {
+			p.fixNoReturnBlock(block)
 		}
 	}
 
@@ -117,6 +124,49 @@ func copyGraph(graph *cfg.CFG) *cfg.CFG {
 	}
 
 	return newGraph
+}
+
+var _noReturnRegex = regexp.MustCompile(
+	`^(log\.Fatal(f)?|(os\.Exit)|(runtime\.Goexit)|(testing\.(T|B|F|TB)\.(FailNow|Skip|Skipf|SkipNow)))`,
+)
+
+func (p *Preprocessor) fixNoReturnBlock(block *cfg.Block) {
+	// No need to fix empty blocks or blocks that already have no successor.
+	if len(block.Nodes) == 0 { // || len(block.Succs) == 0 {
+		return
+	}
+
+	for _, node := range block.Nodes {
+		stmt, ok := node.(*ast.ExprStmt)
+		if !ok {
+			continue
+		}
+		call, ok := stmt.X.(*ast.CallExpr)
+		if !ok {
+			continue
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			continue
+		}
+
+		var name string
+		receiver := util.UnwrapPtr(p.pass.TypesInfo.TypeOf(sel.X))
+		if receiver == nil {
+			if pkg, ok := p.pass.TypesInfo.ObjectOf(sel.Sel).(*types.Package); ok {
+
+			}
+			p.pass.TypesInfo.
+
+		} else {
+			name = receiver + "." + sel.Sel.Name
+		}
+
+		if _noReturnRegex.MatchString(name) {
+			block.Succs = nil
+			return
+		}
+	}
 }
 
 func (p *Preprocessor) splitBlockOnTrustedFuncs(graph *cfg.CFG, thisBlock, failureBlock *cfg.Block) {
