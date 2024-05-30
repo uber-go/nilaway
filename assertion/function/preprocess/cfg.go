@@ -18,8 +18,6 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
-	"go/types"
-	"regexp"
 
 	"go.uber.org/nilaway/assertion/function/trustedfunc"
 	"go.uber.org/nilaway/util"
@@ -126,13 +124,12 @@ func copyGraph(graph *cfg.CFG) *cfg.CFG {
 	return newGraph
 }
 
-var _noReturnRegex = regexp.MustCompile(
-	`^(log\.Fatal(f)?|(os\.Exit)|(runtime\.Goexit)|(testing\.(T|B|F|TB)\.(FailNow|Skip|Skipf|SkipNow)))`,
-)
-
+// fixNoReturnBlock trims the `Succs` fields of a block if it contains a call to a trusted function
+// that does not return (e.g., `os.Exit`, `log.Fatal`). This ensures that our further analysis
+// correctly understands that the code is unreachable after such a call.
 func (p *Preprocessor) fixNoReturnBlock(block *cfg.Block) {
 	// No need to fix empty blocks or blocks that already have no successor.
-	if len(block.Nodes) == 0 { // || len(block.Succs) == 0 {
+	if len(block.Nodes) == 0 || len(block.Succs) == 0 {
 		return
 	}
 
@@ -145,24 +142,7 @@ func (p *Preprocessor) fixNoReturnBlock(block *cfg.Block) {
 		if !ok {
 			continue
 		}
-		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok {
-			continue
-		}
-
-		var name string
-		receiver := util.UnwrapPtr(p.pass.TypesInfo.TypeOf(sel.X))
-		if receiver == nil {
-			if pkg, ok := p.pass.TypesInfo.ObjectOf(sel.Sel).(*types.Package); ok {
-
-			}
-			p.pass.TypesInfo.
-
-		} else {
-			name = receiver + "." + sel.Sel.Name
-		}
-
-		if _noReturnRegex.MatchString(name) {
+		if trustedfunc.TrimSuccsOn(p.pass, call) {
 			block.Succs = nil
 			return
 		}
