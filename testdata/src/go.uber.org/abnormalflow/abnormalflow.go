@@ -25,7 +25,7 @@ import (
 	"testing"
 )
 
-func testDirectDereference(msg string, t *testing.T, tb testing.TB) {
+func testDirectDereference(msg string, t *testing.T, b *testing.B, f *testing.F, tb testing.TB) {
 	var nilable *int
 	switch msg {
 	case "print":
@@ -61,6 +61,21 @@ func testDirectDereference(msg string, t *testing.T, tb testing.TB) {
 	case "testing.T.Skipf":
 		t.Skipf("msg")
 		print(*nilable)
+	case "testing.B.Fatal":
+		b.Fatal("foo")
+		print(*nilable)
+	case "testing.B.Fatalf":
+		b.Fatalf("foo")
+		print(*nilable)
+	case "testing.B.SkipNow":
+		b.SkipNow()
+		print(*nilable)
+	case "testing.B.Skip":
+		b.Skip()
+		print(*nilable)
+	case "testing.B.Skipf":
+		b.Skipf("msg")
+		print(*nilable)
 	case "testing.TB.Fatal":
 		tb.Fatal("foo")
 		print(*nilable)
@@ -76,6 +91,21 @@ func testDirectDereference(msg string, t *testing.T, tb testing.TB) {
 	case "testing.TB.Skipf":
 		tb.Skipf("msg")
 		print(*nilable)
+	case "testing.F.Fatal":
+		f.Fatal("foo")
+		print(*nilable)
+	case "testing.F.Fatalf":
+		f.Fatalf("foo")
+		print(*nilable)
+	case "testing.F.SkipNow":
+		f.SkipNow()
+		print(*nilable)
+	case "testing.F.Skip":
+		f.Skip()
+		print(*nilable)
+	case "testing.F.Skipf":
+		f.Skipf("msg")
+		print(*nilable)
 	}
 }
 
@@ -87,8 +117,8 @@ func errReturn(a bool) (*int, error) {
 	return nil, errors.New("some error")
 }
 
-func testErrReturn(msg string, b bool, t *testing.T, tb testing.TB) {
-	ptr, err := errReturn(b)
+func testErrReturn(msg string, val bool, t *testing.T, b *testing.B, f *testing.F, tb testing.TB) {
+	ptr, err := errReturn(val)
 	switch msg {
 	case "print":
 		if err != nil {
@@ -149,6 +179,56 @@ func testErrReturn(msg string, b bool, t *testing.T, tb testing.TB) {
 	case "testing.T.Skipf":
 		if err != nil {
 			t.Skipf("msg %s", err)
+		}
+		print(*ptr)
+	case "testing.B.Fatal":
+		if err != nil {
+			b.Fatal(err)
+		}
+		print(*ptr)
+	case "testing.B.Fatalf":
+		if err != nil {
+			b.Fatalf("msg %s", err)
+		}
+		print(*ptr)
+	case "testing.B.SkipNow":
+		if err != nil {
+			b.SkipNow()
+		}
+		print(*ptr)
+	case "testing.B.Skip":
+		if err != nil {
+			b.Skip(err)
+		}
+		print(*ptr)
+	case "testing.B.Skipf":
+		if err != nil {
+			b.Skipf("msg %s", err)
+		}
+		print(*ptr)
+	case "testing.F.Fatal":
+		if err != nil {
+			f.Fatal(err)
+		}
+		print(*ptr)
+	case "testing.F.Fatalf":
+		if err != nil {
+			f.Fatalf("msg %s", err)
+		}
+		print(*ptr)
+	case "testing.F.SkipNow":
+		if err != nil {
+			f.SkipNow()
+		}
+		print(*ptr)
+	case "testing.F.Skip":
+		if err != nil {
+			f.Skip(err)
+		}
+		print(*ptr)
+	case "testing.F.Skipf":
+		if err != nil {
+			f.Skipf("msg %s", err)
 		}
 		print(*ptr)
 	case "testing.TB.Fatal":

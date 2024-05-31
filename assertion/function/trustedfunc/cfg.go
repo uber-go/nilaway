@@ -40,7 +40,7 @@ var _cfgTrimSuccs = map[trustedFuncSig]bool{
 	{
 		kind:           _method,
 		enclosingRegex: regexp.MustCompile(`^testing.(T|B|F|TB)$`),
-		funcNameRegex:  regexp.MustCompile(`^(FailNow|Skip|Skipf|SkipNow)$`),
+		funcNameRegex:  regexp.MustCompile(`^(FailNow)|(Skip(f|Now)?)$`),
 	}: true,
 }
 
