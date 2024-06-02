@@ -49,6 +49,7 @@ func run(pass *analysis.Pass) ([]annotation.FullTrigger, error) {
 		if !conf.IsFileInScope(file) {
 			continue
 		}
+		initFuncDecl := getInitFuncDecl(file)
 
 		for _, decl := range file.Decls {
 			genDecl, ok := decl.(*ast.GenDecl)
@@ -56,10 +57,24 @@ func run(pass *analysis.Pass) ([]annotation.FullTrigger, error) {
 				continue
 			}
 			for _, spec := range genDecl.Specs {
-				fullTriggers = append(fullTriggers, analyzeValueSpec(pass, spec.(*ast.ValueSpec))...)
+				fullTriggers = append(fullTriggers, analyzeValueSpec(pass, spec.(*ast.ValueSpec), initFuncDecl)...)
 			}
 		}
 	}
 
 	return fullTriggers, nil
+}
+
+// getInitFuncDecl searches for the init function declaration in the given *ast.File.
+// It returns the *ast.FuncDecl representing the init function if found, or nil otherwise.
+func getInitFuncDecl(file *ast.File) *ast.FuncDecl {
+	if file == nil {
+		return nil
+	}
+	for _, decl := range file.Decls {
+		if funcDecl, ok := decl.(*ast.FuncDecl); ok && funcDecl.Name.Name == "init" {
+			return funcDecl
+		}
+	}
+	return nil
 }
