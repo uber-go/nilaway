@@ -66,11 +66,6 @@ func (p *Preprocessor) CFG(graph *cfg.CFG, funcDecl *ast.FuncDecl) *cfg.CFG {
 			p.restructureConditional(graph, block)
 		}
 	}
-	for _, block := range graph.Blocks {
-		if block.Live {
-			p.fixNoReturnBlock(block)
-		}
-	}
 
 	// Next, we need to re-insert information that is lost during CFG build for *ast.RangeStmt
 	// and *ast.SwitchStmt by iterating through all blocks. This requires knowing the links between
@@ -122,31 +117,6 @@ func copyGraph(graph *cfg.CFG) *cfg.CFG {
 	}
 
 	return newGraph
-}
-
-// fixNoReturnBlock trims the `Succs` fields of a block if it contains a call to a trusted function
-// that does not return (e.g., `os.Exit`, `log.Fatal`). This ensures that our further analysis
-// correctly understands that the code is unreachable after such a call.
-func (p *Preprocessor) fixNoReturnBlock(block *cfg.Block) {
-	// No need to fix empty blocks or blocks that already have no successor.
-	if len(block.Nodes) == 0 || len(block.Succs) == 0 {
-		return
-	}
-
-	for _, node := range block.Nodes {
-		stmt, ok := node.(*ast.ExprStmt)
-		if !ok {
-			continue
-		}
-		call, ok := stmt.X.(*ast.CallExpr)
-		if !ok {
-			continue
-		}
-		if trustedfunc.TrimSuccsOn(p.pass, call) {
-			block.Succs = nil
-			return
-		}
-	}
 }
 
 func (p *Preprocessor) splitBlockOnTrustedFuncs(graph *cfg.CFG, thisBlock, failureBlock *cfg.Block) {
