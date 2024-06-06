@@ -38,7 +38,7 @@ func retNonNilErr2() error {
 	return &myErr2{}
 }
 
-// ***** the below test case checks error return via a function and assigned to a vairable *****
+// ***** the below test case checks error return via a function and assigned to a variable *****
 func retPtrAndErr2(i int) (*int, error) {
 	if dummy2 {
 		return nil, retNonNilErr2()
@@ -46,8 +46,21 @@ func retPtrAndErr2(i int) (*int, error) {
 	return &i, retNilErr2()
 }
 
-func testFuncRet2(i int) (*int, error) {
+// same as retPtrAndErr2 but with the return statements swapped. This is to check that the order of return statements
+// does not affect the error return analysis
+func retPtrAndErr3() (*int, error) {
+	if dummy2 {
+		return new(int), retNilErr2()
+	}
+	return nil, retNonNilErr3()
+}
 
+// duplicated from retNonNilErr2 to make a fresh instance of the function for supporting the testing of retPtrAndErr3
+func retNonNilErr3() error {
+	return &myErr2{}
+}
+
+func testFuncRet2(i int) (*int, error) {
 	var errNil = retNilErr2()
 	var errNonNil = retNonNilErr2()
 	switch i {
@@ -69,6 +82,8 @@ func testFuncRet2(i int) (*int, error) {
 		return &i, errNonNil
 	case 8:
 		return &i, retNonNilErr2()
+	case 9:
+		return retPtrAndErr3()
 	}
 	return &i, nil
 }
