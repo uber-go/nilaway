@@ -14,10 +14,6 @@
 
 package functioncontracts
 
-import (
-	"go/types"
-)
-
 // ContractVal represents the possible value appearing in a function contract.
 type ContractVal string
 
@@ -32,8 +28,8 @@ const (
 	Any ContractVal = "_"
 )
 
-// stringToContractVal converts a keyword string into the corresponding function ContractVal.
-func stringToContractVal(keyword string) ContractVal {
+// newContractVal converts a keyword string into the corresponding function ContractVal.
+func newContractVal(keyword string) ContractVal {
 	switch keyword {
 	case "nonnil":
 		return NonNil
@@ -51,11 +47,10 @@ func stringToContractVal(keyword string) ContractVal {
 	}
 }
 
-// FunctionContract represents a function contract.
-type FunctionContract struct {
-	Ins  []ContractVal
+// Contract represents a function contract.
+type Contract struct {
+	// Ins is the list of input contract values, where the index is the index of the parameter.
+	Ins []ContractVal
+	// Outs is the list of output contract values, where the index is the index of the return.
 	Outs []ContractVal
 }
-
-// Map stores the mappings from *types.Func to associated function contracts.
-type Map map[*types.Func][]*FunctionContract
