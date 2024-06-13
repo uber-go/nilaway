@@ -34,6 +34,12 @@ func init() {
 	_initMult2 = new(int)
 }
 
+var _init2 *int
+
+func init() {
+	_init2 = new(int)
+}
+
 // nilable(nilableVar)
 var nilableVar *int
 var assignedNilable = nilableVar //want "assigned"
