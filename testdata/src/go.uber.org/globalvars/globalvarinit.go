@@ -40,6 +40,21 @@ func init() {
 	_init2 = new(int)
 }
 
+var _init3, _init4 *int
+
+func init() {
+	init_next()
+}
+
+func init_next() {
+	_init3 = new(int)
+	init_next_next()
+}
+
+func init_next_next() {
+	_init4 = new(int)
+}
+
 // nilable(nilableVar)
 var nilableVar *int
 var assignedNilable = nilableVar //want "assigned"

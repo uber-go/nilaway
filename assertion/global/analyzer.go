@@ -65,16 +65,48 @@ func run(pass *analysis.Pass) ([]annotation.FullTrigger, error) {
 	return fullTriggers, nil
 }
 
-// getInitFuncDecl searches for the init function declaration in the given *ast.File.
-// It returns the *ast.FuncDecl representing the init function if found, or nil otherwise.
+// getInitFuncDecls searches for the init function declarations and all related functions in the given *ast.File.
+// It returns a slice of *ast.FuncDecl representing the init functions and all functions called directly or indirectly from them.
+// The function handles multiple init functions if present, and avoids infinite recursion in case of cyclic function calls.
+// If the file is nil, it returns nil.
 func getInitFuncDecls(file *ast.File) []*ast.FuncDecl {
 	if file == nil {
 		return nil
 	}
+	funcDecls := make(map[string]*ast.FuncDecl)
+	for _, decl := range file.Decls {
+		if funcDecl, ok := decl.(*ast.FuncDecl); ok {
+			funcDecls[funcDecl.Name.Name] = funcDecl
+		}
+	}
+
 	var initFuncDecls []*ast.FuncDecl
+	// visitedFuncs tracks processed functions to prevent infinite recursion and duplicate processing
+	visitedFuncs := make(map[string]struct{})
+	var findRelatedFuncs func(*ast.FuncDecl)
+	findRelatedFuncs = func(funcDecl *ast.FuncDecl) {
+		if _, visited := visitedFuncs[funcDecl.Name.Name]; visited {
+			return
+		}
+		initFuncDecls = append(initFuncDecls, funcDecl)
+		visitedFuncs[funcDecl.Name.Name] = struct{}{}
+		ast.Inspect(funcDecl.Body, func(n ast.Node) bool {
+			if callExpr, ok := n.(*ast.CallExpr); ok {
+				if ident, ok := callExpr.Fun.(*ast.Ident); ok {
+					if funcDecl, exists := funcDecls[ident.Name]; exists {
+						findRelatedFuncs(funcDecl)
+					}
+				}
+			}
+			return true
+		})
+	}
+
 	for _, decl := range file.Decls {
 		if funcDecl, ok := decl.(*ast.FuncDecl); ok && funcDecl.Name.Name == "init" {
-			initFuncDecls = append(initFuncDecls, funcDecl)
+			findRelatedFuncs(funcDecl)
+			// Reset visitedFuncs for each init function to ensure all related functions are processed
+			visitedFuncs = make(map[string]struct{})
 		}
 	}
 	return initFuncDecls
