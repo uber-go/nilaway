@@ -166,6 +166,49 @@ func (e *Engine) ObservePackage(pkgFullTriggers []annotation.FullTrigger) {
 		// In most cases all triggers will be stored in otherTriggers, so we set a proper capacity.
 		otherTriggers = make([]annotation.FullTrigger, 0, len(pkgFullTriggers))
 	)
+
+	guardMissingTriggersToBeDeleted := make(map[int]bool)
+	for i, t := range pkgFullTriggers {
+		if p, ok := t.Producer.Annotation.(*annotation.GuardMissing); ok {
+			if o, ok := p.OldAnnotation.(*annotation.FuncReturn); ok && o.IsFromRichCheckEffectFunc {
+				if pr, ok := o.Ann.(*annotation.RetAnnotationKey); ok {
+					isPotentialNilPathFound := false
+					matchCnt := 0
+					nonnilCnt := 0
+					for _, t2 := range pkgFullTriggers {
+						if c, ok := t2.Consumer.Annotation.(*annotation.UseAsReturnForAlwaysSafePath); ok {
+							if cr, ok := c.Ann.(*annotation.RetAnnotationKey); ok {
+								if *pr == *cr {
+									matchCnt++
+									if t2.Producer.Annotation.Kind() != annotation.Never {
+										isPotentialNilPathFound = true
+										break
+									}
+									nonnilCnt++
+								}
+							}
+						}
+					}
+					if !isPotentialNilPathFound && matchCnt > 0 && nonnilCnt > 0 && matchCnt == nonnilCnt {
+						guardMissingTriggersToBeDeleted[i] = true
+					}
+				}
+			}
+		}
+	}
+
+	var filteredPkgFullTriggers []annotation.FullTrigger
+	for i, t := range pkgFullTriggers {
+		if guardMissingTriggersToBeDeleted[i] {
+			continue
+		}
+		if _, ok := t.Consumer.Annotation.(*annotation.UseAsReturnForAlwaysSafePath); ok {
+			continue
+		}
+		filteredPkgFullTriggers = append(filteredPkgFullTriggers, t)
+	}
+	pkgFullTriggers = filteredPkgFullTriggers
+
 	for _, t := range pkgFullTriggers {
 		if _, ok := t.Consumer.Annotation.(*annotation.UseAsNonErrorRetDependentOnErrorRetNilability); ok {
 			nonErrRetTriggers = append(nonErrRetTriggers, t)
@@ -220,7 +263,7 @@ func (e *Engine) ObservePackage(pkgFullTriggers []annotation.FullTrigger) {
 	filteredTriggers := nonErrRetTriggers
 	// Remove deleted triggers from nonErrRetTriggers (if needed).
 	if len(delTriggers) != 0 {
-		filteredTriggers = make([]annotation.FullTrigger, 0, len(nonErrRetTriggers)-len(delTriggers))
+		filteredTriggers = make([]annotation.FullTrigger, 0, len(nonErrRetTriggers))
 		for _, t := range nonErrRetTriggers {
 			if !delTriggers[t] {
 				filteredTriggers = append(filteredTriggers, t)
@@ -570,4 +613,5 @@ func GobRegister() {
 	gob.RegisterName(nextStr(), annotation.RecvPassPrestring{})
 	gob.RegisterName(nextStr(), annotation.MethodRecvDeepPrestring{})
 	gob.RegisterName(nextStr(), annotation.FldReturnPrestring{})
+	gob.RegisterName(nextStr(), annotation.UseAsReturnForAlwaysSafePathPrestring{})
 }

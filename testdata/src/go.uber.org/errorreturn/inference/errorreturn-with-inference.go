@@ -226,3 +226,123 @@ func testAliasedMixedReturns() {
 	}
 
 }
+
+// ***** below tests check the handling for "always safe" cases and their variants *****
+
+func retNonnilPtrErr(i int) (*int, error) {
+	switch i {
+	case 0:
+		return new(int), &myErr2{}
+	case 1:
+		return &i, retNonNilErr2()
+	case 2:
+		return new(int), retNilErr2()
+	}
+	return new(int), nil
+}
+
+func retNilPtrErr(i int) (*int, error) {
+	switch i {
+	case 0:
+		return nil, &myErr2{}
+	case 1:
+		return nil, retNonNilErr2()
+	case 2:
+		return nil, retNilErr2()
+	}
+	return nil, nil
+}
+
+func retConditionallyNilPtrErr(i int) (*int, error) {
+	switch i {
+	case 0:
+		return nil, &myErr2{}
+	case 1:
+		return nil, retNonNilErr2()
+	case 2:
+		return new(int), retNilErr2()
+	}
+	return new(int), nil
+}
+
+func testAlwaysSafe(i int) {
+	switch i {
+	// always safe
+	case 0:
+		x, _ := retNonnilPtrErr(i)
+		print(*x)
+	case 1:
+		if x, err := retNonnilPtrErr(i); err != nil {
+			print(*x)
+		}
+	case 2:
+		if x, err := retNonnilPtrErr(i); err == nil {
+			print(*x)
+		}
+	case 3:
+		x, _ := retNonnilPtrErr(i)
+		y, _ := retNonnilPtrErr(i)
+		print(*x)
+		print(*y)
+	case 4:
+		x, errx := retNonnilPtrErr(i)
+		y, erry := retNonnilPtrErr(i)
+
+		if erry == nil {
+			print(*x)
+		}
+		if errx == nil {
+			print(*y)
+		}
+
+	// always unsafe
+	case 5:
+		x, _ := retNilPtrErr(i)
+		print(*x) //want "dereferenced"
+	case 6:
+		if x, err := retNilPtrErr(i); err == nil {
+			print(*x) //want "dereferenced"
+		}
+
+	// conditionally safe
+	case 7:
+		x, _ := retConditionallyNilPtrErr(i)
+		print(*x) //want "dereferenced"
+	case 8:
+		if x, err := retConditionallyNilPtrErr(i); err == nil {
+			print(*x)
+		}
+	}
+}
+
+// Test always safe through multiple hops. Currently, we support only immediate function call for "always safe" tracking.
+// Hence, the below cases are expected to report errors.
+// TODO: add support for multiple hops to address the false positives
+
+func m1() (*int, error) {
+	return m2()
+}
+
+func m2() (*int, error) {
+	v, err := m3()
+	if err != nil {
+		// makes non-error return always non-nil
+		return new(int), err
+	}
+	y := *v + 1
+	return &y, nil
+}
+
+func m3() (*int, error) {
+	if dummy2 {
+		return nil, &myErr2{}
+	}
+	return new(int), nil
+}
+
+func testAlwaysSafeMultipleHops() {
+	// TODO: call to m1() should be reported as always safe. This is a false positive since currently we are limiting the
+	//  "always safe" tracking to only immediate function call, not chained error returning function calls.
+	v1, _ := m1()
+	print(*v1) //want "dereferenced"
+}
