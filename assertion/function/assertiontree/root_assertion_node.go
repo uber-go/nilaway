@@ -258,6 +258,16 @@ func (r *RootAssertionNode) AddConsumption(consumer *annotation.ConsumeTrigger) 
 	path, producers := r.ParseExprAsProducer(consumer.Expr, false)
 	if path == nil { // expr is not trackable
 		if producers == nil {
+			if _, ok := consumer.Annotation.(*annotation.UseAsReturnForAlwaysSafePath); ok {
+				r.AddNewTriggers(annotation.FullTrigger{
+					Producer: &annotation.ProduceTrigger{
+						Annotation: &annotation.ProduceTriggerNever{},
+						Expr:       consumer.Expr,
+					},
+					Consumer: consumer,
+				})
+			}
+
 			return // expr is not trackable, but cannot be nil, so do nothing
 		}
 		if len(producers) != 1 {

@@ -481,6 +481,7 @@ func (r *RootAssertionNode) getFuncReturnProducers(ident *ast.Ident, expr *ast.C
 						// such as "error-nonnil" or "always-nonnil"
 						NeedsGuard: (isErrReturning || isOkReturning) && i != numResults-1,
 					},
+					IsFromRichCheckEffectFunc: isErrReturning || isOkReturning,
 				},
 				Expr: expr,
 			},

@@ -183,7 +183,15 @@ func checkErrors(triggers []annotation.FullTrigger, annMap annotation.Map, diagn
 		},
 	)
 
+	// Delete all "always safe" special handlers, since they are not meant to be tested for the no infer case
+	finalTriggers := make([]annotation.FullTrigger, 0, len(filteredTriggers))
 	for _, trigger := range filteredTriggers {
+		if _, ok := trigger.Consumer.Annotation.(*annotation.UseAsReturnForAlwaysSafePath); !ok {
+			finalTriggers = append(finalTriggers, trigger)
+		}
+	}
+
+	for _, trigger := range finalTriggers {
 		// Skip checking any full triggers we created by duplicating from contracted functions
 		// to the caller function.
 		if !trigger.CreatedFromDuplication && trigger.Check(annMap) {
