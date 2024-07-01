@@ -20,6 +20,7 @@ import (
 	"cmp"
 	"encoding/gob"
 	"fmt"
+	"go/ast"
 	"slices"
 
 	"go.uber.org/nilaway/annotation"
@@ -173,13 +174,17 @@ func (e *Engine) ObservePackage(pkgFullTriggers []annotation.FullTrigger) {
 			if o, ok := p.OldAnnotation.(*annotation.FuncReturn); ok && o.IsFromRichCheckEffectFunc {
 				if pr, ok := o.Ann.(*annotation.RetAnnotationKey); ok {
 					isPotentialNilPathFound := false
-					matchCnt := 0
 					nonnilCnt := 0
+					visited := make(map[*ast.ReturnStmt]bool)
 					for _, t2 := range pkgFullTriggers {
-						if c, ok := t2.Consumer.Annotation.(*annotation.UseAsReturnForAlwaysSafePath); ok {
+						switch c := t2.Consumer.Annotation.(type) {
+						case *annotation.UseAsReturnForAlwaysSafePath:
 							if cr, ok := c.Ann.(*annotation.RetAnnotationKey); ok {
 								if *pr == *cr {
-									matchCnt++
+									if !visited[c.RetStmt] {
+										visited[c.RetStmt] = true
+									}
+
 									if t2.Producer.Annotation.Kind() != annotation.Never {
 										isPotentialNilPathFound = true
 										break
@@ -187,9 +192,25 @@ func (e *Engine) ObservePackage(pkgFullTriggers []annotation.FullTrigger) {
 									nonnilCnt++
 								}
 							}
+						case *annotation.UseAsReturn:
+							if cr, ok := c.Ann.(*annotation.RetAnnotationKey); ok {
+								if *pr == *cr {
+									if !visited[c.RetStmt] {
+										visited[c.RetStmt] = true
+									}
+								}
+							}
+						case *annotation.UseAsNonErrorRetDependentOnErrorRetNilability:
+							if cr, ok := c.Ann.(*annotation.RetAnnotationKey); ok {
+								if *pr == *cr {
+									if !visited[c.RetStmt] {
+										visited[c.RetStmt] = true
+									}
+								}
+							}
 						}
 					}
-					if !isPotentialNilPathFound && matchCnt > 0 && nonnilCnt > 0 && matchCnt == nonnilCnt {
+					if !isPotentialNilPathFound && len(visited) > 0 && nonnilCnt > 0 && len(visited) == nonnilCnt {
 						guardMissingTriggersToBeDeleted[i] = true
 					}
 				}
