@@ -180,10 +180,10 @@ func (e *Engine) mapGuardMissingAndReturnToFuncSite(triggers []annotation.FullTr
 // observeImplication. Before all assertions are sorted and handled thus, the annotations read for
 // the package are iterated over and observed via calls to observeSiteExplanation as a <Val>BecauseAnnotation.
 func (e *Engine) ObservePackage(pkgFullTriggers []annotation.FullTrigger) {
-	// As Step 1, we do a pre-analysis of "guard missing" triggers to verify their dereferences are always safe,
-	// and hence can be safely deleted. Specifically, this analyis of "always safe" paths is focussed on the rich check
-	// effect functions, namely error returning functions and ok-returning functions. The process is to find all
-	// guard missing triggers reaching a function return site, and then check if all the return triggers
+	// As Step 1, we do a pre-analysis of "guard missing" triggers to verify if their dereferences are always nil-safe,
+	// and hence can be deleted to not report a false positive error. Specifically, this analyis of "always safe" paths
+	// is focussed on the rich check effect functions, namely error returning functions and ok-returning functions.
+	// The process is to find all guard missing triggers reaching a function return site, and then check if all the return triggers
 	// to that function site are non-nil. If so, we can safely delete all the guard-missing triggers for this function site.
 	triggersToBeDeleted := make(map[int]bool)
 	mapSiteGuardMissing, mapSiteReturn := e.mapGuardMissingAndReturnToFuncSite(pkgFullTriggers)
