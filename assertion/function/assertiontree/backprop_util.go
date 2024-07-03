@@ -387,15 +387,16 @@ func createReturnConsumersForAlwaysSafe(rootNode *RootAssertionNode, nonErrResul
 		}
 
 		rootNode.AddConsumption(&annotation.ConsumeTrigger{
-			Annotation: &annotation.UseAsReturnForAlwaysSafePath{
+			Annotation: &annotation.UseAsReturn{
 				TriggerIfNonNil: &annotation.TriggerIfNonNil{
 					Ann: &annotation.RetAnnotationKey{
 						FuncDecl: rootNode.FuncObj(),
 						RetNum:   i,
 					},
 				},
-				IsNamedReturn: isNamedReturn,
-				RetStmt:       retStmt},
+				IsNamedReturn:        isNamedReturn,
+				IsTrackingAlwaysSafe: true,
+				RetStmt:              retStmt},
 			Expr:   nonErrResults[i],
 			Guards: util.NoGuards(),
 		})

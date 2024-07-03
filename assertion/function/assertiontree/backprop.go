@@ -237,13 +237,14 @@ func backpropAcrossReturn(rootNode *RootAssertionNode, node *ast.ReturnStmt) err
 						triggerAlwaysSafe := annotation.FullTrigger{
 							Producer: trigger.Producer,
 							Consumer: &annotation.ConsumeTrigger{
-								Annotation: &annotation.UseAsReturnForAlwaysSafePath{
+								Annotation: &annotation.UseAsReturn{
 									TriggerIfNonNil: &annotation.TriggerIfNonNil{
 										Ann: annotation.RetKeyFromRetNum(
 											rootNode.ObjectOf(rootNode.FuncNameIdent()).(*types.Func),
 											i,
 										)},
-									RetStmt: node,
+									RetStmt:              node,
+									IsTrackingAlwaysSafe: true,
 								},
 								Expr:         trigger.Consumer.Expr,
 								Guards:       trigger.Consumer.Guards,

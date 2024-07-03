@@ -59,7 +59,6 @@ var initStructsConsumingAnnotationTrigger = []any{
 	&UseAsErrorRetWithNilabilityUnknown{TriggerIfNonNil: &TriggerIfNonNil{Ann: newMockKey()}},
 	&ArgPassDeep{TriggerIfDeepNonNil: &TriggerIfDeepNonNil{Ann: newMockKey()}},
 	&UseAsReturnDeep{TriggerIfDeepNonNil: &TriggerIfDeepNonNil{Ann: newMockKey()}},
-	&UseAsReturnForAlwaysSafePath{TriggerIfNonNil: &TriggerIfNonNil{Ann: newMockKey()}},
 }
 
 // ConsumingAnnotationTriggerEqualsTestSuite tests for the `equals` method of all the structs that implement

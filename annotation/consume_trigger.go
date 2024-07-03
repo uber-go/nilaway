@@ -1092,8 +1092,9 @@ func DuplicateReturnConsumer(t *ConsumeTrigger, location token.Position) *Consum
 // used for functions with contracts since we need to duplicate the sites for context sensitivity.
 type UseAsReturn struct {
 	*TriggerIfNonNil
-	IsNamedReturn bool
-	RetStmt       *ast.ReturnStmt
+	IsNamedReturn        bool
+	IsTrackingAlwaysSafe bool
+	RetStmt              *ast.ReturnStmt
 }
 
 // equals returns true if the passed ConsumingAnnotationTrigger is equal to this one
@@ -1101,6 +1102,7 @@ func (u *UseAsReturn) equals(other ConsumingAnnotationTrigger) bool {
 	if other, ok := other.(*UseAsReturn); ok {
 		return u.TriggerIfNonNil.equals(other.TriggerIfNonNil) &&
 			u.IsNamedReturn == other.IsNamedReturn &&
+			u.IsTrackingAlwaysSafe == other.IsTrackingAlwaysSafe &&
 			u.RetStmt == other.RetStmt
 	}
 	return false
@@ -1870,76 +1872,6 @@ func (f FldEscapePrestring) String() string {
 	sb.WriteString(fmt.Sprintf("field `%s` escaped out of our analysis scope (presumed nilable)", f.FieldName))
 	sb.WriteString(f.AssignmentStr)
 	return sb.String()
-}
-
-// UseAsReturnForAlwaysSafePath is when a value flows to a point where it is returned from a rich check effect function, namely,
-// error retuning functions and ok-form functions. This consumer is used at the inference stage to determine if the
-// rich check effect function is always safe to return a non-nil value.
-type UseAsReturnForAlwaysSafePath struct {
-	*TriggerIfNonNil
-
-	IsNamedReturn bool
-	RetStmt       *ast.ReturnStmt
-}
-
-// equals returns true if the passed ConsumingAnnotationTrigger is equal to this one
-func (u *UseAsReturnForAlwaysSafePath) equals(other ConsumingAnnotationTrigger) bool {
-	if other, ok := other.(*UseAsReturnForAlwaysSafePath); ok {
-		return u.TriggerIfNonNil.equals(other.TriggerIfNonNil) &&
-			u.IsNamedReturn == other.IsNamedReturn &&
-			u.RetStmt == other.RetStmt
-	}
-	return false
-}
-
-// Copy returns a deep copy of this ConsumingAnnotationTrigger
-func (u *UseAsReturnForAlwaysSafePath) Copy() ConsumingAnnotationTrigger {
-	copyConsumer := *u
-	copyConsumer.TriggerIfNonNil = u.TriggerIfNonNil.Copy().(*TriggerIfNonNil)
-	return &copyConsumer
-}
-
-// Prestring returns this UseAsNonErrorRetDependentOnErrorRetNilability as a Prestring
-func (u *UseAsReturnForAlwaysSafePath) Prestring() Prestring {
-	retAnn := u.Ann.(*RetAnnotationKey)
-	return UseAsReturnForAlwaysSafePathPrestring{
-		retAnn.FuncDecl.Name(),
-		retAnn.RetNum,
-		retAnn.FuncDecl.Type().(*types.Signature).Results().At(retAnn.RetNum).Name(),
-		retAnn.FuncDecl.Type().(*types.Signature).Results().Len() - 1,
-		u.IsNamedReturn,
-		u.assignmentFlow.String(),
-	}
-}
-
-// UseAsReturnForAlwaysSafePathPrestring is a Prestring storing the needed information to compactly encode a UseAsReturnForAlwaysSafePath
-type UseAsReturnForAlwaysSafePathPrestring struct {
-	FuncName      string
-	RetNum        int
-	RetName       string
-	ErrRetNum     int
-	IsNamedReturn bool
-	AssignmentStr string
-}
-
-func (u UseAsReturnForAlwaysSafePathPrestring) String() string {
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("returned from `%s()`", u.FuncName))
-	if u.IsNamedReturn {
-		sb.WriteString(fmt.Sprintf(" via named return `%s`", u.RetName))
-	} else {
-		sb.WriteString(fmt.Sprintf(" in position %d", u.RetNum))
-	}
-	sb.WriteString(u.AssignmentStr)
-	return sb.String()
-}
-
-// overriding position value to point to the raw return statement, which is the source of the potential error
-func (u *UseAsReturnForAlwaysSafePath) customPos() (token.Pos, bool) {
-	if u.IsNamedReturn {
-		return u.RetStmt.Pos(), true
-	}
-	return 0, false
 }
 
 // UseAsNonErrorRetDependentOnErrorRetNilability is when a value flows to a point where it is returned from an error returning function

@@ -162,7 +162,7 @@ func (e *Engine) mapGuardMissingAndReturnToFuncSite(triggers []annotation.FullTr
 	}
 
 	for i, trigger := range triggers {
-		if c, ok := trigger.Consumer.Annotation.(*annotation.UseAsReturnForAlwaysSafePath); ok {
+		if c, ok := trigger.Consumer.Annotation.(*annotation.UseAsReturn); ok && c.IsTrackingAlwaysSafe {
 			site := e.primitive.site(c.UnderlyingSite(), c.Kind() == annotation.DeepConditional)
 			mapSiteReturn[site] = append(mapSiteReturn[site], i)
 		}
@@ -180,22 +180,11 @@ func (e *Engine) mapGuardMissingAndReturnToFuncSite(triggers []annotation.FullTr
 // observeImplication. Before all assertions are sorted and handled thus, the annotations read for
 // the package are iterated over and observed via calls to observeSiteExplanation as a <Val>BecauseAnnotation.
 func (e *Engine) ObservePackage(pkgFullTriggers []annotation.FullTrigger) {
-	// Separate out triggers with UseAsNonErrorRetDependentOnErrorRetNilability consumer from other triggers.
-	// This is needed since whether UseAsNonErrorRetDependentOnErrorRetNilability triggers should be fired
-	// is dependent on their corresponding UseAsErrorRetWithNilabilityUnknown triggers. By this separation,
-	// we can process all other triggers, including UseAsErrorRetWithNilabilityUnknown, first, and once
-	// their nilability status is known, then filter out the unnecessary UseAsNonErrorRetDependentOnErrorRetNilability
-	// triggers, and run the pkg inference process again only for the remainder triggers.
-	// Steps 1--3 below depict this approach in more detail.
-	var (
-		nonErrRetTriggers []annotation.FullTrigger
-		// In most cases all triggers will be stored in otherTriggers, so we set a proper capacity.
-		otherTriggers = make([]annotation.FullTrigger, 0, len(pkgFullTriggers))
-	)
-
-	// Analyze "always safe" paths for rich check effect functions, namely error returning functions and ok-returning functions.
-	// The process is to find all guard missing triggers reaching function return sites, and then check if all the return triggers
-	// to the function site are non-nil. If so, we can safely delete all the guard-missing triggers for this function site.
+	// As Step 1, we do a pre-analysis of "guard missing" triggers to verify their dereferences are always safe,
+	// and hence can be safely deleted. Specifically, this analyis of "always safe" paths is focussed on the rich check
+	// effect functions, namely error returning functions and ok-returning functions. The process is to find all
+	// guard missing triggers reaching a function return site, and then check if all the return triggers
+	// to that function site are non-nil. If so, we can safely delete all the guard-missing triggers for this function site.
 	triggersToBeDeleted := make(map[int]bool)
 	mapSiteGuardMissing, mapSiteReturn := e.mapGuardMissingAndReturnToFuncSite(pkgFullTriggers)
 	for site, guardMissingIndices := range mapSiteGuardMissing {
@@ -227,6 +216,7 @@ func (e *Engine) ObservePackage(pkgFullTriggers []annotation.FullTrigger) {
 		}
 	}
 
+	// Filter out the triggers that are to be deleted.
 	var filteredPkgFullTriggers []annotation.FullTrigger
 	for i, t := range pkgFullTriggers {
 		if triggersToBeDeleted[i] {
@@ -236,6 +226,19 @@ func (e *Engine) ObservePackage(pkgFullTriggers []annotation.FullTrigger) {
 	}
 	pkgFullTriggers = filteredPkgFullTriggers
 
+	// Separate out triggers with UseAsNonErrorRetDependentOnErrorRetNilability consumer from other triggers.
+	// This is needed since whether UseAsNonErrorRetDependentOnErrorRetNilability triggers should be fired
+	// is dependent on their corresponding UseAsErrorRetWithNilabilityUnknown triggers. By this separation,
+	// we can process all other triggers, including UseAsErrorRetWithNilabilityUnknown, first, and once
+	// their nilability status is known, then filter out the unnecessary UseAsNonErrorRetDependentOnErrorRetNilability
+	// triggers, and run the pkg inference process again only for the remainder triggers.
+	// Steps 2--4 below depict this approach in more detail.
+	var (
+		nonErrRetTriggers []annotation.FullTrigger
+		// In most cases all triggers will be stored in otherTriggers, so we set a proper capacity.
+		otherTriggers = make([]annotation.FullTrigger, 0, len(pkgFullTriggers))
+	)
+
 	for _, t := range pkgFullTriggers {
 		if _, ok := t.Consumer.Annotation.(*annotation.UseAsNonErrorRetDependentOnErrorRetNilability); ok {
 			nonErrRetTriggers = append(nonErrRetTriggers, t)
@@ -244,10 +247,10 @@ func (e *Engine) ObservePackage(pkgFullTriggers []annotation.FullTrigger) {
 		}
 	}
 
-	// Step 1: build the inference map based on `otherTriggers` and incorporate those assertions into the `inferredAnnotationMap`
+	// Step 2: build the inference map based on `otherTriggers` and incorporate those assertions into the `inferredAnnotationMap`
 	e.buildPkgInferenceMap(otherTriggers)
 
-	// Step 2: run error return handling procedure to filter out redundant triggers based on the error contract, and
+	// Step 3: run error return handling procedure to filter out redundant triggers based on the error contract, and
 	// keep only those UseAsNonErrorRetDependentOnErrorRetNilability triggers that are not deleted.
 	// Call FilterTriggersForErrorReturn to filter triggers for error return handling -- inter-procedural and full-inference mode
 	_, delTriggers := assertiontree.FilterTriggersForErrorReturn(
@@ -298,7 +301,7 @@ func (e *Engine) ObservePackage(pkgFullTriggers []annotation.FullTrigger) {
 		}
 	}
 
-	// Step 3: run the inference building process for only the remaining UseAsNonErrorRetDependentOnErrorRetNilability triggers, and collect assertions
+	// Step 4: run the inference building process for only the remaining UseAsNonErrorRetDependentOnErrorRetNilability triggers, and collect assertions
 	e.buildPkgInferenceMap(filteredTriggers)
 }
 
@@ -640,5 +643,4 @@ func GobRegister() {
 	gob.RegisterName(nextStr(), annotation.RecvPassPrestring{})
 	gob.RegisterName(nextStr(), annotation.MethodRecvDeepPrestring{})
 	gob.RegisterName(nextStr(), annotation.FldReturnPrestring{})
-	gob.RegisterName(nextStr(), annotation.UseAsReturnForAlwaysSafePathPrestring{})
 }
