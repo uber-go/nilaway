@@ -229,7 +229,7 @@ func testAliasedMixedReturns() {
 
 // ***** below tests check the handling for "always safe" cases and their variants *****
 
-func retNonnilPtrErr(i int) (*int, error) {
+func retAlwaysNonnilPtrErr(i int) (*int, error) {
 	switch i {
 	case 0:
 		return new(int), &myErr2{}
@@ -241,7 +241,7 @@ func retNonnilPtrErr(i int) (*int, error) {
 	return new(int), nil
 }
 
-func retNilPtrErr(i int) (*int, error) {
+func retAlwaysNilPtrErr(i int) (*int, error) {
 	switch i {
 	case 0:
 		return nil, &myErr2{}
@@ -253,7 +253,7 @@ func retNilPtrErr(i int) (*int, error) {
 	return nil, nil
 }
 
-func retConditionallyNilPtrErr(i int) (*int, error) {
+func retSometimesNilPtrErr(i int) (*int, error) {
 	switch i {
 	case 0:
 		return nil, &myErr2{}
@@ -269,24 +269,24 @@ func testAlwaysSafe(i int) {
 	switch i {
 	// always safe
 	case 0:
-		x, _ := retNonnilPtrErr(i)
+		x, _ := retAlwaysNonnilPtrErr(i)
 		print(*x)
 	case 1:
-		if x, err := retNonnilPtrErr(i); err != nil {
+		if x, err := retAlwaysNonnilPtrErr(i); err != nil {
 			print(*x)
 		}
 	case 2:
-		if x, err := retNonnilPtrErr(i); err == nil {
+		if x, err := retAlwaysNonnilPtrErr(i); err == nil {
 			print(*x)
 		}
 	case 3:
-		x, _ := retNonnilPtrErr(i)
-		y, _ := retNonnilPtrErr(i)
+		x, _ := retAlwaysNonnilPtrErr(i)
+		y, _ := retAlwaysNonnilPtrErr(i)
 		print(*x)
 		print(*y)
 	case 4:
-		x, errx := retNonnilPtrErr(i)
-		y, erry := retNonnilPtrErr(i)
+		x, errx := retAlwaysNonnilPtrErr(i)
+		y, erry := retAlwaysNonnilPtrErr(i)
 
 		if erry == nil {
 			print(*x)
@@ -297,19 +297,19 @@ func testAlwaysSafe(i int) {
 
 	// always unsafe
 	case 5:
-		x, _ := retNilPtrErr(i)
+		x, _ := retAlwaysNilPtrErr(i)
 		print(*x) //want "dereferenced"
 	case 6:
-		if x, err := retNilPtrErr(i); err == nil {
+		if x, err := retAlwaysNilPtrErr(i); err == nil {
 			print(*x) //want "dereferenced"
 		}
 
 	// conditionally safe
 	case 7:
-		x, _ := retConditionallyNilPtrErr(i)
+		x, _ := retSometimesNilPtrErr(i)
 		print(*x) //want "dereferenced"
 	case 8:
-		if x, err := retConditionallyNilPtrErr(i); err == nil {
+		if x, err := retSometimesNilPtrErr(i); err == nil {
 			print(*x)
 		}
 	}
@@ -340,9 +340,33 @@ func m3() (*int, error) {
 	return new(int), nil
 }
 
+type S struct {
+	f *int
+}
+
+func f1(i int) (*int, error) {
+	switch i {
+	case 0:
+		// direct non-nil non-error return value
+		return new(int), &myErr2{}
+	case 1:
+		s := &S{f: new(int)}
+		// indirect non-nil non-error return value via a field read
+		return s.f, nil
+	case 2:
+	}
+	// indirect non-nil non-error return value via a function return
+	return retAlwaysNonnilPtrErr(i)
+}
+
 func testAlwaysSafeMultipleHops() {
 	// TODO: call to m1() should be reported as always safe. This is a false positive since currently we are limiting the
 	//  "always safe" tracking to only immediate function call, not chained error returning function calls.
 	v1, _ := m1()
 	print(*v1) //want "dereferenced"
+
+	// TODO: call to f1() should be reported as always safe. This is a false positive since currently we are limiting the
+	// analysis of "return statements" to only the directly determinable cases (e.g., new(int), &S{}, NegativeNilCheck), not through multiple hops.
+	v2, _ := f1(0)
+	print(*v2) //want "dereferenced"
 }
