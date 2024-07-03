@@ -20,7 +20,6 @@ import (
 	"cmp"
 	"encoding/gob"
 	"fmt"
-	"go/ast"
 	"slices"
 
 	"go.uber.org/nilaway/annotation"
@@ -146,6 +145,32 @@ func (e *Engine) ObserveAnnotations(pkgAnnotations *annotation.ObservedMap, mode
 	}, mode != NoInfer)
 }
 
+// mapGuardMissingAndReturnToFuncSite returns two maps:
+// 1. A map with key being the function return site and value being the list of indices of guard-missing triggers matching the site.
+// 2. A map with key being the function return site and value being the list of indices of return triggers matching the site.
+func (e *Engine) mapGuardMissingAndReturnToFuncSite(triggers []annotation.FullTrigger) (map[primitiveSite][]int, map[primitiveSite][]int) {
+	mapSiteGuardMissing := make(map[primitiveSite][]int)
+	mapSiteReturn := make(map[primitiveSite][]int)
+
+	for i, trigger := range triggers {
+		if p, ok := trigger.Producer.Annotation.(*annotation.GuardMissing); ok {
+			if o, ok := p.OldAnnotation.(*annotation.FuncReturn); ok && o.IsFromRichCheckEffectFunc {
+				site := e.primitive.site(o.UnderlyingSite(), p.Kind() == annotation.DeepConditional)
+				mapSiteGuardMissing[site] = append(mapSiteGuardMissing[site], i)
+			}
+		}
+	}
+
+	for i, trigger := range triggers {
+		if c, ok := trigger.Consumer.Annotation.(*annotation.UseAsReturnForAlwaysSafePath); ok {
+			site := e.primitive.site(c.UnderlyingSite(), c.Kind() == annotation.DeepConditional)
+			mapSiteReturn[site] = append(mapSiteReturn[site], i)
+		}
+	}
+
+	return mapSiteGuardMissing, mapSiteReturn
+}
+
 // ObservePackage observes all the annotations and assertions computed locally about the current
 // package. The assertions are sorted based on whether they are already known to trigger without
 // reliance on annotation sites, such as `x` in `x = nil; x.f`, which will generate
@@ -168,62 +193,43 @@ func (e *Engine) ObservePackage(pkgFullTriggers []annotation.FullTrigger) {
 		otherTriggers = make([]annotation.FullTrigger, 0, len(pkgFullTriggers))
 	)
 
-	guardMissingTriggersToBeDeleted := make(map[int]bool)
-	for i, t := range pkgFullTriggers {
-		if p, ok := t.Producer.Annotation.(*annotation.GuardMissing); ok {
-			if o, ok := p.OldAnnotation.(*annotation.FuncReturn); ok && o.IsFromRichCheckEffectFunc {
-				if pr, ok := o.Ann.(*annotation.RetAnnotationKey); ok {
-					isPotentialNilPathFound := false
-					nonnilCnt := 0
-					visited := make(map[*ast.ReturnStmt]bool)
-					for _, t2 := range pkgFullTriggers {
-						switch c := t2.Consumer.Annotation.(type) {
-						case *annotation.UseAsReturnForAlwaysSafePath:
-							if cr, ok := c.Ann.(*annotation.RetAnnotationKey); ok {
-								if *pr == *cr {
-									if !visited[c.RetStmt] {
-										visited[c.RetStmt] = true
-									}
+	// Analyze "always safe" paths for rich check effect functions, namely error returning functions and ok-returning functions.
+	// The process is to find all guard missing triggers reaching function return sites, and then check if all the return triggers
+	// to the function site are non-nil. If so, we can safely delete all the guard-missing triggers for this function site.
+	triggersToBeDeleted := make(map[int]bool)
+	mapSiteGuardMissing, mapSiteReturn := e.mapGuardMissingAndReturnToFuncSite(pkgFullTriggers)
+	for site, guardMissingIndices := range mapSiteGuardMissing {
+		if returnIndices, ok := mapSiteReturn[site]; ok {
+			// Check if all the return triggers to this function site are non-nil.
+			nonnilCnt := 0
+			for _, index := range returnIndices {
+				returnTrigger := pkgFullTriggers[index]
+				if returnTrigger.Producer.Annotation.Kind() != annotation.Never {
+					// break early if we find a potentially nilable trigger
+					break
+				}
+				nonnilCnt++
+			}
 
-									if t2.Producer.Annotation.Kind() != annotation.Never {
-										isPotentialNilPathFound = true
-										break
-									}
-									nonnilCnt++
-								}
-							}
-						case *annotation.UseAsReturn:
-							if cr, ok := c.Ann.(*annotation.RetAnnotationKey); ok {
-								if *pr == *cr {
-									if !visited[c.RetStmt] {
-										visited[c.RetStmt] = true
-									}
-								}
-							}
-						case *annotation.UseAsNonErrorRetDependentOnErrorRetNilability:
-							if cr, ok := c.Ann.(*annotation.RetAnnotationKey); ok {
-								if *pr == *cr {
-									if !visited[c.RetStmt] {
-										visited[c.RetStmt] = true
-									}
-								}
-							}
-						}
-					}
-					if !isPotentialNilPathFound && len(visited) > 0 && nonnilCnt > 0 && len(visited) == nonnilCnt {
-						guardMissingTriggersToBeDeleted[i] = true
-					}
+			if nonnilCnt == len(returnIndices) {
+				// If all return triggers are non-nil, then we can safely delete all the guard-missing triggers
+				// for this function site.
+				for _, index := range guardMissingIndices {
+					triggersToBeDeleted[index] = true
 				}
 			}
+		}
+	}
+	// Add all placeholder UseAsReturnForAlwaysSafePath triggers to triggersToBeDeleted
+	for _, indices := range mapSiteReturn {
+		for _, index := range indices {
+			triggersToBeDeleted[index] = true
 		}
 	}
 
 	var filteredPkgFullTriggers []annotation.FullTrigger
 	for i, t := range pkgFullTriggers {
-		if guardMissingTriggersToBeDeleted[i] {
-			continue
-		}
-		if _, ok := t.Consumer.Annotation.(*annotation.UseAsReturnForAlwaysSafePath); ok {
+		if triggersToBeDeleted[i] {
 			continue
 		}
 		filteredPkgFullTriggers = append(filteredPkgFullTriggers, t)
