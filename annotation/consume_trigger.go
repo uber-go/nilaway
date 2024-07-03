@@ -1872,7 +1872,9 @@ func (f FldEscapePrestring) String() string {
 	return sb.String()
 }
 
-// UseAsReturnForAlwaysSafePath is when a value flows to a point where it is returned from an error returning function
+// UseAsReturnForAlwaysSafePath is when a value flows to a point where it is returned from a rich check effect function, namely,
+// error retuning functions and ok-form functions. This consumer is used at the inference stage to determine if the
+// rich check effect function is always safe to return a non-nil value.
 type UseAsReturnForAlwaysSafePath struct {
 	*TriggerIfNonNil
 
