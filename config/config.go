@@ -26,10 +26,13 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
+const JsonFormat = "json"
+
 // Config is the struct that stores the user-configurable options for NilAway.
 type Config struct {
 	// PrettyPrint indicates whether the error messages should be pretty printed.
 	PrettyPrint bool
+	Format      string
 	// GroupErrorMessages indicates whether similar error messages should be grouped.
 	GroupErrorMessages bool
 	// ExperimentalStructInitEnable indicates whether experimental struct initialization is enabled.
@@ -123,6 +126,7 @@ var Analyzer = &analysis.Analyzer{
 const (
 	// PrettyPrintFlag is the flag for pretty printing the error messages.
 	PrettyPrintFlag = "pretty-print"
+	FormatFlag      = "format"
 	// GroupErrorMessagesFlag is the flag for grouping similar error messages.
 	GroupErrorMessagesFlag = "group-error-messages"
 	// IncludePkgsFlag is the flag name for include package prefixes.
@@ -144,6 +148,7 @@ func newFlagSet() flag.FlagSet {
 	// We do not keep the returned pointer to the flags because we will not use them directly here.
 	// Instead, we will use the flags through the analyzer's Flags field later.
 	_ = fs.Bool(PrettyPrintFlag, true, "Pretty print the error messages")
+	_ = fs.String(FormatFlag, "", "Pretty print the error messages")
 	_ = fs.Bool(GroupErrorMessagesFlag, true, "Group similar error messages")
 	_ = fs.String(IncludePkgsFlag, "", "Comma-separated list of packages to analyze")
 	_ = fs.String(ExcludePkgsFlag, "", "Comma-separated list of packages to exclude from analysis")
@@ -167,6 +172,9 @@ func run(pass *analysis.Pass) (any, error) {
 	// Override default values if the user provides flags.
 	if prettyPrint, ok := pass.Analyzer.Flags.Lookup(PrettyPrintFlag).Value.(flag.Getter).Get().(bool); ok {
 		conf.PrettyPrint = prettyPrint
+	}
+	if format, ok := pass.Analyzer.Flags.Lookup(FormatFlag).Value.(flag.Getter).Get().(string); ok {
+		conf.Format = format
 	}
 	if groupErrorMessages, ok := pass.Analyzer.Flags.Lookup(GroupErrorMessagesFlag).Value.(flag.Getter).Get().(bool); ok {
 		conf.GroupErrorMessages = groupErrorMessages
