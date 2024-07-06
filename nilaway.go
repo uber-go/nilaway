@@ -40,7 +40,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
 	deferredErrors := pass.ResultOf[accumulation.Analyzer].([]analysis.Diagnostic)
 	for _, e := range deferredErrors {
-		if conf.PrettyPrint {
+		if conf.PrettyPrint && conf.Format == config.JsonFormat {
 			e.Message = util.PrettyPrintErrorMessage(e.Message)
 		}
 		pass.Report(e)

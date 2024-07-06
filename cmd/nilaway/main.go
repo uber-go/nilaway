@@ -132,6 +132,6 @@ func main() {
 	}
 	flag.StringVar(&_includeErrorsInFiles, "include-errors-in-files", wd, "A comma-separated list of file prefixes to report errors, default is current working directory.")
 	flag.StringVar(&_excludeErrorsInFiles, "exclude-errors-in-files", "", "A comma-separated list of file prefixes to exclude from error reporting. This takes precedence over include-errors-in-files.")
-
+	fmt.Println(config.Analyzer.Flags)
 	singlechecker.Main(Analyzer)
 }
