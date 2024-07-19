@@ -26,6 +26,7 @@ import (
 	"slices"
 
 	"go.uber.org/nilaway/annotation"
+	"go.uber.org/nilaway/assertion/function/preprocess"
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
 	"golang.org/x/tools/go/analysis"
@@ -814,11 +815,21 @@ func computePostOrder(blocks []*cfg.Block) []int {
 // BackpropAcrossFunc is the main driver of the backpropagation, it takes a function declaration
 // with accompanying CFG, and back-propagates a tree of assertions across it to generate, at entry
 // to the function, the set of assertions that must hold to avoid possible nil flow errors.
-func BackpropAcrossFunc(ctx context.Context, pass *analysis.Pass, decl *ast.FuncDecl,
-	functionContext FunctionContext, graph *cfg.CFG) ([]annotation.FullTrigger, error) {
+func BackpropAcrossFunc(
+	ctx context.Context,
+	pass *analysis.Pass,
+	decl *ast.FuncDecl,
+	functionContext FunctionContext,
+	graph *cfg.CFG,
+) ([]annotation.FullTrigger, int, int, error) {
 	// We transform the CFG to have it reflect the implicit control flow that happens
 	// inside short-circuiting boolean expressions.
-	graph, richCheckBlocks, exprNonceMap := preprocess(graph, functionContext)
+	preprocessor := preprocess.New(pass)
+	graph = preprocessor.CFG(graph, functionContext.funcDecl)
+
+	// Generate rick check effects.
+	richCheckBlocks, exprNonceMap := genInitialRichCheckEffects(graph, functionContext)
+	richCheckBlocks = propagateRichChecks(graph, richCheckBlocks)
 	blocks, preprocessing := blocksAndPreprocessingFromCFG(pass, graph, richCheckBlocks)
 
 	// The assertion nodes for each block and an array of bools to indicate whether each block is
@@ -845,7 +856,7 @@ func BackpropAcrossFunc(ctx context.Context, pass *analysis.Pass, decl *ast.Func
 
 		select {
 		case <-ctx.Done():
-			return nil, fmt.Errorf("backprop early stop due to context: %w", ctx.Err())
+			return nil, roundCount, stableRoundCount, fmt.Errorf("backprop early stop due to context: %w", ctx.Err())
 		default:
 		}
 
@@ -858,7 +869,7 @@ func BackpropAcrossFunc(ctx context.Context, pass *analysis.Pass, decl *ast.Func
 			}
 
 			if len(block.Succs) > 2 {
-				return nil, errors.New("assumptions about CFG shape violated - a block has >2 successors")
+				return nil, roundCount, stableRoundCount, errors.New("assumptions about CFG shape violated - a block has >2 successors")
 			}
 
 			// No need to re-process the assertion node for the current block if it does not have
@@ -909,7 +920,7 @@ func BackpropAcrossFunc(ctx context.Context, pass *analysis.Pass, decl *ast.Func
 			// No assertion nodes attached with any successors, this should never happen since we
 			// will only reach here if any of the successors were updated in the current or last round.
 			if len(succs) == 0 {
-				return nil, fmt.Errorf("no assertion nodes for successors of block %d", block.Index)
+				return nil, roundCount, stableRoundCount, fmt.Errorf("no assertion nodes for successors of block %d", block.Index)
 			}
 
 			// Merge the branch successors if they are both available.
@@ -921,7 +932,7 @@ func BackpropAcrossFunc(ctx context.Context, pass *analysis.Pass, decl *ast.Func
 			nextAssertions[i] = succs[0]
 			err := backpropAcrossBlock(nextAssertions[i], blocks[i])
 			if err != nil {
-				return nil, err
+				return nil, roundCount, stableRoundCount, err
 			}
 
 			// Monotonize updates updatedThisRound to reflect whether the assertions changed at a given index.
@@ -982,7 +993,7 @@ func BackpropAcrossFunc(ctx context.Context, pass *analysis.Pass, decl *ast.Func
 
 	// Return the generated full triggers at the entry block; we're done!
 	if currRootAssertionNode == nil {
-		return nil, nil
+		return nil, roundCount, stableRoundCount, nil
 	}
-	return currRootAssertionNode.triggers, nil
+	return currRootAssertionNode.triggers, roundCount, stableRoundCount, nil
 }

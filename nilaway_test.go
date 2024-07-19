@@ -66,6 +66,7 @@ func TestNilAway(t *testing.T) {
 		{name: "Constants", patterns: []string{"go.uber.org/consts"}},
 		{name: "ErrorMessage", patterns: []string{"go.uber.org/errormessage", "go.uber.org/errormessage/inference"}},
 		{name: "LoopRange", patterns: []string{"go.uber.org/looprange"}},
+		{name: "AbnormalFlow", patterns: []string{"go.uber.org/abnormalflow"}},
 	}
 
 	for _, tt := range tests {
@@ -90,7 +91,7 @@ func TestStructInit(t *testing.T) { //nolint:paralleltest
 	}()
 
 	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/structinit/funcreturnfields", "go.uber.org/structinit/local", "go.uber.org/structinit/global", "go.uber.org/structinit/paramfield", "go.uber.org/structinit/paramsideeffect", "go.uber.org/structinit/defaultfield", "go.uber.org/structinit/optimization")
+	analysistest.Run(t, testdata, Analyzer, "go.uber.org/structinit/funcreturnfields", "go.uber.org/structinit/local", "go.uber.org/structinit/global", "go.uber.org/structinit/paramfield", "go.uber.org/structinit/paramsideeffect", "go.uber.org/structinit/defaultfield")
 }
 
 func TestAnonymousFunction(t *testing.T) { //nolint:paralleltest

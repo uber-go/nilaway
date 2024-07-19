@@ -1,4 +1,4 @@
-//  Copyright (c) 2023 Uber Technologies, Inc.
+//  Copyright (c) 2024 Uber Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,42 +12,70 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package assertiontree
+package preprocess
 
 import (
 	"fmt"
 	"go/ast"
 	"go/token"
 
+	"go.uber.org/nilaway/assertion/function/trustedfunc"
 	"go.uber.org/nilaway/util"
-	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/cfg"
 )
 
-// preprocess performs several passes on the CFG of utility to our analysis.
-// Notably, it also generates a slice of RichCheckEffects for each block and
-// returns it as a separate object, but does all other modification in place.
+// CFG performs several passes on the CFG of utility to our analysis and returns a shallow copy of
+// the modified CFG, with the original CFG untouched.
 //
-// The returned RichCheckEffect slices represent the RichCheckEffects present at
-// the _end_ of each block
-func preprocess(graph *cfg.CFG, fc FunctionContext) (*cfg.CFG, [][]RichCheckEffect, util.ExprNonceMap) {
+// Specifically, it performs the following modifications to the CFG:
+//
+// Canonicalize conditionals:
+// - replace `if !cond {T} {F}` with `if cond {F} {T}` (swap successors)
+// - replace `if cond1 && cond2 {T} {F}` with `if cond1 {if cond2 {T} else {F}}{F}` (nesting)
+// - replace `if cond1 || cond2 {T} {F}` with `if cond1 {T} else {if cond2 {T} else {F}}` (nesting)
+//
+// Canonicalize nil comparisons:
+// It also performs the following useful transformation:
+// - replace `if x != nil {T} {F}` with `if x == nil {F} {T}` (swap successors)
+// - replace `nil == x {T} {F}` with `if x == nil {T} {F}` (swap comparison order)
+//
+// Canonicalize explicit boolean comparisons:
+// - replace `if x == true {T} {F}` with `if x {T} {F}`
+// - replace `if x == false {T} {F}` with `if !x {T} {F}`
+func (p *Preprocessor) CFG(graph *cfg.CFG, funcDecl *ast.FuncDecl) *cfg.CFG {
 	// The ASTs and CFGs are shared across all analyzers in the nogo framework, so we should never
 	// modify them directly. Here, we make a copy of the graph (and all blocks in it) and modify
 	// the copied graph instead.
 	graph = copyGraph(graph)
-	restructureBlocks(graph, fc.pass)
-	richCheckBlocks, exprNonceMap := genInitialRichCheckEffects(graph, fc)
-	richCheckBlocks = propagateRichChecks(graph, richCheckBlocks)
+
+	// Important: add all new blocks to the end, don't try to "move around" any existing blocks
+	// because they're all referenced by index!
+
+	// Create a failure block at the end of the blocks list to be used for trusted functions.
+	failureBlock := &cfg.Block{Index: int32(len(graph.Blocks))}
+	graph.Blocks = append(graph.Blocks, failureBlock)
+
+	// Perform the (series of) CFG transformations.
+	for _, block := range graph.Blocks {
+		if block.Live {
+			p.splitBlockOnTrustedFuncs(graph, block, failureBlock)
+		}
+	}
+	for _, block := range graph.Blocks {
+		if block.Live {
+			p.restructureConditional(graph, block)
+		}
+	}
 
 	// Next, we need to re-insert information that is lost during CFG build for *ast.RangeStmt
 	// and *ast.SwitchStmt by iterating through all blocks. This requires knowing the links between
 	// the nodes contained within a block to their parents (*ast.RangeStmt or *ast.SwitchStmt nodes).
 	// So, here establish the link and then do the work.
-	rangeChildren, switchChildren := collectChildren(fc.funcDecl)
+	rangeChildren, switchChildren := collectChildren(funcDecl)
 	markRangeStatements(graph, rangeChildren)
 	markSwitchStatements(graph, switchChildren)
 
-	return graph, richCheckBlocks, exprNonceMap
+	return graph
 }
 
 // copyGraph makes a semi-deep copy of the CFG and returns the copied graph. Note that only the
@@ -91,99 +119,7 @@ func copyGraph(graph *cfg.CFG) *cfg.CFG {
 	return newGraph
 }
 
-// stripNoops returns a copy of the passed slice `effects`, minus any no-ops
-func stripNoops(effects []RichCheckEffect) []RichCheckEffect {
-	var strippedEffects []RichCheckEffect
-
-	for _, effect := range effects {
-		if !effect.isNoop() {
-			strippedEffects = append(strippedEffects, effect)
-		}
-	}
-
-	return strippedEffects
-}
-
-// genInitialRichCheckEffects computes an initial array of RichCheckEffect slices for each block,
-// not doing any propagation over the CFG except for within each block to track nodes
-// that create RichCheckEffects (such as `v, ok := mp[k]`) and make sure it isn't invalidated
-// (such as by `ok = true`) before the end of the block.
-//
-// The returned RichCheckEffect slices represent the RichCheckEffects present at
-// the _end_ of each block.
-//
-// Important: do not duplicate any pointers: each returned RichCheckEffect should be a unique object
-func genInitialRichCheckEffects(graph *cfg.CFG, functionContext FunctionContext) (
-	[][]RichCheckEffect, util.ExprNonceMap) {
-	richCheckBlocks := make([][]RichCheckEffect, len(graph.Blocks))
-	nonceGenerator := util.NewGuardNonceGenerator()
-
-	// There is no canonical instance of RootAssertionNode until backpropAcrossFunc returns.
-	// We use a temporary root here as a means to pass contextual information like the function
-	// declaration and analysis pass.
-	rootNode := newRootAssertionNode(nonceGenerator.GetExprNonceMap(), functionContext)
-	for i, block := range graph.Blocks {
-		var richCheckEffects []RichCheckEffect
-		for _, node := range block.Nodes {
-
-			// invalidate any richCheckEffects that this node invalidates
-			for j, effect := range richCheckEffects {
-				if effect.isInvalidatedBy(node) {
-					richCheckEffects[j] = RichCheckNoop{}
-				}
-			}
-
-			// check if this node produces a new richCheckEffect
-			if effects, ok := RichCheckFromNode(rootNode, nonceGenerator, node); ok {
-				richCheckEffects = append(richCheckEffects, effects...)
-			}
-		}
-		// richCheckEffects is now fully populated
-
-		// strip out noops and write into richCheckBlocks
-		richCheckBlocks[i] = stripNoops(richCheckEffects)
-	}
-	return richCheckBlocks, nonceGenerator.GetExprNonceMap()
-}
-
-// This function restructures a cfg to reflect short-circuiting and other interesting semantics:
-//
-// It performs the following short-circuiting:
-// - replace if !cond {T} {F} with if cond {F} {T} (in CFG, swap successors)
-// - replace if cond1 && cond2 {T} {F} with if cond1 {if cond2 {T} else {F}}{F}
-// - replace if cond1 || cond2 {T} {F} with if cond1 {T} else {if cond2 {T} else {F}}
-//
-// It also performs the following useful transformation:
-// - replace if x != nil {T} {F} with if x == nil {F} {T} (i.e. swap successors)
-// - replace nil == x {T} {F} with if x == nil {T} {F} (i.e. swap comparison order)
-//
-// In addition, it also performs the following transformations to standardize explicit boolean comparisons:
-// - replace if x == true {T} {F} with if x {T} {F}
-// - replace if x == false {T} {F} with if !x {T} {F}
-func restructureBlocks(graph *cfg.CFG, pass *analysis.Pass) {
-	failureBlock := &cfg.Block{
-		Nodes: nil,
-		Succs: nil,
-		Index: int32(len(graph.Blocks)),
-		Live:  false,
-	}
-	graph.Blocks = append(graph.Blocks, failureBlock)
-
-	// important: add all new blocks to the end, don't try to "move around" any existing blocks because they're all
-	// referenced by index!
-	for _, block := range graph.Blocks {
-		if block.Live {
-			splitBlockOnTrustedFuncs(graph, block, failureBlock, pass)
-		}
-	}
-	for _, block := range graph.Blocks {
-		if block.Live {
-			restructureBlock(graph, block)
-		}
-	}
-}
-
-func splitBlockOnTrustedFuncs(graph *cfg.CFG, thisBlock, failureBlock *cfg.Block, pass *analysis.Pass) {
+func (p *Preprocessor) splitBlockOnTrustedFuncs(graph *cfg.CFG, thisBlock, failureBlock *cfg.Block) {
 	var expr *ast.ExprStmt
 	var call *ast.CallExpr
 	var retExpr any
@@ -197,7 +133,7 @@ func splitBlockOnTrustedFuncs(graph *cfg.CFG, thisBlock, failureBlock *cfg.Block
 		if call, ok = expr.X.(*ast.CallExpr); !ok {
 			continue
 		}
-		if retExpr, ok = AsTrustedFuncAction(call, pass); !ok {
+		if retExpr, ok = trustedfunc.As(call, p.pass); !ok {
 			continue
 		}
 		if trustedCond, ok = retExpr.(ast.Expr); !ok {
@@ -218,20 +154,18 @@ func splitBlockOnTrustedFuncs(graph *cfg.CFG, thisBlock, failureBlock *cfg.Block
 			failureBlock,
 		}
 		failureBlock.Live = true
-		splitBlockOnTrustedFuncs(graph, newBlock, failureBlock, pass)
+		p.splitBlockOnTrustedFuncs(graph, newBlock, failureBlock)
 		return
 	}
 }
 
-func restructureBlock(graph *cfg.CFG, thisBlock *cfg.Block) {
-	// TODO: This check should not be needed since `getConditional != nil` implies
-	//  `thisBlock.Succs != nil` due to the length check inside `getConditional`. However, due to a
-	//  FP we have to add this redundant check. This should not be needed after  is fixed.
-	if thisBlock.Succs == nil {
+func (p *Preprocessor) restructureConditional(graph *cfg.CFG, thisBlock *cfg.Block) {
+	// We only restructure non-empty branching blocks.
+	if len(thisBlock.Nodes) == 0 || len(thisBlock.Succs) != 2 {
 		return
 	}
-	cond := getConditional(thisBlock)
-	if cond == nil {
+	cond, ok := thisBlock.Nodes[len(thisBlock.Nodes)-1].(ast.Expr)
+	if !ok {
 		return
 	}
 
@@ -259,13 +193,13 @@ func restructureBlock(graph *cfg.CFG, thisBlock *cfg.Block) {
 	case *ast.ParenExpr:
 		// if a parenexpr, strip and restart - this is done with recursion to account for ((((x)))) case
 		replaceCond(cond.X)
-		restructureBlock(graph, thisBlock) // recur within parens
+		p.restructureConditional(graph, thisBlock) // recur within parens
 	case *ast.UnaryExpr:
 		if cond.Op == token.NOT {
 			// swap successors - i.e. swap true and false branches
 			swapTrueFalseBranches()
 			replaceCond(cond.X)
-			restructureBlock(graph, thisBlock) // recur within NOT
+			p.restructureConditional(graph, thisBlock) // recur within NOT
 		}
 	case *ast.BinaryExpr:
 		// Logical AND and Logical OR actually require the exact same short circuiting behavior
@@ -286,8 +220,8 @@ func restructureBlock(graph *cfg.CFG, thisBlock *cfg.Block) {
 				replaceFalseBranch(newBlock)
 			}
 			graph.Blocks = append(graph.Blocks, newBlock)
-			restructureBlock(graph, thisBlock)
-			restructureBlock(graph, newBlock)
+			p.restructureConditional(graph, thisBlock)
+			p.restructureConditional(graph, newBlock)
 		}
 
 		// Standardize binary expressions to be of the form `expr OP literal` by swapping `x` and `y`, if `x` is a literal.
@@ -349,8 +283,8 @@ func restructureBlock(graph *cfg.CFG, thisBlock *cfg.Block) {
 					Op:    token.NOT,
 					X:     x,
 				}
-				replaceCond(newCond)               // replaces `ok != true` with `!ok`
-				restructureBlock(graph, thisBlock) // recur to swap true and false branches for the unary expr `!ok`
+				replaceCond(newCond)                       // replaces `ok != true` with `!ok`
+				p.restructureConditional(graph, thisBlock) // recur to swap true and false branches for the unary expr `!ok`
 			}
 
 		case token.EQL:
@@ -364,8 +298,8 @@ func restructureBlock(graph *cfg.CFG, thisBlock *cfg.Block) {
 					Op:    token.NOT,
 					X:     x,
 				}
-				replaceCond(newCond)               // replaces `ok == false` with `!ok`
-				restructureBlock(graph, thisBlock) // recur to swap true and false branches for the unary expr `!ok`
+				replaceCond(newCond)                       // replaces `ok == false` with `!ok`
+				p.restructureConditional(graph, thisBlock) // recur to swap true and false branches for the unary expr `!ok`
 			}
 		}
 	}
@@ -553,195 +487,4 @@ func markSwitchStatements(graph *cfg.CFG, switchChildren map[ast.Node]*ast.Switc
 			}
 		}
 	}
-}
-
-func mergeSlices(useDeepEquality bool, left []RichCheckEffect, rights ...[]RichCheckEffect) []RichCheckEffect {
-	var eq func(first, second RichCheckEffect) bool
-	if useDeepEquality {
-		eq = func(first, second RichCheckEffect) bool {
-			return first.equals(second)
-		}
-	} else {
-		eq = func(first, second RichCheckEffect) bool {
-			return first == second
-		}
-	}
-	var out []RichCheckEffect
-	addToOut := func(effect RichCheckEffect) {
-		for _, outEffect := range out {
-			if eq(outEffect, effect) {
-				return
-			}
-		}
-		out = append(out, effect)
-	}
-	for _, l := range left {
-		addToOut(l)
-	}
-	for _, right := range rights {
-		for _, r := range right {
-			addToOut(r)
-		}
-	}
-	return out
-}
-
-func genPreds(graph *cfg.CFG) [][]int32 {
-	out := make([][]int32, len(graph.Blocks))
-	for _, block := range graph.Blocks {
-		if block.Live {
-			for _, succ := range block.Succs {
-				out[succ.Index] = append(out[succ.Index], block.Index)
-			}
-		}
-	}
-	return out
-}
-
-// weakPropagateRichChecks performs a simple form of propagation of rich checks: for each effect, it
-// figures out which blocks are reachable from the block it was declared in.
-//
-// The results are returned as a map from `RichCheckEffect`s to arrays of booleans, representing for
-// each block whether it is reached by the block that effect is declared in
-func weakPropagateRichChecks(graph *cfg.CFG, richCheckBlocks [][]RichCheckEffect) map[RichCheckEffect][]bool {
-	reachability := make(map[RichCheckEffect][]bool)
-	for blockNum := range richCheckBlocks {
-		for _, check := range richCheckBlocks[blockNum] {
-			newCheck := make([]bool, len(richCheckBlocks))
-			newCheck[blockNum] = true // mark each check as reachable in its declaring block
-			reachability[check] = newCheck
-		}
-	}
-	done := false
-	for !done {
-		done = true
-		for blockNum := range richCheckBlocks {
-			for _, reachable := range reachability {
-				if reachable[blockNum] {
-					for _, nextBlock := range graph.Blocks[blockNum].Succs {
-						if !reachable[nextBlock.Index] {
-							reachable[nextBlock.Index] = true
-							done = false
-						}
-					}
-				}
-			}
-		}
-	}
-	return reachability
-}
-
-// propagateRichChecks takes an initial array richCheckBlocks and flows all of its contained checks
-// forwards through the CFG as long as they are not invalidated. A check created by a node in block A
-// is determined to flow to block B if every path from A to B does not invalidate the check. We capture
-// this criterion by first calling the function weakPropagateRichChecks above to do reachability
-// propagation without any knowledge of check invalidation. The real propagation done in this function
-// then tempers its computation of checks at a given block via intersection at control flow points by
-// including exactly those checks that are present in every predecessor of the block that is reachable
-// from the originator block of the check.
-func propagateRichChecks(graph *cfg.CFG, richCheckBlocks [][]RichCheckEffect) [][]RichCheckEffect {
-	n := len(graph.Blocks)
-	if len(richCheckBlocks) != n {
-		panic(fmt.Sprintf("richCheckBlocks (len %d) and graph.blocks (len %d) out of "+
-			"sync - fix generation pass in preprocess_blocks.go", len(richCheckBlocks), n))
-	}
-
-	effectReaches := weakPropagateRichChecks(graph, richCheckBlocks)
-
-	currBlocks := richCheckBlocks
-	nextBlocks := make([][]RichCheckEffect, n)
-
-	preds := genPreds(graph)
-	roundCount := 0
-
-	done := false
-
-	for !done {
-
-		done = true
-
-		for i := range preds {
-
-			// predRichCheckEffects will be populated with all the rich bool effects that flow
-			// into this block from one of its 0 or more predecessors
-			var predRichCheckEffects []RichCheckEffect
-
-			if len(preds[i]) >= 1 {
-				reachingEffects := make(map[RichCheckEffect]bool)
-
-				for _, predIndex := range preds[i] {
-					for _, effect := range currBlocks[predIndex] {
-						// for each effect in a predecessor, mark it as `true` in `reachingEffects`
-						// - performing a merge
-						reachingEffects[effect] = true
-					}
-				}
-
-				for _, predIndex := range preds[i] {
-					maskingEffects := make(map[RichCheckEffect]bool)
-					for effect := range reachingEffects {
-						if blocksEffectReaches, ok := effectReaches[effect]; ok &&
-							blocksEffectReaches[predIndex] {
-							maskingEffects[effect] = true
-						}
-					}
-					for _, effect := range currBlocks[predIndex] {
-						if maskingEffects[effect] {
-							maskingEffects[effect] = false
-						}
-					}
-					for effect, present := range maskingEffects {
-						if present {
-							reachingEffects[effect] = false
-						}
-					}
-				}
-
-				predRichCheckEffects = make([]RichCheckEffect, 0)
-
-				for effect := range reachingEffects {
-					if reachingEffects[effect] {
-						predRichCheckEffects = append(predRichCheckEffects, effect)
-					}
-				}
-
-				// This code performs a simple merge instead - but this is very unsound and NOT right
-				// 		predRichCheckEffects =
-				// 			append(make([]RichCheckEffect, 0, len(currBlocks[preds[i][0]])),
-				// 				currBlocks[preds[i][0]]...)
-				//
-				// 		for _, predNum := range preds[i][1:] {
-				// 			predRichCheckEffects = mergeSlices(false, predRichCheckEffects, currBlocks[predNum])
-				// 		}
-
-				for _, node := range graph.Blocks[i].Nodes {
-					// invalidate any richCheckEffects that this node invalidates
-					for j, effect := range predRichCheckEffects {
-						if effect.isInvalidatedBy(node) {
-							predRichCheckEffects[j] = RichCheckNoop{}
-						}
-					}
-				}
-			}
-
-			nextBlocks[i] = mergeSlices(false, currBlocks[i], stripNoops(predRichCheckEffects))
-			if len(nextBlocks[i]) > len(currBlocks[i]) {
-				done = false
-			}
-		}
-
-		currBlocks = nextBlocks
-		nextBlocks = make([][]RichCheckEffect, n)
-
-		roundCount++
-
-		checkCFGFixedPointRuntime("RichCheckEffect Forwards Propagation", roundCount, n)
-	}
-
-	// this strips duplicates from the RichCheckEffect slices
-	for i := range currBlocks {
-		currBlocks[i] = mergeSlices(true, currBlocks[i])
-	}
-
-	return currBlocks
 }

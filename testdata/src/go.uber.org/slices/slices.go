@@ -807,3 +807,9 @@ func testAppendNilableForGlobalVar() {
 	a = append(a, nil) //want "literal `nil` assigned into global variable `a`"
 	print(*a[0])       //want "literal `nil` sliced into"
 }
+
+func testShadowAppend() {
+	// Shadow the builtin append function that returns the same slice without modifications.
+	var append = func(s []*int, x ...*int) []*int { return s }
+	a = append(a, nil) // Safe here because the shadowed append does not touch the elements.
+}

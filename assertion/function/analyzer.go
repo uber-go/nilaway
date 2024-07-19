@@ -445,7 +445,7 @@ func analyzeFunc(
 	}()
 
 	// Do the actual backpropagation.
-	funcTriggers, err := assertiontree.BackpropAcrossFunc(ctx, pass, funcDecl, funcContext, graph)
+	funcTriggers, _, _, err := assertiontree.BackpropAcrossFunc(ctx, pass, funcDecl, funcContext, graph)
 
 	// If any error occurs in back-propagating the function, we wrap the error with more information.
 	if err != nil {
