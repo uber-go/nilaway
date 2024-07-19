@@ -46,6 +46,12 @@ var Analyzer = &analysis.Analyzer{
 	Requires:   []*analysis.Analyzer{config.Analyzer, buildssa.Analyzer},
 }
 
+// Contracts represents the list of contracts for a function.
+type Contracts []Contract
+
+// Map stores the mappings from *types.Func to associated function contracts.
+type Map map[*types.Func]Contracts
+
 func run(pass *analysis.Pass) (Map, error) {
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
 
@@ -63,7 +69,7 @@ func run(pass *analysis.Pass) (Map, error) {
 // functionResult is the struct that is received from the channel for each function.
 type functionResult struct {
 	funcObj   *types.Func
-	contracts []*FunctionContract
+	contracts Contracts
 	err       error
 }
 
@@ -72,8 +78,9 @@ type functionResult struct {
 // the comments at the top of each function. Only when there are no handwritten contracts there,
 // do we try to automatically infer contracts.
 func collectFunctionContracts(pass *analysis.Pass) (Map, error) {
-	// Collect ssa for every function.
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
+
+	// Collect ssa for every function.
 	ssaInput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 	ssaOfFunc := make(map[*types.Func]*ssa.Function, len(ssaInput.SrcFuncs))
 	for _, fnssa := range ssaInput.SrcFuncs {
@@ -155,7 +162,7 @@ func collectFunctionContracts(pass *analysis.Pass) (Map, error) {
 				defer func() {
 					if r := recover(); r != nil {
 						e := fmt.Errorf("INTERNAL PANIC: %s\n%s", r, string(debug.Stack()))
-						funcChan <- functionResult{err: e, funcObj: funcObj, contracts: []*FunctionContract{}}
+						funcChan <- functionResult{err: e, funcObj: funcObj}
 					}
 				}()
 
