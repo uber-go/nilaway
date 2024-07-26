@@ -262,22 +262,24 @@ func (e *Engine) ObservePackage(pkgFullTriggers []annotation.FullTrigger) {
 				isDeep := kind == annotation.DeepConditional
 				primitive := e.primitive.site(site, isDeep)
 				if val, ok := e.inferredMap.Load(primitive); ok {
-					switch vType := val.(type) {
-					case *DeterminedVal:
+					if vType, ok := val.(*DeterminedVal); ok {
 						if !vType.Bool.Val() {
 							return assertiontree.ProducerIsNonNil
 						}
-					case *UndeterminedVal:
-						// Consider the producer site as non-nil, if the determined value is non-nil, i.e.,
-						// `!vType.Bool.Val()`, or the site is undetermined. Undetermined sites are assumed "non-nil" here based on the following:
-						// (a) the inference algorithm does not propagate non-nil values forward, and
-						// (b) the processing of the sites under question, error return sites, are allowed to be processed first in step 1 above
-						//
-						// This above assumption works favorably in most of the cases, except the one demonstrated in
-						// `testdata/errorreturn/inference/downstream.go`, for instance, where it leads to a false negative.
-						return assertiontree.ProducerIsNonNil
+						return assertiontree.ProducerIsNil
 					}
 				}
+				// We reach here if `primitive` site is
+				// - present in `inferredMap` but UndeterminedVal, or
+				// - not present in `inferredMap`, implying undetermined.
+				//
+				// At this point we consider undetermined sites producer site as non-nil, based on the following:
+				// (a) the inference algorithm does not propagate non-nil values forward
+				// (b) the processing of the sites under question (i.e., error return sites) are allowed to be processed first in step 1 above
+				//
+				// This above assumption works favorably in most of the cases, except the one demonstrated in
+				// `testdata/errorreturn/inference/downstream.go`, for instance, where it leads to a false negative.
+				return assertiontree.ProducerIsNonNil
 			}
 
 			// In all other cases, return ProducerNilabilityUnknown to indicate that all we
