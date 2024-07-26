@@ -217,14 +217,10 @@ func (e *Engine) ObservePackage(pkgFullTriggers []annotation.FullTrigger) {
 	}
 
 	// Filter out the triggers that are to be deleted.
-	var filteredPkgFullTriggers []annotation.FullTrigger
-	for i, t := range pkgFullTriggers {
-		if triggersToBeDeleted[i] {
-			continue
-		}
-		filteredPkgFullTriggers = append(filteredPkgFullTriggers, t)
-	}
-	pkgFullTriggers = filteredPkgFullTriggers
+	pkgFullTriggers = slices.DeleteFunc(pkgFullTriggers, func(t annotation.FullTrigger) bool {
+		index := slices.Index(pkgFullTriggers, t)
+		return triggersToBeDeleted[index]
+	})
 
 	// Separate out triggers with UseAsNonErrorRetDependentOnErrorRetNilability consumer from other triggers.
 	// This is needed since whether UseAsNonErrorRetDependentOnErrorRetNilability triggers should be fired

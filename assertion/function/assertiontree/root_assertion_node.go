@@ -269,8 +269,7 @@ func (r *RootAssertionNode) AddConsumption(consumer *annotation.ConsumeTrigger) 
 					Consumer: consumer,
 				})
 			}
-
-			return // expr is not trackable, but cannot be nil, so do nothing
+			return
 		}
 		if len(producers) != 1 {
 			panic("multiply-returning function call was passed to AddConsumption")
