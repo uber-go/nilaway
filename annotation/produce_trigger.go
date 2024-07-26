@@ -755,12 +755,15 @@ func (f FldReturnPrestring) String() string {
 // context sensitivity.
 type FuncReturn struct {
 	*TriggerIfNilable
+
+	IsFromRichCheckEffectFunc bool
 }
 
 // equals returns true if the passed ProducingAnnotationTrigger is equal to this one
 func (f *FuncReturn) equals(other ProducingAnnotationTrigger) bool {
 	if other, ok := other.(*FuncReturn); ok {
-		return f.TriggerIfNilable.equals(other.TriggerIfNilable)
+		return f.TriggerIfNilable.equals(other.TriggerIfNilable) &&
+			f.IsFromRichCheckEffectFunc == other.IsFromRichCheckEffectFunc
 	}
 	return false
 }
