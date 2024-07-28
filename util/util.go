@@ -42,30 +42,23 @@ var BuiltinAppend = types.Universe.Lookup("append")
 // BuiltinNew is the builtin "new" function object.
 var BuiltinNew = types.Universe.Lookup("new")
 
-// TypeIsDeep checks if a type is an expression that directly admits a deep nilability annotation - deep
-// nilability annotations on all other types are ignored
+// TypeIsDeep checks if a type is an expression that admits deep nilability, such as maps, slices, arrays, etc.
+// Only consider pointers to deep types (e.g., `var x *[]int`) as deep type,
+// not pointers to basic types (e.g., `var x *int`) or struct types (e.g., `var x *S`)
 func TypeIsDeep(t types.Type) bool {
-	_, isDeep := TypeAsDeepType(t)
-	return isDeep
-}
-
-// TypeAsDeepType checks if a type is an expression that directly admits a deep nilability annotation,
-// returning true as its boolean param if so, along with the element type as its `types.Type` param
-// nilable(result 0)
-func TypeAsDeepType(t types.Type) (types.Type, bool) {
-	switch t := t.(type) {
-	case *types.Slice:
-		return t.Elem(), true
-	case *types.Array:
-		return t.Elem(), true
-	case *types.Map:
-		return t.Elem(), true
-	case *types.Chan:
-		return t.Elem(), true
-	case *types.Pointer:
-		return t.Elem(), true
+	switch UnwrapPtr(t).(type) {
+	case *types.Slice, *types.Array, *types.Map, *types.Chan, *types.Struct:
+		return true
+	case *types.Basic:
+		return false
 	}
-	return nil, false
+	if t, ok := t.(*types.Pointer); ok {
+		if TypeAsDeeplyStruct(t.Underlying()) == nil {
+			return true
+		}
+	}
+
+	return false
 }
 
 // TypeIsSlice returns true if `t` is of slice type
