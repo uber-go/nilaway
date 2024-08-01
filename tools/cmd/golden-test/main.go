@@ -55,7 +55,7 @@ type BranchResult struct {
 
 // Run runs the golden tests on the base branch and the test branch and writes the summary and
 // diff to the writer.
-func Run(writer io.Writer, baseBranch, testBranch string) error {
+func Run(writer io.Writer, baseBranch, testBranch, groupingFlag string) error {
 	// First verify that the git repository is clean.
 	out, err := exec.Command("git", "status", "--porcelain=v1").CombinedOutput()
 	if err != nil {
@@ -134,7 +134,7 @@ func Run(writer io.Writer, baseBranch, testBranch string) error {
 
 		// Run the built NilAway binary on the stdlib and parse the diagnostics.
 		var buf bytes.Buffer
-		cmd := exec.Command("bin/nilaway", "-include-errors-in-files", "/", "-json", "-pretty-print=false", "-group-error-messages=true", "std")
+		cmd := exec.Command("bin/nilaway", "-include-errors-in-files", "/", "-json", "-pretty-print=false", "-group-error-messages="+groupingFlag, "std")
 		cmd.Stdout = &buf
 		// Inherit env vars such that users can control the resource usages via GOMEMLIMIT, GOGC
 		// etc. env vars.
@@ -149,7 +149,7 @@ func Run(writer io.Writer, baseBranch, testBranch string) error {
 		branch.Result = diagnostics
 	}
 
-	WriteDiff(writer, branches)
+	WriteDiff(writer, branches, groupingFlag)
 	return nil
 }
 
@@ -178,12 +178,16 @@ func ParseDiagnostics(reader io.Reader) (map[Diagnostic]bool, error) {
 
 // WriteDiff writes the summary and the diff (if the base and test are different) between the base
 // and test diagnostics to the writer. If the writer is os.Stdout, it will write the diff in color.
-func WriteDiff(writer io.Writer, branches [2]*BranchResult) {
+func WriteDiff(writer io.Writer, branches [2]*BranchResult, groupingFlag string) {
 	// Compute the diagnostic differences between base and test branches.
 	minuses, pluses := Diff(branches[0].Result, branches[1].Result), Diff(branches[1].Result, branches[0].Result)
 
 	// Write the summary lines first.
-	MustFprint(fmt.Fprintf(writer, "## Golden Test\n\n"))
+	if groupingFlag == "true" {
+		MustFprint(fmt.Fprintf(writer, "## Golden Test w/ grouping\n\n"))
+	} else {
+		MustFprint(fmt.Fprintf(writer, "## Golden Test w/o grouping\n\n"))
+	}
 	if len(pluses) == 0 && len(minuses) == 0 {
 		MustFprint(fmt.Fprint(writer, "> [!NOTE]  \n"))
 		MustFprint(fmt.Fprintf(writer, "> ✅ NilAway errors reported on standard libraries are **identical**.\n"))
@@ -281,6 +285,7 @@ func main() {
 	baseBranch := fset.String("base-branch", "main", "the base branch to compare against")
 	testBranch := fset.String("test-branch", "", "the test branch to run golden tests (default current branch)")
 	resultFile := fset.String("result-file", "", "the file to write the diff to, default stdout")
+	groupingFlag := fset.Bool("group-error-messages", true, "group similar error messages (default true)")
 	if err := fset.Parse(os.Args[1:]); err != nil {
 		log.Printf("failed to parse flags: %v\n", err)
 		flag.PrintDefaults()
@@ -296,7 +301,7 @@ func main() {
 		writer = w
 	}
 
-	if err := Run(writer, *baseBranch, *testBranch); err != nil {
+	if err := Run(writer, *baseBranch, *testBranch, fmt.Sprintf("%t", *groupingFlag)); err != nil {
 		log.Printf("failed to run golden test: %v", err)
 		var e *exec.ExitError
 		if errors.As(err, &e) {

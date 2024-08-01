@@ -64,7 +64,7 @@ func TestWriteDiff(t *testing.T) {
 		{Name: "base", ShortSHA: "123456", Result: base},
 		{Name: "test", ShortSHA: "456789", Result: test},
 	}
-	WriteDiff(&buf, branches)
+	WriteDiff(&buf, branches, "true")
 	require.Contains(t, buf.String(), "## Golden Test") // Must contain the title.
 	require.Contains(t, buf.String(), "are **identical**")
 
@@ -72,7 +72,7 @@ func TestWriteDiff(t *testing.T) {
 	base[Diagnostic{Posn: "src/file2:10:2", Message: "nil pointer dereference"}] = true
 	test[Diagnostic{Posn: "src/file4:10:2", Message: "bar error"}] = true
 	buf.Reset()
-	WriteDiff(&buf, branches)
+	WriteDiff(&buf, branches, "true")
 	s := buf.String()
 	require.Contains(t, buf.String(), "## Golden Test") // Must contain the title.
 	require.Contains(t, s, "are **different**")
