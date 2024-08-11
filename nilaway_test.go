@@ -38,7 +38,7 @@ func TestNilAway(t *testing.T) {
 		patterns []string
 	}{
 		{name: "Inference", patterns: []string{"go.uber.org/inference"}},
-		{name: "Contracts", patterns: []string{"go.uber.org/contracts", "go.uber.org/contracts/namedtypes"}},
+		{name: "Contracts", patterns: []string{"go.uber.org/contracts", "go.uber.org/contracts/namedtypes", "go.uber.org/contracts/inference"}},
 		{name: "Testing", patterns: []string{"go.uber.org/testing"}},
 		{name: "ErrorReturn", patterns: []string{"go.uber.org/errorreturn", "go.uber.org/errorreturn/inference"}},
 		{name: "Maps", patterns: []string{"go.uber.org/maps"}},
@@ -66,6 +66,7 @@ func TestNilAway(t *testing.T) {
 		{name: "Constants", patterns: []string{"go.uber.org/consts"}},
 		{name: "ErrorMessage", patterns: []string{"go.uber.org/errormessage", "go.uber.org/errormessage/inference"}},
 		{name: "LoopRange", patterns: []string{"go.uber.org/looprange"}},
+		{name: "AbnormalFlow", patterns: []string{"go.uber.org/abnormalflow"}},
 	}
 
 	for _, tt := range tests {

@@ -268,6 +268,9 @@ func handleErrorReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, re
 	errRetExpr := results[errRetIndex]     // n-th expression
 	nonErrRetExpr := results[:errRetIndex] // n-1 expressions
 
+	// default tracking to support potential "always safe" cases
+	createReturnConsumersForAlwaysSafe(rootNode, nonErrRetExpr, retStmt, isNamedReturn)
+
 	// check if the error return is at all guarding any nilable returns, such as pointers, maps, and slices
 	if isErrorReturnNil(rootNode, errRetExpr) {
 		// if error is the only return expression in the statement, then create a consumer for it, else create consumers for the non-error return expressions
@@ -329,6 +332,9 @@ func handleBooleanReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, 
 		return false
 	}
 
+	// default tracking to support potential "always safe" cases
+	createReturnConsumersForAlwaysSafe(rootNode, nMinusOneRetExpr, retStmt, isNamedReturn)
+
 	// If return is "true", then track its n-1 returns. Create return consume triggers for all n-1 return expressions.
 	// If return is "false", then do nothing, since we don't track boolean values.
 	if val {
@@ -366,6 +372,32 @@ func createGeneralReturnConsumers(rootNode *RootAssertionNode, results []ast.Exp
 				IsNamedReturn: isNamedReturn,
 				RetStmt:       retStmt},
 			Expr:   results[i],
+			Guards: util.NoGuards(),
+		})
+	}
+}
+
+// createReturnConsumersForAlwaysSafe creates return consumers for the non-return expressions in the return statement
+// for tracking potential "always safe" cases
+func createReturnConsumersForAlwaysSafe(rootNode *RootAssertionNode, nonErrResults []ast.Expr, retStmt *ast.ReturnStmt, isNamedReturn bool) {
+	for i := range nonErrResults {
+		// don't do anything if the expression is a blank identifier ("_")
+		if util.IsEmptyExpr(nonErrResults[i]) {
+			continue
+		}
+
+		rootNode.AddConsumption(&annotation.ConsumeTrigger{
+			Annotation: &annotation.UseAsReturn{
+				TriggerIfNonNil: &annotation.TriggerIfNonNil{
+					Ann: &annotation.RetAnnotationKey{
+						FuncDecl: rootNode.FuncObj(),
+						RetNum:   i,
+					},
+				},
+				IsNamedReturn:        isNamedReturn,
+				IsTrackingAlwaysSafe: true,
+				RetStmt:              retStmt},
+			Expr:   nonErrResults[i],
 			Guards: util.NoGuards(),
 		})
 	}

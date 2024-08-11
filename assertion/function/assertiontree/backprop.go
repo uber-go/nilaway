@@ -207,7 +207,7 @@ func backpropAcrossReturn(rootNode *RootAssertionNode, node *ast.ReturnStmt) err
 						isErrReturning := util.FuncIsErrReturning(funcObj)
 						isOkReturning := util.FuncIsOkReturning(funcObj)
 
-						rootNode.AddNewTriggers(annotation.FullTrigger{
+						trigger := annotation.FullTrigger{
 							Producer: &annotation.ProduceTrigger{
 								// since the value is being returned directly, only its shallow nilability
 								// matters (but deep would matter if we were enforcing correct variance)
@@ -230,7 +230,29 @@ func backpropAcrossReturn(rootNode *RootAssertionNode, node *ast.ReturnStmt) err
 								// interpreted as guarded
 								GuardMatched: isErrReturning || isOkReturning,
 							},
-						})
+						}
+
+						// This is a duplicate trigger for tracking "always safe" paths. The analysis of these triggers
+						// will be processed at the inference stage.
+						triggerAlwaysSafe := annotation.FullTrigger{
+							Producer: trigger.Producer,
+							Consumer: &annotation.ConsumeTrigger{
+								Annotation: &annotation.UseAsReturn{
+									TriggerIfNonNil: &annotation.TriggerIfNonNil{
+										Ann: annotation.RetKeyFromRetNum(
+											rootNode.ObjectOf(rootNode.FuncNameIdent()).(*types.Func),
+											i,
+										)},
+									RetStmt:              node,
+									IsTrackingAlwaysSafe: true,
+								},
+								Expr:         trigger.Consumer.Expr,
+								Guards:       trigger.Consumer.Guards,
+								GuardMatched: trigger.Consumer.GuardMatched,
+							},
+						}
+
+						rootNode.AddNewTriggers(trigger, triggerAlwaysSafe)
 					}
 				}
 				rootNode.AddComputation(call)
