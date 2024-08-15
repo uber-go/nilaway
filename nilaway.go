@@ -23,6 +23,7 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
+// test
 const _doc = "Run NilAway on this package to report any possible flows of nil values to erroneous" +
 	" sites that our system can detect"
 
