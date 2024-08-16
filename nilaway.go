@@ -46,5 +46,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		pass.Report(e)
 	}
 
+	// Test
 	return nil, nil
 }
