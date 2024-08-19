@@ -498,12 +498,7 @@ func (r *RootAssertionNode) AddGuardMatch(expr ast.Expr, behavior GuardMatchBeha
 	case ContinueTracking:
 		for i, consumer := range consumers {
 			if consumer.Guards.Contains(guard) && !consumer.GuardMatched {
-				consumers[i] = &annotation.ConsumeTrigger{
-					Annotation:   consumer.Annotation,
-					Expr:         consumer.Expr,
-					Guards:       consumer.Guards,
-					GuardMatched: true,
-				}
+				consumers[i].GuardMatched = true
 			}
 		}
 	case ProduceAsNonnil:
