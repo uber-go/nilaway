@@ -1,0 +1,107 @@
+name: Golden Test [Comment]
+
+# See ".github/workflows/golden-test-build.yml" for more details.
+on:
+  workflow_run:
+    workflows: ["Golden Test"]
+    types:
+      - completed
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    if: >
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success'
+    steps:
+      # We do not have a good way to find the PR number from the workflow run event [1]. Therefore,
+      # we try to use the search API to find the PR that has the same SHA as the workflow run.
+      # This is a workaround until GitHub provides a better way to find the associated PR.
+      #
+      # [1]: https://github.com/orgs/community/discussions/25220
+      - name: Find associated pull request
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const response = await github.rest.search.issuesAndPullRequests({
+              q: 'repo:${{ github.repository }} is:pr is:merged sha:${{ github.event.workflow_run.head_sha }}',
+              per_page: 1,
+            });
+            const items = response.data.items;
+            if (items.length < 1) {
+              core.setFailed('No pull request found for the workflow run')
+              return;
+            }
+            const prNumber = items[0].number;
+            console.info("Pull request number is", prNumber);
+            return prNumber;
+
+      - name: Download Golden Test result artifact
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const artifacts = await github.actions.listWorkflowRunArtifacts({
+               owner: context.repo.owner,
+               repo: context.repo.repo,
+               run_id: ${{github.event.workflow_run.id }},
+            });
+            const matchArtifact = artifacts.data.artifacts.filter((artifact) => {
+              return artifact.name == "golden-test-result.md";
+            })[0];
+            const download = await github.actions.downloadArtifact({
+               owner: context.repo.owner,
+               repo: context.repo.repo,
+               artifact_id: matchArtifact.id,
+            });
+            const fsp = require('fs').promises;
+            await fsp.writeFile('${{github.workspace}}/golden-test-result.md', Buffer.from(download.data));
+
+      - name: Upload the Golden Test result
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fsp = require('fs').promises;
+
+            const issueNumber = ${{ steps.pr.outputs.result }};
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const rawData = await fsp.readFile('./golden-test-result.md', 'utf8');
+
+            // GitHub API has a limit of 65536 bytes for a comment body, so here we shrink the 
+            // diff part (anything between <details> and </details>) to 10,000 characters if it
+            // is too long.
+            const pattern = /(<details>)([\s\S]*?)(<\/details>)/;
+
+            const body = rawData.replace(pattern, function(match, p1, p2, p3) {
+              if (p2.length > 10000) {
+                return p1 + p2.substring(0, 5000) + '\n\n ...(truncated)...\n\n' + p2.substring(p2.length - 5000) + p3;
+              }
+              // No need to change anything if it is not too long.
+              return match;
+            });        
+
+            // First find the comments made by the bot.
+            const comments = await github.rest.issues.listComments({
+              owner: owner,
+              repo: repo,
+              issue_number: issueNumber
+            });
+            const botComment = comments.data.find(comment => comment.user.login === 'github-actions[bot]' && comment.body.startsWith('## Golden Test'));
+
+            // Update or create the PR comment.
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: owner,
+                repo: repo,
+                comment_id: botComment.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: owner,
+                repo: repo,
+                issue_number: issueNumber,
+                body: body
+              });
+            }
