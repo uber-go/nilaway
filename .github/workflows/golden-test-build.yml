@@ -1,4 +1,4 @@
-name: Golden Test
+name: Golden Test [Build]
 
 # NilAway output may change due to introduction of new feature or bug fixes. Since NilAway is still
 # at early stage of development, constantly updating / maintaining the golden test output will be

@@ -3,7 +3,7 @@ name: Golden Test [Comment]
 # See ".github/workflows/golden-test-build.yml" for more details.
 on:
   workflow_run:
-    workflows: ["Golden Test"]
+    workflows: ["Golden Test [Build]"]
     types:
       - completed
 
@@ -42,20 +42,23 @@ jobs:
         with:
           script: |
             const artifacts = await github.actions.listWorkflowRunArtifacts({
-               owner: context.repo.owner,
-               repo: context.repo.repo,
-               run_id: ${{github.event.workflow_run.id }},
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: ${{github.event.workflow_run.id }},
             });
             const matchArtifact = artifacts.data.artifacts.filter((artifact) => {
               return artifact.name == "golden-test-result.md";
             })[0];
             const download = await github.actions.downloadArtifact({
-               owner: context.repo.owner,
-               repo: context.repo.repo,
-               artifact_id: matchArtifact.id,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              artifact_id: matchArtifact.id,
+              archive_format: 'zip',
             });
             const fsp = require('fs').promises;
-            await fsp.writeFile('${{github.workspace}}/golden-test-result.md', Buffer.from(download.data));
+            await fsp.writeFile('${{github.workspace}}/golden-test-result.md.zip', Buffer.from(download.data));
+
+      - run: unzip golden-test-result.md.zip
 
       - name: Upload the Golden Test result
         uses: actions/github-script@v7
