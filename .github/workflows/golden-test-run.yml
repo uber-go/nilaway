@@ -1,4 +1,4 @@
-name: Golden Test [Build]
+name: Golden Test
 
 # NilAway output may change due to introduction of new feature or bug fixes. Since NilAway is still
 # at early stage of development, constantly updating / maintaining the golden test output will be
@@ -18,7 +18,7 @@ on:
 
 jobs:
   golden-test:
-    name: Golden Test
+    name: Run
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,9 +39,9 @@ jobs:
         # GitHub Actions terminates the job if it hits the resource limits. Here we limit the
         # memory usage to 8GiB to avoid that.
         run: |
-          make golden-test GOMEMLIMIT=8192MiB ARGS="-base-branch ${{ github.event.pull_request.base.ref }} -result-file ${{ runner.temp }}/golden-test-result.md"
+          make golden-test GOMEMLIMIT=8192MiB ARGS="-base-branch ${{ github.event.pull_request.base.ref }} -result-file ${{ runner.temp }}/golden-test-comment.md"
 
       - uses: actions/upload-artifact@v4
         with:
           name: golden-test-comment.md
-          path: ${{ runner.temp }}/golden-test-result.md
+          path: ${{ runner.temp }}/golden-test-comment.md
