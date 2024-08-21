@@ -44,7 +44,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			e.Message = util.PrettyPrintErrorMessage(e.Message)
 		}
 		pass.Report(e)
-	}
+	} // TODO
 
 	return nil, nil
 }
