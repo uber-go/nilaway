@@ -1,0 +1,151 @@
+name: Golden Test Comment
+
+# See ".github/workflows/golden-test-build.yml" for more details.
+on:
+  workflow_run:
+    workflows: [Golden Test]
+    types:
+      - completed
+
+jobs:
+  comment:
+    name: Comment
+    runs-on: ubuntu-latest
+    if: >
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success'
+    steps:
+      # Since our Golden Test Comment is always executed on main branch, such that its status does
+      # not show up in the PR page. However, if this job fails we should still block the PR, since
+      # the Golden Test result is stale and can not be trusted. Here, we leverage the GitHub commit
+      # status API to report the status.
+      - name: Set PR status to be running
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: '${{ github.event.workflow_run.head_sha }}',
+              target_url: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}',
+              state: 'pending',
+              context: "Golden Test / Comment",
+            });
+
+      # We do not have a good way to find the PR number from the workflow run event [1]. Therefore,
+      # here we list all open PRs and find the one that has the same SHA as the workflow run.
+      # This is a workaround until GitHub provides a better way to find the associated PR.
+      #
+      # [1]: https://github.com/orgs/community/discussions/25220
+      - name: Find associated pull request
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: pulls } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+            });
+
+            const pr = pulls.find(pr => pr.head.sha === '${{ github.event.workflow_run.head_sha }}');
+            if (pr === undefined || pr === null) {
+              throw new Error(`Cannot find the associated pull request for the workflow run ${context.runId}`);
+            }
+            
+            console.info("Pull request number is", pr.number);
+            return pr.number;
+
+      - name: Download Golden Test result artifact
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: ${{ github.event.workflow_run.id }},
+            });
+            const matchArtifact = artifacts.data.artifacts.filter((artifact) => {
+              return artifact.name == "golden-test-comment.md";
+            })[0];
+            const download = await github.rest.actions.downloadArtifact({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              artifact_id: matchArtifact.id,
+              archive_format: 'zip',
+            });
+            const fsp = require('fs').promises;
+            await fsp.writeFile('${{ github.workspace }}/golden-test-comment.md.zip', Buffer.from(download.data));
+
+      - run: unzip golden-test-comment.md.zip
+
+      - name: Upload the Golden Test result
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fsp = require('fs').promises;
+
+            const issueNumber = ${{ steps.pr.outputs.result }};
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const rawData = await fsp.readFile('./golden-test-comment.md', 'utf8');
+
+            // GitHub API has a limit of 65536 bytes for a comment body, so here we shrink the
+            // diff part (anything between <details> and </details>) to 10,000 characters if it
+            // is too long.
+            const pattern = /(<details>)([\s\S]*?)(<\/details>)/;
+
+            const body = rawData.replace(pattern, function(match, p1, p2, p3) {
+              if (p2.length > 10000) {
+                return p1 + p2.substring(0, 5000) + '\n\n ...(truncated)...\n\n' + p2.substring(p2.length - 5000) + p3;
+              }
+              // No need to change anything if it is not too long.
+              return match;
+            });
+
+            // First find the comments made by the bot.
+            const comments = await github.rest.issues.listComments({
+              owner: owner,
+              repo: repo,
+              issue_number: issueNumber
+            });
+            const botComment = comments.data.find(comment => comment.user.login === 'github-actions[bot]' && comment.body.startsWith('## Golden Test'));
+
+            // Update or create the PR comment.
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: owner,
+                repo: repo,
+                comment_id: botComment.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: owner,
+                repo: repo,
+                issue_number: issueNumber,
+                body: body
+              });
+            }
+
+      # `success()` can only be called in `if:` condition, so we convert it as a step output here
+      # to be used in reporting the final status of this job.
+      - name: Check if the job is successful
+        id: success
+        if: success()
+        run: |
+          echo "success=true" >> $GITHUB_OUTPUT
+
+      - name: Set final PR status
+        uses: actions/github-script@v7
+        if: always()
+        with:
+          script: |
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: '${{ github.event.workflow_run.head_sha }}',
+              target_url: '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}',
+              state: '${{ steps.success.outputs.success }}' === 'true' ? 'success' : 'failure',
+              context: "Golden Test / Comment",
+            });
