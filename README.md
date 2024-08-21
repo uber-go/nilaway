@@ -62,6 +62,13 @@ Then, run the linter by:
 nilaway -include-pkgs="<YOUR_PKG_PREFIX>,<YOUR_PKG_PREFIX_2>" ./...
 ```
 
+> [!TIP]  
+> Disable the `pretty-print` flag when output as JSON:
+> ```shell
+> nilaway -json -pretty-print=false -include-pkgs="<YOUR_PKG_PREFIX>,<YOUR_PKG_PREFIX_2>" ./...
+> ```
+
+
 ### golangci-lint (>= v1.57.0)
 
 NilAway, in its current form, can report false positives. This unfortunately hinders its immediate 
