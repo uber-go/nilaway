@@ -1092,8 +1092,9 @@ func DuplicateReturnConsumer(t *ConsumeTrigger, location token.Position) *Consum
 // used for functions with contracts since we need to duplicate the sites for context sensitivity.
 type UseAsReturn struct {
 	*TriggerIfNonNil
-	IsNamedReturn bool
-	RetStmt       *ast.ReturnStmt
+	IsNamedReturn        bool
+	IsTrackingAlwaysSafe bool
+	RetStmt              *ast.ReturnStmt
 }
 
 // equals returns true if the passed ConsumingAnnotationTrigger is equal to this one
@@ -1101,6 +1102,7 @@ func (u *UseAsReturn) equals(other ConsumingAnnotationTrigger) bool {
 	if other, ok := other.(*UseAsReturn); ok {
 		return u.TriggerIfNonNil.equals(other.TriggerIfNonNil) &&
 			u.IsNamedReturn == other.IsNamedReturn &&
+			u.IsTrackingAlwaysSafe == other.IsTrackingAlwaysSafe &&
 			u.RetStmt == other.RetStmt
 	}
 	return false

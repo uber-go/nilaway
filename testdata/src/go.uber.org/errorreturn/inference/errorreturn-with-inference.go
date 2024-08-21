@@ -38,7 +38,7 @@ func retNonNilErr2() error {
 	return &myErr2{}
 }
 
-// ***** the below test case checks error return via a function and assigned to a vairable *****
+// ***** the below test case checks error return via a function and assigned to a variable *****
 func retPtrAndErr2(i int) (*int, error) {
 	if dummy2 {
 		return nil, retNonNilErr2()
@@ -46,8 +46,21 @@ func retPtrAndErr2(i int) (*int, error) {
 	return &i, retNilErr2()
 }
 
-func testFuncRet2(i int) (*int, error) {
+// same as retPtrAndErr2 but with the return statements swapped. This is to check that the order of return statements
+// does not affect the error return analysis
+func retPtrAndErr3() (*int, error) {
+	if dummy2 {
+		return new(int), retNilErr2()
+	}
+	return nil, retNonNilErr3()
+}
 
+// duplicated from retNonNilErr2 to make a fresh instance of the function for supporting the testing of retPtrAndErr3
+func retNonNilErr3() error {
+	return &myErr2{}
+}
+
+func testFuncRet2(i int) (*int, error) {
 	var errNil = retNilErr2()
 	var errNonNil = retNonNilErr2()
 	switch i {
@@ -69,6 +82,8 @@ func testFuncRet2(i int) (*int, error) {
 		return &i, errNonNil
 	case 8:
 		return &i, retNonNilErr2()
+	case 9:
+		return retPtrAndErr3()
 	}
 	return &i, nil
 }
@@ -225,4 +240,148 @@ func testAliasedMixedReturns() {
 		print(*x) //want "dereferenced"
 	}
 
+}
+
+// ***** below tests check the handling for "always safe" cases and their variants *****
+
+func retAlwaysNonnilPtrErr(i int) (*int, error) {
+	switch i {
+	case 0:
+		return new(int), &myErr2{}
+	case 1:
+		return &i, retNonNilErr2()
+	case 2:
+		return new(int), retNilErr2()
+	}
+	return new(int), nil
+}
+
+func retAlwaysNilPtrErr(i int) (*int, error) {
+	switch i {
+	case 0:
+		return nil, &myErr2{}
+	case 1:
+		return nil, retNonNilErr2()
+	case 2:
+		return nil, retNilErr2()
+	}
+	return nil, nil
+}
+
+func retSometimesNilPtrErr(i int) (*int, error) {
+	switch i {
+	case 0:
+		return nil, &myErr2{}
+	case 1:
+		return nil, retNonNilErr2()
+	case 2:
+		return new(int), retNilErr2()
+	}
+	return new(int), nil
+}
+
+func testAlwaysSafe(i int) {
+	switch i {
+	// always safe
+	case 0:
+		x, _ := retAlwaysNonnilPtrErr(i)
+		print(*x)
+	case 1:
+		if x, err := retAlwaysNonnilPtrErr(i); err != nil {
+			print(*x)
+		}
+	case 2:
+		if x, err := retAlwaysNonnilPtrErr(i); err == nil {
+			print(*x)
+		}
+	case 3:
+		x, _ := retAlwaysNonnilPtrErr(i)
+		y, _ := retAlwaysNonnilPtrErr(i)
+		print(*x)
+		print(*y)
+	case 4:
+		x, errx := retAlwaysNonnilPtrErr(i)
+		y, erry := retAlwaysNonnilPtrErr(i)
+
+		if erry == nil {
+			print(*x)
+		}
+		if errx == nil {
+			print(*y)
+		}
+
+	// always unsafe
+	case 5:
+		x, _ := retAlwaysNilPtrErr(i)
+		print(*x) //want "dereferenced"
+	case 6:
+		if x, err := retAlwaysNilPtrErr(i); err == nil {
+			print(*x) //want "dereferenced"
+		}
+
+	// conditionally safe
+	case 7:
+		x, _ := retSometimesNilPtrErr(i)
+		print(*x) //want "dereferenced"
+	case 8:
+		if x, err := retSometimesNilPtrErr(i); err == nil {
+			print(*x)
+		}
+	}
+}
+
+// Test always safe through multiple hops. Currently, we support only immediate function call for "always safe" tracking.
+// Hence, the below cases are expected to report errors.
+// TODO: add support for multiple hops to address the false positives
+
+func m1() (*int, error) {
+	return m2()
+}
+
+func m2() (*int, error) {
+	v, err := m3()
+	if err != nil {
+		// makes non-error return always non-nil
+		return new(int), err
+	}
+	y := *v + 1
+	return &y, nil
+}
+
+func m3() (*int, error) {
+	if dummy2 {
+		return nil, &myErr2{}
+	}
+	return new(int), nil
+}
+
+type S struct {
+	f *int
+}
+
+func f1(i int) (*int, error) {
+	switch i {
+	case 0:
+		// direct non-nil non-error return value
+		return new(int), &myErr2{}
+	case 1:
+		s := &S{f: new(int)}
+		// indirect non-nil non-error return value via a field read
+		return s.f, nil
+	case 2:
+	}
+	// indirect non-nil non-error return value via a function return
+	return retAlwaysNonnilPtrErr(i)
+}
+
+func testAlwaysSafeMultipleHops() {
+	// TODO: call to m1() should be reported as always safe. This is a false positive since currently we are limiting the
+	//  "always safe" tracking to only immediate function call, not chained error returning function calls.
+	v1, _ := m1()
+	print(*v1) //want "dereferenced"
+
+	// TODO: call to f1() should be reported as always safe. This is a false positive since currently we are limiting the
+	// analysis of "return statements" to only the directly determinable cases (e.g., new(int), &S{}, NegativeNilCheck), not through multiple hops.
+	v2, _ := f1(0)
+	print(*v2) //want "dereferenced"
 }

@@ -145,6 +145,32 @@ func (e *Engine) ObserveAnnotations(pkgAnnotations *annotation.ObservedMap, mode
 	}, mode != NoInfer)
 }
 
+// mapGuardMissingAndReturnToFuncSite returns two maps:
+// 1. A map with key being the function return site and value being the list of indices of guard-missing triggers matching the site.
+// 2. A map with key being the function return site and value being the list of indices of return triggers matching the site.
+func (e *Engine) mapGuardMissingAndReturnToFuncSite(triggers []annotation.FullTrigger) (map[primitiveSite][]int, map[primitiveSite][]int) {
+	mapSiteGuardMissing := make(map[primitiveSite][]int)
+	mapSiteReturn := make(map[primitiveSite][]int)
+
+	for i, trigger := range triggers {
+		if p, ok := trigger.Producer.Annotation.(*annotation.GuardMissing); ok {
+			if o, ok := p.OldAnnotation.(*annotation.FuncReturn); ok && o.IsFromRichCheckEffectFunc {
+				site := e.primitive.site(o.UnderlyingSite(), p.Kind() == annotation.DeepConditional)
+				mapSiteGuardMissing[site] = append(mapSiteGuardMissing[site], i)
+			}
+		}
+	}
+
+	for i, trigger := range triggers {
+		if c, ok := trigger.Consumer.Annotation.(*annotation.UseAsReturn); ok && c.IsTrackingAlwaysSafe {
+			site := e.primitive.site(c.UnderlyingSite(), c.Kind() == annotation.DeepConditional)
+			mapSiteReturn[site] = append(mapSiteReturn[site], i)
+		}
+	}
+
+	return mapSiteGuardMissing, mapSiteReturn
+}
+
 // ObservePackage observes all the annotations and assertions computed locally about the current
 // package. The assertions are sorted based on whether they are already known to trigger without
 // reliance on annotation sites, such as `x` in `x = nil; x.f`, which will generate
@@ -154,18 +180,61 @@ func (e *Engine) ObserveAnnotations(pkgAnnotations *annotation.ObservedMap, mode
 // observeImplication. Before all assertions are sorted and handled thus, the annotations read for
 // the package are iterated over and observed via calls to observeSiteExplanation as a <Val>BecauseAnnotation.
 func (e *Engine) ObservePackage(pkgFullTriggers []annotation.FullTrigger) {
+	// As Step 1, we do a pre-analysis of "guard missing" triggers to verify if their dereferences are always nil-safe,
+	// and hence can be deleted to not report a false positive error. Specifically, this analyis of "always safe" paths
+	// is focussed on the rich check effect functions, namely error returning functions and ok-returning functions.
+	// The process is to find all guard missing triggers reaching a function return site, and then check if all the return triggers
+	// to that function site are non-nil. If so, we can safely delete all the guard-missing triggers for this function site.
+	triggersToBeDeleted := make(map[int]bool)
+	mapSiteGuardMissing, mapSiteReturn := e.mapGuardMissingAndReturnToFuncSite(pkgFullTriggers)
+	for site, guardMissingIndices := range mapSiteGuardMissing {
+		if returnIndices, ok := mapSiteReturn[site]; ok {
+			// Check if all the return triggers to this function site are non-nil.
+			nonnilCnt := 0
+			for _, index := range returnIndices {
+				returnTrigger := pkgFullTriggers[index]
+				if returnTrigger.Producer.Annotation.Kind() != annotation.Never {
+					// break early if we find a potentially nilable trigger
+					break
+				}
+				nonnilCnt++
+			}
+
+			if nonnilCnt == len(returnIndices) {
+				// If all return triggers are non-nil, then we can safely delete all the guard-missing triggers
+				// for this function site.
+				for _, index := range guardMissingIndices {
+					triggersToBeDeleted[index] = true
+				}
+			}
+		}
+	}
+	// Add all placeholder UseAsReturnForAlwaysSafePath triggers to triggersToBeDeleted
+	for _, indices := range mapSiteReturn {
+		for _, index := range indices {
+			triggersToBeDeleted[index] = true
+		}
+	}
+
+	// Filter out the triggers that are to be deleted.
+	pkgFullTriggers = slices.DeleteFunc(pkgFullTriggers, func(t annotation.FullTrigger) bool {
+		index := slices.Index(pkgFullTriggers, t)
+		return triggersToBeDeleted[index]
+	})
+
 	// Separate out triggers with UseAsNonErrorRetDependentOnErrorRetNilability consumer from other triggers.
 	// This is needed since whether UseAsNonErrorRetDependentOnErrorRetNilability triggers should be fired
 	// is dependent on their corresponding UseAsErrorRetWithNilabilityUnknown triggers. By this separation,
 	// we can process all other triggers, including UseAsErrorRetWithNilabilityUnknown, first, and once
 	// their nilability status is known, then filter out the unnecessary UseAsNonErrorRetDependentOnErrorRetNilability
 	// triggers, and run the pkg inference process again only for the remainder triggers.
-	// Steps 1--3 below depict this approach in more detail.
+	// Steps 2--4 below depict this approach in more detail.
 	var (
 		nonErrRetTriggers []annotation.FullTrigger
 		// In most cases all triggers will be stored in otherTriggers, so we set a proper capacity.
 		otherTriggers = make([]annotation.FullTrigger, 0, len(pkgFullTriggers))
 	)
+
 	for _, t := range pkgFullTriggers {
 		if _, ok := t.Consumer.Annotation.(*annotation.UseAsNonErrorRetDependentOnErrorRetNilability); ok {
 			nonErrRetTriggers = append(nonErrRetTriggers, t)
@@ -174,10 +243,10 @@ func (e *Engine) ObservePackage(pkgFullTriggers []annotation.FullTrigger) {
 		}
 	}
 
-	// Step 1: build the inference map based on `otherTriggers` and incorporate those assertions into the `inferredAnnotationMap`
+	// Step 2: build the inference map based on `otherTriggers` and incorporate those assertions into the `inferredAnnotationMap`
 	e.buildPkgInferenceMap(otherTriggers)
 
-	// Step 2: run error return handling procedure to filter out redundant triggers based on the error contract, and
+	// Step 3: run error return handling procedure to filter out redundant triggers based on the error contract, and
 	// keep only those UseAsNonErrorRetDependentOnErrorRetNilability triggers that are not deleted.
 	// Call FilterTriggersForErrorReturn to filter triggers for error return handling -- inter-procedural and full-inference mode
 	_, delTriggers := assertiontree.FilterTriggersForErrorReturn(
@@ -193,22 +262,24 @@ func (e *Engine) ObservePackage(pkgFullTriggers []annotation.FullTrigger) {
 				isDeep := kind == annotation.DeepConditional
 				primitive := e.primitive.site(site, isDeep)
 				if val, ok := e.inferredMap.Load(primitive); ok {
-					switch vType := val.(type) {
-					case *DeterminedVal:
+					if vType, ok := val.(*DeterminedVal); ok {
 						if !vType.Bool.Val() {
 							return assertiontree.ProducerIsNonNil
 						}
-					case *UndeterminedVal:
-						// Consider the producer site as non-nil, if the determined value is non-nil, i.e.,
-						// `!vType.Bool.Val()`, or the site is undetermined. Undetermined sites are assumed "non-nil" here based on the following:
-						// (a) the inference algorithm does not propagate non-nil values forward, and
-						// (b) the processing of the sites under question, error return sites, are allowed to be processed first in step 1 above
-						//
-						// This above assumption works favorably in most of the cases, except the one demonstrated in
-						// `testdata/errorreturn/inference/downstream.go`, for instance, where it leads to a false negative.
-						return assertiontree.ProducerIsNonNil
+						return assertiontree.ProducerIsNil
 					}
 				}
+				// We reach here if `primitive` site is
+				// - present in `inferredMap` but UndeterminedVal, or
+				// - not present in `inferredMap`, implying undetermined.
+				//
+				// At this point we consider undetermined sites producer site as non-nil, based on the following:
+				// (a) the inference algorithm does not propagate non-nil values forward
+				// (b) the processing of the sites under question (i.e., error return sites) are allowed to be processed first in step 1 above
+				//
+				// This above assumption works favorably in most of the cases, except the one demonstrated in
+				// `testdata/errorreturn/inference/downstream.go`, for instance, where it leads to a false negative.
+				return assertiontree.ProducerIsNonNil
 			}
 
 			// In all other cases, return ProducerNilabilityUnknown to indicate that all we
@@ -220,7 +291,7 @@ func (e *Engine) ObservePackage(pkgFullTriggers []annotation.FullTrigger) {
 	filteredTriggers := nonErrRetTriggers
 	// Remove deleted triggers from nonErrRetTriggers (if needed).
 	if len(delTriggers) != 0 {
-		filteredTriggers = make([]annotation.FullTrigger, 0, len(nonErrRetTriggers)-len(delTriggers))
+		filteredTriggers = make([]annotation.FullTrigger, 0, len(nonErrRetTriggers))
 		for _, t := range nonErrRetTriggers {
 			if !delTriggers[t] {
 				filteredTriggers = append(filteredTriggers, t)
@@ -228,7 +299,7 @@ func (e *Engine) ObservePackage(pkgFullTriggers []annotation.FullTrigger) {
 		}
 	}
 
-	// Step 3: run the inference building process for only the remaining UseAsNonErrorRetDependentOnErrorRetNilability triggers, and collect assertions
+	// Step 4: run the inference building process for only the remaining UseAsNonErrorRetDependentOnErrorRetNilability triggers, and collect assertions
 	e.buildPkgInferenceMap(filteredTriggers)
 }
 

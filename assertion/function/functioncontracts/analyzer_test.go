@@ -17,6 +17,7 @@ package functioncontracts
 import (
 	"fmt"
 	"go/types"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -42,7 +43,7 @@ func TestContractCollection(t *testing.T) {
 
 	testdata := analysistest.TestData()
 
-	r := analysistest.Run(t, testdata, Analyzer, "go.uber.org/functioncontracts/parse")
+	r := analysistest.Run(t, testdata, Analyzer, "go.uber.org/parse")
 	require.Equal(t, 1, len(r))
 	require.NotNil(t, r[0])
 
@@ -53,31 +54,31 @@ func TestContractCollection(t *testing.T) {
 
 	require.NotNil(t, funcContractsMap)
 
-	actualNameToContracts := map[*types.Func][]*FunctionContract{}
+	actual := make(Map)
 	for funcObj, contracts := range funcContractsMap {
-		actualNameToContracts[funcObj] = contracts
+		actual[funcObj] = contracts
 	}
 
-	expectedNameToContracts := map[*types.Func][]*FunctionContract{
+	expected := Map{
 		getFuncObj(pass, "f1"): {
-			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+			Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		},
 		getFuncObj(pass, "f2"): {
-			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{True}},
+			Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{True}},
 		},
 		getFuncObj(pass, "f3"): {
-			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{False}},
+			Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{False}},
 		},
 		getFuncObj(pass, "multipleValues"): {
-			&FunctionContract{Ins: []ContractVal{Any, NonNil}, Outs: []ContractVal{NonNil, True}},
+			Contract{Ins: []ContractVal{Any, NonNil}, Outs: []ContractVal{NonNil, True}},
 		},
 		getFuncObj(pass, "multipleContracts"): {
-			&FunctionContract{Ins: []ContractVal{Any, NonNil}, Outs: []ContractVal{NonNil, True}},
-			&FunctionContract{Ins: []ContractVal{NonNil, Any}, Outs: []ContractVal{NonNil, True}},
+			Contract{Ins: []ContractVal{Any, NonNil}, Outs: []ContractVal{NonNil, True}},
+			Contract{Ins: []ContractVal{NonNil, Any}, Outs: []ContractVal{NonNil, True}},
 		},
 		// function contractCommentInOtherLine should not exist in the map as it has no contract.
 	}
-	if diff := cmp.Diff(expectedNameToContracts, actualNameToContracts); diff != "" {
+	if diff := cmp.Diff(expected, actual); diff != "" {
 		require.Fail(t, fmt.Sprintf("parsed contracts mismatch (-want +got):\n%s", diff))
 	}
 }
@@ -85,7 +86,7 @@ func TestInfer(t *testing.T) {
 	t.Parallel()
 
 	testdata := analysistest.TestData()
-	r := analysistest.Run(t, testdata, Analyzer, "go.uber.org/functioncontracts/infer")
+	r := analysistest.Run(t, testdata, Analyzer, "go.uber.org/infer")
 
 	require.Equal(t, 1, len(r))
 	require.NotNil(t, r[0])
@@ -97,49 +98,101 @@ func TestInfer(t *testing.T) {
 
 	require.NotNil(t, funcContractsMap)
 
-	actualNameToContracts := map[*types.Func][]*FunctionContract{}
+	actual := make(Map)
 	for funcObj, contracts := range funcContractsMap {
-		actualNameToContracts[funcObj] = contracts
+		actual[funcObj] = contracts
 	}
 
-	expectedNameToContracts := map[*types.Func][]*FunctionContract{
+	expected := Map{
 		getFuncObj(pass, "onlyLocalVar"): {
-			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+			Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		},
 		getFuncObj(pass, "unknownCondition"): {
-			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+			Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		},
 		getFuncObj(pass, "noLocalVar"): {
-			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+			Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		},
 		getFuncObj(pass, "learnUnderlyingFromOuterMakeInterface"): {
-			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+			Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		},
 		getFuncObj(pass, "twoCondsMerge"): {
-			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+			Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		},
 		getFuncObj(pass, "unknownToUnknownButSameValue"): {
-			&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+			Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		},
 		// other functions should not exist in the map as the contract nonnil->nonnil does not hold
 		// for them.
 
 		// TODO: uncomment this when we support field access when inferring contracts.
 		// getFuncObj(pass, "field"): {
-		//	&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+		//	Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		// },
 		// TODO: uncomment this when we support nonempty slice to nonnil.
 		// getFuncObj(pass, "nonEmptySliceToNonnil"): {
-		//	&FunctionContract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+		//	Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		// },
 	}
-	if diff := cmp.Diff(expectedNameToContracts, actualNameToContracts); diff != "" {
+	if diff := cmp.Diff(expected, actual); diff != "" {
+		require.Fail(t, fmt.Sprintf("inferred contracts mismatch (-want +got):\n%s", diff))
+	}
+}
+
+func TestFactExport(t *testing.T) {
+	t.Parallel()
+
+	testdata := analysistest.TestData()
+	// The exported facts are asserted in the testdata file themselves in "want" strings.
+	analysistest.Run(t, testdata, Analyzer, "go.uber.org/factexport/upstream")
+}
+
+func TestFactImport(t *testing.T) {
+	t.Parallel()
+
+	// Now we test the import of the contract facts. The downstream package has a dependency on
+	// the upstream package (which contains several contracted functions). It should be able to
+	// import those facts, combine them with its own contracts, and return the combined map.
+
+	testdata := analysistest.TestData()
+	r := analysistest.Run(t, testdata, Analyzer, "go.uber.org/factexport/downstream")
+	require.Len(t, r, 1)
+	pass, result := r[0].Pass, r[0].Result
+	require.IsType(t, &analysishelper.Result[Map]{}, result)
+	require.NoError(t, result.(*analysishelper.Result[Map]).Err)
+	actual := result.(*analysishelper.Result[Map]).Res
+
+	expected := Map{
+		getFuncObj(pass, "localManual"): {
+			Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+		},
+		getFuncObj(pass, "upstream.ExportedManual"): {
+			Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+		},
+		getFuncObj(pass, "upstream.ExportedInferred"): {
+			Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+		},
+	}
+	if diff := cmp.Diff(expected, actual); diff != "" {
 		require.Fail(t, fmt.Sprintf("inferred contracts mismatch (-want +got):\n%s", diff))
 	}
 }
 
 func getFuncObj(pass *analysis.Pass, name string) *types.Func {
-	return pass.Pkg.Scope().Lookup(name).(*types.Func)
+	parts := strings.Split(name, ".")
+	if len(parts) == 1 {
+		return pass.Pkg.Scope().Lookup(parts[0]).(*types.Func)
+	}
+	if len(parts) > 2 {
+		panic(fmt.Sprintf("invalid function name to look up, expected name or pkg.name, got %q", name))
+	}
+	for _, imported := range pass.Pkg.Imports() {
+		if imported.Name() == parts[0] {
+			return imported.Scope().Lookup(parts[1]).(*types.Func)
+		}
+	}
+
+	panic(fmt.Sprintf("cannot find function %q", name))
 }
 
 func TestMain(m *testing.M) {

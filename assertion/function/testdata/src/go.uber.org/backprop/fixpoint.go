@@ -125,3 +125,48 @@ func testNonBuiltinNestedIndex(msgSet []*MessageBlock) { // expect_fixpoint: 3 1
 		_ = *msgBlock.Messages()[len(msgBlock.Messages())-1]
 	}
 }
+
+// test for validating that only the necessary number of triggers are created, and
+// no extra triggers (e.g., deep triggers) are created.
+
+func foo(x *int) *int { // expect_fixpoint: 2 1 1
+	if x == nil {
+		return nil
+	}
+	return new(int)
+}
+
+func testContract() { // expect_fixpoint: 2 1 2
+	a1 := new(int)
+	b1 := foo(a1)
+	print(*b1)
+}
+
+func foo2(a *A) *A { // expect_fixpoint: 2 1 15
+	if a == nil {
+		return nil
+	}
+	return a.aptr
+}
+
+func testContract2() { // expect_fixpoint: 2 1 8
+	b1 := foo2(&A{})
+	print(*b1)
+}
+
+type myString []*string
+
+// nilable(s[])
+func (s *myString) testNamedType() { // expect_fixpoint: 2 1 3
+	x := *s
+	_ = *x[0]
+}
+
+func testNestedPointer() { // expect_fixpoint: 4 2 4
+	a1 := &A{}
+	for i := 0; i < 10; i++ {
+		a2 := &a1
+		(*a2).ptr = new(int)
+		*a2 = nil
+	}
+}

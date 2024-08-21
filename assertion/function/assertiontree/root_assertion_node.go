@@ -258,7 +258,18 @@ func (r *RootAssertionNode) AddConsumption(consumer *annotation.ConsumeTrigger) 
 	path, producers := r.ParseExprAsProducer(consumer.Expr, false)
 	if path == nil { // expr is not trackable
 		if producers == nil {
-			return // expr is not trackable, but cannot be nil, so do nothing
+			// Here we can infer that the expression is non-nil by definition. Instead of ignoring creation of a trigger,
+			// particularly for always safe tracking, we create a trigger with ProduceTriggerNever.
+			if c, ok := consumer.Annotation.(*annotation.UseAsReturn); ok && c.IsTrackingAlwaysSafe {
+				r.AddNewTriggers(annotation.FullTrigger{
+					Producer: &annotation.ProduceTrigger{
+						Annotation: &annotation.ProduceTriggerNever{},
+						Expr:       consumer.Expr,
+					},
+					Consumer: consumer,
+				})
+			}
+			return
 		}
 		if len(producers) != 1 {
 			panic("multiply-returning function call was passed to AddConsumption")
@@ -487,12 +498,7 @@ func (r *RootAssertionNode) AddGuardMatch(expr ast.Expr, behavior GuardMatchBeha
 	case ContinueTracking:
 		for i, consumer := range consumers {
 			if consumer.Guards.Contains(guard) && !consumer.GuardMatched {
-				consumers[i] = &annotation.ConsumeTrigger{
-					Annotation:   consumer.Annotation,
-					Expr:         consumer.Expr,
-					Guards:       consumer.Guards,
-					GuardMatched: true,
-				}
+				consumers[i].GuardMatched = true
 			}
 		}
 	case ProduceAsNonnil:

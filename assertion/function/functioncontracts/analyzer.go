@@ -43,19 +43,70 @@ var Analyzer = &analysis.Analyzer{
 	Doc:        _doc,
 	Run:        analysishelper.WrapRun(run),
 	ResultType: reflect.TypeOf((*analysishelper.Result[Map])(nil)),
+	FactTypes:  []analysis.Fact{new(Contracts)},
 	Requires:   []*analysis.Analyzer{config.Analyzer, buildssa.Analyzer},
 }
 
+// Contracts represents the list of contracts for a function.
+type Contracts []Contract
+
+// AFact enables use of the facts passing mechanism in Go's analysis framework.
+func (*Contracts) AFact() {}
+
+// Map stores the mappings from *types.Func to associated function contracts.
+type Map map[*types.Func]Contracts
+
 func run(pass *analysis.Pass) (Map, error) {
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
-
 	if !conf.IsPkgInScope(pass.Pkg) {
-		return Map{}, nil
+		return make(Map), nil
 	}
 
+	// Collect contracts from the current package.
 	contracts, err := collectFunctionContracts(pass)
 	if err != nil {
 		return nil, err
+	}
+
+	// The fact mechanism only allows exporting pointer types. However, internally we are using
+	// `Contract` as a value type because it is an underlying slice type (such that making it a
+	// pointer type will make the rest of the logic more complicated). Therefore, we strictly
+	// only convert it from/to a pointer type _here_ during the fact import/exports. Everywhere
+	// else in NilAway (this sub-analyzer, as well as the other analyzers) we treat `Contract`
+	// simply as a value type.
+
+	// Import contracts from upstream packages and merge it with the local contract map.
+	for _, fact := range pass.AllObjectFacts() {
+		fn, ok := fact.Object.(*types.Func)
+		if !ok {
+			continue
+		}
+		ctrts, ok := fact.Fact.(*Contracts)
+		if !ok || ctrts == nil {
+			continue
+		}
+		// The existing contracts are imported from upstream packages about upstream functions,
+		// therefore there should not be any conflicts with contracts collected from the current package.
+		if _, ok := contracts[fn]; ok {
+			return nil, fmt.Errorf("function %s has multiple contracts", fn.Name())
+		}
+		contracts[fn] = *ctrts
+	}
+
+	// Now, export the contracts for the _exported_ functions in the current package only.
+	for fn, ctrts := range contracts {
+		// Check if the function is (1) exported by name (i.e., starts with a capital letter), (2)
+		// it is directly inside the package scope (such that it is really visible in downstream
+		// packages).
+		if fn.Exported() &&
+			// fn.Scope() -> the scope of the function body.
+			fn.Scope() != nil &&
+			// fn.Scope().Parent() -> the scope of the file.
+			fn.Scope().Parent() != nil &&
+			// fn.Scope().Parent().Parent() -> the scope of the package.
+			fn.Scope().Parent().Parent() == pass.Pkg.Scope() {
+			pass.ExportObjectFact(fn, &ctrts)
+		}
 	}
 	return contracts, nil
 }
@@ -63,7 +114,7 @@ func run(pass *analysis.Pass) (Map, error) {
 // functionResult is the struct that is received from the channel for each function.
 type functionResult struct {
 	funcObj   *types.Func
-	contracts []*FunctionContract
+	contracts Contracts
 	err       error
 }
 
@@ -72,8 +123,9 @@ type functionResult struct {
 // the comments at the top of each function. Only when there are no handwritten contracts there,
 // do we try to automatically infer contracts.
 func collectFunctionContracts(pass *analysis.Pass) (Map, error) {
-	// Collect ssa for every function.
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
+
+	// Collect ssa for every function.
 	ssaInput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 	ssaOfFunc := make(map[*types.Func]*ssa.Function, len(ssaInput.SrcFuncs))
 	for _, fnssa := range ssaInput.SrcFuncs {
@@ -155,7 +207,7 @@ func collectFunctionContracts(pass *analysis.Pass) (Map, error) {
 				defer func() {
 					if r := recover(); r != nil {
 						e := fmt.Errorf("INTERNAL PANIC: %s\n%s", r, string(debug.Stack()))
-						funcChan <- functionResult{err: e, funcObj: funcObj, contracts: []*FunctionContract{}}
+						funcChan <- functionResult{err: e, funcObj: funcObj}
 					}
 				}()
 
