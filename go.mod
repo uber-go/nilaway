@@ -6,7 +6,7 @@ require (
 	github.com/golangci/plugin-module-register v0.1.1
 	github.com/google/go-cmp v0.6.0
 	github.com/klauspost/compress v1.17.9
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	go.uber.org/goleak v1.3.0
 	golang.org/x/tools v0.24.0
 )
