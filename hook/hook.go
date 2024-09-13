@@ -25,7 +25,6 @@ import (
 	"go/types"
 	"regexp"
 
-	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/util"
 	"golang.org/x/tools/go/analysis"
 )
@@ -37,7 +36,7 @@ import (
 func As(expr ast.Expr, p *analysis.Pass) (any, bool) {
 	if call, ok := expr.(*ast.CallExpr); ok {
 		for f, a := range trustedFuncs {
-			if f.match(call, p) {
+			if f.match(p, call) {
 				if t := a.action(call, a.argIndex, p); t != nil {
 					return t, true
 				}
@@ -67,7 +66,7 @@ type trustedFuncSig struct {
 // match checks if a given call expression matches with a trusted function's signature. Namely,
 // it performs a strict matching for the function / method name and a user-defined regex match for
 // the enclosing package or struct path.
-func (t *trustedFuncSig) match(call *ast.CallExpr, pass *analysis.Pass) bool {
+func (t *trustedFuncSig) match(pass *analysis.Pass, call *ast.CallExpr) bool {
 	sel, ok := call.Fun.(*ast.SelectorExpr)
 	if !ok || !t.funcNameRegex.MatchString(sel.Sel.Name) {
 		return false
@@ -145,13 +144,6 @@ var negatedSelfExpr action = func(call *ast.CallExpr, argIndex int, _ *analysis.
 		OpPos: arg.Pos(),
 		Op:    token.NOT,
 		X:     arg,
-	}
-}
-
-var nonnilProducer action = func(call *ast.CallExpr, _ int, _ *analysis.Pass) any {
-	return &annotation.ProduceTrigger{
-		Annotation: &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
-		Expr:       call,
 	}
 }
 
@@ -436,32 +428,6 @@ var trustedFuncs = map[trustedFuncSig]trustedFuncAction{
 		enclosingRegex: regexp.MustCompile(`github\.com/stretchr/testify/(assert|require)$`),
 		funcNameRegex:  regexp.MustCompile(`^Len(f)?$`),
 	}: {action: requireLen, argIndex: 1},
-
-	// `errors.New`
-	{
-		kind:           _func,
-		enclosingRegex: regexp.MustCompile(`^errors$`),
-		funcNameRegex:  regexp.MustCompile(`^New$`),
-	}: {action: nonnilProducer, argIndex: -1},
-
-	// `fmt.Errorf`
-	{
-		kind:           _func,
-		enclosingRegex: regexp.MustCompile(`^fmt$`),
-		funcNameRegex:  regexp.MustCompile(`^Errorf$`),
-	}: {action: nonnilProducer, argIndex: -1},
-
-	// `github.com/pkg/errors`
-	{
-		kind:           _func,
-		enclosingRegex: regexp.MustCompile(`github\.com/pkg/errors$`),
-		funcNameRegex:  regexp.MustCompile(`^Errorf$`),
-	}: {action: nonnilProducer, argIndex: -1},
-	{
-		kind:           _func,
-		enclosingRegex: regexp.MustCompile(`github\.com/pkg/errors$`),
-		funcNameRegex:  regexp.MustCompile(`^New$`),
-	}: {action: nonnilProducer, argIndex: -1},
 	{
 		kind:           _func,
 		enclosingRegex: regexp.MustCompile(`github\.com/stretchr/testify/(assert|require)$`),
