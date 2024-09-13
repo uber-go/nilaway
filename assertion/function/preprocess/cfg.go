@@ -120,23 +120,17 @@ func copyGraph(graph *cfg.CFG) *cfg.CFG {
 }
 
 func (p *Preprocessor) splitBlockOnTrustedFuncs(graph *cfg.CFG, thisBlock, failureBlock *cfg.Block) {
-	var expr *ast.ExprStmt
-	var call *ast.CallExpr
-	var retExpr any
-	var trustedCond ast.Expr
-	var ok bool
-
 	for i, node := range thisBlock.Nodes {
-		if expr, ok = node.(*ast.ExprStmt); !ok {
+		expr, ok := node.(*ast.ExprStmt)
+		if !ok {
 			continue
 		}
-		if call, ok = expr.X.(*ast.CallExpr); !ok {
+		call, ok := expr.X.(*ast.CallExpr)
+		if !ok {
 			continue
 		}
-		if retExpr, ok = hook.As(call, p.pass); !ok {
-			continue
-		}
-		if trustedCond, ok = retExpr.(ast.Expr); !ok {
+		trustedCond := hook.SplitBlockOn(p.pass, call)
+		if trustedCond == nil {
 			continue
 		}
 
@@ -263,7 +257,7 @@ func (p *Preprocessor) restructureConditional(graph *cfg.CFG, thisBlock *cfg.Blo
 				newCond := &ast.BinaryExpr{
 					X:     x,
 					Y:     y,
-					Op:    token.EQL, // As discussed, we change the operator to EQL here.
+					Op:    token.EQL, // SplitBlockOn discussed, we change the operator to EQL here.
 					OpPos: cond.OpPos,
 				}
 				// Replace the condition, and swap the branches since we modified a NEQ conditional
