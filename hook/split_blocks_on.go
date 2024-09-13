@@ -71,18 +71,6 @@ var negatedSelfExpr splitBlockOnAction = func(call *ast.CallExpr, argIndex int, 
 	}
 }
 
-func newNilBinaryExpr(arg ast.Expr, op token.Token) *ast.BinaryExpr {
-	return &ast.BinaryExpr{
-		X:     arg,
-		OpPos: arg.Pos(),
-		Op:    op,
-		Y: &ast.Ident{
-			NamePos: arg.Pos(),
-			Name:    "nil",
-		},
-	}
-}
-
 // The constant (enum) values below represent the possible values of an expected expression in a comparison
 // E.g., `Equal(1, len(s))`, where `1` is the expected expression and is assigned the value `_greaterThanZero`.
 // E.g., `Equal(nil, err)`, where `nil` is the expected expression and is assigned the value `_nil`.

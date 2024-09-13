@@ -20,6 +20,7 @@ package hook
 
 import (
 	"go/ast"
+	"go/token"
 	"go/types"
 	"regexp"
 
@@ -79,4 +80,17 @@ func (t *trustedFuncSig) match(pass *analysis.Pass, call *ast.CallExpr) bool {
 		return t.enclosingRegex.MatchString(path)
 	}
 	return false
+}
+
+// newNilBinaryExpr creates a new binary expression "expr op nil".
+func newNilBinaryExpr(expr ast.Expr, op token.Token) *ast.BinaryExpr {
+	return &ast.BinaryExpr{
+		X:     expr,
+		OpPos: expr.Pos(),
+		Op:    op,
+		Y: &ast.Ident{
+			NamePos: expr.Pos(),
+			Name:    "nil",
+		},
+	}
 }
