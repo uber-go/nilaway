@@ -30,8 +30,6 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
-// NOTE: in the future, when we implement  to add contracts, this trusted func mechanism can possibly be replaced with that one.
-
 // As checks a function call AST node to see if it is one of the trusted functions, and if it is
 // then runs the corresponding action and returns that as the output along with a bool indicating
 // success or failure. For example, a binary expression `x != nil` is returned for trusted function
