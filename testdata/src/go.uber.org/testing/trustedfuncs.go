@@ -20,6 +20,9 @@ This package aims to test any nilaway behavior specific to accomdating tests, su
 package testing
 
 import (
+	"errors"
+	"os/exec"
+
 	"go.uber.org/testing/github.com/stretchr/testify/assert"
 	"go.uber.org/testing/github.com/stretchr/testify/require"
 	"go.uber.org/testing/github.com/stretchr/testify/suite"
@@ -953,4 +956,12 @@ func testEmpty(t *testing.T, i int, a []int, mp map[int]*int) interface{} {
 	}
 
 	return 0
+}
+
+func errorsAs(err error) {
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		exitErr.Exited()
+	}
+	print(exitErr.Exited())
 }

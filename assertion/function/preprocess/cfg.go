@@ -158,29 +158,24 @@ func (p *Preprocessor) restructureConditional(graph *cfg.CFG, thisBlock *cfg.Blo
 	if len(thisBlock.Nodes) == 0 || len(thisBlock.Succs) != 2 {
 		return
 	}
-	cond, ok := thisBlock.Nodes[len(thisBlock.Nodes)-1].(ast.Expr)
-	if !ok {
-		return
-	}
-
-	// places a new given node into the last position of this block
-	replaceCond := func(node ast.Node) {
-		thisBlock.Nodes[len(thisBlock.Nodes)-1] = node
-	}
 
 	trueBranch := thisBlock.Succs[0]  // type *cfg.Block
 	falseBranch := thisBlock.Succs[1] // type *cfg.Block
 
-	replaceTrueBranch := func(block *cfg.Block) {
-		thisBlock.Succs[0] = block
-	}
-	replaceFalseBranch := func(block *cfg.Block) {
-		thisBlock.Succs[1] = block
-	}
+	// A few helper functions to make the code more readable.
+	replaceCond := func(node ast.Node) { thisBlock.Nodes[len(thisBlock.Nodes)-1] = node } // The conditional expr is the last node in the block.
+	replaceTrueBranch := func(block *cfg.Block) { thisBlock.Succs[0] = block }
+	replaceFalseBranch := func(block *cfg.Block) { thisBlock.Succs[1] = block }
+	swapTrueFalseBranches := func() { replaceTrueBranch(falseBranch); replaceFalseBranch(trueBranch) }
 
-	swapTrueFalseBranches := func() {
-		replaceTrueBranch(falseBranch)
-		replaceFalseBranch(trueBranch)
+	cond, ok := thisBlock.Nodes[len(thisBlock.Nodes)-1].(ast.Expr)
+	if !ok {
+		return
+	}
+	if call, ok := cond.(*ast.CallExpr); ok {
+		if replaced := hook.ReplaceConditional(p.pass, call); replaced != nil {
+			replaceCond(replaced)
+		}
 	}
 
 	switch cond := cond.(type) {
