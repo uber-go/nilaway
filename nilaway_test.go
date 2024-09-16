@@ -12,6 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Go 1.22 [1] introduces a proper `types.Alias` type for type aliases. The current default is
+// disabling such a feature. However, Go official doc suggests that it will be enabled in future Go
+// releases. Therefore, here we explicitly set this to `1` to enable the feature to test NilAway's
+// ability to handle it.
+// [1]: https://tip.golang.org/doc/go1.22
+//go:debug gotypesalias=1
+
 package nilaway
 
 import (

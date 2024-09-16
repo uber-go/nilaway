@@ -196,3 +196,14 @@ func testRangeOverBasicTypes(j int) {
 		}
 	}
 }
+
+type Set map[string]bool
+
+type MyAlias = Set
+
+//nilable(s)
+func testAlias(s MyAlias) {
+	for myStr := range s {
+		print(myStr)
+	}
+}
