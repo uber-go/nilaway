@@ -17,16 +17,26 @@ import (
 func ReplaceConditional(pass *analysis.Pass, call *ast.CallExpr) ast.Expr {
 	for sig, act := range _replaceConditionals {
 		if sig.match(pass, call) {
-			return act(call, pass)
+			return act(pass, call)
 		}
 	}
 	return nil
 }
 
-type replaceConditionalAction func(call *ast.CallExpr, p *analysis.Pass) ast.Expr
+type replaceConditionalAction func(pass *analysis.Pass, call *ast.CallExpr) ast.Expr
 
-// _errorAsAction replaces a call to `errors.As(err, &target)` with the expression `target != nil`.
-var _errorAsAction replaceConditionalAction = func(call *ast.CallExpr, p *analysis.Pass) ast.Expr {
+// _errorAsAction replaces a call to `errors.As(err, &target)` with an equivalent expression
+// `errors.As(err, &target) && target != nil`. Keeping the `errors.As(err, &target)` is important
+// since `err` may contain complex expressions that may have nilness issues.
+//
+// Note that technically `target` can still be nil even if `errors.As(err, &target)` is true. For
+// example, if err is a typed nil (e.g., `var err *exec.ExitError`), then `errors.As` would
+// actually find a match, but `target` would be set to the typed nil value, resulting in a `nil`
+// target. However, in practice this should rarely happen such that even the official documentation
+// assumes the target is non-nil after such check [1]. So here we make this assumption as well.
+//
+// [1] https://pkg.go.dev/errors#As
+var _errorAsAction replaceConditionalAction = func(pass *analysis.Pass, call *ast.CallExpr) ast.Expr {
 	if len(call.Args) != 2 {
 		return nil
 	}
@@ -37,7 +47,12 @@ var _errorAsAction replaceConditionalAction = func(call *ast.CallExpr, p *analys
 	if unaryExpr.Op != token.AND {
 		return nil
 	}
-	return newNilBinaryExpr(unaryExpr.X, token.NEQ)
+	return &ast.BinaryExpr{
+		X:     call,
+		Op:    token.LAND,
+		OpPos: call.Pos(),
+		Y:     newNilBinaryExpr(unaryExpr.X, token.NEQ),
+	}
 }
 
 var _replaceConditionals = map[trustedFuncSig]replaceConditionalAction{

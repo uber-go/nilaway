@@ -958,10 +958,42 @@ func testEmpty(t *testing.T, i int, a []int, mp map[int]*int) interface{} {
 	return 0
 }
 
-func errorsAs(err error) {
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
-		exitErr.Exited()
+// nilable(err)
+func errorsAs(err error, num string, dummy bool) {
+	switch num {
+	case "simple":
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			print(*exitErr)
+		}
+		print(*exitErr) //want "unassigned variable `exitErr` dereferenced"
+	case "not in if block":
+		var exitErr *exec.ExitError
+		// Not checking the result of `errors.As` would not guard the variable.
+		errors.As(err, &exitErr)
+		print(*exitErr) //want "unassigned variable `exitErr` dereferenced"
+	case "two errors connected by AND":
+		var exitErr, anotherErr *exec.ExitError
+		if errors.As(err, &exitErr) && errors.As(err, &anotherErr) {
+			print(*exitErr)
+			print(*anotherErr)
+		}
+	case "errors.As with other conditionals connected by AND":
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && dummy {
+			print(*exitErr)
+		}
+	case "errors.As with other conditionals connected by OR":
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) || dummy {
+			print(*exitErr) //want "unassigned variable `exitErr` dereferenced"
+		}
+	case "two errors connected by OR":
+		var exitErr, anotherErr *exec.ExitError
+		if errors.As(err, &exitErr) || errors.As(err, &anotherErr) {
+			// We do not know the nilability of either.
+			print(*exitErr) //want "unassigned variable `exitErr` dereferenced"
+			print(*anotherErr) //want "unassigned variable `anotherErr` dereferenced"
+		}
 	}
-	print(exitErr.Exited())
 }
