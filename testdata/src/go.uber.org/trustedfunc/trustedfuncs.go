@@ -17,16 +17,16 @@ This package aims to test any nilaway behavior specific to accomdating tests, su
 
 <nilaway no inference>
 */
-package testing
+package trustedfunc
 
 import (
 	"errors"
 	"os/exec"
 
-	"go.uber.org/testing/github.com/stretchr/testify/assert"
-	"go.uber.org/testing/github.com/stretchr/testify/require"
-	"go.uber.org/testing/github.com/stretchr/testify/suite"
-	"go.uber.org/testing/testing"
+	"go.uber.org/trustedfunc/github.com/stretchr/testify/assert"
+	"go.uber.org/trustedfunc/github.com/stretchr/testify/require"
+	"go.uber.org/trustedfunc/github.com/stretchr/testify/suite"
+	"go.uber.org/trustedfunc/testing"
 )
 
 type any interface{}
