@@ -995,5 +995,11 @@ func errorsAs(err error, num string, dummy bool) {
 			print(*exitErr) //want "unassigned variable `exitErr` dereferenced"
 			print(*anotherErr) //want "unassigned variable `anotherErr` dereferenced"
 		}
+	case "nil dereference in first argument":
+		var exitErr *exec.ExitError
+		var nilError *error
+		if errors.As(*nilError, &exitErr) { //want "unassigned variable `nilError` dereferenced"
+			print(*exitErr) // But this is fine!
+		}
 	}
 }
