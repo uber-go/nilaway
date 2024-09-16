@@ -50,7 +50,7 @@ type replaceConditionalAction func(pass *analysis.Pass, call *ast.CallExpr) ast.
 // assumes the target is non-nil after such check [1]. So here we make this assumption as well.
 //
 // [1] https://pkg.go.dev/errors#As
-var _errorAsAction replaceConditionalAction = func(pass *analysis.Pass, call *ast.CallExpr) ast.Expr {
+var _errorAsAction replaceConditionalAction = func(_ *analysis.Pass, call *ast.CallExpr) ast.Expr {
 	if len(call.Args) != 2 {
 		return nil
 	}
