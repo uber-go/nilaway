@@ -257,7 +257,7 @@ func (p *Preprocessor) restructureConditional(graph *cfg.CFG, thisBlock *cfg.Blo
 				newCond := &ast.BinaryExpr{
 					X:     x,
 					Y:     y,
-					Op:    token.EQL, // SplitBlockOn discussed, we change the operator to EQL here.
+					Op:    token.EQL, // As discussed, we change the operator to EQL here.
 					OpPos: cond.OpPos,
 				}
 				// Replace the condition, and swap the branches since we modified a NEQ conditional
