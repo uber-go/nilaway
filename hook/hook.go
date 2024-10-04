@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package trustedfunc implements a trusted function framework where it hooks into different parts
-// of NilAway to provide additional context for certain function calls. This is useful for
-// well-known standard or 3rd party libraries where we can encode certain knowledge about them (
-// e.g., `assert.Nil(t, x)` implies `x == nil`) and use that to provide better analysis.
-package trustedfunc
+// Package hook implements a hook framework for NilAway where it hooks into different parts to
+// provide additional context for certain function calls. This is useful for well-known standard
+// or 3rd party libraries where we can encode certain knowledge about them (e.g.,
+// `assert.Nil(t, x)` implies `x == nil`) and use that to provide better analysis.
+package hook
 
 import (
 	"go/ast"
@@ -29,8 +29,6 @@ import (
 	"go.uber.org/nilaway/util"
 	"golang.org/x/tools/go/analysis"
 )
-
-// NOTE: in the future, when we implement  to add contracts, this trusted func mechanism can possibly be replaced with that one.
 
 // As checks a function call AST node to see if it is one of the trusted functions, and if it is
 // then runs the corresponding action and returns that as the output along with a bool indicating
