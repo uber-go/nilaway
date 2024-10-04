@@ -244,9 +244,13 @@ func isErrorReturnNil(rootNode *RootAssertionNode, errRet ast.Expr) bool {
 
 // isErrorReturnNonnil returns true if the error return is guaranteed to be nonnil, false otherwise
 func isErrorReturnNonnil(rootNode *RootAssertionNode, errRet ast.Expr) bool {
-	t := rootNode.Pass().TypesInfo.TypeOf(errRet)
-	if _, ok := hook.As(errRet, rootNode.Pass()); ok || util.TypeAsDeeplyStruct(t) != nil {
+	if t := rootNode.Pass().TypesInfo.TypeOf(errRet); util.TypeAsDeeplyStruct(t) != nil {
 		return true
+	}
+	if callExpr, ok := errRet.(*ast.CallExpr); ok {
+		if producer := hook.AssumeReturn(rootNode.Pass(), callExpr); producer != nil {
+			return true
+		}
 	}
 
 	return false

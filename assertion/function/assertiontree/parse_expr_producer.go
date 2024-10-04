@@ -240,10 +240,8 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 			return true
 		}
 
-		if ret, ok := hook.As(expr, r.Pass()); ok {
-			if prod, ok := ret.(*annotation.ProduceTrigger); ok {
-				return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: prod}}
-			}
+		if prod := hook.AssumeReturn(r.Pass(), expr); prod != nil {
+			return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: prod}}
 		}
 
 		// the cases of a function and method call are different enough here that it would be useless
