@@ -1,0 +1,98 @@
+package nilaway
+
+import (
+	"go/ast"
+	"go/types"
+	"golang.org/x/tools/go/analysis"
+)
+
+var Analyzer = &analysis.Analyzer{
+	Name: "nilaway",
+	Doc:  "checks for nil dereference errors including function pointers",
+	Run:  run,
+}
+
+func run(pass *analysis.Pass) (interface{}, error) {
+	//Traverse all files in the package
+	for _, file := range pass.Files {
+		ast.Inspect(file, func(n ast.Node) bool {
+			//Look for selector expressions (to handle struct fields)
+			if selectorExpr, ok := n.(*ast.SelectorExpr); ok {
+				handleSelectorExpr(pass, selectorExpr)
+			}
+
+			return true
+		})
+	}
+
+	return nil, nil
+}
+
+func handleSelectorExpr(pass *analysis.Pass, selector *ast.SelectorExpr) {
+	if selIdent, ok := selector.Sel.(*ast.Ident); ok {
+		obj := pass.TypesInfo.ObjectOf(selIdent)
+		if obj != nil {
+			if v, ok := obj.(*types.Var); ok && isFunctionPointer(v) {
+				//Handle function pointer analysis
+				handleFunctionPointer(pass, selector, v)
+			}
+		}
+	}
+}
+
+func isFunctionPointer(v *types.Var) bool {
+	//Check if the variable is a function pointer type
+	if ptr, ok := v.Type().(*types.Signature); ok {
+		return len(ptr.Results()) > 1 && isErrorType(ptr.Results().At(1).Type())
+	}
+	return false
+}
+
+func isErrorType(typ types.Type) bool {
+	if named, ok := typ.(*types.Named); ok {
+		return named.Obj().Name() == "error"
+	}
+	return false
+}
+
+func handleFunctionPointer(pass *analysis.Pass, selector *ast.SelectorExpr, v *types.Var) {
+	
+	parentStmt := getParentStatement(pass, selector)
+	if parentStmt != nil {
+		if hasErrorCheckBeforeDereference(pass, parentStmt) {
+			//If an error check is found, do not report a warning
+			return
+		}
+
+		pass.Reportf(selector.Pos(), "Potential nil panic detected with function pointer dereference")
+	}
+}
+
+func getParentStatement(pass *analysis.Pass, n ast.Node) ast.Stmt {
+	// Traverse upwards to find the parent statement of the given node
+	for {
+		n = pass.ParentOf(n)
+		if stmt, ok := n.(ast.Stmt); ok {
+			return stmt
+		}
+		if n == nil {
+			break
+		}
+	}
+	return nil
+}
+
+func hasErrorCheckBeforeDereference(pass *analysis.Pass, stmt ast.Stmt) bool {
+	if ifStmt, ok := stmt.(*ast.IfStmt); ok {
+		// Look for a condition like `if err != nil`
+		if cond, ok := ifStmt.Cond.(*ast.BinaryExpr); ok && cond.Op == token.NEQ {
+			if ident, ok := cond.X.(*ast.Ident); ok {
+				obj := pass.TypesInfo.ObjectOf(ident)
+				if v, ok := obj.(*types.Var); ok && isErrorType(v.Type()) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
