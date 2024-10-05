@@ -365,14 +365,6 @@ func TypeIsDefaultNilable(t types.Type) bool {
 		return true
 	}
 
-	// Additionally, we allow custom default nilable types provided by the users.
-	if t, ok := t.(*types.Named); ok {
-		for _, defaultNilableNamedType := range config.DefaultNilableNamedTypes {
-			if t.String() == defaultNilableNamedType {
-				return true
-			}
-		}
-	}
 	return false
 }
 
