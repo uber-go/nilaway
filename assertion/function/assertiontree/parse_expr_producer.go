@@ -21,7 +21,7 @@ import (
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/assertion/function/producer"
-	"go.uber.org/nilaway/assertion/function/trustedfunc"
+	"go.uber.org/nilaway/hook"
 	"go.uber.org/nilaway/util"
 )
 
@@ -240,10 +240,8 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 			return true
 		}
 
-		if ret, ok := trustedfunc.As(expr, r.Pass()); ok {
-			if prod, ok := ret.(*annotation.ProduceTrigger); ok {
-				return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: prod}}
-			}
+		if prod := hook.AssumeReturn(r.Pass(), expr); prod != nil {
+			return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: prod}}
 		}
 
 		// the cases of a function and method call are different enough here that it would be useless

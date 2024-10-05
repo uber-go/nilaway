@@ -17,13 +17,16 @@ This package aims to test any nilaway behavior specific to accomdating tests, su
 
 <nilaway no inference>
 */
-package testing
+package trustedfunc
 
 import (
-	"go.uber.org/testing/github.com/stretchr/testify/assert"
-	"go.uber.org/testing/github.com/stretchr/testify/require"
-	"go.uber.org/testing/github.com/stretchr/testify/suite"
-	"go.uber.org/testing/testing"
+	"errors"
+	"os/exec"
+
+	"go.uber.org/trustedfunc/github.com/stretchr/testify/assert"
+	"go.uber.org/trustedfunc/github.com/stretchr/testify/require"
+	"go.uber.org/trustedfunc/github.com/stretchr/testify/suite"
+	"go.uber.org/trustedfunc/testing"
 )
 
 type any interface{}
@@ -953,4 +956,50 @@ func testEmpty(t *testing.T, i int, a []int, mp map[int]*int) interface{} {
 	}
 
 	return 0
+}
+
+// nilable(err)
+func errorsAs(err error, num string, dummy bool) {
+	switch num {
+	case "simple":
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			print(*exitErr)
+		}
+		print(*exitErr) //want "unassigned variable `exitErr` dereferenced"
+	case "not in if block":
+		var exitErr *exec.ExitError
+		// Not checking the result of `errors.As` would not guard the variable.
+		errors.As(err, &exitErr)
+		print(*exitErr) //want "unassigned variable `exitErr` dereferenced"
+	case "two errors connected by AND":
+		var exitErr, anotherErr *exec.ExitError
+		if errors.As(err, &exitErr) && errors.As(err, &anotherErr) {
+			print(*exitErr)
+			print(*anotherErr)
+		}
+	case "errors.As with other conditionals connected by AND":
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && dummy {
+			print(*exitErr)
+		}
+	case "errors.As with other conditionals connected by OR":
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) || dummy {
+			print(*exitErr) //want "unassigned variable `exitErr` dereferenced"
+		}
+	case "two errors connected by OR":
+		var exitErr, anotherErr *exec.ExitError
+		if errors.As(err, &exitErr) || errors.As(err, &anotherErr) {
+			// We do not know the nilability of either.
+			print(*exitErr) //want "unassigned variable `exitErr` dereferenced"
+			print(*anotherErr) //want "unassigned variable `anotherErr` dereferenced"
+		}
+	case "nil dereference in first argument":
+		var exitErr *exec.ExitError
+		var nilError *error
+		if errors.As(*nilError, &exitErr) { //want "unassigned variable `nilError` dereferenced"
+			print(*exitErr) // But this is fine!
+		}
+	}
 }

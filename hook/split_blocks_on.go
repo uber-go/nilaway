@@ -1,4 +1,4 @@
-//  Copyright (c) 2023 Uber Technologies, Inc.
+//  Copyright (c) 2024 Uber Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,11 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package trustedfunc implements a trusted function framework where it hooks into different parts
-// of NilAway to provide additional context for certain function calls. This is useful for
-// well-known standard or 3rd party libraries where we can encode certain knowledge about them (
-// e.g., `assert.Nil(t, x)` implies `x == nil`) and use that to provide better analysis.
-package trustedfunc
+package hook
 
 import (
 	"go/ast"
@@ -25,95 +21,29 @@ import (
 	"go/types"
 	"regexp"
 
-	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/util"
 	"golang.org/x/tools/go/analysis"
 )
 
-// NOTE: in the future, when we implement  to add contracts, this trusted func mechanism can possibly be replaced with that one.
-
-// As checks a function call AST node to see if it is one of the trusted functions, and if it is
-// then runs the corresponding action and returns that as the output along with a bool indicating
-// success or failure. For example, a binary expression `x != nil` is returned for trusted function
-// `assert.NotNil(t, x)`, while a `TrustedFuncNonnil` producer is returned for `errors.New(s)`
-func As(expr ast.Expr, p *analysis.Pass) (any, bool) {
-	if call, ok := expr.(*ast.CallExpr); ok {
-		for f, a := range trustedFuncs {
-			if f.match(call, p) {
-				if t := a.action(call, a.argIndex, p); t != nil {
-					return t, true
-				}
-			}
+// SplitBlockOn splits the CFG block on seeing matched trusted functions, where the condition is
+// the returned expression. For example, a binary expression `x != nil` is returned for trusted
+// function `assert.NotNil(t, x)`, and the CFG block is split as if it were written like
+// `if x != nil { <...code after the function call...> }`. This helps NilAway understand the
+// nilability of the arguments after certain functions with side effects.
+func SplitBlockOn(pass *analysis.Pass, call *ast.CallExpr) ast.Expr {
+	for sig, act := range _splitBlockOn {
+		if sig.match(pass, call) {
+			return act.action(pass, call, act.argIndex)
 		}
 	}
-	return nil, false
+	return nil
 }
 
-// funcKind indicates the kind of the trusted function:
-// (1) _method: it is a method of a struct;
-// (2) _func: it is a top-level function of a package.
-type funcKind uint8
-
-const (
-	_method funcKind = iota
-	_func
-)
-
-// trustedFuncSig defines the signature of a function that we "trust" to have a certain effect on its arguments, for example.
-type trustedFuncSig struct {
-	kind           funcKind
-	enclosingRegex *regexp.Regexp
-	funcNameRegex  *regexp.Regexp
-}
-
-// match checks if a given call expression matches with a trusted function's signature. Namely,
-// it performs a strict matching for the function / method name and a user-defined regex match for
-// the enclosing package or struct path.
-func (t *trustedFuncSig) match(call *ast.CallExpr, pass *analysis.Pass) bool {
-	sel, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok || !t.funcNameRegex.MatchString(sel.Sel.Name) {
-		return false
-	}
-
-	// Match fully qualified path of the call expression with the expected path specified in `t`
-	// if function, match enclosing "<pkg path>". E.g., for `assert.Error(err)`, path = github.com/stretchr/testify/assert
-	// if method, match with "<pkg path>.<struct name>". E.g., for `u.Require().Error(err)`, path = github.com/stretchr/testify/require.Assertions
-	if funcObj, ok := pass.TypesInfo.ObjectOf(sel.Sel).(*types.Func); ok && funcObj.Pkg() != nil {
-		recv := funcObj.Type().(*types.Signature).Recv()
-		path := funcObj.Pkg().Path()
-
-		// return early if the kind of `t` and `funcObj` don't match. Both should be functions (or methods) for the match to be performed
-		// `recv != nil` implies `funcObj` is a method, while `recv == nil` means it is a function
-		if (t.kind == _func && recv != nil) || (t.kind == _method && recv == nil) {
-			return false
-		}
-
-		// add struct name to the path
-		if recv != nil {
-			if n, ok := util.UnwrapPtr(recv.Type()).(*types.Named); ok {
-				path = path + "." + n.Obj().Name()
-			} else {
-				// we should likely never hit this case, but is only added for extra safety since
-				// `util.TypeAsDeeplyNamed` can return nil
-				return false
-			}
-		}
-		return t.enclosingRegex.MatchString(path)
-	}
-	return false
-}
-
-type action func(call *ast.CallExpr, argIndex int, p *analysis.Pass) any
-
-// trustedFuncAction defines the effect the trusted function can have on its argument `argIndex`.
-// If `argIndex = -1`, the action is more general (e.g., returning a producer), not specific to any argument
-type trustedFuncAction struct {
-	action   action
-	argIndex int
-}
+// splitBlockOnAction defines the effect the trusted function can have on its argument `argIndex`.
+type splitBlockOnAction func(pass *analysis.Pass, call *ast.CallExpr, argIndex int) ast.Expr
 
 // nilBinaryExpr returns `expr == nil`. This is useful, for example, in asserting nilability of an object in the `testify` library: `assert.Nil(t, obj)`, which gets interpreted as `if obj == nil {...}` by preprocess
-var nilBinaryExpr action = func(call *ast.CallExpr, argIndex int, _ *analysis.Pass) any {
+var nilBinaryExpr splitBlockOnAction = func(_ *analysis.Pass, call *ast.CallExpr, argIndex int) ast.Expr {
 	if argIndex < 0 || argIndex >= len(call.Args) {
 		return nil
 	}
@@ -121,7 +51,7 @@ var nilBinaryExpr action = func(call *ast.CallExpr, argIndex int, _ *analysis.Pa
 }
 
 // nonnilBinaryExpr returns `expr != nil`. This is useful, for example, in asserting non-nilability of an object in the `testify` library: `assert.NotNil(t, obj)`, which gets interpreted as `if obj != nil {...}` by preprocess
-var nonnilBinaryExpr action = func(call *ast.CallExpr, argIndex int, _ *analysis.Pass) any {
+var nonnilBinaryExpr splitBlockOnAction = func(_ *analysis.Pass, call *ast.CallExpr, argIndex int) ast.Expr {
 	if argIndex < 0 || argIndex >= len(call.Args) {
 		return nil
 	}
@@ -130,7 +60,7 @@ var nonnilBinaryExpr action = func(call *ast.CallExpr, argIndex int, _ *analysis
 
 // selfExpr returns the expression itself. Currently, this is meant for only checking boolean expressions, implying `if expr {...}`, i.e., `if expr == true {...}`.
 // This is useful, for example, is asserting a boolean true value in the `testify` library: `assert.True(t, ok)`, which gets interpreted as `if ok {...}` by preprocess
-var selfExpr action = func(call *ast.CallExpr, argIndex int, _ *analysis.Pass) any {
+var selfExpr splitBlockOnAction = func(_ *analysis.Pass, call *ast.CallExpr, argIndex int) ast.Expr {
 	if argIndex < 0 || argIndex >= len(call.Args) {
 		return nil
 	}
@@ -138,7 +68,7 @@ var selfExpr action = func(call *ast.CallExpr, argIndex int, _ *analysis.Pass) a
 }
 
 // negatedSelfExpr is same as selfExpr, but returns a negated expr. E.g., `assert.False(t, ok)`, which gets interpreted as `if !ok {...}` by preprocess
-var negatedSelfExpr action = func(call *ast.CallExpr, argIndex int, _ *analysis.Pass) any {
+var negatedSelfExpr splitBlockOnAction = func(_ *analysis.Pass, call *ast.CallExpr, argIndex int) ast.Expr {
 	if argIndex < 0 || argIndex >= len(call.Args) {
 		return nil
 	}
@@ -147,25 +77,6 @@ var negatedSelfExpr action = func(call *ast.CallExpr, argIndex int, _ *analysis.
 		OpPos: arg.Pos(),
 		Op:    token.NOT,
 		X:     arg,
-	}
-}
-
-var nonnilProducer action = func(call *ast.CallExpr, _ int, _ *analysis.Pass) any {
-	return &annotation.ProduceTrigger{
-		Annotation: &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
-		Expr:       call,
-	}
-}
-
-func newNilBinaryExpr(arg ast.Expr, op token.Token) *ast.BinaryExpr {
-	return &ast.BinaryExpr{
-		X:     arg,
-		OpPos: arg.Pos(),
-		Op:    op,
-		Y: &ast.Ident{
-			NamePos: arg.Pos(),
-			Name:    "nil",
-		},
 	}
 }
 
@@ -185,7 +96,7 @@ const (
 // requireComparators handles slightly more sophisticated cases of comparisons. We currently support:
 // - slice length comparison (e.g., `Equal(1, len(s))`, implying len(s) > 0, meaning s is nonnil)
 // - nil comparison (e.g., `Equal(nil, err)`).
-var requireComparators action = func(call *ast.CallExpr, startIndex int, pass *analysis.Pass) any {
+var requireComparators splitBlockOnAction = func(pass *analysis.Pass, call *ast.CallExpr, startIndex int) ast.Expr {
 	// Comparator function calls must have at least two arguments.
 	if len(call.Args[startIndex:]) < 2 {
 		return nil
@@ -262,7 +173,7 @@ var requireComparators action = func(call *ast.CallExpr, startIndex int, pass *a
 // - `nil` for pointers
 // - `false` for booleans
 // - `len == 0` for slices, maps, and channels
-var requireZeroComparators action = func(call *ast.CallExpr, index int, pass *analysis.Pass) any {
+var requireZeroComparators splitBlockOnAction = func(pass *analysis.Pass, call *ast.CallExpr, index int) ast.Expr {
 	expr := call.Args[index]
 	if expr == nil {
 		return nil
@@ -284,7 +195,7 @@ var requireZeroComparators action = func(call *ast.CallExpr, index int, pass *an
 }
 
 // generateComparators generates comparators based on the semantics of the function.
-func generateComparators(call *ast.CallExpr, actualExpr ast.Expr, actualExprIndex int, expectedVal expectedValue) any {
+func generateComparators(call *ast.CallExpr, actualExpr ast.Expr, actualExprIndex int, expectedVal expectedValue) ast.Expr {
 	sel, ok := call.Fun.(*ast.SelectorExpr)
 	if !ok {
 		return nil
@@ -306,14 +217,14 @@ func generateComparators(call *ast.CallExpr, actualExpr ast.Expr, actualExprInde
 		case _nil:
 			return newNilBinaryExpr(actualExpr, token.EQL)
 		case _false:
-			return negatedSelfExpr(call, actualExprIndex, nil)
+			return negatedSelfExpr(nil, call, actualExprIndex)
 		}
 	case "NotEqual", "NotEqualf", "NotEmpty", "NotEmptyf": // len(s) != [zero], expr != nil
 		switch expectedVal {
 		case _zero, _nil:
 			return newNilBinaryExpr(actualExpr, token.NEQ)
 		case _false:
-			return selfExpr(call, actualExprIndex, nil)
+			return selfExpr(nil, call, actualExprIndex)
 		}
 
 	// Note the check for `actualExprIndex` in the following cases, we need to make sure the slice expr
@@ -341,7 +252,7 @@ func generateComparators(call *ast.CallExpr, actualExpr ast.Expr, actualExprInde
 
 // requireLen handles `require.Len` calls for slices: asserting the length of a slice > 0 implies
 // the slice is not nil.
-var requireLen action = func(call *ast.CallExpr, startIndex int, pass *analysis.Pass) any {
+var requireLen splitBlockOnAction = func(pass *analysis.Pass, call *ast.CallExpr, startIndex int) ast.Expr {
 	if len(call.Args[startIndex:]) < 2 {
 		return nil
 	}
@@ -373,8 +284,12 @@ var requireLen action = func(call *ast.CallExpr, startIndex int, pass *analysis.
 	return nil
 }
 
-// trustedFuncs defines the map of trusted functions and their actions
-var trustedFuncs = map[trustedFuncSig]trustedFuncAction{
+// _splitBlockOn defines the map of trusted functions and their corresponding actions on a
+// particular argument.
+var _splitBlockOn = map[trustedFuncSig]struct {
+	action   splitBlockOnAction
+	argIndex int
+}{
 	// `suite.Suite` and `assert.Assertions`
 	{
 		kind:           _method,
@@ -438,32 +353,6 @@ var trustedFuncs = map[trustedFuncSig]trustedFuncAction{
 		enclosingRegex: regexp.MustCompile(`github\.com/stretchr/testify/(assert|require)$`),
 		funcNameRegex:  regexp.MustCompile(`^Len(f)?$`),
 	}: {action: requireLen, argIndex: 1},
-
-	// `errors.New`
-	{
-		kind:           _func,
-		enclosingRegex: regexp.MustCompile(`^errors$`),
-		funcNameRegex:  regexp.MustCompile(`^New$`),
-	}: {action: nonnilProducer, argIndex: -1},
-
-	// `fmt.Errorf`
-	{
-		kind:           _func,
-		enclosingRegex: regexp.MustCompile(`^fmt$`),
-		funcNameRegex:  regexp.MustCompile(`^Errorf$`),
-	}: {action: nonnilProducer, argIndex: -1},
-
-	// `github.com/pkg/errors`
-	{
-		kind:           _func,
-		enclosingRegex: regexp.MustCompile(`github\.com/pkg/errors$`),
-		funcNameRegex:  regexp.MustCompile(`^Errorf$`),
-	}: {action: nonnilProducer, argIndex: -1},
-	{
-		kind:           _func,
-		enclosingRegex: regexp.MustCompile(`github\.com/pkg/errors$`),
-		funcNameRegex:  regexp.MustCompile(`^New$`),
-	}: {action: nonnilProducer, argIndex: -1},
 	{
 		kind:           _func,
 		enclosingRegex: regexp.MustCompile(`github\.com/stretchr/testify/(assert|require)$`),

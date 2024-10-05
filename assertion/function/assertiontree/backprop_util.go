@@ -23,7 +23,7 @@ import (
 	"go/types"
 
 	"go.uber.org/nilaway/annotation"
-	"go.uber.org/nilaway/assertion/function/trustedfunc"
+	"go.uber.org/nilaway/hook"
 	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/asthelper"
 	"golang.org/x/tools/go/analysis"
@@ -244,9 +244,13 @@ func isErrorReturnNil(rootNode *RootAssertionNode, errRet ast.Expr) bool {
 
 // isErrorReturnNonnil returns true if the error return is guaranteed to be nonnil, false otherwise
 func isErrorReturnNonnil(rootNode *RootAssertionNode, errRet ast.Expr) bool {
-	t := rootNode.Pass().TypesInfo.TypeOf(errRet)
-	if _, ok := trustedfunc.As(errRet, rootNode.Pass()); ok || util.TypeAsDeeplyStruct(t) != nil {
+	if t := rootNode.Pass().TypesInfo.TypeOf(errRet); util.TypeAsDeeplyStruct(t) != nil {
 		return true
+	}
+	if callExpr, ok := errRet.(*ast.CallExpr); ok {
+		if producer := hook.AssumeReturn(rootNode.Pass(), callExpr); producer != nil {
+			return true
+		}
 	}
 
 	return false
