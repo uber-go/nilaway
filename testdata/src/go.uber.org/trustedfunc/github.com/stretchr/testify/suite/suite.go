@@ -16,8 +16,8 @@
 package suite
 
 import (
-	"go.uber.org/testing/github.com/stretchr/testify/assert"
-	"go.uber.org/testing/github.com/stretchr/testify/require"
+	"go.uber.org/trustedfunc/github.com/stretchr/testify/assert"
+	"go.uber.org/trustedfunc/github.com/stretchr/testify/require"
 )
 
 type any interface{}

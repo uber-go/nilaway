@@ -19,7 +19,7 @@ import (
 	"go/ast"
 	"go/token"
 
-	"go.uber.org/nilaway/assertion/function/trustedfunc"
+	"go.uber.org/nilaway/hook"
 	"go.uber.org/nilaway/util"
 	"golang.org/x/tools/go/cfg"
 )
@@ -55,7 +55,14 @@ func (p *Preprocessor) CFG(graph *cfg.CFG, funcDecl *ast.FuncDecl) *cfg.CFG {
 	failureBlock := &cfg.Block{Index: int32(len(graph.Blocks))}
 	graph.Blocks = append(graph.Blocks, failureBlock)
 
-	// Perform the (series of) CFG transformations.
+	// Perform a series of CFG transformations here (for hooks and canonicalization). The order of
+	// these transformations matters due to canonicalization. Some transformations may expect the
+	// CFG to be in canonical form, and some transformations may change the CFG structure in a way
+	// that it needs to be re-canonicalized.
+
+	// split blocks do not require the CFG to be in canonical form, and it may modify the CFG
+	// structure in a way that it needs to be re-canonicalized. Here, we cleverly bundles the two
+	// operations together such that we only need to run canonicalization once.
 	for _, block := range graph.Blocks {
 		if block.Live {
 			p.splitBlockOnTrustedFuncs(graph, block, failureBlock)
@@ -63,7 +70,15 @@ func (p *Preprocessor) CFG(graph *cfg.CFG, funcDecl *ast.FuncDecl) *cfg.CFG {
 	}
 	for _, block := range graph.Blocks {
 		if block.Live {
-			p.restructureConditional(graph, block)
+			p.canonicalizeConditional(graph, block)
+		}
+	}
+	// Replacing conditionals in the CFG requires the CFG to be in canonical form (such that it
+	// does not have to handle "trustedFunc() && trustedFunc()"), and it will canonicalize the
+	// modified block by itself.
+	for _, block := range graph.Blocks {
+		if block.Live {
+			p.replaceConditional(graph, block)
 		}
 	}
 
@@ -119,24 +134,22 @@ func copyGraph(graph *cfg.CFG) *cfg.CFG {
 	return newGraph
 }
 
+// splitBlockOnTrustedFuncs splits the CFG block into two parts upon seeing a trusted function
+// from the hook framework (e.g., "require.Nil(t, arg)" to "if arg == nil { <all code after> }".
+// This does not expect the CFG to be in canonical form, and it may change the CFG structure in a
+// way that it needs to be re-canonicalized.
 func (p *Preprocessor) splitBlockOnTrustedFuncs(graph *cfg.CFG, thisBlock, failureBlock *cfg.Block) {
-	var expr *ast.ExprStmt
-	var call *ast.CallExpr
-	var retExpr any
-	var trustedCond ast.Expr
-	var ok bool
-
 	for i, node := range thisBlock.Nodes {
-		if expr, ok = node.(*ast.ExprStmt); !ok {
+		expr, ok := node.(*ast.ExprStmt)
+		if !ok {
 			continue
 		}
-		if call, ok = expr.X.(*ast.CallExpr); !ok {
+		call, ok := expr.X.(*ast.CallExpr)
+		if !ok {
 			continue
 		}
-		if retExpr, ok = trustedfunc.As(call, p.pass); !ok {
-			continue
-		}
-		if trustedCond, ok = retExpr.(ast.Expr); !ok {
+		trustedCond := hook.SplitBlockOn(p.pass, call)
+		if trustedCond == nil {
 			continue
 		}
 
@@ -159,47 +172,69 @@ func (p *Preprocessor) splitBlockOnTrustedFuncs(graph *cfg.CFG, thisBlock, failu
 	}
 }
 
-func (p *Preprocessor) restructureConditional(graph *cfg.CFG, thisBlock *cfg.Block) {
-	// We only restructure non-empty branching blocks.
-	if len(thisBlock.Nodes) == 0 || len(thisBlock.Succs) != 2 {
+// replaceConditional calls the hook functions and replaces the conditional expressions in the CFG
+// with the returned equivalent expression for analysis.
+//
+// This function expects the CFG to be in canonical form to fully function (otherwise it may miss
+// cases like "trustedFunc() && trustedFunc()").
+//
+// It also calls canonicalizeConditional to canonicalize the transformed block such that the CFG
+// is still canonical.
+func (p *Preprocessor) replaceConditional(graph *cfg.CFG, block *cfg.Block) {
+	// We only replace conditionals on branching blocks.
+	if len(block.Nodes) == 0 || len(block.Succs) != 2 {
 		return
 	}
-	cond, ok := thisBlock.Nodes[len(thisBlock.Nodes)-1].(ast.Expr)
+	call, ok := block.Nodes[len(block.Nodes)-1].(*ast.CallExpr)
 	if !ok {
 		return
 	}
+	replaced := hook.ReplaceConditional(p.pass, call)
+	if replaced == nil {
+		return
+	}
 
-	// places a new given node into the last position of this block
-	replaceCond := func(node ast.Node) {
-		thisBlock.Nodes[len(thisBlock.Nodes)-1] = node
+	block.Nodes[len(block.Nodes)-1] = replaced
+	// The returned expression may be a binary expression, so we need to canonicalize the CFG again
+	// after such replacement.
+	p.canonicalizeConditional(graph, block)
+}
+
+// canonicalizeConditional canonicalizes the conditional CFG structures to make it easier to reason
+// about control flows later. For example, it rewrites
+// `if !cond {T} {F}` to `if cond {F} {T}` (swap successors), and rewrites
+// `if cond1 && cond2 {T} {F}` to `if cond1 {if cond2 {T} else {F}}{F}` (nesting).
+func (p *Preprocessor) canonicalizeConditional(graph *cfg.CFG, thisBlock *cfg.Block) {
+	// We only restructure non-empty branching blocks.
+	if len(thisBlock.Nodes) == 0 || len(thisBlock.Succs) != 2 {
+		return
 	}
 
 	trueBranch := thisBlock.Succs[0]  // type *cfg.Block
 	falseBranch := thisBlock.Succs[1] // type *cfg.Block
 
-	replaceTrueBranch := func(block *cfg.Block) {
-		thisBlock.Succs[0] = block
-	}
-	replaceFalseBranch := func(block *cfg.Block) {
-		thisBlock.Succs[1] = block
-	}
+	// A few helper functions to make the code more readable.
+	replaceCond := func(node ast.Node) { thisBlock.Nodes[len(thisBlock.Nodes)-1] = node } // The conditional expr is the last node in the block.
+	replaceTrueBranch := func(block *cfg.Block) { thisBlock.Succs[0] = block }
+	replaceFalseBranch := func(block *cfg.Block) { thisBlock.Succs[1] = block }
+	swapTrueFalseBranches := func() { replaceTrueBranch(falseBranch); replaceFalseBranch(trueBranch) }
 
-	swapTrueFalseBranches := func() {
-		replaceTrueBranch(falseBranch)
-		replaceFalseBranch(trueBranch)
+	cond, ok := thisBlock.Nodes[len(thisBlock.Nodes)-1].(ast.Expr)
+	if !ok {
+		return
 	}
 
 	switch cond := cond.(type) {
 	case *ast.ParenExpr:
 		// if a parenexpr, strip and restart - this is done with recursion to account for ((((x)))) case
 		replaceCond(cond.X)
-		p.restructureConditional(graph, thisBlock) // recur within parens
+		p.canonicalizeConditional(graph, thisBlock) // recur within parens
 	case *ast.UnaryExpr:
 		if cond.Op == token.NOT {
 			// swap successors - i.e. swap true and false branches
 			swapTrueFalseBranches()
 			replaceCond(cond.X)
-			p.restructureConditional(graph, thisBlock) // recur within NOT
+			p.canonicalizeConditional(graph, thisBlock) // recur within NOT
 		}
 	case *ast.BinaryExpr:
 		// Logical AND and Logical OR actually require the exact same short circuiting behavior
@@ -220,8 +255,8 @@ func (p *Preprocessor) restructureConditional(graph *cfg.CFG, thisBlock *cfg.Blo
 				replaceFalseBranch(newBlock)
 			}
 			graph.Blocks = append(graph.Blocks, newBlock)
-			p.restructureConditional(graph, thisBlock)
-			p.restructureConditional(graph, newBlock)
+			p.canonicalizeConditional(graph, thisBlock)
+			p.canonicalizeConditional(graph, newBlock)
 		}
 
 		// Standardize binary expressions to be of the form `expr OP literal` by swapping `x` and `y`, if `x` is a literal.
@@ -283,8 +318,8 @@ func (p *Preprocessor) restructureConditional(graph *cfg.CFG, thisBlock *cfg.Blo
 					Op:    token.NOT,
 					X:     x,
 				}
-				replaceCond(newCond)                       // replaces `ok != true` with `!ok`
-				p.restructureConditional(graph, thisBlock) // recur to swap true and false branches for the unary expr `!ok`
+				replaceCond(newCond)                        // replaces `ok != true` with `!ok`
+				p.canonicalizeConditional(graph, thisBlock) // recur to swap true and false branches for the unary expr `!ok`
 			}
 
 		case token.EQL:
@@ -298,8 +333,8 @@ func (p *Preprocessor) restructureConditional(graph *cfg.CFG, thisBlock *cfg.Blo
 					Op:    token.NOT,
 					X:     x,
 				}
-				replaceCond(newCond)                       // replaces `ok == false` with `!ok`
-				p.restructureConditional(graph, thisBlock) // recur to swap true and false branches for the unary expr `!ok`
+				replaceCond(newCond)                        // replaces `ok == false` with `!ok`
+				p.canonicalizeConditional(graph, thisBlock) // recur to swap true and false branches for the unary expr `!ok`
 			}
 		}
 	}
