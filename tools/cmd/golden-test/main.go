@@ -242,7 +242,7 @@ func WriteDiff(writer io.Writer, branches [2]*BranchResult) {
 				lines[i] = prefix + " " + lines[i]
 			}
 			output := strings.Join(lines, "\n") + "\n"
-			MustFprint(color.New(c).Fprintf(writer, output))
+			MustFprint(color.New(c).Fprint(writer, output))
 		}
 	}
 	MustFprint(fmt.Fprintf(writer, "```\n\n"))

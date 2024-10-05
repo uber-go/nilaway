@@ -117,10 +117,6 @@ func createFakeFuncDecl(pass *analysis.Pass, funcLit *ast.FuncLit, fakeParams []
 	ident := &ast.Ident{
 		NamePos: funcLit.Pos(),
 		Name:    name,
-		Obj: &ast.Object{
-			Kind: ast.Fun,
-			Name: name,
-		},
 	}
 	// The list of formal AST parameter nodes (*ast.Field nodes) is extended.
 	fakeFields := make([]*ast.Field, len(fakeParams))
