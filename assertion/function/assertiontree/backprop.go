@@ -410,7 +410,33 @@ func backpropAcrossRange(rootNode *RootAssertionNode, lhs []ast.Expr, rhs ast.Ex
 		}
 	}
 
+	// produceNonNil marks the ith lhs expression as nonnil due to limitations of NilAway.
+	produceNonNil := func(i int) {
+		if !util.IsEmptyExpr(lhs[i]) {
+			rootNode.AddProduction(&annotation.ProduceTrigger{
+				Annotation: &annotation.ProduceTriggerNever{},
+				Expr:       lhs[i],
+			})
+		}
+	}
+
 	rhsType := types.Unalias(rootNode.Pass().TypesInfo.Types[rhs].Type)
+
+	// Go 1.23 introduced the `iter` package, which provides a way to iterate over sequences
+	// in a generic way. The `iter.Seq` and `iter.Seq2` types are used to represent sequences
+	// and are used in the `range` statement. We currently do not handle these types yet, so
+	// here we assume that they are deeply non-nil (by adding nonnil producers).
+	// TODO: handle that (#287).
+	if named, ok := rhsType.(*types.Named); ok && named.Obj() != nil && named.Obj().Pkg() != nil && named.Obj().Pkg().Path() == "iter" {
+		if named.Obj().Name() == "Seq" {
+			produceNonNil(0)
+			return nil
+		} else if named.Obj().Name() == "Seq2" {
+			produceNonNil(0)
+			produceNonNil(1)
+			return nil
+		}
+	}
 
 	// This block breaks down the cases for the `range` statement being analyzed,
 	// starting by switching on how many left-hand operands there are
