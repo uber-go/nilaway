@@ -14,6 +14,9 @@
 
 //go:build go1.23
 
+// This file is meant for testing features in Go 1.23 and beyond.
+// TODO: Migrate these test cases in the mainstream test files once NilAway starts to support Go 1.23 is a base version.
+
 package nilaway
 
 import (
