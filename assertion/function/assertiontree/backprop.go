@@ -410,7 +410,7 @@ func backpropAcrossRange(rootNode *RootAssertionNode, lhs []ast.Expr, rhs ast.Ex
 		}
 	}
 
-	rhsType := rootNode.Pass().TypesInfo.Types[rhs].Type
+	rhsType := types.Unalias(rootNode.Pass().TypesInfo.Types[rhs].Type)
 
 	// This block breaks down the cases for the `range` statement being analyzed,
 	// starting by switching on how many left-hand operands there are

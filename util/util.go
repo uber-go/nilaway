@@ -145,7 +145,7 @@ func TypeAsDeeplyStruct(typ types.Type) *types.Struct {
 	}
 
 	if ptType, ok := typ.(*types.Pointer); ok {
-		if namedType, ok := ptType.Elem().(*types.Named); ok {
+		if namedType, ok := types.Unalias(ptType.Elem()).(*types.Named); ok {
 			if resType, ok := namedType.Underlying().(*types.Struct); ok {
 				return resType
 			}
@@ -262,7 +262,7 @@ func TypeBarsNilness(t types.Type) bool {
 		return false
 	case *types.Chan:
 		return false
-	case *types.Named:
+	case *types.Alias, *types.Named:
 		return TypeBarsNilness(t.Underlying())
 	case *types.Interface:
 		return false
@@ -314,11 +314,11 @@ func funcIsRichCheckEffectReturning(fdecl *types.Func, expectedType types.Type) 
 	if n == 0 {
 		return false
 	}
-	if results.At(n-1).Type() != expectedType {
+	if !types.Identical(results.At(n-1).Type(), expectedType) {
 		return false
 	}
 	for i := 0; i < n-1; i++ {
-		if results.At(i).Type() == expectedType {
+		if types.Identical(results.At(i).Type(), expectedType) {
 			return false
 		}
 	}

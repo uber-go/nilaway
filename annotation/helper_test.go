@@ -139,7 +139,7 @@ func collectMethods(t *types.Named, visitedMethods map[string]*types.Func, visit
 		for i := 0; i < s.NumFields(); i++ {
 			f := s.Field(i)
 			if f.Embedded() {
-				if n, ok := util.UnwrapPtr(f.Type()).(*types.Named); ok {
+				if n, ok := util.UnwrapPtr(types.Unalias(f.Type())).(*types.Named); ok {
 					collectMethods(n, visitedMethods, visitedStructs)
 				}
 			}
@@ -197,7 +197,7 @@ func structsImplementingInterface(interfaceName string, packageName ...string) m
 							if sObj == nil {
 								return true
 							}
-							sType, ok := sObj.Type().(*types.Named)
+							sType, ok := types.Unalias(sObj.Type()).(*types.Named)
 							if !ok {
 								return true
 							}
