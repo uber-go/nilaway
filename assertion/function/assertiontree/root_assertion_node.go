@@ -1191,9 +1191,22 @@ func (r *RootAssertionNode) isType(expr ast.Expr) bool {
 // even when the slice itself is nil, i.e, one of [:0] [0:0] [0:] [:] [:0:0] [0:0:0]
 func (r *RootAssertionNode) isZeroSlicing(expr *ast.SliceExpr) bool {
 	l, h, m := expr.Low, expr.High, expr.Max
-	return ((l == nil || r.isIntZero(l)) && r.isIntZero(h) && m == nil) || // [:0] [0:0]
-		((l == nil || r.isIntZero(l)) && h == nil && m == nil) || // [0:] [:]
-		((l == nil || r.isIntZero(l)) && r.isIntZero(h) && r.isIntZero(m)) // [:0:0] [0:0:0]
+	highIsFunc := false
+	lowIsFunc := false
+	switch h.(type) {
+	case *ast.CallExpr:
+		highIsFunc = true
+	}
+
+	switch l.(type) {
+	case *ast.CallExpr:
+		lowIsFunc = true
+	}
+
+	return ((l == nil || r.isIntZero(l) || lowIsFunc) && r.isIntZero(h) && m == nil) || // [:0] [0:0] [len(x):0]
+		((l == nil || r.isIntZero(l) || lowIsFunc) && h == nil && m == nil) || // [0:] [:] [len(x):]
+		((l == nil || r.isIntZero(l) || lowIsFunc) && r.isIntZero(h) && r.isIntZero(m)) || // [:0:0] [0:0:0] [len(x):0] [len(x):0:0]
+		((l == nil || r.isIntZero(l) || lowIsFunc) && highIsFunc) // [:len(x)] [0:len(x)] [len(x):len(x)]
 }
 
 // isIntZero returns if the given expression is evaluated to integer zero at compile time. For
