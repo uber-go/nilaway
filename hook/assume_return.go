@@ -16,9 +16,11 @@ package hook
 
 import (
 	"go/ast"
+	"go/types"
 	"regexp"
 
 	"go.uber.org/nilaway/annotation"
+	"go.uber.org/nilaway/util"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -33,7 +35,48 @@ func AssumeReturn(pass *analysis.Pass, call *ast.CallExpr) *annotation.ProduceTr
 		}
 	}
 
+	// Check if the function is an error wrapper function
+	if isErrorWrapperFunc(pass, call) {
+		return nonnilProducer(call)
+	}
+
 	return nil
+}
+
+// isErrorWrapperFunc implements a heuristic to identify error wrapper functions (e.g., `errors.Wrapf(err, "message")`).
+// It does this by applying the following criteria:
+// - The function must have at least one argument of error-implementing type.
+// - The function can return several values, but at least one of them must be of error-implementing type.
+func isErrorWrapperFunc(pass *analysis.Pass, call *ast.CallExpr) bool {
+	funcIdent, ok := call.Fun.(*ast.Ident)
+	if !ok {
+		return false
+	}
+
+	obj := pass.TypesInfo.ObjectOf(funcIdent)
+	if obj == nil {
+		return false
+	}
+
+	funcObj, ok := obj.(*types.Func)
+	if !ok {
+		return false
+	}
+	if util.FuncIsErrReturning(funcObj) {
+		for _, arg := range call.Args {
+			if callExpr, ok := arg.(*ast.CallExpr); ok {
+				return isErrorWrapperFunc(pass, callExpr)
+			}
+
+			if argIdent, ok := arg.(*ast.Ident); ok {
+				argObj := pass.TypesInfo.ObjectOf(argIdent)
+				if argObj.Type() == util.ErrorType {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 type assumeReturnAction func(call *ast.CallExpr) *annotation.ProduceTrigger
