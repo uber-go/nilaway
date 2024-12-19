@@ -202,10 +202,6 @@ func backpropAcrossReturn(rootNode *RootAssertionNode, node *ast.ReturnStmt) err
 				}
 
 				for i := 0; i < util.FuncNumResults(funcObj); i++ {
-					if producers == nil {
-						// this nil check reflects programmer logic
-						return errors.New("producers variable is nil")
-					}
 					// since we don't individually track the returns of a multiply returning function,
 					// we form full triggers for each return whose type doesn't bar nilness
 					if !util.TypeBarsNilness(funcObj.Type().(*types.Signature).Results().At(i).Type()) {
