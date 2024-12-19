@@ -806,3 +806,10 @@ func testMultipleErrs(i int) (*int, error, error) {
 	// the below error can be considered to be a false positive
 	return nil, retNonNilErr(), retNonNilErr() //want "returned from `testMultipleErrs.*` in position 0"
 }
+
+func Wrapf(e error) error {
+	if e == nil {
+		return nil
+	}
+	return fmt.Errorf("wrapped: %w", e)
+}

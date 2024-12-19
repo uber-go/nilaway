@@ -251,9 +251,6 @@ func isErrorReturnNonnil(rootNode *RootAssertionNode, errRet ast.Expr) bool {
 		if producer := hook.AssumeReturn(rootNode.Pass(), callExpr); producer != nil {
 			return true
 		}
-		if producer := hook.AssumeReturnWrapper(rootNode.Pass(), callExpr); producer != nil {
-			return true
-		}
 	}
 
 	return false

@@ -35,18 +35,11 @@ func AssumeReturn(pass *analysis.Pass, call *ast.CallExpr) *annotation.ProduceTr
 		}
 	}
 
-	// // Check if the function is an error wrapper function
-	// if isErrorWrapperFunc(pass, call) {
-	// 	return nonnilProducer(call)
-	// }
-
-	return nil
-}
-
-func AssumeReturnWrapper(pass *analysis.Pass, call *ast.CallExpr) *annotation.ProduceTrigger {
+	// Check if the function is an error wrapper function
 	if isErrorWrapperFunc(pass, call) {
 		return nonnilProducer(call)
 	}
+
 	return nil
 }
 
@@ -55,8 +48,8 @@ func AssumeReturnWrapper(pass *analysis.Pass, call *ast.CallExpr) *annotation.Pr
 // - The function must have at least one argument of error-implementing type.
 // - The function can return several values, but at least one of them must be of error-implementing type.
 func isErrorWrapperFunc(pass *analysis.Pass, call *ast.CallExpr) bool {
-	funcIdent, ok := call.Fun.(*ast.Ident)
-	if !ok {
+	funcIdent := util.FuncIdentFromCallExpr(call)
+	if funcIdent == nil {
 		return false
 	}
 
@@ -76,8 +69,10 @@ func isErrorWrapperFunc(pass *analysis.Pass, call *ast.CallExpr) bool {
 			}
 
 			if argIdent, ok := arg.(*ast.Ident); ok {
-				if argObj := pass.TypesInfo.ObjectOf(argIdent); argObj != nil && argObj.Type() == util.ErrorType {
-					return true
+				if argObj := pass.TypesInfo.ObjectOf(argIdent); argObj != nil {
+					if types.Implements(argObj.Type(), util.ErrorType.Underlying().(*types.Interface)) {
+						return true
+					}
 				}
 			}
 		}
