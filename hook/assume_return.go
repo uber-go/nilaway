@@ -35,11 +35,18 @@ func AssumeReturn(pass *analysis.Pass, call *ast.CallExpr) *annotation.ProduceTr
 		}
 	}
 
-	// Check if the function is an error wrapper function
+	// // Check if the function is an error wrapper function
+	// if isErrorWrapperFunc(pass, call) {
+	// 	return nonnilProducer(call)
+	// }
+
+	return nil
+}
+
+func AssumeReturnWrapper(pass *analysis.Pass, call *ast.CallExpr) *annotation.ProduceTrigger {
 	if isErrorWrapperFunc(pass, call) {
 		return nonnilProducer(call)
 	}
-
 	return nil
 }
 
@@ -64,13 +71,12 @@ func isErrorWrapperFunc(pass *analysis.Pass, call *ast.CallExpr) bool {
 	}
 	if util.FuncIsErrReturning(funcObj) {
 		for _, arg := range call.Args {
-			// if callExpr, ok := arg.(*ast.CallExpr); ok {
-			// 	return isErrorWrapperFunc(pass, callExpr)
-			// }
+			if callExpr, ok := arg.(*ast.CallExpr); ok {
+				return isErrorWrapperFunc(pass, callExpr)
+			}
 
 			if argIdent, ok := arg.(*ast.Ident); ok {
-				argObj := pass.TypesInfo.ObjectOf(argIdent)
-				if argObj.Type() == util.ErrorType {
+				if argObj := pass.TypesInfo.ObjectOf(argIdent); argObj != nil && argObj.Type() == util.ErrorType {
 					return true
 				}
 			}
