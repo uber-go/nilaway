@@ -35,10 +35,10 @@ func AssumeReturn(pass *analysis.Pass, call *ast.CallExpr) *annotation.ProduceTr
 		}
 	}
 
-	// Check if the function is an error wrapper function
-	if isErrorWrapperFunc(pass, call) {
-		return nonnilProducer(call)
-	}
+	// // Check if the function is an error wrapper function
+	// if isErrorWrapperFunc(pass, call) {
+	// 	return nonnilProducer(call)
+	// }
 
 	return nil
 }
