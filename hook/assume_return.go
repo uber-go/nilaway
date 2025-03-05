@@ -49,8 +49,8 @@ func AssumeReturnForErrorWrapperFunc(pass *analysis.Pass, call *ast.CallExpr) *a
 
 // isErrorWrapperFunc implements a heuristic to identify error wrapper functions (e.g., `errors.Wrapf(err, "message")`).
 // It does this by applying the following criteria:
-// - The function must have at least one argument of error-implementing type.
-// - The function can return several values, but at least one of them must be of error-implementing type.
+// - the function must have at least one argument of error-implementing type, and
+// - the function must return an error-implementing type as its last return value.
 func isErrorWrapperFunc(pass *analysis.Pass, call *ast.CallExpr) bool {
 	funcIdent := util.FuncIdentFromCallExpr(call)
 	if funcIdent == nil {

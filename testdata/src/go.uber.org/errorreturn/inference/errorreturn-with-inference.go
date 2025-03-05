@@ -21,6 +21,7 @@ package inference
 import (
 	"errors"
 
+	"go.uber.org/errorreturn"
 	"go.uber.org/errorreturn/inference/otherPkg"
 )
 
@@ -384,4 +385,38 @@ func testAlwaysSafeMultipleHops() {
 	// analysis of "return statements" to only the directly determinable cases (e.g., new(int), &S{}, NegativeNilCheck), not through multiple hops.
 	v2, _ := f1(0)
 	print(*v2) //want "dereferenced"
+}
+
+func testErrorWrapper1() (*int, error) {
+	err := &myErr2{}
+	if err != nil {
+		return nil, errorreturn.Wrapf(err)
+	}
+	return new(int), nil
+}
+
+func testErrorWrapper2() (*int, error) {
+	err := &myErr2{}
+	if err == nil {
+		return nil, errorreturn.Wrapf(errors.New("some error"))
+	}
+	return new(int), nil
+}
+
+func callTestErrorWrapper(i int) {
+	switch i {
+	case 1:
+		x, err := testErrorWrapper1()
+		if err != nil {
+			return
+		}
+		_ = *x
+
+	case 2:
+		x, err := testErrorWrapper2()
+		if err != nil {
+			return
+		}
+		_ = *x //want "dereferenced"
+	}
 }
