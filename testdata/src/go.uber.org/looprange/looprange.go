@@ -16,6 +16,11 @@
 // <nilaway no inference>
 package looprange
 
+import (
+	"maps"
+	"slices"
+)
+
 func dummyConsume(interface{}) {}
 func dummyBool() bool          { return true }
 
@@ -205,5 +210,16 @@ type MyAlias = Set
 func testAlias(s MyAlias) {
 	for myStr := range s {
 		print(myStr)
+	}
+}
+
+func testIter() {
+	i := 42
+	for element := range slices.Values([]*int{&i, &i, nil}) {
+		print(*element) // FN: we do not really handle iterators for now, the elements from iterators are assumed to be nonnil.
+	}
+	for k, v := range maps.All(map[string]*int{"abc": &i, "def": nil}) {
+		print(k)
+		print(*v) // FN: we do not really handle iterators for now, the elements from iterators are assumed to be nonnil.
 	}
 }
