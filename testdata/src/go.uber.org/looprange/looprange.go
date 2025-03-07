@@ -199,6 +199,12 @@ func testRangeOverBasicTypes(j int) {
 		for i := range s {
 			print(i)
 		}
+	case 4:
+		type intAlias int
+		var alias intAlias = 42
+		for i := range alias {
+			print(i)
+		}
 	}
 }
 
