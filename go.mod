@@ -1,6 +1,6 @@
 module go.uber.org/nilaway
 
-go 1.22
+go 1.23
 
 require (
 	github.com/golangci/plugin-module-register v0.1.1

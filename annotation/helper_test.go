@@ -20,7 +20,9 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
+	"maps"
 	"reflect"
+	"slices"
 
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/nilaway/util"
@@ -109,11 +111,7 @@ func getImplementedMethods(t *types.Named) []*types.Func {
 	visitedMethods := make(map[string]*types.Func) // helps in only storing the latest overridden implementation of a method
 	visitedStructs := make(map[*types.Struct]bool) // helps in avoiding infinite recursion if there is a cycle in the struct embedding
 	collectMethods(t, visitedMethods, visitedStructs)
-	methods := make([]*types.Func, 0, len(visitedMethods))
-	for _, m := range visitedMethods {
-		methods = append(methods, m)
-	}
-	return methods
+	return slices.AppendSeq(make([]*types.Func, 0, len(visitedMethods)), maps.Values(visitedMethods))
 }
 
 // collectMethods is a helper function that recursively collects all `methods` implemented by the struct `t`.
