@@ -457,31 +457,30 @@ func backpropAcrossRange(rootNode *RootAssertionNode, lhs []ast.Expr, rhs ast.Ex
 			produceAsDeepRHS(1) // If we are not ranging over a string, then we cannot assume basic type
 		}
 	case 1:
-		if util.TypeIsDeeplyMap(rhsType) ||
-			util.TypeIsDeeplySlice(rhsType) ||
-			util.TypeIsDeeplyArray(rhsType) ||
-			typeIsString(rhsType) {
-			produceAsIndex(0) // If we are ranging over a map slice or string with only a single
-			// lhs operand, then that operand will be int-valued
+		// If we are ranging over a map slice or string with only a single lhs operand, then that
+		// operand will be int-valued.
+		if util.TypeIsDeeplyMap(rhsType) || util.TypeIsDeeplySlice(rhsType) || util.TypeIsDeeplyArray(rhsType) || typeIsString(rhsType) {
+			produceAsIndex(0)
 			return nil
 		}
+		// Iterating over a channel with only a single lhs operand will still result in deeply
+		// produced lhs values.
 		if util.TypeIsDeeplyChan(rhsType) {
-			produceAsDeepRHS(0) // iterating over a channel with only a single lhs operand will
-			// still result in deeply produced lhs values
+			produceAsDeepRHS(0)
 			return nil
 		}
 
 		// Here the range is over basic types, such as integers (e.g., "for i := range 10").
 		// We do not need to do anything here, as the basic types are always presumed to be non-nil.
-		if _, ok := rhsType.(*types.Basic); ok {
+		if _, ok := rhsType.Underlying().(*types.Basic); ok {
 			return nil
 		}
 
+		// We could be ranging over a generic slice (where rhsType is a *types.TypeParam) but
+		// we do not handle generics yet. Here we just assume generic slices are all deeply
+		// nonnil - we do not need to do anything here.
+		// TODO: handle that.
 		if _, ok := rhsType.(*types.TypeParam); ok {
-			// We could be ranging over a generic slice (where rhsType is a *types.TypeParam) but
-			// we do not handle generics yet. Here we just assume generic slices are all deeply
-			// nonnil, i.e., we return nil producers for the elements.
-			// TODO: handle that.
 			return nil
 		}
 		return fmt.Errorf("unrecognized type of rhs in range statement: %s", rhsType)
