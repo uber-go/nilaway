@@ -198,7 +198,7 @@ func backpropAcrossReturn(rootNode *RootAssertionNode, node *ast.ReturnStmt) err
 				_, producers := rootNode.ParseExprAsProducer(call, true)
 				if util.FuncNumResults(funcObj) != len(producers) {
 					// this should never happen - if it does, it's a bug in the producer parser
-					return errors.New(fmt.Sprintf("function %s has %d results but %d producers were found", fident.Name, util.FuncNumResults(funcObj), len(producers)))
+					return fmt.Errorf("function %s has %d results but %d producers were found", fident.Name, util.FuncNumResults(funcObj), len(producers))
 				}
 
 				for i := 0; i < util.FuncNumResults(funcObj); i++ {
