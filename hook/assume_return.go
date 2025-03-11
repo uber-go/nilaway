@@ -34,13 +34,16 @@ func AssumeReturn(pass *analysis.Pass, call *ast.CallExpr) *annotation.ProduceTr
 			return act(call)
 		}
 	}
+	return nil
+}
 
-	// Here we check is the given call expression is an error wrapper function. This is useful for modeling the return
-	// value of error wrapper functions like `errors.Wrapf(err, "message")` to return a non-nil error.
+// AssumeReturnForErrorWrapperFunc returns the producer for the return value of the given call expression which is
+// an error wrapper function. This is useful for modeling the return value of error wrapper functions like
+// `errors.Wrapf(err, "message")` to return a non-nil error. If the given call expression is not an error wrapper, nil is returned.
+func AssumeReturnForErrorWrapperFunc(pass *analysis.Pass, call *ast.CallExpr) *annotation.ProduceTrigger {
 	if isErrorWrapperFunc(pass, call) {
 		return nonnilProducer(call)
 	}
-
 	return nil
 }
 
