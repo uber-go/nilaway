@@ -197,11 +197,15 @@ func backpropAcrossReturn(rootNode *RootAssertionNode, node *ast.ReturnStmt) err
 				// we've identified that a multiply-returning function is being returned
 
 				_, producers := rootNode.ParseExprAsProducer(call, true)
+				if producers == nil {
+					// this nil check reflects programmer logic
+					return errors.New("producers variable is nil")
+				}
+				if len(producers) != util.FuncNumResults(funcObj) {
+					// this is a logic error, not a programmer error
+					return fmt.Errorf("expected %d producers, got %d", util.FuncNumResults(funcObj), len(producers))
+				}
 				for i := 0; i < util.FuncNumResults(funcObj); i++ {
-					if producers == nil {
-						// this nil check reflects programmer logic
-						return errors.New("producers variable is nil")
-					}
 					// since we don't individually track the returns of a multiply returning function,
 					// we form full triggers for each return whose type doesn't bar nilness
 					if !util.TypeBarsNilness(funcObj.Type().(*types.Signature).Results().At(i).Type()) {
