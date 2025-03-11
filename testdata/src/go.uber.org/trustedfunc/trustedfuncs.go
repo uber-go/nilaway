@@ -1015,14 +1015,14 @@ func errorsAs(err error, num string, dummy bool) {
 			print(*exitErr) //want "unassigned variable `exitErr` dereferenced"
 			print(ok)
 		}
-	case "short assignment in if statement with AND condition":
+	case "short assignment in if statement with AND condition (ok && dummy)":
 		var exitErr *exec.ExitError
 		var nilError error
 		if ok := errors.As(nilError, &exitErr); ok && dummy {
 			print(*exitErr)
 			print(ok)
 		}
-	case "short assignment in if statement with AND condition":
+	case "short assignment in if statement with AND condition (dummy && ok)":
 		var exitErr *exec.ExitError
 		var nilError error
 		if ok := errors.As(nilError, &exitErr); dummy && ok {
