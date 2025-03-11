@@ -223,3 +223,47 @@ func testIter() {
 		print(*v) // FN: we do not really handle iterators for now, the elements from iterators are assumed to be nonnil.
 	}
 }
+
+// Custom iterator functions introduced in Go 1.23
+
+func iteratorNoArgs(yield func() bool) {
+	for i := 0; i < 3; i++ {
+		if !yield() {
+			break
+		}
+	}
+}
+
+func iteratorWithKey(yield func(*int) bool) {
+	one := 1
+	data := []*int{&one, nil}
+	for _, i := range data {
+		if !yield(i) {
+			break
+		}
+	}
+}
+
+func iteratorWithKeyValue(yield func(int, *string) bool) {
+	one := "one"
+	data := map[int]*string{1: &one, 42: nil}
+	for k, v := range data {
+		if !yield(k, v) {
+			break
+		}
+	}
+}
+
+func useCustomIters() {
+	for range iteratorNoArgs {
+	}
+
+	for k := range iteratorWithKey {
+		print(*k) // FN: we do not really handle iterators for now, the elements from iterators are assumed to be nonnil.
+	}
+
+	for k, v := range iteratorWithKeyValue {
+		print(k)
+		print(*v) // FN: we do not really handle iterators for now, the elements from iterators are assumed to be nonnil.
+	}
+}

@@ -29,6 +29,7 @@ import (
 	"go.uber.org/nilaway/assertion/function/preprocess"
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/util/typeshelper"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/cfg"
@@ -422,20 +423,27 @@ func backpropAcrossRange(rootNode *RootAssertionNode, lhs []ast.Expr, rhs ast.Ex
 
 	rhsType := types.Unalias(rootNode.Pass().TypesInfo.Types[rhs].Type)
 
-	// Go 1.23 introduced the `iter` package, which provides a way to iterate over sequences
-	// in a generic way. The `iter.Seq` and `iter.Seq2` types are used to represent sequences
-	// and are used in the `range` statement. We currently do not handle these types yet, so
-	// here we assume that they are deeply non-nil (by adding nonnil producers).
+	// Go 1.23 introduced [range-over-func] language feature, where the `range` statement can
+	// now take the following types:
+	//
+	// 1. `func(func() bool)`
+	// 2. `func(func(K) bool)`
+	// 3. `func(func(K, V) bool)`
+	//
+	// We currently do not handle these types yet, so here we assume that they are deeply non-nil
+	// (by adding nonnil producers to both K and V if given).
+	//
+	// Note that the `iter` package provides `iter.Seq` and `iter.Seq2` generic types for 2 and 3
+	// specifically. Therefore, we need to `.Underlying()` on the rhsType to find the underlying
+	// func type for simplicity.
+	//
+	// [range-over-func]: https://tip.golang.org/doc/go1.23
 	// TODO: handle that (#287).
-	if named, ok := rhsType.(*types.Named); ok && named.Obj() != nil && named.Obj().Pkg() != nil && named.Obj().Pkg().Path() == "iter" {
-		if named.Obj().Name() == "Seq" {
-			produceNonNil(0)
-			return nil
-		} else if named.Obj().Name() == "Seq2" {
-			produceNonNil(0)
-			produceNonNil(1)
-			return nil
+	if typeshelper.IsIterType(rhsType) {
+		for i := range lhs {
+			produceNonNil(i)
 		}
+		return nil
 	}
 
 	// This block breaks down the cases for the `range` statement being analyzed,
