@@ -806,3 +806,35 @@ func testMultipleErrs(i int) (*int, error, error) {
 	// the below error can be considered to be a false positive
 	return nil, retNonNilErr(), retNonNilErr() //want "returned from `testMultipleErrs.*` in position 0"
 }
+
+// below test case checks for the error wrapper heuristic.
+// nilable(result 1)
+func testErrorWrapper(i int) (*int, *int, error) {
+	e := retNonNilErr()
+	switch i {
+	case 1:
+		if e != nil {
+			return nil, nil, Wrapf(e)
+		}
+	case 2:
+		if e != nil {
+			return takesNonnilRetsNilable(nil), nil, Wrapf(e) //want "passed"
+		}
+	case 3:
+		if dummy {
+			e = nil
+		} else {
+			e = Wrapf(e)
+		}
+		// here - two different flows result in a nilable or non-nil value for e2
+		return nil, nil, e //want "returned from `testErrorWrapper.*`"
+	}
+	return new(int), new(int), nil
+}
+
+func Wrapf(e error) error {
+	if e == nil {
+		return nil
+	}
+	return fmt.Errorf("wrapped: %w", e)
+}

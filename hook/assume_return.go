@@ -16,9 +16,11 @@ package hook
 
 import (
 	"go/ast"
+	"go/types"
 	"regexp"
 
 	"go.uber.org/nilaway/annotation"
+	"go.uber.org/nilaway/util"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -34,6 +36,53 @@ func AssumeReturn(pass *analysis.Pass, call *ast.CallExpr) *annotation.ProduceTr
 	}
 
 	return nil
+}
+
+// AssumeReturnForErrorWrapperFunc returns the producer for the return value of the given call expression which is
+// an error wrapper function. This is useful for modeling the return value of error wrapper functions like
+// `errors.Wrapf(err, "message")` to return a non-nil error. If the given call expression is not an error wrapper, nil is returned.
+func AssumeReturnForErrorWrapperFunc(pass *analysis.Pass, call *ast.CallExpr) *annotation.ProduceTrigger {
+	if isErrorWrapperFunc(pass, call) {
+		return nonnilProducer(call)
+	}
+	return nil
+}
+
+// isErrorWrapperFunc implements a heuristic to identify error wrapper functions (e.g., `errors.Wrapf(err, "message")`).
+// It does this by applying the following criteria:
+// - the function must have at least one argument of error-implementing type, and
+// - the function must return an error-implementing type as its last return value.
+func isErrorWrapperFunc(pass *analysis.Pass, call *ast.CallExpr) bool {
+	funcIdent := util.FuncIdentFromCallExpr(call)
+	if funcIdent == nil {
+		return false
+	}
+
+	obj := pass.TypesInfo.ObjectOf(funcIdent)
+	if obj == nil {
+		return false
+	}
+
+	funcObj, ok := obj.(*types.Func)
+	if !ok {
+		return false
+	}
+	if util.FuncIsErrReturning(funcObj) {
+		for _, arg := range call.Args {
+			if callExpr, ok := arg.(*ast.CallExpr); ok {
+				return isErrorWrapperFunc(pass, callExpr)
+			}
+
+			if argIdent, ok := arg.(*ast.Ident); ok {
+				if argObj := pass.TypesInfo.ObjectOf(argIdent); argObj != nil {
+					if types.Implements(argObj.Type(), util.ErrorType.Underlying().(*types.Interface)) {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
 }
 
 type assumeReturnAction func(call *ast.CallExpr) *annotation.ProduceTrigger
