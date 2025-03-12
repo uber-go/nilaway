@@ -1001,5 +1001,35 @@ func errorsAs(err error, num string, dummy bool) {
 		if errors.As(*nilError, &exitErr) { //want "unassigned variable `nilError` dereferenced"
 			print(*exitErr) // But this is fine!
 		}
+	case "short assignment in if statement":
+		var exitErr *exec.ExitError
+		var nilError error
+		if ok := errors.As(nilError, &exitErr); ok {
+			print(*exitErr)
+			print(ok)
+		}
+	case "short assignment in if statement with OR condition":
+		var exitErr *exec.ExitError
+		var nilError error
+		if ok := errors.As(nilError, &exitErr); ok || dummy {
+			print(*exitErr) //want "unassigned variable `exitErr` dereferenced"
+			print(ok)
+		}
+	case "short assignment in if statement with AND condition (ok && dummy)":
+		var exitErr *exec.ExitError
+		var nilError error
+		if ok := errors.As(nilError, &exitErr); ok && dummy {
+			print(*exitErr)
+			print(ok)
+		}
+	case "short assignment in if statement with AND condition (dummy && ok)":
+		var exitErr *exec.ExitError
+		var nilError error
+		if ok := errors.As(nilError, &exitErr); dummy && ok {
+			// The following is an FP: since the `dummy && ok` is canonicalized to `if dummy { if ok { } }`,
+			// our current handling fails to find the `ok := errors.As(...)` call at the end of the block.
+			print(*exitErr) //want "unassigned variable `exitErr` dereferenced"
+			print(ok)
+		}
 	}
 }
