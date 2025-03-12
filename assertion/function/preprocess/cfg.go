@@ -186,35 +186,45 @@ func (p *Preprocessor) replaceConditional(graph *cfg.CFG, block *cfg.Block) {
 		return
 	}
 
-	lastNode := block.Nodes[len(block.Nodes)-1]
+	var call *ast.CallExpr
 
+	switch lastNode := block.Nodes[len(block.Nodes)-1].(type) {
 	// Last node is a call expression for `if foo() { ... }` case.
-	call, ok := lastNode.(*ast.CallExpr)
+	case *ast.CallExpr:
+		call = lastNode
 	// Otherwise, we check if it is `if ok := foo(); ok { ... }` case.
-	// Note that this would fail for the following case (canonicalized):
+	// Note that this would fail for the following case:
+	//
 	// ok := foo()
 	// if dummy {
 	//   if ok {
 	//     ...
 	//   }
 	// }
-	// (Note that the example above is canonicalized, `if dummy && ok {...}` is equivalent, and is
+	//
+	// (The example above is canonicalized -- `if dummy && ok {...}` is equivalent, and is
 	// probably more common in practice).
 	//
 	// Here we will not find the declaration of `ok` in the block. Ideally we should really find
 	// the declaration node of `ok` instead of simply checking the last node in the block (possibly
 	// with the help of SSA).
 	// TODO: implement that.
-	if !ok && len(block.Nodes) > 1 {
-		if assign, ok := block.Nodes[len(block.Nodes)-2].(*ast.AssignStmt); ok && len(assign.Lhs) == 1 && len(assign.Rhs) == 1 {
-			if ident, ok := assign.Lhs[0].(*ast.Ident); ok {
-				if cond, ok := lastNode.(*ast.Ident); ok {
-					if ident.Name == cond.Name {
-						call, _ = assign.Rhs[0].(*ast.CallExpr)
-					}
-				}
-			}
+	case *ast.Ident:
+		if len(block.Nodes) < 2 {
+			break
 		}
+		assign, ok := block.Nodes[len(block.Nodes)-2].(*ast.AssignStmt)
+		if !ok || len(assign.Lhs) != 1 || len(assign.Rhs) != 1 {
+			break
+		}
+		ident, ok := assign.Lhs[0].(*ast.Ident)
+		if !ok {
+			break
+		}
+		if ident.Name != lastNode.Name {
+			break
+		}
+		call, _ = assign.Rhs[0].(*ast.CallExpr)
 	}
 
 	if call == nil {
