@@ -153,12 +153,18 @@ func newPrimitivizer(pass *analysis.Pass) *primitivizer {
 			}
 
 			objRepr := site.PkgPath + "." + string(site.ObjectPath)
-			if existing, ok := upstreamObjPositions[objRepr]; ok && existing != site.Position {
-				panic(fmt.Sprintf(
-					"conflicting position information on upstream object %q: existing: %v, got: %v",
-					objRepr, existing, site.Position,
-				))
-			}
+			// TODO: This check seems to be triggered only for bazel/nogo driver (and usually for
+			//  generated files like protobuf). For now, we disable such panics to avoid breaking
+			//  the analysis, since it would only result in degraded performance (we will not
+			//  correctly associate the objects in local-package analysis with imported upstream
+			//  objects), but we should investigate the root cause and fix it.
+			//  See https://github.com/uber-go/nilaway/issues/149 for more details.
+			// if existing, ok := upstreamObjPositions[objRepr]; ok && existing != site.Position {
+			// 	panic(fmt.Sprintf(
+			// 		"conflicting position information on upstream object %q: existing: %v, got: %v",
+			// 		objRepr, existing, site.Position,
+			// 	))
+			// }
 			upstreamObjPositions[objRepr] = site.Position
 			return true
 		})
