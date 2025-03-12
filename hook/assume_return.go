@@ -34,6 +34,7 @@ func AssumeReturn(pass *analysis.Pass, call *ast.CallExpr) *annotation.ProduceTr
 			return act(call)
 		}
 	}
+
 	return nil
 }
 
