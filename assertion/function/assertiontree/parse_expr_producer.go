@@ -240,12 +240,12 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 			return true
 		}
 
-		// if prod := hook.AssumeReturn(r.Pass(), expr); prod != nil {
-		// 	return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: prod}}
-		// }
-		// if prod := hook.AssumeReturnForErrorWrapperFunc(r.Pass(), expr); prod != nil {
-		// 	return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: prod}}
-		// }
+		if prod := hook.AssumeReturn(r.Pass(), expr); prod != nil {
+			return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: prod}}
+		}
+		if prod := hook.AssumeReturnForErrorWrapperFunc(r.Pass(), expr); prod != nil {
+			return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: prod}}
+		}
 
 		// the cases of a function and method call are different enough here that it would be useless
 		// to try to subsume this switch with funcIdentFromCallExpr
@@ -463,19 +463,6 @@ func (r *RootAssertionNode) getFuncReturnProducers(ident *ast.Ident, expr *ast.C
 			retKey = annotation.NewCallSiteRetKey(funcObj, i, r.LocationOf(expr))
 		} else {
 			retKey = annotation.RetKeyFromRetNum(funcObj, i)
-		}
-
-		if prod := hook.AssumeReturn(r.Pass(), expr); prod != nil {
-			producers[i] = producer.DeepParsedProducer{
-				ShallowProducer: prod,
-				DeepProducer:    prod,
-			}
-		}
-		if prod := hook.AssumeReturnForErrorWrapperFunc(r.Pass(), expr); prod != nil {
-			producers[i] = producer.DeepParsedProducer{
-				ShallowProducer: prod,
-				DeepProducer:    prod,
-			}
 		}
 
 		var fieldProducers []*annotation.ProduceTrigger
