@@ -403,6 +403,38 @@ func testErrorWrapper2() (*int, error) {
 	return new(int), nil
 }
 
+type WrappedErr interface {
+	Error() string
+}
+
+type wrapped struct {
+	cause error
+	msg   string
+}
+
+func (w *wrapped) Error() string {
+	return w.msg + ": " + w.cause.Error()
+}
+
+func Wrap(err error, msg string) WrappedErr {
+	if err == nil {
+		return nil
+	}
+
+	return &wrapped{
+		msg:   msg,
+		cause: err,
+	}
+}
+
+func testErrorWrapper3() (*int, error) {
+	if dummy2 {
+		err := &myErr2{}
+		return nil, Wrap(err, "test error")
+	}
+	return new(int), nil
+}
+
 func callTestErrorWrapper(i int) {
 	switch i {
 	case 1:
@@ -418,5 +450,12 @@ func callTestErrorWrapper(i int) {
 			return
 		}
 		_ = *x //want "dereferenced"
+
+	case 3:
+		x, err := testErrorWrapper3()
+		if err != nil {
+			return
+		}
+		_ = *x
 	}
 }
