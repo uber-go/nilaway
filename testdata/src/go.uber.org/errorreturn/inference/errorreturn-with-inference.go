@@ -405,6 +405,7 @@ func testErrorWrapper2() (*int, error) {
 
 type WrappedErr interface {
 	Error() string
+	CustomError() WrappedErr
 }
 
 type wrapped struct {
@@ -427,10 +428,25 @@ func Wrap(err error, msg string) WrappedErr {
 	}
 }
 
+func (w *wrapped) CustomError() WrappedErr {
+	return &wrapped{
+		msg:   w.msg + " (custom)",
+		cause: w.cause,
+	}
+}
+
 func testErrorWrapper3() (*int, error) {
 	if dummy2 {
 		err := &myErr2{}
 		return nil, Wrap(err, "test error")
+	}
+	return new(int), nil
+}
+
+func testErrorWrapper4() (*int, error) {
+	if dummy2 {
+		err := &myErr2{}
+		return nil, Wrap(err, "test error").CustomError()
 	}
 	return new(int), nil
 }
@@ -453,6 +469,13 @@ func callTestErrorWrapper(i int) {
 
 	case 3:
 		x, err := testErrorWrapper3()
+		if err != nil {
+			return
+		}
+		_ = *x
+
+	case 4:
+		x, err := testErrorWrapper4()
 		if err != nil {
 			return
 		}
