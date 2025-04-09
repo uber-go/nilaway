@@ -240,9 +240,9 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 			return true
 		}
 
-		if prod := hook.AssumeReturn(r.Pass(), expr); prod != nil {
-			return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: prod}}
-		}
+		// if prod := hook.AssumeReturn(r.Pass(), expr); prod != nil {
+		// 	return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: prod}}
+		// }
 		// if prod := hook.AssumeReturnForErrorWrapperFunc(r.Pass(), expr); prod != nil {
 		// 	return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: prod}}
 		// }
@@ -470,7 +470,8 @@ func (r *RootAssertionNode) getFuncReturnProducers(ident *ast.Ident, expr *ast.C
 				ShallowProducer: prod,
 				DeepProducer:    prod,
 			}
-		} else if prod := hook.AssumeReturnForErrorWrapperFunc(r.Pass(), expr); prod != nil {
+		}
+		if prod := hook.AssumeReturnForErrorWrapperFunc(r.Pass(), expr); prod != nil {
 			producers[i] = producer.DeepParsedProducer{
 				ShallowProducer: prod,
 				DeepProducer:    prod,
