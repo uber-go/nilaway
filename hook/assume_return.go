@@ -35,7 +35,7 @@ func AssumeReturn(pass *analysis.Pass, call *ast.CallExpr) *annotation.ProduceTr
 		}
 	}
 
-	return nil
+	return AssumeReturnForErrorWrapperFunc(pass, call)
 }
 
 // AssumeReturnForErrorWrapperFunc returns the producer for the return value of the given call expression which is
