@@ -407,6 +407,7 @@ type Fields map[string]interface{}
 type WrappedErr interface {
 	Error() string
 	WithFields(Fields) WrappedErr
+	CustomError() WrappedErr
 }
 
 type wrapped struct {
@@ -434,6 +435,13 @@ func Wrap(err error, msg string) WrappedErr {
 	return &wrapped{
 		msg:   msg,
 		cause: err,
+	}
+}
+
+func (w *wrapped) CustomError() WrappedErr {
+	return &wrapped{
+		msg:   w.msg + " (custom)",
+		cause: w.cause,
 	}
 }
 
