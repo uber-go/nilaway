@@ -197,6 +197,11 @@ func backpropAcrossReturn(rootNode *RootAssertionNode, node *ast.ReturnStmt) err
 				// we've identified that a multiply-returning function is being returned
 
 				_, producers := rootNode.ParseExprAsProducer(call, true)
+				if util.FuncNumResults(funcObj) != len(producers) {
+					return fmt.Errorf("mismatch between number of producers (%d) and number of results (%d) for function %s:%s",
+						len(producers), util.FuncNumResults(funcObj), rootNode.functionContext.pass.Fset.Position(funcObj.Pos()), funcObj.FullName())
+				}
+
 				for i := 0; i < util.FuncNumResults(funcObj); i++ {
 					if producers == nil {
 						// this nil check reflects programmer logic
@@ -761,8 +766,8 @@ func backpropAcrossManyToOneAssignment(rootNode *RootAssertionNode, lhs, rhs []a
 	}
 	_, producers := rootNode.ParseExprAsProducer(rhsVal, true)
 	if len(producers) > 0 && len(lhs) != len(producers) {
-		return errors.New("rhsVal function returned different number of results than expression " +
-			"present on lhs of assignment")
+		return fmt.Errorf("rhsVal function at `%s` returned different number of results than expression "+
+			"present on lhs of assignment", rootNode.Pass().Fset.Position(rhsVal.Pos()))
 	}
 	for i := range producers {
 
