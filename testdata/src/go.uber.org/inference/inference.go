@@ -18,154 +18,99 @@
 
 package inference
 
-// var dummyBool bool
-// var dummyInt int
-//
-// func retsNilable1() *int {
-// 	return nil
-// }
-//
-// func retsNilable2() *int {
-// 	if dummyBool {
-// 		return &dummyInt
-// 	}
-// 	return nil
-// }
-//
-// func retsNilable3() *int {
-// 	switch dummyInt {
-// 	case dummyInt:
-// 		return retsNilable1()
-// 	case dummyInt:
-// 		return retsNilable2()
-// 	case dummyInt:
-// 		return retsNilable3()
-// 	}
-// 	return &dummyInt
-// }
-//
-// func retsNonnil1() *int {
-// 	return &dummyInt
-// }
-//
-// func retsNonnil2() *int {
-// 	if dummyBool {
-// 		return &dummyInt
-// 	}
-// 	return &dummyInt
-// }
-//
-// func retsNonnil3() *int {
-// 	switch dummyInt {
-// 	case dummyInt:
-// 		return retsNonnil1()
-// 	case dummyInt:
-// 		return retsNonnil2()
-// 	case dummyInt:
-// 		return retsNonnil3()
-// 	}
-// 	return &dummyInt
-// }
-//
-// func retsNilable4() *int {
-// 	if dummyBool {
-// 		return retsNilable3()
-// 	}
-// 	return retsNilable3()
-// }
-//
-// func takesNonnil(x *int) int {
-// 	return *x
-// }
-//
-// func takesNilable(x *int) int {
-// 	if x == nil {
-// 		return 0
-// 	}
-// 	return *x
-// }
-//
-// func retsAndTakes() {
-// 	switch dummyInt {
-// 	case dummyInt:
-// 		takesNonnil(retsNonnil1())
-// 		takesNonnil(retsNonnil2())
-// 		takesNonnil(retsNonnil3())
-//
-// 		takesNilable(retsNonnil1())
-// 		takesNilable(retsNonnil2())
-// 		takesNilable(retsNonnil3())
-//
-// 		takesNilable(retsNilable1())
-// 		takesNilable(retsNilable2())
-// 		takesNilable(retsNilable3())
-// 		takesNilable(retsNilable4())
-// 	}
-// }
-//
-// // Below test checks the working of inference in the presence of annotations
-// // nonnil(x) nilable(result 0)
-// func foo(x *int) *int { //want "NONNIL because it is annotated as so"
-// 	print(*x)
-// 	return nil
-// }
-//
-// func callFoo() {
-// 	ptr := foo(nil)
-// 	print(*ptr) //want "NILABLE because it is annotated as so"
-// }
-
-type WrappedErr interface {
-	Error() string
-	CustomError() WrappedErr
-}
-
-type wrapped struct {
-	cause error
-	msg   string
-}
-
-func (w *wrapped) Error() string {
-	return w.msg + ": " + w.cause.Error()
-}
-
-func (w *wrapped) CustomError() WrappedErr {
-	return &wrapped{
-		msg:   w.msg + " (custom)",
-		cause: w.cause,
-	}
-}
-
-func Wrap(err error, msg string) WrappedErr {
-	if err == nil {
-		return nil
-	}
-
-	return &wrapped{
-		msg:   msg,
-		cause: err,
-	}
-}
-
 var dummyBool bool
+var dummyInt int
 
-type myErr struct{}
-
-func (myErr) Error() string { return "myErr2 message" }
-
-func retPtrErr() (*int, error) {
-	if dummyBool {
-		err := &myErr{}
-		return nil, Wrap(err, "test error")
-	}
-	return new(int), nil
+func retsNilable1() *int {
+	return nil
 }
 
-func testme() (*int, error) {
-	resp, err := retPtrErr()
-	if err != nil {
-		return nil, Wrap(err, "test error").CustomError()
+func retsNilable2() *int {
+	if dummyBool {
+		return &dummyInt
 	}
-	_ = *resp
-	return resp, nil
+	return nil
+}
+
+func retsNilable3() *int {
+	switch dummyInt {
+	case dummyInt:
+		return retsNilable1()
+	case dummyInt:
+		return retsNilable2()
+	case dummyInt:
+		return retsNilable3()
+	}
+	return &dummyInt
+}
+
+func retsNonnil1() *int {
+	return &dummyInt
+}
+
+func retsNonnil2() *int {
+	if dummyBool {
+		return &dummyInt
+	}
+	return &dummyInt
+}
+
+func retsNonnil3() *int {
+	switch dummyInt {
+	case dummyInt:
+		return retsNonnil1()
+	case dummyInt:
+		return retsNonnil2()
+	case dummyInt:
+		return retsNonnil3()
+	}
+	return &dummyInt
+}
+
+func retsNilable4() *int {
+	if dummyBool {
+		return retsNilable3()
+	}
+	return retsNilable3()
+}
+
+func takesNonnil(x *int) int {
+	return *x
+}
+
+func takesNilable(x *int) int {
+	if x == nil {
+		return 0
+	}
+	return *x
+}
+
+func retsAndTakes() {
+	switch dummyInt {
+	case dummyInt:
+		takesNonnil(retsNonnil1())
+		takesNonnil(retsNonnil2())
+		takesNonnil(retsNonnil3())
+
+		takesNilable(retsNonnil1())
+		takesNilable(retsNonnil2())
+		takesNilable(retsNonnil3())
+
+		takesNilable(retsNilable1())
+		takesNilable(retsNilable2())
+		takesNilable(retsNilable3())
+		takesNilable(retsNilable4())
+	}
+}
+
+// Below test checks the working of inference in the presence of annotations
+// nonnil(x) nilable(result 0)
+func foo(x *int) *int { //want "NONNIL because it is annotated as so"
+	print(*x)
+	return nil
+}
+
+func callFoo() {
+	ptr := foo(nil)
+	print(*ptr) //want "NILABLE because it is annotated as so"
 }
