@@ -438,11 +438,11 @@ func Wrap(err error, msg string) WrappedErr {
 	}
 }
 
-func (w *wrapped) CustomError() WrappedErr {
-	return &wrapped{
-		msg:   w.msg + " (custom)",
-		cause: w.cause,
+func (w *wrapped) WithFields(fields Fields) WrappedErr {
+	for k, v := range fields {
+		w.fields[k] = v
 	}
+	return w
 }
 
 func GetFirstErr(errs ...error) error {
