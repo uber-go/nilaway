@@ -307,13 +307,31 @@ func IsEmptyExpr(expr ast.Expr) bool {
 	return false
 }
 
-// implementsError checks if the given object implements the error interface. It also covers the case of
+// ImplementsError checks if the given object implements the error interface. It also covers the case of
 // interfaces that embed the error interface.
-func implementsError(obj types.Object) bool {
+func ImplementsError(obj types.Object) bool {
 	if ErrorInterface == nil || obj == nil {
 		return false
 	}
-	return types.Implements(obj.Type(), ErrorInterface)
+
+	underlyingType := func(t types.Type) types.Type {
+		switch t := t.(type) {
+		case *types.Pointer:
+			return UnwrapPtr(t)
+		case *types.Named:
+			return t.Underlying()
+		case *types.Slice:
+			return t.Elem().Underlying()
+		case *types.Array:
+			return t.Elem().Underlying()
+		default:
+			return t
+		}
+	}
+
+	t := underlyingType(obj.Type())
+
+	return types.Implements(t, ErrorInterface)
 }
 
 // FuncIsErrReturning encodes the conditions that a function is deemed "error-returning".
@@ -328,12 +346,12 @@ func FuncIsErrReturning(fdecl *types.Func) bool {
 	}
 
 	errRes := results.At(n - 1)
-	if !implementsError(errRes) {
+	if !ImplementsError(errRes) {
 		return false
 	}
 
 	for i := 0; i < n-1; i++ {
-		if implementsError(results.At(i)) {
+		if ImplementsError(results.At(i)) {
 			return false
 		}
 	}
@@ -484,4 +502,47 @@ func truncatePosition(position token.Position) token.Position {
 // PosToLocation converts a token.Pos as a real code location, of token.Position.
 func PosToLocation(pos token.Pos, pass *analysis.Pass) token.Position {
 	return truncatePosition(pass.Fset.Position(pos))
+}
+
+// CallExprFromExpr returns the call expression from the given expression. It recursively
+// traverses the expression tree to find the call expression. If the expression is not a
+// call expression, it returns nil.
+func CallExprFromExpr(expr ast.Expr) *ast.CallExpr {
+	switch e := expr.(type) {
+	case *ast.CallExpr:
+		return e
+	case *ast.ParenExpr:
+		return CallExprFromExpr(e.X)
+	case *ast.UnaryExpr:
+		return CallExprFromExpr(e.X)
+	case *ast.SelectorExpr:
+		return CallExprFromExpr(e.X)
+	}
+	return nil
+}
+
+// IdentOf returns the identifier of the given AST expression, nil otherwise. For example,
+// - For ident `x`, it returns `x`.
+// - For call expr `x.y.z.foo()`, it returns `foo`.
+// - For selector expr `x.y`, it returns `y`.
+// - For unary expr `*x`, it returns `x`.
+// - For composite lit `&S{}`, it returns `S`
+// - For index expr `x[0]`, it returns `x`.
+func IdentOf(expr ast.Expr) *ast.Ident {
+	switch e := expr.(type) {
+	case *ast.Ident:
+		return e
+	case *ast.CallExpr:
+		return FuncIdentFromCallExpr(e)
+	case *ast.UnaryExpr:
+		return IdentOf(e.X)
+	case *ast.CompositeLit:
+		return IdentOf(e.Type)
+	case *ast.SelectorExpr:
+		return e.Sel
+	case *ast.IndexExpr:
+		return IdentOf(e.X)
+	default:
+		return nil
+	}
 }
