@@ -403,14 +403,16 @@ func testErrorWrapper2() (*int, error) {
 	return new(int), nil
 }
 
+type Fields map[string]interface{}
 type WrappedErr interface {
 	Error() string
-	CustomError() WrappedErr
+	WithFields(Fields) WrappedErr
 }
 
 type wrapped struct {
-	cause error
-	msg   string
+	cause  error
+	msg    string
+	fields Fields
 }
 
 func (w *wrapped) Error() string {
@@ -428,11 +430,11 @@ func Wrap(err error, msg string) WrappedErr {
 	}
 }
 
-func (w *wrapped) CustomError() WrappedErr {
-	return &wrapped{
-		msg:   w.msg + " (custom)",
-		cause: w.cause,
+func (w *wrapped) WithFields(fields Fields) WrappedErr {
+	for k, v := range fields {
+		w.fields[k] = v
 	}
+	return w
 }
 
 func testErrorWrapper3() (*int, error) {
@@ -446,10 +448,22 @@ func testErrorWrapper3() (*int, error) {
 func testErrorWrapper4() (*int, error) {
 	if dummy2 {
 		err := &myErr2{}
-		return nil, Wrap(err, "test error").CustomError()
+		return nil, Wrap(err, "test error").WithFields(Fields{"key": "value"})
 	}
 	return new(int), nil
 }
+
+func testErrorWrapper5() error {
+	for i := 0; i < 10; i++ {
+		if i == 5 {
+			err := &myErr2{}
+			return Wrap(err, "test error").WithFields(Fields{"key": "value"})
+		}
+	}
+	return &myErr2{}
+}
+
+func consume(any) {}
 
 func callTestErrorWrapper(i int) {
 	switch i {
@@ -480,5 +494,13 @@ func callTestErrorWrapper(i int) {
 			return
 		}
 		_ = *x
+
+	case 5:
+		err := &myErr2{}
+		consume(Wrap(err, "test error").WithFields(Fields{"key": "value"}).Error())
+
+	case 6:
+		err := testErrorWrapper5()
+		print(err.Error())
 	}
 }
