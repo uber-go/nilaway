@@ -19,7 +19,6 @@ package diagnostic
 
 import (
 	"cmp"
-	"fmt"
 	"go/token"
 	"slices"
 
