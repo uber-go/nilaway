@@ -37,7 +37,9 @@ func (*NoLint) AFact() {}
 
 // Range is a minimal struct that stores the filename and the start and end lines of a nolint scopes.
 type Range struct {
+	// Filename is the filename of the file where the nolint comment is located.
 	Filename string
+	// From and To are the start and end lines of the nolint scope.
 	From, To int
 }
 
@@ -55,8 +57,7 @@ func run(pass *analysis.Pass) ([]Range, error) {
 						continue
 					}
 					fromPos, toPos := pass.Fset.Position(node.Pos()), pass.Fset.Position(node.End())
-					rng := &Range{Filename: tokenhelper.RelToCwd(fromPos.Filename), From: fromPos.Line, To: toPos.Line}
-					ranges = append(ranges, *rng)
+					ranges = append(ranges, Range{Filename: tokenhelper.RelToCwd(fromPos.Filename), From: fromPos.Line, To: toPos.Line})
 				}
 			}
 		}
@@ -72,14 +73,17 @@ func run(pass *analysis.Pass) ([]Range, error) {
 		upstreamRanges = append(upstreamRanges, upstreamNoLintRanges.Ranges...)
 	}
 
+	// Export local nolint ranges for downstream uses.
 	pass.ExportPackageFact(&NoLint{Ranges: ranges})
+
 	return slices.Concat(ranges, upstreamRanges), nil
 }
 
-// https://github.com/bazel-contrib/rules_go/blob/eb13b736d9568044427f23359329155e67071948/go/tools/builders/nolint.go#L21
-
-// nolintContainsNilAway checks if the
+// nolintContainsNilAway checks if the particular comment is a nolint comment for NilAway suppression.
 func nolintContainsNilAway(text string) bool {
+	// This implementation is adapted from
+	// https://github.com/bazel-contrib/rules_go/blob/eb13b736d9568044427f23359329155e67071948/go/tools/builders/nolint.go#L21
+	// under Apache 2.0 license.
 	text = strings.TrimLeft(text, "/ ")
 	if !strings.HasPrefix(text, "nolint") {
 		return false

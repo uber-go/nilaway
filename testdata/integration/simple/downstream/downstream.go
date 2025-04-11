@@ -31,3 +31,18 @@ func GiveUpstreamDerefNoLint() {
 	upstream.DerefNoLintFunc(nil)
 	upstream.DerefNoLintFile(nil)
 }
+
+func localNoLintLint() {
+	var p *int
+	print(*p) //nolint:nilaway
+	print(*p) //nolint:all
+	print(*p) // nolint     :   nilaway // Explanation
+}
+
+//nolint:nilaway
+func localNoLintFunc() {
+	var p *int
+	print(*p)
+	print(*p)
+	print(*p)
+}
