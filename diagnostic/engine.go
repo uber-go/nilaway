@@ -25,6 +25,7 @@ import (
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/inference"
 	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/tokenhelper"
 	"golang.org/x/tools/go/analysis"
 )
@@ -101,9 +102,20 @@ func (e *Engine) Diagnostics(grouping bool) []analysis.Diagnostic {
 		conflicts = groupConflicts(e.conflicts, e.pass)
 	}
 
-	// Build diagnostics from conflicts.
+	// Build diagnostics from conflicts. Apply cross-package nolint suppressions here as well.
+	nolintResult := e.pass.ResultOf[NoLintAnalyzer].(*analysishelper.Result[[]Range])
+	if nolintResult.Err != nil {
+		panic(fmt.Sprintf("failed to get nolint ranges: %v", nolintResult.Err))
+	}
+	nolintRanges := nolintResult.Res
+
 	diagnostics := make([]analysis.Diagnostic, 0, len(conflicts))
 	for _, c := range conflicts {
+		if slices.ContainsFunc(nolintRanges, func(r Range) bool {
+			return c.position.Filename == r.Filename && c.position.Line >= r.From && c.position.Line <= r.To
+		}) {
+			continue
+		}
 		diagnostics = append(diagnostics, analysis.Diagnostic{
 			Pos:     e.toPos(c.position),
 			Message: c.String(),
