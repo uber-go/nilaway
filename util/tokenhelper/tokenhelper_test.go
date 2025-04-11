@@ -12,30 +12,34 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package tokenhelper hosts helper functions that enhance the `token` package (e.g., around
-// position and file path formatting etc.).
 package tokenhelper
 
 import (
 	"os"
 	"path/filepath"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
-var _cwd = func() string {
-	cwd, err := os.Getwd()
-	if err != nil {
-		panic("failed to get current working directory: " + err.Error())
-	}
-	return cwd
-}()
+func TestRelToCwd(t *testing.T) {
+	t.Parallel()
 
-// RelToCwd returns the relative path of the given filename with respect to the current
-// working directory (retrieved during initialization). If the filename is not a child of
-// the current working directory, it returns the filename itself.
-func RelToCwd(filename string) string {
-	rel, err := filepath.Rel(_cwd, filename)
-	if err == nil {
-		return rel
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+
+	testcases := []struct {
+		give string
+		want string
+	}{
+		{give: filepath.Join(cwd, "testdata", "foo.go"), want: filepath.Join("testdata", "foo.go")},
+		{give: filepath.Join("testdata", "foo.go"), want: filepath.Join("testdata", "foo.go")},
 	}
-	return filename
+	for _, tc := range testcases {
+		t.Run(tc.give, func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, tc.want, RelToCwd(tc.give))
+		})
+	}
 }
