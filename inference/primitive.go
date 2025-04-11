@@ -17,10 +17,9 @@ package inference
 import (
 	"fmt"
 	"go/token"
-	"os"
-	"path/filepath"
 
 	"go.uber.org/nilaway/annotation"
+	"go.uber.org/nilaway/util/tokenhelper"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/types/objectpath"
 )
@@ -122,9 +121,6 @@ type primitivizer struct {
 	pass *analysis.Pass
 	// upstreamObjPositions maps "<pkg path>.<object path>" to the correct position.
 	upstreamObjPositions map[string]token.Position
-	// curDir is the current working directory, which is used to trim the prefix (e.g.,  random
-	// sandbox prefix if using bazel) from the file names for cross-package references.
-	curDir string
 	// objPathEncoder is used to encode object paths, which amortizes the cost of encoding the
 	// paths of multiple objects.
 	objPathEncoder *objectpath.Encoder
@@ -170,17 +166,9 @@ func newPrimitivizer(pass *analysis.Pass) *primitivizer {
 		})
 	}
 
-	// Find the current working directory (e.g., random sandbox prefix if using bazel) for
-	// trimming the file names.
-	cwd, err := os.Getwd()
-	if err != nil {
-		panic(fmt.Sprintf("cannot get current working directory: %v", err))
-	}
-
 	return &primitivizer{
 		pass:                 pass,
 		upstreamObjPositions: upstreamObjPositions,
-		curDir:               cwd,
 		objPathEncoder:       &objectpath.Encoder{},
 	}
 }
@@ -266,9 +254,7 @@ func (p *primitivizer) toPosition(pos token.Pos) token.Position {
 	// For other drivers (standard or golangci-lint), we won't even have this prefix prepended,
 	// since the file paths will always be in the form of the relative paths (e.g.,
 	// `src/mypkg/mysrc1.go`). Trimming the prefixes here for them is simply a no-op.
-	if name, err := filepath.Rel(p.curDir, position.Filename); err == nil {
-		position.Filename = name
-	}
+	position.Filename = tokenhelper.RelToCwd(position.Filename)
 
 	return position
 }
