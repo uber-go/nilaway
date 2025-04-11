@@ -314,22 +314,23 @@ func ImplementsError(obj types.Object) bool {
 		return false
 	}
 
-	underlyingType := func(t types.Type) types.Type {
-		switch t := t.(type) {
-		case *types.Pointer:
-			return UnwrapPtr(t)
-		case *types.Named:
-			return t.Underlying()
-		case *types.Slice:
-			return t.Elem().Underlying()
-		case *types.Array:
-			return t.Elem().Underlying()
-		default:
-			return t
-		}
-	}
-
-	t := underlyingType(obj.Type())
+	// underlyingType := func(t types.Type) types.Type {
+	// 	switch t := t.(type) {
+	// 	case *types.Pointer:
+	// 		return UnwrapPtr(t)
+	// 	case *types.Named:
+	// 		return t.Underlying()
+	// 	case *types.Slice:
+	// 		return t.Elem().Underlying()
+	// 	case *types.Array:
+	// 		return t.Elem().Underlying()
+	// 	default:
+	// 		return t
+	// 	}
+	// }
+	//
+	// t := underlyingType(obj.Type())
+	t := obj.Type()
 
 	return types.Implements(t, ErrorInterface)
 }

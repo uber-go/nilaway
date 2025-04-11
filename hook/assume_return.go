@@ -72,17 +72,19 @@ func isErrorWrapperFunc(pass *analysis.Pass, call *ast.CallExpr) bool {
 
 		// If the function is a method, we need to check if the receiver is an error-implementing type.
 		// We add it to the argument list to check if it is an error-implementing type.
-		if funcObj.Type().(*types.Signature).Recv() != nil {
-			args = append(args, call.Fun)
-		}
+		// if funcObj.Type().(*types.Signature).Recv() != nil {
+		// 	args = append(args, call.Fun)
+		// }
 		for _, arg := range args {
-			if callExpr := util.CallExprFromExpr(arg); callExpr != nil {
-				return isErrorWrapperFunc(pass, callExpr)
-			}
+			// if callExpr := util.CallExprFromExpr(arg); callExpr != nil {
+			// if callExpr, ok := arg.(*ast.CallExpr); ok {
+			// 	return isErrorWrapperFunc(pass, callExpr)
+			// }
 
 			if argIdent := util.IdentOf(arg); argIdent != nil {
 				argObj := pass.TypesInfo.ObjectOf(argIdent)
-				if util.ImplementsError(argObj) {
+				// if util.ImplementsError(argObj) {
+				if types.Implements(argObj.Type(), util.ErrorType.Underlying().(*types.Interface)) {
 					return true
 				}
 			}
