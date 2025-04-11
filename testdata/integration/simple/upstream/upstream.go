@@ -36,6 +36,7 @@ func DerefNoLintLine(v *int) {
 	print(*v) // nolint:all
 	print(*v) //     nolint:     nilaway
 	print(*v) ////nolint:nilaway
+	print(*v) //nolint
 }
 
 //nolint:nilaway

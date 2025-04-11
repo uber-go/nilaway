@@ -37,6 +37,8 @@ func localNoLintLint() {
 	print(*p) //nolint:nilaway
 	print(*p) //nolint:all
 	print(*p) // nolint     :   nilaway // Explanation
+	print(*p) //nolint
+	print(*p) ////nolint:nilaway
 }
 
 //nolint:nilaway
