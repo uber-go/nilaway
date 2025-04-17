@@ -45,7 +45,7 @@ var Analyzer = &analysis.Analyzer{
 	Doc:        _doc,
 	Run:        run,
 	FactTypes:  []analysis.Fact{new(inference.InferredMap)},
-	Requires:   []*analysis.Analyzer{config.Analyzer, assertion.Analyzer, annotation.Analyzer},
+	Requires:   []*analysis.Analyzer{config.Analyzer, assertion.Analyzer, annotation.Analyzer, diagnostic.NoLintAnalyzer},
 	ResultType: reflect.TypeOf(([]analysis.Diagnostic)(nil)),
 }
 

@@ -1,4 +1,5 @@
 package downstream
+
 import "go.uber.org/nilaway/integration/contracts/upstream"
 
 func NonnilToNonnil(v *int) *int {
