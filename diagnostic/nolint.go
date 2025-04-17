@@ -87,8 +87,10 @@ func run(pass *analysis.Pass) ([]Range, error) {
 		upstreamRanges = append(upstreamRanges, upstreamNoLintRanges.Ranges...)
 	}
 
-	// Export local nolint ranges for downstream uses.
-	pass.ExportPackageFact(&NoLint{Ranges: ranges})
+	// Export local nolint ranges (if available) for downstream uses.
+	if len(ranges) == 0 {
+		pass.ExportPackageFact(&NoLint{Ranges: ranges})
+	}
 
 	return slices.Concat(ranges, upstreamRanges), nil
 }
