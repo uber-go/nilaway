@@ -88,7 +88,7 @@ func run(pass *analysis.Pass) ([]Range, error) {
 	}
 
 	// Export local nolint ranges (if available) for downstream uses.
-	if len(ranges) == 0 {
+	if len(ranges) != 0 {
 		pass.ExportPackageFact(&NoLint{Ranges: ranges})
 	}
 
