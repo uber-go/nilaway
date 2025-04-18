@@ -1,0 +1,9 @@
+# This will be filled by our integration test driver as the version listed in <root>/.golangci.version
+# (which is the gcl version we use for linting NilAway's codebase). This would ensure that we are
+# using the same version of gcl across the codebase and the integration test driver.
+version: {{.GCLVersion}}
+
+plugins:
+  - module: "go.uber.org/nilaway"
+    import: "go.uber.org/nilaway/cmd/gclplugin"
+    path: {{.NilAwayPath}}

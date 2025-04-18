@@ -133,6 +133,7 @@ func Run() error {
 
 	drivers := []Driver{
 		&StandaloneDriver{},
+		&GolangCILintDriver{},
 	}
 	for _, driver := range drivers {
 		name := reflect.TypeOf(driver).Elem().Name()
