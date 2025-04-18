@@ -460,7 +460,7 @@ func (BlankVarReturnPrestring) String() string {
 // DuplicateParamProducer duplicates a given produce trigger, assuming the given produce trigger
 // is of FuncParam.
 func DuplicateParamProducer(t *ProduceTrigger, location token.Position) *ProduceTrigger {
-	key := t.Annotation.(*FuncParam).TriggerIfNilable.Ann.(*ParamAnnotationKey)
+	key := t.Annotation.(*FuncParam).Ann.(*ParamAnnotationKey)
 	return &ProduceTrigger{
 		Annotation: &FuncParam{
 			TriggerIfNilable: &TriggerIfNilable{
@@ -837,8 +837,8 @@ type MethodResultReachesInterface struct {
 func (m *MethodResultReachesInterface) equals(other ProducingAnnotationTrigger) bool {
 	if other, ok := other.(*MethodResultReachesInterface); ok {
 		return m.TriggerIfNilable.equals(other.TriggerIfNilable) &&
-			m.AffiliationPair.InterfaceMethod == other.AffiliationPair.InterfaceMethod &&
-			m.AffiliationPair.ImplementingMethod == other.AffiliationPair.ImplementingMethod
+			m.InterfaceMethod == other.InterfaceMethod &&
+			m.ImplementingMethod == other.ImplementingMethod
 	}
 	return false
 }
@@ -874,8 +874,8 @@ type InterfaceParamReachesImplementation struct {
 func (i *InterfaceParamReachesImplementation) equals(other ProducingAnnotationTrigger) bool {
 	if other, ok := other.(*InterfaceParamReachesImplementation); ok {
 		return i.TriggerIfNilable.equals(other.TriggerIfNilable) &&
-			i.AffiliationPair.InterfaceMethod == other.AffiliationPair.InterfaceMethod &&
-			i.AffiliationPair.ImplementingMethod == other.AffiliationPair.ImplementingMethod
+			i.InterfaceMethod == other.InterfaceMethod &&
+			i.ImplementingMethod == other.ImplementingMethod
 	}
 	return false
 }
