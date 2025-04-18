@@ -92,6 +92,29 @@ plugins:
 
 (2) Add NilAway to the linter configuration file `.golangci.yaml`:
 
+For golangci-lint v2:
+
+```yaml
+version: "2"
+linters:
+  enable:
+    - nilaway
+  settings:
+    custom:
+      nilaway:
+        type: module
+        description: Static analysis tool to detect potential nil panics in Go code.
+        settings:
+          # Settings must be a "map from string to string" to mimic command line flags: the keys are
+          # flag names and the values are the values to the particular flags.
+          include-pkgs: "<YOUR_PACKAGE_PREFIXES>"
+```
+
+
+<details>
+
+<summary>For golangci-lint v1:</summary>
+
 ```yaml
 linters-settings:
   custom:
@@ -105,6 +128,8 @@ linters-settings:
 # NilAway can be referred to as `nilaway` just like any other golangci-lint analyzers in other 
 # parts of the configuration file.
 ```
+
+</details>
 
 (3) Build a custom golangci-lint binary with NilAway included:
 
