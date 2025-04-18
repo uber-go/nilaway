@@ -81,7 +81,7 @@ func (d *GolangCILintDriver) Run(dir string) (diagnostics map[Position]string, e
 
 	// Run the custom-gcl to collect NilAway diagnostics.
 	diagnosticFile := filepath.Join(tempDir, "diagnostics.json")
-	cmd = exec.Command(filepath.Join(tempDir, "custom-gcl"), "run", "--output.json.path", diagnosticFile, "./...")
+	cmd = exec.Command(filepath.Join(tempDir, "custom-gcl"), "run", "--output.json.path", diagnosticFile, "--path-mode", "abs", "./...")
 	cmd.Dir = dir
 	// golangci-lint exits with status 1 when it finds issues, which is expected.
 	var exitErr *exec.ExitError
@@ -93,10 +93,10 @@ func (d *GolangCILintDriver) Run(dir string) (diagnostics map[Position]string, e
 	if err != nil {
 		return nil, fmt.Errorf("failed to read diagnostics file: %w", err)
 	}
-	return parseGolangCILintOutput(dir, data)
+	return parseGolangCILintOutput(data)
 }
 
-func parseGolangCILintOutput(dir string, output []byte) (map[Position]string, error) {
+func parseGolangCILintOutput(output []byte) (map[Position]string, error) {
 	if len(output) == 0 {
 		return map[Position]string{}, nil
 	}
@@ -118,8 +118,6 @@ func parseGolangCILintOutput(dir string, output []byte) (map[Position]string, er
 		if issue.FromLinter != "nilaway" {
 			continue
 		}
-		// The file names from golangci-lint are relative, so here we attach the dir prefix for comparisons.
-		issue.Pos.Filename = filepath.Join(dir, issue.Pos.Filename)
 		diagnostics[issue.Pos] = issue.Text
 	}
 
