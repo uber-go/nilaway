@@ -569,13 +569,14 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 		//
 		// A similar approach is followed for the `||` operator, where we only need to care about the false branch since the
 		// Y expression won't be executed if the X expression is true.
-		if expr.Op == token.LAND {
+		switch expr.Op {
+		case token.LAND:
 			for _, e := range [...]ast.Expr{expr.Y, expr.X} {
 				if trueNilCheck, _, isNoop := AddNilCheck(r.Pass(), e); !isNoop {
 					trueNilCheck(r)
 				}
 			}
-		} else if expr.Op == token.LOR {
+		case token.LOR:
 			for _, e := range [...]ast.Expr{expr.Y, expr.X} {
 				if _, falseNilCheck, isNoop := AddNilCheck(r.Pass(), e); !isNoop {
 					falseNilCheck(r)

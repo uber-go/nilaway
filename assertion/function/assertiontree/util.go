@@ -506,9 +506,10 @@ func FilterTriggersForErrorReturn(
 
 			// "|" helps to encode if both nil and non-nil values are found through different paths
 			prodNilability := computeProducerNilability(t.Producer)
-			if prodNilability == ProducerIsNonNil {
+			switch prodNilability {
+			case ProducerIsNonNil:
 				v.nilability |= _errRetNonnil
-			} else if prodNilability == ProducerIsNil {
+			case ProducerIsNil:
 				v.nilability |= _errRetNil
 			}
 			retTriggers[c.RetStmt] = v

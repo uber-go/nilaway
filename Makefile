@@ -2,7 +2,7 @@
 PROJECT_ROOT = $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 export GOBIN = $(PROJECT_ROOT)/bin
 
-GOLANGCI_LINT_VERSION := $(shell $(GOBIN)/golangci-lint version --format short 2>/dev/null)
+GOLANGCI_LINT_VERSION := $(shell $(GOBIN)/golangci-lint version --short 2>/dev/null)
 REQUIRED_GOLANGCI_LINT_VERSION := $(shell cat .golangci.version)
 
 # Directories containing independent Go modules.

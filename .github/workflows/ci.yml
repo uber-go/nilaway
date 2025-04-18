@@ -26,7 +26,7 @@ jobs:
       # We do not really run golangci-lint here (hence we use the -h flag). We just use the
       # golangci-lint action to install it and reuses its internal caching infrastructure.
       # The actual execution is done in the Lint job (together with other custom linting tasks).
-      - uses: golangci/golangci-lint-action@v4
+      - uses: golangci/golangci-lint-action@v7
         name: Install golangci-lint
         with:
           version: v${{ steps.golangci-version.outputs.GOLANGCI_VERSION }}

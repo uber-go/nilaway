@@ -194,19 +194,19 @@ func (t *TriggerIfNonNil) equals(other ConsumingAnnotationTrigger) bool {
 func (t *TriggerIfNonNil) Copy() ConsumingAnnotationTrigger {
 	copyConsumer := *t
 	copyConsumer.Ann = t.Ann.copy()
-	copyConsumer.assignmentFlow = t.assignmentFlow.copy()
+	copyConsumer.assignmentFlow = t.copy()
 	return &copyConsumer
 }
 
 // AddAssignment adds an assignment to the trigger.
 func (t *TriggerIfNonNil) AddAssignment(e Assignment) {
-	t.assignmentFlow.addEntry(e)
+	t.addEntry(e)
 }
 
 // Prestring returns this Prestring as a Prestring
 func (t *TriggerIfNonNil) Prestring() Prestring {
 	return TriggerIfNonNilPrestring{
-		AssignmentStr: t.assignmentFlow.String(),
+		AssignmentStr: t.String(),
 	}
 }
 
@@ -265,19 +265,19 @@ func (t *TriggerIfDeepNonNil) equals(other ConsumingAnnotationTrigger) bool {
 func (t *TriggerIfDeepNonNil) Copy() ConsumingAnnotationTrigger {
 	copyConsumer := *t
 	copyConsumer.Ann = t.Ann.copy()
-	copyConsumer.assignmentFlow = t.assignmentFlow.copy()
+	copyConsumer.assignmentFlow = t.copy()
 	return &copyConsumer
 }
 
 // AddAssignment adds an assignment to the trigger.
 func (t *TriggerIfDeepNonNil) AddAssignment(e Assignment) {
-	t.assignmentFlow.addEntry(e)
+	t.addEntry(e)
 }
 
 // Prestring returns this Prestring as a Prestring
 func (t *TriggerIfDeepNonNil) Prestring() Prestring {
 	return TriggerIfDeepNonNilPrestring{
-		AssignmentStr: t.assignmentFlow.String(),
+		AssignmentStr: t.String(),
 	}
 }
 
@@ -331,19 +331,19 @@ func (c *ConsumeTriggerTautology) equals(other ConsumingAnnotationTrigger) bool 
 // Copy returns a deep copy of this ConsumingAnnotationTrigger
 func (c *ConsumeTriggerTautology) Copy() ConsumingAnnotationTrigger {
 	copyConsumer := *c
-	copyConsumer.assignmentFlow = c.assignmentFlow.copy()
+	copyConsumer.assignmentFlow = c.copy()
 	return &copyConsumer
 }
 
 // AddAssignment adds an assignment to the trigger.
 func (c *ConsumeTriggerTautology) AddAssignment(e Assignment) {
-	c.assignmentFlow.addEntry(e)
+	c.addEntry(e)
 }
 
 // Prestring returns this Prestring as a Prestring
 func (c *ConsumeTriggerTautology) Prestring() Prestring {
 	return ConsumeTriggerTautologyPrestring{
-		AssignmentStr: c.assignmentFlow.String(),
+		AssignmentStr: c.String(),
 	}
 }
 
@@ -382,7 +382,7 @@ func (p *PtrLoad) Copy() ConsumingAnnotationTrigger {
 // Prestring returns this PtrLoad as a Prestring
 func (p *PtrLoad) Prestring() Prestring {
 	return PtrLoadPrestring{
-		AssignmentStr: p.assignmentFlow.String(),
+		AssignmentStr: p.String(),
 	}
 }
 
@@ -423,7 +423,7 @@ func (i *MapAccess) Copy() ConsumingAnnotationTrigger {
 // Prestring returns this MapAccess as a Prestring
 func (i *MapAccess) Prestring() Prestring {
 	return MapAccessPrestring{
-		AssignmentStr: i.assignmentFlow.String(),
+		AssignmentStr: i.String(),
 	}
 }
 
@@ -463,7 +463,7 @@ func (m *MapWrittenTo) Copy() ConsumingAnnotationTrigger {
 // Prestring returns this MapWrittenTo as a Prestring
 func (m *MapWrittenTo) Prestring() Prestring {
 	return MapWrittenToPrestring{
-		AssignmentStr: m.assignmentFlow.String(),
+		AssignmentStr: m.String(),
 	}
 }
 
@@ -502,7 +502,7 @@ func (s *SliceAccess) Copy() ConsumingAnnotationTrigger {
 // Prestring returns this SliceAccess as a Prestring
 func (s *SliceAccess) Prestring() Prestring {
 	return SliceAccessPrestring{
-		AssignmentStr: s.assignmentFlow.String(),
+		AssignmentStr: s.String(),
 	}
 }
 
@@ -555,7 +555,7 @@ func (f *FldAccess) Prestring() Prestring {
 	return FldAccessPrestring{
 		FieldName:     fieldName,
 		MethodName:    methodName,
-		AssignmentStr: f.assignmentFlow.String(),
+		AssignmentStr: f.String(),
 	}
 }
 
@@ -610,7 +610,7 @@ func (u *UseAsErrorResult) Prestring() Prestring {
 		ReturningFuncStr: retAnn.FuncDecl.Name(),
 		IsNamedReturn:    u.IsNamedReturn,
 		RetName:          retAnn.FuncDecl.Type().(*types.Signature).Results().At(retAnn.RetNum).Name(),
-		AssignmentStr:    u.assignmentFlow.String(),
+		AssignmentStr:    u.String(),
 	}
 }
 
@@ -667,7 +667,7 @@ func (f *FldAssign) Prestring() Prestring {
 	fldAnn := f.Ann.(*FieldAnnotationKey)
 	return FldAssignPrestring{
 		FieldName:     fldAnn.FieldDecl.Name(),
-		AssignmentStr: f.assignmentFlow.String(),
+		AssignmentStr: f.String(),
 	}
 }
 
@@ -720,7 +720,7 @@ func (f *ArgFldPass) Prestring() Prestring {
 		ParamNum:      ann.ParamNum,
 		RecvName:      recvName,
 		IsPassed:      f.IsPassed,
-		AssignmentStr: f.assignmentFlow.String(),
+		AssignmentStr: f.String(),
 	}
 }
 
@@ -776,7 +776,7 @@ func (g *GlobalVarAssign) Prestring() Prestring {
 	varAnn := g.Ann.(*GlobalVarAnnotationKey)
 	return GlobalVarAssignPrestring{
 		VarName:       varAnn.VarDecl.Name(),
-		AssignmentStr: g.assignmentFlow.String(),
+		AssignmentStr: g.String(),
 	}
 }
 
@@ -826,14 +826,14 @@ func (a *ArgPass) Prestring() Prestring {
 			ParamName:     key.MinimalString(),
 			FuncName:      key.FuncDecl.Name(),
 			Location:      "",
-			AssignmentStr: a.assignmentFlow.String(),
+			AssignmentStr: a.String(),
 		}
 	case *CallSiteParamAnnotationKey:
 		return ArgPassPrestring{
 			ParamName:     key.MinimalString(),
 			FuncName:      key.FuncDecl.Name(),
 			Location:      key.Location.String(),
-			AssignmentStr: a.assignmentFlow.String(),
+			AssignmentStr: a.String(),
 		}
 	default:
 		panic(fmt.Sprintf(
@@ -889,14 +889,14 @@ func (a *ArgPassDeep) Prestring() Prestring {
 			ParamName:     key.MinimalString(),
 			FuncName:      key.FuncDecl.Name(),
 			Location:      "",
-			AssignmentStr: a.assignmentFlow.String(),
+			AssignmentStr: a.String(),
 		}
 	case *CallSiteParamAnnotationKey:
 		return ArgPassPrestring{
 			ParamName:     key.MinimalString(),
 			FuncName:      key.FuncDecl.Name(),
 			Location:      key.Location.String(),
-			AssignmentStr: a.assignmentFlow.String(),
+			AssignmentStr: a.String(),
 		}
 	default:
 		panic(fmt.Sprintf(
@@ -950,7 +950,7 @@ func (a *RecvPass) Prestring() Prestring {
 	recvAnn := a.Ann.(*RecvAnnotationKey)
 	return RecvPassPrestring{
 		FuncName:      recvAnn.FuncDecl.Name(),
-		AssignmentStr: a.assignmentFlow.String(),
+		AssignmentStr: a.String(),
 	}
 }
 
@@ -977,8 +977,8 @@ type InterfaceResultFromImplementation struct {
 func (i *InterfaceResultFromImplementation) equals(other ConsumingAnnotationTrigger) bool {
 	if other, ok := other.(*InterfaceResultFromImplementation); ok {
 		return i.TriggerIfNonNil.equals(other.TriggerIfNonNil) &&
-			i.AffiliationPair.InterfaceMethod == other.AffiliationPair.InterfaceMethod &&
-			i.AffiliationPair.ImplementingMethod == other.AffiliationPair.ImplementingMethod
+			i.InterfaceMethod == other.InterfaceMethod &&
+			i.ImplementingMethod == other.ImplementingMethod
 	}
 	return false
 }
@@ -997,7 +997,7 @@ func (i *InterfaceResultFromImplementation) Prestring() Prestring {
 		retAnn.RetNum,
 		util.PartiallyQualifiedFuncName(retAnn.FuncDecl),
 		util.PartiallyQualifiedFuncName(i.ImplementingMethod),
-		i.assignmentFlow.String(),
+		i.String(),
 	}
 }
 
@@ -1027,8 +1027,8 @@ type MethodParamFromInterface struct {
 func (m *MethodParamFromInterface) equals(other ConsumingAnnotationTrigger) bool {
 	if other, ok := other.(*MethodParamFromInterface); ok {
 		return m.TriggerIfNonNil.equals(other.TriggerIfNonNil) &&
-			m.AffiliationPair.InterfaceMethod == other.AffiliationPair.InterfaceMethod &&
-			m.AffiliationPair.ImplementingMethod == other.AffiliationPair.ImplementingMethod
+			m.InterfaceMethod == other.InterfaceMethod &&
+			m.ImplementingMethod == other.ImplementingMethod
 	}
 	return false
 }
@@ -1047,7 +1047,7 @@ func (m *MethodParamFromInterface) Prestring() Prestring {
 		paramAnn.ParamNameString(),
 		util.PartiallyQualifiedFuncName(paramAnn.FuncDecl),
 		util.PartiallyQualifiedFuncName(m.InterfaceMethod),
-		m.assignmentFlow.String(),
+		m.String(),
 	}
 }
 
@@ -1071,7 +1071,7 @@ func (m MethodParamFromInterfacePrestring) String() string {
 // is for a UseAsReturn annotation.
 func DuplicateReturnConsumer(t *ConsumeTrigger, location token.Position) *ConsumeTrigger {
 	ann := t.Annotation.(*UseAsReturn)
-	key := ann.TriggerIfNonNil.Ann.(*RetAnnotationKey)
+	key := ann.Ann.(*RetAnnotationKey)
 	return &ConsumeTrigger{
 		Annotation: &UseAsReturn{
 			TriggerIfNonNil: &TriggerIfNonNil{
@@ -1125,7 +1125,7 @@ func (u *UseAsReturn) Prestring() Prestring {
 			u.IsNamedReturn,
 			key.FuncDecl.Type().(*types.Signature).Results().At(key.RetNum).Name(),
 			"",
-			u.assignmentFlow.String(),
+			u.String(),
 		}
 	case *CallSiteRetAnnotationKey:
 		return UseAsReturnPrestring{
@@ -1134,7 +1134,7 @@ func (u *UseAsReturn) Prestring() Prestring {
 			u.IsNamedReturn,
 			key.FuncDecl.Type().(*types.Signature).Results().At(key.RetNum).Name(),
 			key.Location.String(),
-			u.assignmentFlow.String(),
+			u.String(),
 		}
 	default:
 		panic(fmt.Sprintf("Expected RetAnnotationKey or CallSiteRetAnnotationKey but got: %T", key))
@@ -1208,7 +1208,7 @@ func (u *UseAsReturnDeep) Prestring() Prestring {
 		key.FuncDecl.Name(),
 		key.RetNum,
 		key.FuncDecl.Type().(*types.Signature).Results().At(key.RetNum).Name(),
-		u.assignmentFlow.String(),
+		u.String(),
 	}
 }
 
@@ -1267,7 +1267,7 @@ func (u *UseAsFldOfReturn) Prestring() Prestring {
 		retAnn.FuncDecl.Name(),
 		retAnn.FieldDecl.Name(),
 		retAnn.RetNum,
-		u.assignmentFlow.String(),
+		u.String(),
 	}
 }
 
@@ -1347,7 +1347,7 @@ func (f *SliceAssign) Prestring() Prestring {
 	fldAnn := f.Ann.(*TypeNameAnnotationKey)
 	return SliceAssignPrestring{
 		fldAnn.TypeDecl.Name(),
-		f.assignmentFlow.String(),
+		f.String(),
 	}
 }
 
@@ -1389,7 +1389,7 @@ func (a *ArrayAssign) Prestring() Prestring {
 	fldAnn := a.Ann.(*TypeNameAnnotationKey)
 	return ArrayAssignPrestring{
 		fldAnn.TypeDecl.Name(),
-		a.assignmentFlow.String(),
+		a.String(),
 	}
 }
 
@@ -1431,7 +1431,7 @@ func (f *PtrAssign) Prestring() Prestring {
 	fldAnn := f.Ann.(*TypeNameAnnotationKey)
 	return PtrAssignPrestring{
 		fldAnn.TypeDecl.Name(),
-		f.assignmentFlow.String(),
+		f.String(),
 	}
 }
 
@@ -1473,7 +1473,7 @@ func (f *MapAssign) Prestring() Prestring {
 	fldAnn := f.Ann.(*TypeNameAnnotationKey)
 	return MapAssignPrestring{
 		fldAnn.TypeDecl.Name(),
-		f.assignmentFlow.String(),
+		f.String(),
 	}
 }
 
@@ -1514,7 +1514,7 @@ func (d *DeepAssignPrimitive) Copy() ConsumingAnnotationTrigger {
 // Prestring returns this Prestring as a Prestring
 func (d *DeepAssignPrimitive) Prestring() Prestring {
 	return DeepAssignPrimitivePrestring{
-		AssignmentStr: d.assignmentFlow.String(),
+		AssignmentStr: d.String(),
 	}
 }
 
@@ -1554,7 +1554,7 @@ func (p *ParamAssignDeep) Copy() ConsumingAnnotationTrigger {
 func (p *ParamAssignDeep) Prestring() Prestring {
 	return ParamAssignDeepPrestring{
 		p.Ann.(*ParamAnnotationKey).MinimalString(),
-		p.assignmentFlow.String(),
+		p.String(),
 	}
 }
 
@@ -1597,7 +1597,7 @@ func (f *FuncRetAssignDeep) Prestring() Prestring {
 	return FuncRetAssignDeepPrestring{
 		retAnn.FuncDecl.Name(),
 		retAnn.RetNum,
-		f.assignmentFlow.String(),
+		f.String(),
 	}
 }
 
@@ -1641,7 +1641,7 @@ func (v *VariadicParamAssignDeep) Prestring() Prestring {
 	paramAnn := v.Ann.(*ParamAnnotationKey)
 	return VariadicParamAssignDeepPrestring{
 		ParamName:     paramAnn.MinimalString(),
-		AssignmentStr: v.assignmentFlow.String(),
+		AssignmentStr: v.String(),
 	}
 }
 
@@ -1683,7 +1683,7 @@ func (f *FieldAssignDeep) Prestring() Prestring {
 	fldAnn := f.Ann.(*FieldAnnotationKey)
 	return FieldAssignDeepPrestring{
 		fldAnn.FieldDecl.Name(),
-		f.assignmentFlow.String(),
+		f.String(),
 	}
 }
 
@@ -1725,7 +1725,7 @@ func (g *GlobalVarAssignDeep) Prestring() Prestring {
 	varAnn := g.Ann.(*GlobalVarAnnotationKey)
 	return GlobalVarAssignDeepPrestring{
 		varAnn.VarDecl.Name(),
-		g.assignmentFlow.String(),
+		g.String(),
 	}
 }
 
@@ -1766,7 +1766,7 @@ func (l *LocalVarAssignDeep) Copy() ConsumingAnnotationTrigger {
 func (l *LocalVarAssignDeep) Prestring() Prestring {
 	return LocalVarAssignDeepPrestring{
 		VarName:       l.Ann.(*LocalVarAnnotationKey).VarDecl.Name(),
-		AssignmentStr: l.assignmentFlow.String(),
+		AssignmentStr: l.String(),
 	}
 }
 
@@ -1808,7 +1808,7 @@ func (c *ChanSend) Prestring() Prestring {
 	typeAnn := c.Ann.(*TypeNameAnnotationKey)
 	return ChanSendPrestring{
 		typeAnn.TypeDecl.Name(),
-		c.assignmentFlow.String(),
+		c.String(),
 	}
 }
 
@@ -1857,7 +1857,7 @@ func (f *FldEscape) Prestring() Prestring {
 	ann := f.Ann.(*EscapeFieldAnnotationKey)
 	return FldEscapePrestring{
 		FieldName:     ann.FieldDecl.Name(),
-		AssignmentStr: f.assignmentFlow.String(),
+		AssignmentStr: f.String(),
 	}
 }
 
@@ -1908,7 +1908,7 @@ func (u *UseAsNonErrorRetDependentOnErrorRetNilability) Prestring() Prestring {
 		retAnn.FuncDecl.Type().(*types.Signature).Results().At(retAnn.RetNum).Name(),
 		retAnn.FuncDecl.Type().(*types.Signature).Results().Len() - 1,
 		u.IsNamedReturn,
-		u.assignmentFlow.String(),
+		u.String(),
 	}
 }
 
@@ -1976,7 +1976,7 @@ func (u *UseAsErrorRetWithNilabilityUnknown) Prestring() Prestring {
 		retAnn.RetNum,
 		u.IsNamedReturn,
 		retAnn.FuncDecl.Type().(*types.Signature).Results().At(retAnn.RetNum).Name(),
-		u.assignmentFlow.String(),
+		u.String(),
 	}
 }
 
