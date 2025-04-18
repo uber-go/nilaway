@@ -6,6 +6,12 @@ linters:
     - paralleltest
     - revive
   settings:
+    staticcheck:
+      checks:
+        - all
+        # disable the rule QF1001: "could apply De Morgan's law" since it does not lead to clarity
+        # in most cases.
+        - '-QF1001'
     goheader:
       values:
         regexp:
