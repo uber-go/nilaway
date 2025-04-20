@@ -197,7 +197,7 @@ func backpropAcrossReturn(rootNode *RootAssertionNode, node *ast.ReturnStmt) err
 				// we've identified that a multiply-returning function is being returned
 
 				_, producers := rootNode.ParseExprAsProducer(call, true)
-				for i := 0; i < util.FuncNumResults(funcObj); i++ {
+				for i := range producers {
 					if producers == nil {
 						// this nil check reflects programmer logic
 						return errors.New("producers variable is nil")
@@ -760,10 +760,6 @@ func backpropAcrossManyToOneAssignment(rootNode *RootAssertionNode, lhs, rhs []a
 			"rhsVal count, but rhsVal is not a call expression")
 	}
 	_, producers := rootNode.ParseExprAsProducer(rhsVal, true)
-	if len(producers) > 0 && len(lhs) != len(producers) {
-		return errors.New("rhsVal function returned different number of results than expression " +
-			"present on lhs of assignment")
-	}
 	for i := range producers {
 
 		lhsVal := lhs[i]

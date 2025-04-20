@@ -35,7 +35,7 @@ func AssumeReturn(pass *analysis.Pass, call *ast.CallExpr) *annotation.ProduceTr
 		}
 	}
 
-	return nil
+	return AssumeReturnForErrorWrapperFunc(pass, call)
 }
 
 // AssumeReturnForErrorWrapperFunc returns the producer for the return value of the given call expression which is
@@ -68,16 +68,22 @@ func isErrorWrapperFunc(pass *analysis.Pass, call *ast.CallExpr) bool {
 		return false
 	}
 	if util.FuncIsErrReturning(funcObj) {
-		for _, arg := range call.Args {
-			if callExpr, ok := arg.(*ast.CallExpr); ok {
+		args := call.Args
+
+		// If the function is a method, we need to check if the receiver is an error-implementing type.
+		// We add it to the argument list to check if it is an error-implementing type.
+		if funcObj.Type().(*types.Signature).Recv() != nil {
+			args = append(args, call.Fun)
+		}
+		for _, arg := range args {
+			if callExpr := util.CallExprFromExpr(arg); callExpr != nil {
 				return isErrorWrapperFunc(pass, callExpr)
 			}
 
-			if argIdent, ok := arg.(*ast.Ident); ok {
-				if argObj := pass.TypesInfo.ObjectOf(argIdent); argObj != nil {
-					if types.Implements(argObj.Type(), util.ErrorType.Underlying().(*types.Interface)) {
-						return true
-					}
+			if argIdent := util.IdentOf(arg); argIdent != nil {
+				argObj := pass.TypesInfo.ObjectOf(argIdent)
+				if util.ImplementsError(argObj) {
+					return true
 				}
 			}
 		}
