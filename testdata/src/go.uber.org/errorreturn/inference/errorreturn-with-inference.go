@@ -438,11 +438,35 @@ func Wrap(err error, msg string) WrappedErr {
 	}
 }
 
-func (w *wrapped) WithFields(fields Fields) WrappedErr {
-	for k, v := range fields {
-		w.fields[k] = v
+func GetFirstErr(errs ...error) error {
+	if len(errs) == 0 {
+		return nil
 	}
-	return w
+	return errs[0]
+}
+
+func GetFirstErrArr(errs [2]error) error {
+	if errs[0] == nil && errs[1] == nil {
+		return nil
+	}
+	return errs[0]
+}
+
+func GetErrPtr(e *error) error {
+	if e == nil {
+		return nil
+	}
+	return *e
+}
+
+// named type of error
+type myError error
+
+func GetErrNamedType(e myError) myError {
+	if e == nil {
+		return nil
+	}
+	return e
 }
 
 func GetFirstErr(errs ...error) error {

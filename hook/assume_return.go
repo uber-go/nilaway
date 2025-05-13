@@ -84,8 +84,7 @@ func isErrorWrapperFunc(pass *analysis.Pass, call *ast.CallExpr) bool {
 
 			if argIdent := util.IdentOf(arg); argIdent != nil {
 				argObj := pass.TypesInfo.ObjectOf(argIdent)
-				// if util.ImplementsError(argObj) {
-				if types.Implements(argObj.Type(), util.ErrorType.Underlying().(*types.Interface)) {
+				if util.ImplementsError(argObj) {
 					return true
 				}
 			}
