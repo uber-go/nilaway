@@ -67,7 +67,7 @@ func isErrorWrapperFunc(pass *analysis.Pass, call *ast.CallExpr) bool {
 	if !ok {
 		return false
 	}
-	if util.FuncIsErrReturning(funcObj) {
+	if util.FuncIsErrReturning(funcObj.Signature()) {
 		args := call.Args
 
 		// If the function is a method, we need to check if the receiver is an error-implementing type.

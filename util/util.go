@@ -336,8 +336,12 @@ func ImplementsError(obj types.Object) bool {
 // This guards its results to require an `err` check before use as nonnil.
 // A function is deemed "error-returning" iff it has a single result of type `error`, and that
 // result is the last in the list of results.
-func FuncIsErrReturning(fdecl *types.Func) bool {
-	results := fdecl.Type().(*types.Signature).Results()
+func FuncIsErrReturning(sig *types.Signature) bool {
+	if sig == nil {
+		return false
+	}
+
+	results := sig.Results()
 	n := results.Len()
 	if n == 0 {
 		return false
@@ -360,8 +364,8 @@ func FuncIsErrReturning(fdecl *types.Func) bool {
 // This guards its results to require an `ok` check before use as nonnil.
 // A function is deemed "ok-returning" iff it has a single result of type `bool`, and that
 // result is the last in the list of results.
-func FuncIsOkReturning(fdecl *types.Func) bool {
-	results := fdecl.Type().(*types.Signature).Results()
+func FuncIsOkReturning(sig *types.Signature) bool {
+	results := sig.Results()
 	n := results.Len()
 	if n == 0 {
 		return false
