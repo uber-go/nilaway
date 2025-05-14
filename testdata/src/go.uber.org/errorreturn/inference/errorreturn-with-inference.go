@@ -403,6 +403,136 @@ func testErrorWrapper2() (*int, error) {
 	return new(int), nil
 }
 
+type Fields map[string]interface{}
+type WrappedErr interface {
+	Error() string
+	WithFields(Fields) WrappedErr
+}
+
+type wrapped struct {
+	cause  error
+	msg    string
+	fields Fields
+}
+
+func (w *wrapped) Error() string {
+	return w.msg + ": " + w.cause.Error()
+}
+
+func (w *wrapped) WithFields(fields Fields) WrappedErr {
+	for k, v := range fields {
+		w.fields[k] = v
+	}
+	return w
+}
+
+func Wrap(err error, msg string) WrappedErr {
+	if err == nil {
+		return nil
+	}
+
+	return &wrapped{
+		msg:   msg,
+		cause: err,
+	}
+}
+
+func GetFirstErr(errs ...error) error {
+	if len(errs) == 0 {
+		return nil
+	}
+	return errs[0]
+}
+
+func GetFirstErrArr(errs [2]error) error {
+	if errs[0] == nil && errs[1] == nil {
+		return nil
+	}
+	return errs[0]
+}
+
+func GetErrPtr(e *error) error {
+	if e == nil {
+		return nil
+	}
+	return *e
+}
+
+// named type of error
+type myError error
+
+func GetErrNamedType(e myError) myError {
+	if e == nil {
+		return nil
+	}
+	return e
+}
+
+func testErrorWrapper3() (*int, error) {
+	if dummy2 {
+		err := &myErr2{}
+		return nil, Wrap(err, "test error")
+	}
+	return new(int), nil
+}
+
+func testErrorWrapper4() (*int, error) {
+	if dummy2 {
+		err := &myErr2{}
+		return nil, Wrap(err, "test error").WithFields(Fields{"key": "value"})
+	}
+	return new(int), nil
+}
+
+func testErrorWrapper5() error {
+	for i := 0; i < 10; i++ {
+		if i == 5 {
+			err := &myErr2{}
+			return Wrap(err, "test error").WithFields(Fields{"key": "value"})
+		}
+	}
+	return &myErr2{}
+}
+
+func testErrorWrapper6() (*int, error) {
+	if dummy2 {
+		err := &myErr2{}
+		return nil, Wrap(Wrap(Wrap(err, "test error"), "test error"), "test error").WithFields(nil)
+	}
+	return new(int), nil
+}
+
+func Wrapf(e error) error {
+	if e == nil {
+		return nil
+	}
+	return &myErr2{}
+}
+
+func testErrorWrapper7() (*int, error) {
+	if dummy2 {
+		return nil, Wrapf(Wrapf(Wrapf(&myErr2{})))
+	}
+	return new(int), nil
+}
+
+func testErrorWrapper8() (*int, error) {
+	if dummy2 {
+		return nil, errorreturn.Wrapf(errorreturn.Wrapf(errorreturn.Wrapf(&myErr2{})))
+	}
+	return new(int), nil
+}
+
+func testErrorWrapper9() (*int, error) {
+	if dummy2 {
+		w := &wrapped{cause: &myErr2{}}
+		return nil, w.cause
+	}
+	return new(int), nil
+}
+
+func consume(any) {}
+
 func callTestErrorWrapper(i int) {
 	switch i {
 	case 1:
@@ -418,5 +548,75 @@ func callTestErrorWrapper(i int) {
 			return
 		}
 		_ = *x //want "dereferenced"
+
+	case 3:
+		x, err := testErrorWrapper3()
+		if err != nil {
+			return
+		}
+		_ = *x
+
+	case 4:
+		x, err := testErrorWrapper4()
+		if err != nil {
+			return
+		}
+		_ = *x
+
+	case 5:
+		err := &myErr2{}
+		consume(Wrap(err, "test error").WithFields(Fields{"key": "value"}).Error())
+
+	case 6:
+		err := testErrorWrapper5()
+		print(err.Error())
+
+	case 7:
+		var errs []error
+		err := &myErr2{}
+		errs = append(errs, err)
+		consume(GetFirstErr(errs...).Error())
+
+	case 8:
+		errs := [2]error{&myErr2{}, nil}
+		consume(GetFirstErrArr(errs).Error())
+
+	case 9:
+		x, err := testErrorWrapper6()
+		if err != nil {
+			return
+		}
+		_ = *x
+
+	case 10:
+		x, err := testErrorWrapper7()
+		if err != nil {
+			return
+		}
+		_ = *x
+
+	case 11:
+		x, err := testErrorWrapper8()
+		if err != nil {
+			return
+		}
+		_ = *x
+
+	case 12:
+		x, err := testErrorWrapper9()
+		if err != nil {
+			return
+		}
+		_ = *x
+
+	case 13:
+		var err error
+		err = &myErr2{}
+		ptrToErr := &err
+		consume(GetErrPtr(ptrToErr).Error())
+
+	case 14:
+		m := &myErr2{}
+		consume(GetErrNamedType(m).Error())
 	}
 }
