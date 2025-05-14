@@ -248,7 +248,24 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 		// to try to subsume this switch with funcIdentFromCallExpr
 		switch fun := expr.Fun.(type) {
 		case *ast.Ident: // direct function call
-			if !r.isFunc(fun) {
+			if r.functionContext.functionConfig.EnableAnonymousFunc {
+				fun = getFuncIdent(expr, &r.functionContext)
+			} else {
+				// TODO: this is a temporary fix to handle the case of anonymous functions.
+				//  Remove this once we have have enabled the anonymous function support.
+				funcLit := getFuncLitFromAssignment(fun)
+				if funcLit != nil {
+					sig := r.Pass().TypesInfo.TypeOf(funcLit).(*types.Signature)
+					if util.FuncIsErrReturning(sig) {
+						return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: &annotation.ProduceTrigger{
+							Annotation: &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
+							Expr:       expr,
+						}}}
+					}
+				}
+			}
+
+			if fun != nil && !r.isFunc(fun) {
 				// The following block implements the basic support for append function where it has
 				// only two arguments and the first argument is the same as the lhs of assignment.
 				// Since in Go it is allowed to have only one argument in the append method, we need
@@ -446,8 +463,8 @@ func (r *RootAssertionNode) getFuncReturnProducers(ident *ast.Ident, expr *ast.C
 	funcObj := r.ObjectOf(ident).(*types.Func)
 
 	numResults := util.FuncNumResults(funcObj)
-	isErrReturning := util.FuncIsErrReturning(funcObj)
-	isOkReturning := util.FuncIsOkReturning(funcObj)
+	isErrReturning := util.FuncIsErrReturning(funcObj.Signature())
+	isOkReturning := util.FuncIsOkReturning(funcObj.Signature())
 
 	producers := make([]producer.ParsedProducer, numResults)
 

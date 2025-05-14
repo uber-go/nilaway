@@ -652,3 +652,59 @@ func callTestErrorWrapper(i int) {
 		consume(GetErrNamedType(m).Error())
 	}
 }
+
+// The below test checks for error returning functions that are anonymous functions.
+// Note that until we make anonymous function support mainstream, we resort to suppressing the errors, which means
+// we don't report false positives, but we also don't report false negatives.
+// TODO: remove this test once we have support for anonymous functions since similar, but more comprehensive tests are in the testdata/src/go.uber.org/anonymousfunction directory.
+func testAnonErrReturningFunc(i int) {
+	f1 := func() (*int, error) {
+		if dummy2 {
+			return nil, &myErr2{}
+		}
+		return new(int), nil
+	}
+
+	f2 := func() (*int, error) {
+		if dummy2 {
+			return new(int), &myErr2{}
+		}
+		return new(int), nil
+	}
+
+	f3 := func() (*int, error) {
+		if dummy2 {
+			return nil, &myErr2{}
+		}
+		return nil, nil
+	}
+
+	switch i {
+	case 1:
+		x, err := f1()
+		if err != nil {
+			return
+		}
+		_ = *x
+
+	case 2:
+		if x2, err2 := f1(); err2 != nil {
+			_ = *x2
+		}
+
+	case 3:
+		x, err := f2()
+		if err != nil {
+			// safe since f2() always returns a non-nil value
+			_ = *x
+		}
+
+	case 4:
+		x, err := f3()
+		if err != nil {
+			return
+		}
+		// false negative: unsafe since f3() always returns a nil value
+		_ = *x
+	}
+}
