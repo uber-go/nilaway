@@ -205,8 +205,8 @@ func backpropAcrossReturn(rootNode *RootAssertionNode, node *ast.ReturnStmt) err
 					// since we don't individually track the returns of a multiply returning function,
 					// we form full triggers for each return whose type doesn't bar nilness
 					if !util.TypeBarsNilness(funcObj.Type().(*types.Signature).Results().At(i).Type()) {
-						isErrReturning := util.FuncIsErrReturning(funcObj)
-						isOkReturning := util.FuncIsOkReturning(funcObj)
+						isErrReturning := util.FuncIsErrReturning(funcObj.Signature())
+						isOkReturning := util.FuncIsOkReturning(funcObj.Signature())
 
 						trigger := annotation.FullTrigger{
 							Producer: &annotation.ProduceTrigger{
