@@ -1,0 +1,19 @@
+package main
+
+templ Deref(p *string) {
+	<div>
+		Hello, { *p }
+	</div>
+}
+
+templ Hello() {
+	<html>
+		<head>
+			<title>Hello</title>
+		</head>
+		<body>
+			<h1>Hello World</h1>
+			@Deref(nil)
+		</body>
+	</html>
+}

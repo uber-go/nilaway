@@ -26,13 +26,15 @@ import (
 )
 
 // DocContains returns true if the comment group contains the given string.
-func DocContains(group *ast.CommentGroup, s string) bool {
-	if group == nil {
-		return false
-	}
+func DocContains(file *ast.File, s string) bool {
+	for _, comment := range file.Comments {
+		// The comment group here contains all comments in the file. However, we should only check
+		// the comments before the package name (e.g., `package Foo`) line.
+		if comment.Pos() > file.Name.Pos() {
+			return false
+		}
 
-	for _, comment := range group.List {
-		if strings.Contains(comment.Text, s) {
+		if strings.Contains(comment.Text(), s) {
 			return true
 		}
 	}
