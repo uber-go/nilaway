@@ -113,12 +113,12 @@ var _assumeReturns = map[trustedFuncSig]assumeReturnAction{
 	// `github.com/pkg/errors`
 	{
 		kind:           _func,
-		enclosingRegex: regexp.MustCompile(`github\.com/pkg/errors$`),
+		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/pkg/errors$`),
 		funcNameRegex:  regexp.MustCompile(`^Errorf$`),
 	}: nonnilProducer,
 	{
 		kind:           _func,
-		enclosingRegex: regexp.MustCompile(`github\.com/pkg/errors$`),
+		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/pkg/errors$`),
 		funcNameRegex:  regexp.MustCompile(`^New$`),
 	}: nonnilProducer,
 }
