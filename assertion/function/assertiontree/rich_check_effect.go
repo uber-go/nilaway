@@ -23,6 +23,7 @@ import (
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/asthelper"
+	"go.uber.org/nilaway/util/typeshelper"
 	"golang.org/x/tools/go/cfg"
 )
 
@@ -345,7 +346,7 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 
 		rhsFuncDecl, ok := rootNode.ObjectOf(callIdent).(*types.Func)
 
-		if !ok || !util.FuncIsOkReturning(rhsFuncDecl) {
+		if !ok || !util.FuncIsOkReturning(rhsFuncDecl.Signature()) {
 			return nil, false
 		}
 
@@ -397,15 +398,19 @@ func NodeTriggersFuncErrRet(rootNode *RootAssertionNode, nonceGenerator *util.Gu
 		return nil, false
 	}
 
-	rhsFuncDecl, ok := rootNode.Pass().TypesInfo.ObjectOf(callIdent).(*types.Func)
+	obj := rootNode.Pass().TypesInfo.ObjectOf(callIdent)
+	if obj == nil {
+		return nil, false
+	}
 
-	if !ok || !util.FuncIsErrReturning(rhsFuncDecl) {
+	sig := typeshelper.GetFuncSignature(obj)
+	if sig == nil || !util.FuncIsErrReturning(sig) {
 		return nil, false
 	}
 
 	// we've found an assignment of vars to an error-returning function!
 
-	results := rhsFuncDecl.Type().(*types.Signature).Results()
+	results := sig.Results()
 	n := results.Len()
 	if len(lhs) != n {
 		panic(fmt.Sprintf("ERROR: AssignStmt found with %d operands on left, "+

@@ -264,7 +264,7 @@ func isErrorReturnNonnil(rootNode *RootAssertionNode, errRet ast.Expr) bool {
 //
 // Note that `results` should be explicitly passed since `retStmt` of a named return will contain no results
 func handleErrorReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, results []ast.Expr, isNamedReturn bool) bool {
-	if !util.FuncIsErrReturning(rootNode.FuncObj()) {
+	if !util.FuncIsErrReturning(rootNode.FuncObj().Signature()) {
 		return false
 	}
 
@@ -318,7 +318,7 @@ func handleErrorReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, re
 func handleBooleanReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, results []ast.Expr, isNamedReturn bool) bool {
 	// FuncIsOkReturning checks that the length of the results defined for the current function is at least 2, and that
 	// the last return type is a boolean, the value of which can be determined at compile time (e.g., return true)
-	if !util.FuncIsOkReturning(rootNode.FuncObj()) {
+	if !util.FuncIsOkReturning(rootNode.FuncObj().Signature()) {
 		return false
 	}
 
