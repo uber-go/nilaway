@@ -22,11 +22,11 @@ package trustedfunc
 import (
 	"errors"
 	"os/exec"
+	"testing"
 
-	"go.uber.org/trustedfunc/github.com/stretchr/testify/assert"
-	"go.uber.org/trustedfunc/github.com/stretchr/testify/require"
-	"go.uber.org/trustedfunc/github.com/stretchr/testify/suite"
-	"go.uber.org/trustedfunc/testing"
+	"stubs/github.com/stretchr/testify/assert"
+	"stubs/github.com/stretchr/testify/require"
+	"stubs/github.com/stretchr/testify/suite"
 )
 
 type any interface{}
