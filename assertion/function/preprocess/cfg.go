@@ -65,7 +65,7 @@ func (p *Preprocessor) CFG(graph *cfg.CFG, funcDecl *ast.FuncDecl) *cfg.CFG {
 	// operations together such that we only need to run canonicalization once.
 	for _, block := range graph.Blocks {
 		if block.Live {
-			p.restructureOnTerminatingCall(graph, block)
+			p.restructureOnNoReturnCall(block)
 		}
 	}
 	for _, block := range graph.Blocks {
@@ -139,13 +139,9 @@ func copyGraph(graph *cfg.CFG) *cfg.CFG {
 	return newGraph
 }
 
-func (p *Preprocessor) restructureOnTerminatingCall(graph *cfg.CFG, block *cfg.Block) {
+func (p *Preprocessor) restructureOnNoReturnCall(block *cfg.Block) {
 	if len(block.Nodes) == 0 || len(block.Succs) == 0 {
 		return
-	}
-
-	if p.pass.Pkg.Path() == "go.uber.org/abnormalflow" {
-		print("123")
 	}
 
 	for i, node := range block.Nodes {
@@ -158,9 +154,9 @@ func (p *Preprocessor) restructureOnTerminatingCall(graph *cfg.CFG, block *cfg.B
 			continue
 		}
 
-		if hook.TerminatingCall(p.pass, call) {
-			block.Nodes = block.Nodes[:i]
-			block.Succs = nil
+		if hook.IsNoReturnCall(p.pass, call) {
+			block.Nodes = block.Nodes[:i] // The rest of the nodes are now unreachable.
+			block.Succs = nil             // There will be no successor block.
 			return
 		}
 	}
