@@ -65,6 +65,11 @@ func (p *Preprocessor) CFG(graph *cfg.CFG, funcDecl *ast.FuncDecl) *cfg.CFG {
 	// operations together such that we only need to run canonicalization once.
 	for _, block := range graph.Blocks {
 		if block.Live {
+			p.restructureOnTerminatingCall(graph, block)
+		}
+	}
+	for _, block := range graph.Blocks {
+		if block.Live {
 			p.splitBlockOnTrustedFuncs(graph, block, failureBlock)
 		}
 	}
@@ -132,6 +137,33 @@ func copyGraph(graph *cfg.CFG) *cfg.CFG {
 	}
 
 	return newGraph
+}
+
+func (p *Preprocessor) restructureOnTerminatingCall(graph *cfg.CFG, block *cfg.Block) {
+	if len(block.Nodes) == 0 || len(block.Succs) == 0 {
+		return
+	}
+
+	if p.pass.Pkg.Path() == "go.uber.org/abnormalflow" {
+		print("123")
+	}
+
+	for i, node := range block.Nodes {
+		expr, ok := node.(*ast.ExprStmt)
+		if !ok {
+			continue
+		}
+		call, ok := expr.X.(*ast.CallExpr)
+		if !ok {
+			continue
+		}
+
+		if hook.TerminatingCall(p.pass, call) {
+			block.Nodes = block.Nodes[:i]
+			block.Succs = nil
+			return
+		}
+	}
 }
 
 // splitBlockOnTrustedFuncs splits the CFG block into two parts upon seeing a trusted function
