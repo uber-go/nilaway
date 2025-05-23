@@ -33,7 +33,7 @@ var _terminatingCalls = []trustedFuncSig{
 		enclosingRegex: regexp.MustCompile(`^(stubs/)?go\.uber\.org/zap.SugaredLogger$`),
 		funcNameRegex:  regexp.MustCompile(`^Fatal(f|ln|w)?$`),
 	},
-	// `testing.TB`
+	// `testing.TB.Fatal` / `testing.TB.Fatalf` / `testing.TB.SkipNow` / `testing.TB.Skip` / `testing.TB.Skipf`
 	// since it is an interface rather than a concrete implementation, the control flow analyzer
 	// will not be able to infer that this is a no-return function. So, here we model it.
 	{
