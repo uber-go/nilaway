@@ -1013,7 +1013,7 @@ func (r *RootAssertionNode) ProcessEntry() {
 	}
 
 	// filter triggers for error return handling -- intra-procedural
-	if util.FuncIsErrReturning(r.FuncObj()) {
+	if util.FuncIsErrReturning(r.FuncObj().Signature()) {
 		r.triggers, _ = FilterTriggersForErrorReturn(
 			r.triggers,
 			func(p *annotation.ProduceTrigger) ProducerNilability {
