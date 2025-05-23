@@ -65,6 +65,11 @@ func (p *Preprocessor) CFG(graph *cfg.CFG, funcDecl *ast.FuncDecl) *cfg.CFG {
 	// operations together such that we only need to run canonicalization once.
 	for _, block := range graph.Blocks {
 		if block.Live {
+			p.restructureOnNoReturnCall(block)
+		}
+	}
+	for _, block := range graph.Blocks {
+		if block.Live {
 			p.splitBlockOnTrustedFuncs(graph, block, failureBlock)
 		}
 	}
@@ -132,6 +137,29 @@ func copyGraph(graph *cfg.CFG) *cfg.CFG {
 	}
 
 	return newGraph
+}
+
+func (p *Preprocessor) restructureOnNoReturnCall(block *cfg.Block) {
+	if len(block.Nodes) == 0 || len(block.Succs) == 0 {
+		return
+	}
+
+	for i, node := range block.Nodes {
+		expr, ok := node.(*ast.ExprStmt)
+		if !ok {
+			continue
+		}
+		call, ok := expr.X.(*ast.CallExpr)
+		if !ok {
+			continue
+		}
+
+		if hook.IsNoReturnCall(p.pass, call) {
+			block.Nodes = block.Nodes[:i] // The rest of the nodes are now unreachable.
+			block.Succs = nil             // There will be no successor block.
+			return
+		}
+	}
 }
 
 // splitBlockOnTrustedFuncs splits the CFG block into two parts upon seeing a trusted function

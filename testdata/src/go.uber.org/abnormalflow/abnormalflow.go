@@ -23,6 +23,8 @@ import (
 	"os"
 	"runtime"
 	"testing"
+
+	"stubs/go.uber.org/zap"
 )
 
 func testDirectDereference(msg string, t *testing.T, b *testing.B, f *testing.F, tb testing.TB) {
@@ -78,19 +80,19 @@ func testDirectDereference(msg string, t *testing.T, b *testing.B, f *testing.F,
 		print(*nilable)
 	case "testing.TB.Fatal":
 		tb.Fatal("foo")
-		print(*nilable) //want "unassigned variable `nilable` dereferenced"
+		print(*nilable)
 	case "testing.TB.Fatalf":
 		tb.Fatalf("foo")
-		print(*nilable) //want "unassigned variable `nilable` dereferenced"
+		print(*nilable)
 	case "testing.TB.SkipNow":
 		tb.SkipNow()
-		print(*nilable) //want "unassigned variable `nilable` dereferenced"
+		print(*nilable)
 	case "testing.TB.Skip":
 		tb.Skip()
-		print(*nilable) //want "unassigned variable `nilable` dereferenced"
+		print(*nilable)
 	case "testing.TB.Skipf":
 		tb.Skipf("msg")
-		print(*nilable) //want "unassigned variable `nilable` dereferenced"
+		print(*nilable)
 	case "testing.F.Fatal":
 		f.Fatal("foo")
 		print(*nilable)
@@ -105,6 +107,26 @@ func testDirectDereference(msg string, t *testing.T, b *testing.B, f *testing.F,
 		print(*nilable)
 	case "testing.F.Skipf":
 		f.Skipf("msg")
+		print(*nilable)
+	case "zap.Logger.Fatal":
+		logger, _ := zap.NewProduction()
+		logger.Fatal("foo")
+		print(*nilable)
+	case "zap.SugaredLogger.Fatal":
+		logger, _ := zap.NewProduction()
+		logger.Sugared().Fatal("foo")
+		print(*nilable)
+	case "zap.SugaredLogger.Fatalf":
+		logger, _ := zap.NewProduction()
+		logger.Sugared().Fatalf("msg %s", "foo")
+		print(*nilable)
+	case "zap.SugaredLogger.Fatalln":
+		logger, _ := zap.NewProduction()
+		logger.Sugared().Fatalln("foo")
+		print(*nilable)
+	case "zap.SugaredLogger.Fatalw":
+		logger, _ := zap.NewProduction()
+		logger.Sugared().Fatalw("msg", "error", "foo")
 		print(*nilable)
 	}
 }
@@ -235,26 +257,56 @@ func testErrReturn(msg string, val bool, t *testing.T, b *testing.B, f *testing.
 		if err != nil {
 			tb.Fatal(err)
 		}
-		print(*ptr) //want "dereferenced"
+		print(*ptr)
 	case "testing.TB.Fatalf":
 		if err != nil {
 			tb.Fatalf("msg %s", err)
 		}
-		print(*ptr) //want "dereferenced"
+		print(*ptr)
 	case "testing.TB.SkipNow":
 		if err != nil {
 			tb.SkipNow()
 		}
-		print(*ptr) //want "dereferenced"
+		print(*ptr)
 	case "testing.TB.Skip":
 		if err != nil {
 			tb.Skip(err)
 		}
-		print(*ptr) //want "dereferenced"
+		print(*ptr)
 	case "testing.TB.Skipf":
 		if err != nil {
 			tb.Skipf("msg %s", err)
 		}
-		print(*ptr) //want "dereferenced"
+		print(*ptr)
+	case "zap.Logger.Fatal":
+		if err != nil {
+			logger, _ := zap.NewProduction()
+			logger.Fatal("error")
+		}
+		print(*ptr)
+	case "zap.SugaredLogger.Fatal":
+		if err != nil {
+			logger, _ := zap.NewProduction()
+			logger.Sugared().Fatal(err)
+		}
+		print(*ptr)
+	case "zap.SugaredLogger.Fatalf":
+		if err != nil {
+			logger, _ := zap.NewProduction()
+			logger.Sugared().Fatalf("msg %s", err)
+		}
+		print(*ptr)
+	case "zap.SugaredLogger.Fatalln":
+		if err != nil {
+			logger, _ := zap.NewProduction()
+			logger.Sugared().Fatalln(err)
+		}
+		print(*ptr)
+	case "zap.SugaredLogger.Fatalw":
+		if err != nil {
+			logger, _ := zap.NewProduction()
+			logger.Sugared().Fatalw("msg", "error", err)
+		}
+		print(*ptr)
 	}
 }
