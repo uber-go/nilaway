@@ -78,19 +78,19 @@ func testDirectDereference(msg string, t *testing.T, b *testing.B, f *testing.F,
 		print(*nilable)
 	case "testing.TB.Fatal":
 		tb.Fatal("foo")
-		print(*nilable)
+		print(*nilable) //want "unassigned variable `nilable` dereferenced"
 	case "testing.TB.Fatalf":
 		tb.Fatalf("foo")
-		print(*nilable)
+		print(*nilable) //want "unassigned variable `nilable` dereferenced"
 	case "testing.TB.SkipNow":
 		tb.SkipNow()
-		print(*nilable)
+		print(*nilable) //want "unassigned variable `nilable` dereferenced"
 	case "testing.TB.Skip":
 		tb.Skip()
-		print(*nilable)
+		print(*nilable) //want "unassigned variable `nilable` dereferenced"
 	case "testing.TB.Skipf":
 		tb.Skipf("msg")
-		print(*nilable)
+		print(*nilable) //want "unassigned variable `nilable` dereferenced"
 	case "testing.F.Fatal":
 		f.Fatal("foo")
 		print(*nilable)
@@ -235,26 +235,26 @@ func testErrReturn(msg string, val bool, t *testing.T, b *testing.B, f *testing.
 		if err != nil {
 			tb.Fatal(err)
 		}
-		print(*ptr)
+		print(*ptr) //want "dereferenced"
 	case "testing.TB.Fatalf":
 		if err != nil {
 			tb.Fatalf("msg %s", err)
 		}
-		print(*ptr)
+		print(*ptr) //want "dereferenced"
 	case "testing.TB.SkipNow":
 		if err != nil {
 			tb.SkipNow()
 		}
-		print(*ptr)
+		print(*ptr) //want "dereferenced"
 	case "testing.TB.Skip":
 		if err != nil {
 			tb.Skip(err)
 		}
-		print(*ptr)
+		print(*ptr) //want "dereferenced"
 	case "testing.TB.Skipf":
 		if err != nil {
 			tb.Skipf("msg %s", err)
 		}
-		print(*ptr)
+		print(*ptr) //want "dereferenced"
 	}
 }

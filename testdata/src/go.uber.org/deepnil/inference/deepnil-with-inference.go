@@ -92,7 +92,7 @@ func testLocalDeepAssignNil(i int) {
 	case 7:
 		sl := make([]*int, 1)
 		sl[i] = retNilSometimes()
-		_ = *sl[i] // error here grouped with error in case 3
+		_ = *sl[i] //want "literal `nil` returned from `retNilSometimes"
 
 	case 8:
 		ch := make(chan *int)
