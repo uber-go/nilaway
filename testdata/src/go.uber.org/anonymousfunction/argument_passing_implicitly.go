@@ -37,7 +37,7 @@ func testNilFlowFromClosure() {
 
 	func() {
 		print(*t) //want "literal `nil`"
-		print(*t) // (error here grouped with the error on the above line)
+		print(*t) //want "literal `nil`"
 	}()
 
 	t = &i

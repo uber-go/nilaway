@@ -40,7 +40,6 @@ func simple() {
 	// Here we test nilability analysis _inside_ the anonymous functions, where no interactions
 	// happen between the anonymous functions and the outside world.
 	aNonnilPtr := &A{}
-	// ERROR_GROUP: the two errors reporting dereference of `aNonnilPtr.a` are grouped together and reported on the below line.
 	print(*(aNonnilPtr.a)) //want "it is annotated"
 
 	func() {
@@ -54,7 +53,7 @@ func simple() {
 		var aPtr *A
 		print(*aPtr) //want "unassigned variable `aPtr`"
 		aNonnilPtr := &A{}
-		print(*(aNonnilPtr.a)) // (error here is grouped with the error at line marked with `ERROR_GROUP`)
+		print(*(aNonnilPtr.a)) //want "it is annotated"
 		// A.c is marked as nonnil, so it is ok to dereference.
 		print(aNonnilPtr.c.a)
 	}()
