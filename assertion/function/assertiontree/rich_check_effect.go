@@ -23,6 +23,7 @@ import (
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/asthelper"
+	"go.uber.org/nilaway/util/typeshelper"
 	"golang.org/x/tools/go/cfg"
 )
 
@@ -402,19 +403,8 @@ func NodeTriggersFuncErrRet(rootNode *RootAssertionNode, nonceGenerator *util.Gu
 		return nil, false
 	}
 
-	var sig *types.Signature
-	switch t2 := obj.(type) {
-	case *types.Func:
-		sig = t2.Signature()
-	case *types.Var:
-		if anonFunc, ok := t2.Type().(*types.Signature); ok {
-			sig = anonFunc
-		}
-	default:
-		return nil, false
-	}
-
-	if !ok || !util.FuncIsErrReturning(sig) {
+	sig := typeshelper.GetFuncSignature(obj)
+	if sig == nil || !util.FuncIsErrReturning(sig) {
 		return nil, false
 	}
 

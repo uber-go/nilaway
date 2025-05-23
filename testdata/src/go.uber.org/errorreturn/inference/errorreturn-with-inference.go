@@ -623,7 +623,7 @@ func callTestErrorWrapper(i int) {
 
 // The below test checks for error returning functions that are anonymous functions.
 // Note that until we make anonymous function support mainstream, we resort to suppressing the errors, which means
-// we don't report false positives, but we also don't report false negatives.
+// we don't report false positives, but we also don't report true positives.
 // TODO: remove this test once we have support for anonymous functions since similar, but more comprehensive tests are in the testdata/src/go.uber.org/anonymousfunction directory.
 func testAnonErrReturningFunc(i int) {
 	f1 := func() (*int, error) {
