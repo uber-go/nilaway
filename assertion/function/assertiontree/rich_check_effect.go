@@ -23,7 +23,6 @@ import (
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/asthelper"
-	"go.uber.org/nilaway/util/typeshelper"
 	"golang.org/x/tools/go/cfg"
 )
 
@@ -390,20 +389,14 @@ func NodeTriggersFuncErrRet(rootNode *RootAssertionNode, nonceGenerator *util.Gu
 		return nil, false
 	}
 
-	callIdent := util.FuncIdentFromCallExpr(callExpr)
-
-	if callIdent == nil {
-		// this discards the case of an anonymous function
-		// perhaps in the future we could change this
-		return nil, false
+	var sig *types.Signature
+	tv := rootNode.Pass().TypesInfo.Types[callExpr.Fun]
+	if tv.Type != nil {
+		if s, ok := tv.Type.(*types.Signature); ok {
+			sig = s
+		}
 	}
 
-	obj := rootNode.Pass().TypesInfo.ObjectOf(callIdent)
-	if obj == nil {
-		return nil, false
-	}
-
-	sig := typeshelper.GetFuncSignature(obj)
 	if sig == nil || !util.FuncIsErrReturning(sig) {
 		return nil, false
 	}
