@@ -63,8 +63,9 @@ func isErrorWrapperFunc(pass *analysis.Pass, call *ast.CallExpr) bool {
 		return false
 	}
 
-	// If the call expr is built-in such as `new(MyErrorStruct)`, then we check if its argument type implements the error interface.
-	if _, ok := obj.(*types.Builtin); ok {
+	// If the call expr is built-in `new`, then we check if its argument type implements the error interface.
+	// This case particularly gets triggered for the expression: `Wrap(new(MyErrorStruct), "message")`.
+	if obj == util.BuiltinNew {
 		if len(call.Args) == 0 {
 			return false
 		}
