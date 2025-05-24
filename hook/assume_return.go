@@ -63,6 +63,21 @@ func isErrorWrapperFunc(pass *analysis.Pass, call *ast.CallExpr) bool {
 		return false
 	}
 
+	// If the call expr is built-in such as `new(MyErrorStruct)`, then we check if its argument type implements the error interface.
+	if _, ok := obj.(*types.Builtin); ok {
+		if len(call.Args) == 0 {
+			return false
+		}
+		if argIdent := util.IdentOf(call.Args[0]); argIdent != nil {
+			ptr := types.NewPointer(pass.TypesInfo.TypeOf(argIdent))
+			if types.Implements(ptr, util.ErrorInterface) {
+				return true
+			}
+		}
+
+		return false
+	}
+
 	funcObj, ok := obj.(*types.Func)
 	if !ok {
 		return false
@@ -79,7 +94,9 @@ func isErrorWrapperFunc(pass *analysis.Pass, call *ast.CallExpr) bool {
 		}
 		for _, arg := range args {
 			if callExpr, ok := ast.Unparen(arg).(*ast.CallExpr); ok {
-				return isErrorWrapperFunc(pass, callExpr)
+				if isErrorWrapperFunc(pass, callExpr) {
+					return true
+				}
 			}
 
 			if argIdent := util.IdentOf(arg); argIdent != nil {
