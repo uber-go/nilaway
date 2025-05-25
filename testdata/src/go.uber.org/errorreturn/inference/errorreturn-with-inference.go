@@ -531,6 +531,13 @@ func testErrorWrapper9() (*int, error) {
 	return new(int), nil
 }
 
+func testErrorWrapper10() (*int, error) {
+	if dummy2 {
+		return nil, Wrap(new(wrapped), "some message").WithFields(Fields{"key": "value"})
+	}
+	return new(int), nil
+}
+
 func consume(any) {}
 
 func callTestErrorWrapper(i int) {
@@ -618,6 +625,13 @@ func callTestErrorWrapper(i int) {
 	case 14:
 		m := &myErr2{}
 		consume(GetErrNamedType(m).Error())
+
+	case 15:
+		x, err := testErrorWrapper10()
+		if err != nil {
+			return
+		}
+		_ = *x
 	}
 }
 
