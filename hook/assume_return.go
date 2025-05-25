@@ -83,7 +83,6 @@ func isErrorWrapperFunc(pass *analysis.Pass, call *ast.CallExpr) bool {
 	if !ok {
 		return false
 	}
-
 	if util.FuncIsErrReturning(funcObj.Signature()) {
 		args := call.Args
 
