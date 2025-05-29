@@ -331,7 +331,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 			return nil, r.getFuncReturnProducers(fun.Sel, expr)
 
 		case *ast.FuncLit:
-			// TODO: This case can be possibly be combined with the case of *ast.Ident above.
+			// TODO: This case can possibly be combined with the case of *ast.Ident above.
 			var funcIdent *ast.Ident
 
 			if r.functionContext.functionConfig.EnableAnonymousFunc {
