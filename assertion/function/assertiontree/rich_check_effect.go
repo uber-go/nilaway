@@ -389,6 +389,7 @@ func NodeTriggersFuncErrRet(rootNode *RootAssertionNode, nonceGenerator *util.Gu
 		return nil, false
 	}
 
+	// Get signature of the function call (normal and anonymous both)
 	var sig *types.Signature
 	tv := rootNode.Pass().TypesInfo.Types[callExpr.Fun]
 	if tv.Type != nil {
