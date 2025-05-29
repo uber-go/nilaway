@@ -248,6 +248,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 		// to try to subsume this switch with funcIdentFromCallExpr
 		switch fun := expr.Fun.(type) {
 		case *ast.Ident: // direct function call
+			// Handle specially if the function is an anonymous function.
 			if r.functionContext.functionConfig.EnableAnonymousFunc {
 				fun = getFuncIdent(expr, &r.functionContext)
 			} else {
@@ -328,6 +329,37 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 			}
 			// function call has non-literal args, so is not literal, use its return annotation
 			return nil, r.getFuncReturnProducers(fun.Sel, expr)
+
+		case *ast.FuncLit:
+			// TODO: This case can possibly be combined with the case of *ast.Ident above.
+			var funcIdent *ast.Ident
+
+			if r.functionContext.functionConfig.EnableAnonymousFunc {
+				funcIdent = getFuncIdent(expr, &r.functionContext)
+			} else {
+				// TODO: this is a temporary fix to handle the case of anonymous functions.
+				//  Remove this once we have have enabled the anonymous function support.
+				sig := r.Pass().TypesInfo.TypeOf(fun).(*types.Signature)
+				if util.FuncIsErrReturning(sig) {
+					return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: &annotation.ProduceTrigger{
+						Annotation: &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
+						Expr:       expr,
+					}}}
+				}
+			}
+
+			if funcIdent == nil {
+				return nil, nil
+			}
+
+			// non-builtin funcs
+			if !doNotTrack && litArgs() {
+				return TrackableExpr{&funcAssertionNode{
+					decl: r.ObjectOf(funcIdent).(*types.Func), args: expr.Args}}, nil
+			}
+			// function call has non-literal args, so is not literal, use its return annotation
+			// alternatively, doNotTrack was set
+			return nil, r.getFuncReturnProducers(funcIdent, expr)
 
 		default:
 			// this could result from calling a function returned anonymously from another function, such as f(4)(3), and

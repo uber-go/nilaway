@@ -64,7 +64,6 @@ func testAnonErrReturningFunc(i int) {
 		_ = *x // want "dereferenced"
 
 	case 5:
-		// TODO: fix this false positive case by handling unnamed anonymous function
 		x, err := func() (*int, error) {
 			if dummy {
 				return nil, &myErr2{}
@@ -74,9 +73,44 @@ func testAnonErrReturningFunc(i int) {
 		if err != nil {
 			return
 		}
-		_ = *x // want "dereferenced"
+		_ = *x
 
 	case 6:
+		if x2, err2 := func() (*int, error) {
+			if dummy {
+				return nil, &myErr2{}
+			}
+			return new(int), nil
+		}(); err2 != nil {
+			_ = *x2 // want "dereferenced"
+		}
+
+	case 7:
+		x, err := func() (*int, error) {
+			if dummy {
+				return new(int), &myErr2{}
+			}
+			return new(int), nil
+		}()
+		if err != nil {
+			// safe since f2() always returns a non-nil value
+			_ = *x
+		}
+
+	case 8:
+		x, err := func() (*int, error) {
+			if dummy {
+				return nil, &myErr2{}
+			}
+			return nil, nil
+		}()
+		if err != nil {
+			return
+		}
+		// unsafe since the anonymous function always returns a nil value
+		_ = *x // want "dereferenced"
+
+	case 9:
 		// TODO: fix this false positive case by handling global anonymous function
 		x, err := globalFunc()
 		if err != nil {

@@ -635,11 +635,11 @@ func callTestErrorWrapper(i int) {
 	}
 }
 
-// The below test checks for error returning functions that are anonymous functions.
+// The below test checks for error returning functions that are named anonymous functions.
 // Note that until we make anonymous function support mainstream, we resort to suppressing the errors, which means
 // we don't report false positives, but we also don't report true positives.
 // TODO: remove this test once we have support for anonymous functions since similar, but more comprehensive tests are in the testdata/src/go.uber.org/anonymousfunction directory.
-func testAnonErrReturningFunc(i int) {
+func testNamedAnonErrReturningFunc(i int) {
 	f1 := func() (*int, error) {
 		if dummy2 {
 			return nil, &myErr2{}
@@ -671,6 +671,7 @@ func testAnonErrReturningFunc(i int) {
 
 	case 2:
 		if x2, err2 := f1(); err2 != nil {
+			// error expected, but a false negative for the reason explained above
 			_ = *x2
 		}
 
@@ -687,6 +688,62 @@ func testAnonErrReturningFunc(i int) {
 			return
 		}
 		// false negative: unsafe since f3() always returns a nil value
+		_ = *x
+	}
+}
+
+// The below test checks for error returning functions that are unnamed anonymous functions.
+// Note that until we make anonymous function support mainstream, we resort to suppressing the errors, which means
+// we don't report false positives, but we also don't report true positives.
+// TODO: remove this test once we have support for anonymous functions since similar, but more comprehensive tests are in the testdata/src/go.uber.org/anonymousfunction directory.
+func testUnnamedAnonErrReturningFunc(i int) {
+	switch i {
+	case 1:
+		x, err := func() (*int, error) {
+			if dummy2 {
+				return nil, &myErr2{}
+			}
+			return new(int), nil
+		}()
+		if err != nil {
+			return
+		}
+		_ = *x
+
+	case 2:
+		if x2, err2 := func() (*int, error) {
+			if dummy2 {
+				return nil, &myErr2{}
+			}
+			return new(int), nil
+		}(); err2 != nil {
+			// error expected, but a false negative for the reason explained above
+			_ = *x2
+		}
+
+	case 3:
+		x, err := func() (*int, error) {
+			if dummy2 {
+				return new(int), &myErr2{}
+			}
+			return new(int), nil
+		}()
+		if err != nil {
+			// safe since f2() always returns a non-nil value
+			_ = *x
+		}
+
+	case 4:
+		x, err := func() (*int, error) {
+			if dummy2 {
+				return nil, &myErr2{}
+			}
+			return nil, nil
+		}()
+		if err != nil {
+			return
+		}
+		// false negative: unsafe since the anonymous function always returns a nil value
 		_ = *x
 	}
 }

@@ -164,6 +164,12 @@ func (r *RootAssertionNode) ObjectOf(ident *ast.Ident) types.Object {
 	if obj != nil {
 		return obj
 	}
+	// check if ident points to an anonymous function literal
+	if funcLit := getFuncLitFromAssignment(ident); funcLit != nil {
+		if info, ok := r.functionContext.funcLitMap[funcLit]; ok {
+			return info.FakeFuncObj
+		}
+	}
 	return r.functionContext.findFakeIdent(ident)
 }
 
