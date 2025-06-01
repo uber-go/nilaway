@@ -276,6 +276,27 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 			// 		}
 			// 		_ = *x
 			// }
+			// TODO: this is only a temporary fix to suppress the case of type aliases for functions.
+			//  Remove this once we have implemented complete support for type aliases.
+			t := r.Pass().TypesInfo.TypeOf(fun)
+			if t != nil {
+				if _, ok := t.(*types.Alias); ok {
+					return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: &annotation.ProduceTrigger{
+						Annotation: &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
+						Expr:       expr,
+					}}}
+				}
+			}
+
+			// Check if it is a type alias for a function type.
+			// e.g., type MyFunc func() (*int, error)
+			// func foo(f MyErrRetFunc) {
+			// 		x, err := f()
+			// 		if err != nil {
+			// 			return
+			// 		}
+			// 		_ = *x
+			// }
 			// TODO: this is only a temporary fix to suppress false positives caused by type aliases.
 			//  Remove this once we have implemented complete support for type aliases.
 			t := r.Pass().TypesInfo.TypeOf(fun)
