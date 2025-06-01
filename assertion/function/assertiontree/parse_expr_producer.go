@@ -346,6 +346,16 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 			return nil, r.getFuncReturnProducers(fun, expr)
 
 		case *ast.SelectorExpr: // method call
+			// Check if the method is a function value, e.g., `f := func() {}` and then `f()`.
+			// TODO: this is a temporary fix to handle the case of function values.
+			//  Remove this once we have have implemented the function value support.
+			if r.isVariable(fun.Sel) {
+				return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: &annotation.ProduceTrigger{
+					Annotation: &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
+					Expr:       expr,
+				}}}
+			}
+
 			if !r.isFunc(fun.Sel) {
 				// we assume builtins and type casts don't return nil
 				return nil, nil
