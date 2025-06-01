@@ -23,6 +23,7 @@ import (
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/asthelper"
+	"go.uber.org/nilaway/util/typeshelper"
 	"golang.org/x/tools/go/cfg"
 )
 
@@ -390,13 +391,7 @@ func NodeTriggersFuncErrRet(rootNode *RootAssertionNode, nonceGenerator *util.Gu
 	}
 
 	// Get signature of the function call (normal and anonymous both)
-	var sig *types.Signature
-	tv := rootNode.Pass().TypesInfo.Types[callExpr.Fun]
-	if tv.Type != nil {
-		if s, ok := tv.Type.(*types.Signature); ok {
-			sig = s
-		}
-	}
+	sig := typeshelper.GetFuncSignature(rootNode.Pass().TypesInfo.TypeOf(callExpr.Fun))
 
 	if sig == nil || !util.FuncIsErrReturning(sig) {
 		return nil, false

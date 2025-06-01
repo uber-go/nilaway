@@ -747,3 +747,71 @@ func testUnnamedAnonErrReturningFunc(i int) {
 		_ = *x
 	}
 }
+
+// The below test checks for error returning functions that are type aliases.
+// Note that until we implement complete support for type aliases, we resort to suppressing the errors, which means
+// we don't report false positives, but we also don't report true positives.
+
+type MyErrRetFunc = func() (*int, error)
+
+func callTypeAliasFunc(f MyErrRetFunc) {
+	x, err := f()
+	if err != nil {
+		return
+	}
+	_ = *x
+}
+
+func namedRetPtrAndErr() (*int, error) {
+	if dummy2 {
+		return nil, &myErr2{}
+	}
+	return new(int), nil
+}
+
+func namedRetPtrAndErrAlwaysSafe() (*int, error) {
+	if dummy2 {
+		return new(int), &myErr2{}
+	}
+	return new(int), nil
+}
+
+func namedRetPtrAndErrAlwaysUnsafe() (*int, error) {
+	return nil, nil
+}
+
+func testTypeAliasErrReturningFunc(i int) {
+	switch i {
+	case 1:
+		callTypeAliasFunc(namedRetPtrAndErr)
+
+	case 2:
+		callTypeAliasFunc(namedRetPtrAndErrAlwaysSafe)
+
+	case 3:
+		// TODO: this is a false negative since the function always returns a nil value.
+		callTypeAliasFunc(namedRetPtrAndErrAlwaysUnsafe)
+
+	case 4:
+		callTypeAliasFunc(func() (*int, error) {
+			if dummy2 {
+				return nil, &myErr2{}
+			}
+			return new(int), nil
+		})
+
+	case 5:
+		callTypeAliasFunc(func() (*int, error) {
+			if dummy2 {
+				return new(int), &myErr2{}
+			}
+			return new(int), nil
+		})
+
+	case 6:
+		// TODO: this is a false negative since the function always returns a nil value.
+		callTypeAliasFunc(func() (*int, error) {
+			return nil, nil
+		})
+	}
+}

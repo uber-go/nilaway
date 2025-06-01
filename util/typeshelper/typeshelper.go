@@ -55,3 +55,19 @@ func IsIterType(t types.Type) bool {
 	basic, ok := res.At(0).Type().Underlying().(*types.Basic)
 	return ok && basic.Kind() == types.Bool
 }
+
+// GetFuncSignature returns the signature of a function or an anonymous function.
+func GetFuncSignature(t types.Type) *types.Signature {
+	var sig *types.Signature
+	switch t2 := t.(type) {
+	case *types.Signature:
+		sig = t2
+	case *types.Alias:
+		// If the alias is a named function pointer, we extract its signature.
+		// Example: `type MyFunc func() (*int, error)`
+		if s, ok := t2.Underlying().(*types.Signature); ok {
+			sig = s
+		}
+	}
+	return sig
+}
