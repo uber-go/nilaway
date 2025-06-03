@@ -815,3 +815,96 @@ func testTypeAliasErrReturningFunc(i int) {
 		})
 	}
 }
+
+type A struct {
+	f func() (*int, error)
+}
+
+func newAConditional() *A {
+	return &A{
+		f: func() (*int, error) {
+			if dummy2 {
+				return nil, &myErr2{}
+			}
+			return new(int), nil
+		},
+	}
+}
+
+func newAAlwaysSafe() *A {
+	return &A{
+		f: func() (*int, error) {
+			if dummy2 {
+				return new(int), &myErr2{}
+			}
+			return new(int), nil
+		},
+	}
+}
+
+func newAAlwaysUnsafe() *A {
+	return &A{
+		f: func() (*int, error) {
+			return nil, nil
+		},
+	}
+}
+
+func functionValueAsParam(f func() (*int, error)) {
+	v, err := f()
+	if err != nil {
+		return
+	}
+	_ = *v
+}
+
+func testFunctionValue(i int) {
+	switch i {
+	case 1:
+		a := newAConditional()
+		v, err := a.f()
+		if err != nil {
+			return
+		}
+		_ = *v
+
+	case 2:
+		a := newAAlwaysSafe()
+		v, err := a.f()
+		if err != nil {
+			return
+		}
+		_ = *v
+
+	case 3:
+		a := newAAlwaysUnsafe()
+		v, err := a.f()
+		if err != nil {
+			return
+		}
+		// TODO: this is a false negative since the function always returns a nil value.
+		_ = *v
+
+	case 4:
+		functionValueAsParam(func() (*int, error) {
+			if dummy2 {
+				return nil, &myErr2{}
+			}
+			return new(int), nil
+		})
+
+	case 5:
+		functionValueAsParam(func() (*int, error) {
+			if dummy2 {
+				return new(int), &myErr2{}
+			}
+			return new(int), nil
+		})
+
+	case 6:
+		// TODO: this is a false negative since the function always returns a nil value.
+		functionValueAsParam(func() (*int, error) {
+			return nil, nil
+		})
+	}
+}

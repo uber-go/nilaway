@@ -286,6 +286,16 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 				}}}
 			}
 
+			// Check if the method is a function value, e.g., `f := func() {}` and then `f()`.
+			// TODO: this is a temporary fix to suppress false positives caused by function values.
+			//  Remove this once we have have implemented the function value support.
+			if r.isVariable(fun) {
+				return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: &annotation.ProduceTrigger{
+					Annotation: &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
+					Expr:       expr,
+				}}}
+			}
+
 			if fun != nil && !r.isFunc(fun) {
 				// The following block implements the basic support for append function where it has
 				// only two arguments and the first argument is the same as the lhs of assignment.
@@ -327,6 +337,16 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 			return nil, r.getFuncReturnProducers(fun, expr)
 
 		case *ast.SelectorExpr: // method call
+			// Check if the method is a function value, e.g., `f := func() {}` and then `f()`.
+			// TODO: this is a temporary fix to handle the case of function values.
+			//  Remove this once we have have implemented the function value support.
+			if r.isVariable(fun.Sel) {
+				return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: &annotation.ProduceTrigger{
+					Annotation: &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
+					Expr:       expr,
+				}}}
+			}
+
 			if !r.isFunc(fun.Sel) {
 				// we assume builtins and type casts don't return nil
 				return nil, nil

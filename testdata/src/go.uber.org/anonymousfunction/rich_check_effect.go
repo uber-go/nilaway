@@ -111,11 +111,10 @@ func testAnonErrReturningFunc(i int) {
 		_ = *x // want "dereferenced"
 
 	case 9:
-		// TODO: fix this false positive case by handling global anonymous function
 		x, err := globalFunc()
 		if err != nil {
 			return
 		}
-		_ = *x // want "dereferenced"
+		_ = *x
 	}
 }
