@@ -800,7 +800,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 		allowNilable := false
 		if funcObj, ok := r.ObjectOf(expr.Sel).(*types.Func); ok { // Check 1:  selector expression is a method invocation
 			recv := funcObj.Type().(*types.Signature).Recv()
-			if util.TypeIsDeeplyPtr(recv.Type()) { // Check 2: receiver is a pointer receiver
+			if util.TypeIsPointer(recv.Type()) { // Check 2: receiver is an explicit or implicit pointer receiver
 				conf := r.Pass().ResultOf[config.Analyzer].(*config.Config)
 				if conf.IsPkgInScope(funcObj.Pkg()) { // Check 3: invoked method is in scope
 					// Here, `t` can only be of type interface, struct, or named, of which we only support for struct and named types.
