@@ -169,6 +169,17 @@ func TypeIsDeeplyInterface(t types.Type) bool {
 	return false
 }
 
+// TypeIsPointer checks whether the type `t` is an explicit or implicit pointer type, which could also be of deep type.
+// Examples of explicit pointer types are `*int`, `*S`, etc.
+// Examples of implicit pointer types are `[]int`, `map[string]*S`, `chan int`, etc.
+func TypeIsPointer(t types.Type) bool {
+	return TypeIsDeeplyPtr(t) ||
+		TypeIsDeeplySlice(t) ||
+		TypeIsDeeplyMap(t) ||
+		TypeIsDeeplyArray(t) ||
+		TypeIsDeeplyChan(t)
+}
+
 // UnwrapPtr unwraps a pointer type and returns the element type. For all other types it returns
 // the type unmodified.
 func UnwrapPtr(t types.Type) types.Type {
