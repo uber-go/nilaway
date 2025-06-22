@@ -648,13 +648,14 @@ func exprAsAssignmentConsumer(rootNode *RootAssertionNode, expr ast.Node, exprRH
 			}
 		}
 
-		return &annotation.FldAssign{
-			TriggerIfNonNil: &annotation.TriggerIfNonNil{
-				Ann: &annotation.FieldAnnotationKey{
-					FieldDecl: rootNode.ObjectOf(expr.Sel).(*types.Var),
-				},
-			},
-		}, nil
+		// return &annotation.FldAssign{
+		// 	TriggerIfNonNil: &annotation.TriggerIfNonNil{
+		// 		Ann: &annotation.FieldAnnotationKey{
+		// 			FieldDecl: rootNode.ObjectOf(expr.Sel).(*types.Var),
+		// 		},
+		// 	},
+		// }, nil
+		return nil, nil
 	case *ast.StarExpr:
 		return handleDeepAssignmentToExpr(expr.X)
 	case *ast.IndexExpr:

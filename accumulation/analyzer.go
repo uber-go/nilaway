@@ -127,13 +127,13 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 	)
 	switch mode {
 	case inference.FullInfer:
-		// Filter triggers
-		for _, t := range assertionsResult.Res {
-			if _, ok := t.Consumer.Annotation.(*annotation.FldAssign); ok {
-				// update its producer to be non-nil
-				t.Producer.Annotation = &annotation.ProduceTriggerNever{}
-			}
-		}
+		// // Filter triggers
+		// for _, t := range assertionsResult.Res {
+		// 	if _, ok := t.Consumer.Annotation.(*annotation.FldAssign); ok {
+		// 		// update its producer to be non-nil
+		// 		t.Producer.Annotation = &annotation.ProduceTriggerNever{}
+		// 	}
+		// }
 
 		// Incorporate assertions from this package one-by-one into the inferredAnnotationMap, possibly
 		// determining local and upstream sites in the process. This is guaranteed not to determine any

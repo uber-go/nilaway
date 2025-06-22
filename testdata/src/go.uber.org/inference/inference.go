@@ -180,3 +180,17 @@ func NewS() (*S, error) {
 	}
 	return nil, myErr{}
 }
+
+type S2 struct {
+	Field *int
+}
+
+func foo() {
+	s := &S2{}
+	s.Field = nil
+}
+
+func bar() {
+	s := &S2{Field: new(int)}
+	print(*s.Field)
+}
