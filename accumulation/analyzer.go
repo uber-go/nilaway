@@ -127,13 +127,15 @@ func run(pass *analysis.Pass) (result interface{}, _ error) {
 	)
 	switch mode {
 	case inference.FullInfer:
-		// // Filter triggers
-		// for _, t := range assertionsResult.Res {
-		// 	if _, ok := t.Consumer.Annotation.(*annotation.FldAssign); ok {
-		// 		// update its producer to be non-nil
-		// 		t.Producer.Annotation = &annotation.ProduceTriggerNever{}
-		// 	}
-		// }
+		// TODO: This is a suppression added for handling of struct field assignments. We plan to add
+		//  object sensitivity to NilAway in the future, which will allow us to be more precise in struct fields'
+		//  handling. Remove this suppression once we have the object sensitivity implemented (issue #339).
+		for _, t := range assertionsResult.Res {
+			if _, ok := t.Consumer.Annotation.(*annotation.FldAssign); ok {
+				// update its producer to be non-nil
+				t.Producer.Annotation = &annotation.ProduceTriggerNever{}
+			}
+		}
 
 		// Incorporate assertions from this package one-by-one into the inferredAnnotationMap, possibly
 		// determining local and upstream sites in the process. This is guaranteed not to determine any

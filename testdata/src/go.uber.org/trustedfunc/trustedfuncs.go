@@ -992,7 +992,7 @@ func errorsAs(err error, num string, dummy bool) {
 		var exitErr, anotherErr *exec.ExitError
 		if errors.As(err, &exitErr) || errors.As(err, &anotherErr) {
 			// We do not know the nilability of either.
-			print(*exitErr) //want "unassigned variable `exitErr` dereferenced"
+			print(*exitErr)    //want "unassigned variable `exitErr` dereferenced"
 			print(*anotherErr) //want "unassigned variable `anotherErr` dereferenced"
 		}
 	case "nil dereference in first argument":
@@ -1032,4 +1032,33 @@ func errorsAs(err error, num string, dummy bool) {
 			print(ok)
 		}
 	}
+}
+
+type S struct {
+	f *int
+}
+
+type myErr struct{}
+
+func (myErr) Error() string { return "myErr message" }
+
+func NewS() (*S, error) {
+	if dummy {
+		return &S{}, nil
+	}
+	return nil, myErr{}
+}
+
+type SSuite struct {
+	suite.Suite
+	S *S
+}
+
+func (s *SSuite) TestFieldAssignment() {
+	var err error
+	// TODO: this is a false positive. Fix it by adding support for this case.
+	//  Note that this is already being suppressed in the inference mode.
+	s.S, err = NewS() //want "lacking guarding"
+	s.NoError(err)
+	print(s.S.f)
 }

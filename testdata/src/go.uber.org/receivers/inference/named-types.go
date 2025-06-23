@@ -81,7 +81,9 @@ func testNamedSlice(i int) {
 		m = append(m, T{})
 		m[0].f = nil
 
-		_ = *m.fetch3(i) //want "dereferenced"
+		// TODO: Error should be reported on the line below. It is currently not reported because of the suppression of
+		//  struct field assignment logic that we added until we add object sensitivity for precise handling (issue #339).
+		_ = *m.fetch3(i) // "dereferenced"
 
 	case 5:
 		var m myTSlice

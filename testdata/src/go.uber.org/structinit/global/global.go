@@ -57,7 +57,9 @@ func h2() {
 		return
 	}
 
-	print(g2.aptr.ptr) //want "field `aptr` accessed field `ptr`"
+	// TODO: Error should be reported on the line below. It is currently not reported because of the suppression of
+	//  struct field assignment logic that we added until we add object sensitivity for precise handling (issue #339).
+	print(g2.aptr.ptr) // "field `aptr` accessed field `ptr`"
 }
 
 var g3 = &A{}
