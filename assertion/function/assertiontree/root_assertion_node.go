@@ -612,6 +612,13 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 					handleArgFuncIdent := func(argFuncIdent *ast.Ident) bool {
 						if r.isFunc(argFuncIdent) {
 							funcObj := r.ObjectOf(argFuncIdent).(*types.Func)
+
+							// Check if it is a rich check effect function call. If yes, this needs special handling.
+							if util.FuncIsErrReturning(funcObj.Signature()) || util.FuncIsOkReturning(funcObj.Signature()) {
+								// TODO: this is a temporary suppression which will be removed once we add support for
+								//  handling such cases precisely.
+								return true
+							}
 							if n := util.FuncNumResults(funcObj); n > 1 {
 								// is a pass of a multiply returning function to another function
 								_, producers := r.ParseExprAsProducer(argFunc, true)
