@@ -186,7 +186,9 @@ func testBlankAndNonPointerReceiversForLibraryMethods() {
 	var e E
 	var err2 error
 	e.errField = err2
-	print(e.errField.Error()) //want "unassigned variable"
+	// TODO: Error should be reported on the line below. It is currently not reported because of the suppression of
+	//  struct field assignment logic that we added until we add object sensitivity for precise handling (issue #339).
+	print(e.errField.Error()) // "unassigned variable"
 
 	e.errField = &myErr{}
 	print(e.errField.Error()) // safe
