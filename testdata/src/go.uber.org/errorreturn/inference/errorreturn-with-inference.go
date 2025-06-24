@@ -908,3 +908,19 @@ func testFunctionValue(i int) {
 		})
 	}
 }
+
+// checkError is a function that follows the same pattern as foo.
+func checkError(ptr *int, err error) (*int, error) {
+	if err != nil {
+		return nil, err
+	}
+	return ptr, nil
+}
+
+func TestDirectPassingOfErrorReturningFunc() {
+	ptr, err := checkError(retPtrAndErr2(0))
+	if err != nil {
+		return
+	}
+	print(*ptr) // safe
+}
