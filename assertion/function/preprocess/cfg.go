@@ -109,7 +109,7 @@ func (p *Preprocessor) CFG(graph *cfg.CFG, funcDecl *ast.FuncDecl) *cfg.CFG {
 	// anonymous functions calls. This will not be neede once our anonymous function support is
 	// more mature.
 	// TODO: remove this once anonymous function support handles it naturally.
-	p.insertSyntheticCallForTemplComponent(graph, funcDecl)
+	p.inlineTemplComponentFuncLit(graph, funcDecl)
 
 	return graph
 }

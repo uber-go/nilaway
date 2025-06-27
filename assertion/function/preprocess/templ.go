@@ -3,95 +3,109 @@ package preprocess
 import (
 	"go/ast"
 	"go/types"
+	"slices"
 
 	"go.uber.org/nilaway/config"
 	"golang.org/x/tools/go/analysis/passes/ctrlflow"
 	"golang.org/x/tools/go/cfg"
 )
 
-// insertSyntheticCallForTemplComponent inserts a synthetic call to the function literal
+// inlineTemplComponentFuncLit "inlines" the function literal that is used to create a templ component
 // that is the first argument to templruntime.GeneratedTemplate in the return statement of
-// a templ component function. Conceptually:
+// a templ component function.
 //
-// return templruntime.GeneratedTemplate(func(... templruntime.GeneratedComponentInput) (... error) { ... })
+// A typical generated templ component function looks like this:
 //
-// into:
+//	func MyComponent(...) templ.Component {
+//	    return templruntime.GeneratedTemplate(func(templruntime.GeneratedComponentInput) error {
+//	        // ... component logic ...
+//	        return nil
+//	    })
+//	}
 //
-// func(... templruntime.GeneratedComponentInput) (... error) { ... }(templruntime.GeneratedComponentInput{}) // synthetic call
-// return templruntime.GeneratedTemplate(func(... templruntime.GeneratedComponentInput) (... error) { ... })  // original return
+// Currently, NilAway is not able to analyze such functions since it involves passing a function
+// literal to a function call (which is eventually invoked by the templ runtime). To aid NilAway's
+// analysis for now, we "inline" the function literal by replacing the CFG of the function with the
+// CFG of the function literal. Moreover, we replace the inner return statements inside the
+// function literal with the real return statement, this helps NilAway to understand the return
+// value is actually non-nil.
 //
-// This is done to ensure that the function literal's invocation is explicit to aid NilAway's analysis.
-func (p *Preprocessor) insertSyntheticCallForTemplComponent(graph *cfg.CFG, funcDecl *ast.FuncDecl) {
-	if !p.isTemplComponentFunction(funcDecl) {
+// Note that this is a temporary workaround until NilAway has better support for function literals
+// in general.
+func (p *Preprocessor) inlineTemplComponentFuncLit(graph *cfg.CFG, funcDecl *ast.FuncDecl) {
+	funcLit, returnStmt := p.extractTemplComponentFuncLit(funcDecl)
+	// If the function is not a templ component function, we don't need to do anything.
+	if funcLit == nil || returnStmt == nil {
 		return
 	}
-	cfgs := p.pass.ResultOf[ctrlflow.Analyzer].(*ctrlflow.CFGs)
 
-	for _, block := range graph.Blocks {
-		if !block.Live || len(block.Nodes) == 0 {
+	cfgs := p.pass.ResultOf[ctrlflow.Analyzer].(*ctrlflow.CFGs)
+	// Now, we "inline" the function literal by replacing the CFG of the function with the CFG of
+	// the function literal.
+	graph.Blocks = slices.Clone(cfgs.FuncLit(funcLit).Blocks)
+	for _, b := range graph.Blocks {
+		if !b.Live || len(b.Nodes) == 0 {
 			continue
 		}
 
-		for _, node := range block.Nodes {
-			returnStmt, ok := node.(*ast.ReturnStmt)
-			if !ok {
-				continue
-			}
-			if p.isGeneratedTemplateReturn(returnStmt) {
-				funcLit := returnStmt.Results[0].(*ast.CallExpr).Args[0].(*ast.FuncLit)
-
-				graph.Blocks = cfgs.FuncLit(funcLit).Blocks
-				for _, b := range graph.Blocks {
-					if !b.Live || len(b.Nodes) == 0 {
-						continue
-					}
-
-					// Remove all return statements from this block
-					filteredNodes := make([]ast.Node, 0, len(b.Nodes))
-					for _, node := range b.Nodes {
-						if _, ok := node.(*ast.ReturnStmt); !ok {
-							filteredNodes = append(filteredNodes, node)
-						} else {
-							filteredNodes = append(filteredNodes, returnStmt)
-						}
-					}
-					b.Nodes = filteredNodes
-				}
-				// inlineFuncLitBody(block, returnStmt.Results[0].(*ast.CallExpr).Args[0].(*ast.FuncLit))
-				// insertSyntheticCall(block, i)
-				return
+		// Replace the inner return statements inside the function literal with the real return
+		// statement, this helps NilAway to understand the return value is non-nil.
+		for i, node := range b.Nodes {
+			if _, ok := node.(*ast.ReturnStmt); ok {
+				b.Nodes[i] = returnStmt
 			}
 		}
 	}
+	return
 }
 
-func (p *Preprocessor) isTemplComponentFunction(funcDecl *ast.FuncDecl) bool {
+func (p *Preprocessor) extractTemplComponentFuncLit(funcDecl *ast.FuncDecl) (*ast.FuncLit, *ast.ReturnStmt) {
 	// Check if the function returns a single result of type `templ.Component`.
 	if funcDecl == nil || funcDecl.Type == nil || funcDecl.Type.Results == nil || len(funcDecl.Type.Results.List) != 1 {
-		return false
+		return nil, nil
 	}
 	named, ok := p.pass.TypesInfo.TypeOf(funcDecl.Type.Results.List[0].Type).(*types.Named)
 	if !ok {
-		return false
+		return nil, nil
+	}
+	obj := named.Obj()
+	if obj == nil || obj.Pkg() == nil || obj.Pkg().Path() != config.TemplPkgPath || obj.Name() != "Component" {
+		return nil, nil
 	}
 
-	obj := named.Obj()
-	return obj != nil && obj.Pkg() != nil && obj.Pkg().Path() == config.TemplPkgPath && obj.Name() == "Component"
-}
-
-func (p *Preprocessor) isGeneratedTemplateReturn(returnStmt *ast.ReturnStmt) bool {
-	// Check if it is "templruntime.GeneratedTemplate(...)" call.
+	// Check if the function contains only a single return statement that calls
+	// `templruntime.GeneratedTemplate(func() { ... })`.
+	if funcDecl.Body == nil || len(funcDecl.Body.List) != 1 {
+		return nil, nil
+	}
+	returnStmt, ok := funcDecl.Body.List[0].(*ast.ReturnStmt)
+	if !ok {
+		return nil, nil
+	}
 	if len(returnStmt.Results) != 1 {
-		return false
+		return nil, nil
 	}
 	callExpr, ok := returnStmt.Results[0].(*ast.CallExpr)
 	if !ok {
-		return false
+		return nil, nil
 	}
 	sel, ok := callExpr.Fun.(*ast.SelectorExpr)
 	if !ok {
-		return false
+		return nil, nil
 	}
 	funObj := p.pass.TypesInfo.ObjectOf(sel.Sel)
-	return funObj != nil && funObj.Pkg().Path() == config.TemplRuntimePkgPath && funObj.Name() == "GeneratedTemplate"
+	if funObj == nil || funObj.Pkg().Path() != config.TemplRuntimePkgPath || funObj.Name() != "GeneratedTemplate" {
+		return nil, nil
+	}
+
+	// Check if the first argument is a function literal.
+	if len(returnStmt.Results) != 1 || len(callExpr.Args) != 1 {
+		return nil, nil
+	}
+	funcLit, ok := callExpr.Args[0].(*ast.FuncLit)
+	if !ok {
+		return nil, nil
+	}
+
+	return funcLit, returnStmt
 }
