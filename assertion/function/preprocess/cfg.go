@@ -95,6 +95,22 @@ func (p *Preprocessor) CFG(graph *cfg.CFG, funcDecl *ast.FuncDecl) *cfg.CFG {
 	markRangeStatements(graph, rangeChildren)
 	markSwitchStatements(graph, switchChildren)
 
+	// templ-generated components are of the following pattern:
+	//
+	// func Comp(arg templruntime.GeneratedComponentInput) templ.Component {
+	//   return templruntime.GeneratedTemplate(func() templ.Component { .. })
+	// }
+	//
+	// i.e., it returns a function pointer back to the templ runtime to be eventually invoked.
+	// In order for NilAway to analyze it, we have to (1) enable anonymous function support (done
+	// in the function analyzer when starting the analysis), and (2) insert a synthetic explicit
+	// call for the anonymous function.
+	// (2) is only needed since NilAway's anonymous function support currently only tracks explicit
+	// anonymous functions calls. This will not be neede once our anonymous function support is
+	// more mature.
+	// TODO: remove this once anonymous function support handles it naturally.
+	p.insertSyntheticCallForTemplComponent(graph, funcDecl)
+
 	return graph
 }
 

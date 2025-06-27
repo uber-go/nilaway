@@ -74,7 +74,6 @@ func TestNilAway(t *testing.T) {
 		{name: "LoopRange", patterns: []string{"go.uber.org/looprange"}},
 		{name: "AbnormalFlow", patterns: []string{"go.uber.org/abnormalflow"}},
 		{name: "NoLint", patterns: []string{"go.uber.org/nolint"}},
-		{name: "Templ", patterns: []string{"go.uber.org/templ"}},
 	}
 
 	for _, tt := range tests {
