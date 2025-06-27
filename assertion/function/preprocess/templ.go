@@ -26,7 +26,7 @@ func (p *Preprocessor) insertSyntheticCallForTemplComponent(graph *cfg.CFG, func
 		return
 	}
 	cfgs := p.pass.ResultOf[ctrlflow.Analyzer].(*ctrlflow.CFGs)
-	
+
 	for _, block := range graph.Blocks {
 		if !block.Live || len(block.Nodes) == 0 {
 			continue
@@ -41,6 +41,22 @@ func (p *Preprocessor) insertSyntheticCallForTemplComponent(graph *cfg.CFG, func
 				funcLit := returnStmt.Results[0].(*ast.CallExpr).Args[0].(*ast.FuncLit)
 
 				graph.Blocks = cfgs.FuncLit(funcLit).Blocks
+				for _, b := range graph.Blocks {
+					if !b.Live || len(b.Nodes) == 0 {
+						continue
+					}
+
+					// Remove all return statements from this block
+					filteredNodes := make([]ast.Node, 0, len(b.Nodes))
+					for _, node := range b.Nodes {
+						if _, ok := node.(*ast.ReturnStmt); !ok {
+							filteredNodes = append(filteredNodes, node)
+						} else {
+							filteredNodes = append(filteredNodes, returnStmt)
+						}
+					}
+					b.Nodes = filteredNodes
+				}
 				// inlineFuncLitBody(block, returnStmt.Results[0].(*ast.CallExpr).Args[0].(*ast.FuncLit))
 				// insertSyntheticCall(block, i)
 				return
@@ -79,84 +95,3 @@ func (p *Preprocessor) isGeneratedTemplateReturn(returnStmt *ast.ReturnStmt) boo
 	funObj := p.pass.TypesInfo.ObjectOf(sel.Sel)
 	return funObj != nil && funObj.Pkg().Path() == config.TemplRuntimePkgPath && funObj.Name() == "GeneratedTemplate"
 }
-
-func insertSyntheticCall(block *cfg.Block, returnIndex int) {
-	returnStmt := block.Nodes[returnIndex].(*ast.ReturnStmt)
-	generatedTemplateCall := returnStmt.Results[0].(*ast.CallExpr)
-
-	// Extract the function literal that is the first argument to templruntime.GeneratedTemplate
-	funcLit := generatedTemplateCall.Args[0]
-
-	// // Look for existing templruntime.GeneratedComponentInput type reference to reuse
-	// var inputType ast.Expr
-	// if funcLitExpr, ok := funcLit.(*ast.FuncLit); ok &&
-	// 	funcLitExpr.Type != nil &&
-	// 	funcLitExpr.Type.Params != nil &&
-	// 	len(funcLitExpr.Type.Params.List) > 0 {
-	// 	// Reuse the parameter type from the function literal
-	// 	inputType = funcLitExpr.Type.Params.List[0].Type
-	// } else {
-	// 	// Fallback: create new type reference
-	// 	inputType = &ast.SelectorExpr{
-	// 		X:   &ast.Ident{Name: "templruntime"},
-	// 		Sel: &ast.Ident{Name: "GeneratedComponentInput"},
-	// 	}
-	// }
-	//
-	// // Create a synthetic call to this function literal with empty GeneratedComponentInput
-	// syntheticCall := &ast.CallExpr{
-	// 	Fun:    funcLit,
-	// 	Lparen: generatedTemplateCall.Lparen, // Reuse position
-	// 	Args: []ast.Expr{
-	// 		&ast.CompositeLit{
-	// 			Type: inputType,
-	// 		},
-	// 	},
-	// 	Rparen: generatedTemplateCall.Rparen, // Reuse position
-	// }
-	//
-	// _ = &ast.ExprStmt{X: syntheticCall}
-
-	newNodes := make([]ast.Node, len(block.Nodes)+1)
-	copy(newNodes[:returnIndex], block.Nodes[:returnIndex])
-	if lit, ok := funcLit.(*ast.FuncLit); ok {
-		// If the function literal is a FuncLit, we need to insert its body as a new node
-		inlinedNodes := make([]ast.Node, 0, len(lit.Body.List))
-		for _, stmt := range lit.Body.List {
-			if _, ok := stmt.(*ast.ReturnStmt); ok {
-				continue
-			}
-			inlinedNodes = append(inlinedNodes, stmt)
-		}
-		newNodes = append(newNodes[:returnIndex], inlinedNodes...)
-		newNodes = append(newNodes, returnStmt)
-	} else {
-		panic("Expected a function literal in the return statement of a templ component function")
-		// Otherwise, we just insert the function literal as is
-		newNodes[returnIndex] = funcLit
-	}
-	// newNodes[returnIndex] = funcLit.(*ast.FuncLit).Body
-	// copy(newNodes[returnIndex+1:], block.Nodes[returnIndex:])
-	block.Nodes = newNodes
-}
-
-// func inlineFuncLitBody(block *cfg.Block, funcLit *ast.FuncLit) {
-// 	// Inline the body of the function literal into the block
-// 	if funcLit.Body == nil {
-// 		return
-// 	}
-//
-// 	newNodes := make([]ast.Node, 0, len(block.Nodes)+len(funcLit.Body.List))
-// 	newNodes = append(newNodes, block.Nodes[:len(block.Nodes)-1]...) // Keep all but the last node (the return statement)
-// 	inlinedNodes := make([]ast.Node, 0, len(funcLit.Body.List))
-// 	for _, stmt := range funcLit.Body.List {
-// 		if _, ok := stmt.(*ast.ReturnStmt); ok {
-// 			continue
-// 		}
-// 		inlinedNodes = append(inlinedNodes, stmt)
-// 	}
-// 	newNodes = append(newNodes, inlinedNodes...)                 // Add the function body statements
-// 	newNodes = append(newNodes, block.Nodes[len(block.Nodes)-1]) // Add the return statement back
-//
-// 	block.Nodes = newNodes
-// }

@@ -137,7 +137,7 @@ func run(pass *analysis.Pass) ([]annotation.FullTrigger, error) {
 		}
 		// We have to enable anonymous function support for templ generated files, since the vast
 		// majority of the logic in templ-generated code is in anonymous functions.
-		if functionConfig.EnableAnonymousFunc || conf.IsTemplGeneratedFile(file) {
+		if functionConfig.EnableAnonymousFunc {
 			// We need a stable order of triggers for inference. However, the
 			// fake func decl nodes generated from the anonymous function analyzer are stored in
 			// a map. Hence, here we traverse the file and append the fake func decl nodes in

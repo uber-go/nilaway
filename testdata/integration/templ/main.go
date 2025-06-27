@@ -1,4 +1,4 @@
-package templ_example
+package templ
 
 import (
 	"log"
