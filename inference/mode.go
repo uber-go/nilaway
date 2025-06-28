@@ -40,7 +40,7 @@ const (
 // docstring is found, multi-package inference is used (returns FullInfer).
 func DetermineMode(pass *analysis.Pass) ModeOfInference {
 	for _, file := range pass.Files {
-		if asthelper.DocContains(file.Doc, config.NilAwayNoInferString) {
+		if asthelper.DocContains(file, config.NilAwayNoInferString) {
 			return NoInfer
 		}
 	}

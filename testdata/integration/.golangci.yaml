@@ -1,5 +1,8 @@
 version: "2"
+
 linters:
+  exclusions:
+    generated: disable
   default: none
   enable:
     - nilaway

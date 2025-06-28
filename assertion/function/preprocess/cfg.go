@@ -95,6 +95,10 @@ func (p *Preprocessor) CFG(graph *cfg.CFG, funcDecl *ast.FuncDecl) *cfg.CFG {
 	markRangeStatements(graph, rangeChildren)
 	markSwitchStatements(graph, switchChildren)
 
+	// Please check the docstring of the following call to see why this is needed.
+	// TODO: remove this once anonymous function support handles it naturally.
+	p.inlineTemplComponentFuncLit(graph, funcDecl)
+
 	return graph
 }
 

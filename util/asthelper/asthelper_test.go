@@ -28,40 +28,68 @@ func TestDocContains(t *testing.T) {
 	testcases := []struct {
 		description string
 		s           string
-		node        *ast.CommentGroup
+		node        *ast.File
 		want        bool
 	}{
 		{
 			description: "contains the text",
 			s:           "42",
-			node: &ast.CommentGroup{List: []*ast.Comment{
-				{Slash: token.Pos(1), Text: "my comment 42"},
-			}},
+			node: &ast.File{
+				Name: &ast.Ident{Name: "Foo", NamePos: token.Pos(2)},
+				Comments: []*ast.CommentGroup{
+					{List: []*ast.Comment{
+						{Slash: token.Pos(1), Text: "my comment 42"},
+					}},
+				}},
 			want: true,
 		},
 		{
 			description: "contains the text in separate comment inside the group",
 			s:           "42",
-			node: &ast.CommentGroup{List: []*ast.Comment{
-				{Slash: token.Pos(1), Text: "my comment"},
-				{Slash: token.Pos(10), Text: "some 42 some other text"},
-			}},
+			node: &ast.File{
+				Name: &ast.Ident{Name: "Foo", NamePos: token.Pos(42)},
+				Comments: []*ast.CommentGroup{
+					{List: []*ast.Comment{
+						{Slash: token.Pos(1), Text: "my comment"},
+						{Slash: token.Pos(10), Text: "some 42 some other text"},
+					}},
+				}},
 			want: true,
 		},
 		{
 			description: "does not contain the text in nil group",
 			s:           "42",
-			node:        nil,
-			want:        false,
+			node: &ast.File{
+				Name:     &ast.Ident{Name: "Foo", NamePos: token.Pos(42)},
+				Comments: nil, // No comments at all
+			},
+			want: false,
 		},
 		{
 			description: "does not contain the text",
 			s:           "42",
-			node: &ast.CommentGroup{List: []*ast.Comment{
-				{Slash: token.Pos(1), Text: "my comment"},
-				{Slash: token.Pos(10), Text: "some some other text"},
-			}},
+			node: &ast.File{
+				Name: &ast.Ident{Name: "Foo", NamePos: token.Pos(42)},
+				Comments: []*ast.CommentGroup{
+					{List: []*ast.Comment{
+						{Slash: token.Pos(1), Text: "my comment"},
+						{Slash: token.Pos(10), Text: "some some other text"},
+					}},
+				}},
 			want: false,
+		},
+		{
+			description: "contains the text but after the package name",
+			s:           "42",
+			node: &ast.File{
+				Name: &ast.Ident{Name: "Foo", NamePos: token.Pos(1)},
+				Comments: []*ast.CommentGroup{
+					{List: []*ast.Comment{
+						{Slash: token.Pos(1), Text: "my comment"},
+						{Slash: token.Pos(10), Text: "some 42 some other text"},
+					}},
+				}},
+			want: true,
 		},
 	}
 
