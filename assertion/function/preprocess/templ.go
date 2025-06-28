@@ -46,6 +46,7 @@ import (
 //
 // Note that this is a temporary workaround until NilAway has better support for function literals
 // in general.
+// TODO: remove this once anonymous function support handles it naturally.
 func (p *Preprocessor) inlineTemplComponentFuncLit(graph *cfg.CFG, funcDecl *ast.FuncDecl) {
 	funcLit, returnStmt := p.extractTemplComponentFuncLit(funcDecl)
 	// If the function is not a templ component function, we don't need to do anything.
@@ -82,7 +83,7 @@ func (p *Preprocessor) extractTemplComponentFuncLit(funcDecl *ast.FuncDecl) (*as
 		return nil, nil
 	}
 	obj := named.Obj()
-	if obj == nil || obj.Pkg() == nil || obj.Pkg().Path() != config.TemplPkgPath || obj.Name() != "Component" {
+	if obj == nil || obj.Pkg() == nil || (obj.Pkg().Path() != config.TemplPkgPath && obj.Pkg().Path() != "stubs/"+config.TemplPkgPath) || obj.Name() != "Component" {
 		return nil, nil
 	}
 
@@ -107,7 +108,7 @@ func (p *Preprocessor) extractTemplComponentFuncLit(funcDecl *ast.FuncDecl) (*as
 		return nil, nil
 	}
 	funObj := p.pass.TypesInfo.ObjectOf(sel.Sel)
-	if funObj == nil || funObj.Pkg().Path() != config.TemplRuntimePkgPath || funObj.Name() != "GeneratedTemplate" {
+	if funObj == nil || (funObj.Pkg().Path() != config.TemplRuntimePkgPath && funObj.Pkg().Path() != "stubs/"+config.TemplRuntimePkgPath) || funObj.Name() != "GeneratedTemplate" {
 		return nil, nil
 	}
 
