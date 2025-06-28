@@ -113,7 +113,7 @@ func (p *Preprocessor) extractTemplComponentFuncLit(funcDecl *ast.FuncDecl) (*as
 	}
 
 	// Check if the first argument is a function literal.
-	if len(returnStmt.Results) != 1 || len(callExpr.Args) != 1 {
+	if len(callExpr.Args) != 1 {
 		return nil, nil
 	}
 	funcLit, ok := callExpr.Args[0].(*ast.FuncLit)
