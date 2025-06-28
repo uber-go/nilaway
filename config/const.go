@@ -38,9 +38,3 @@ const NilAwayPkgPathPrefix = uberPkgPathPrefix + "/nilaway"
 // to the locations that triggered errors - right now it seems as if 1 is sufficient disambiguation,
 // but feel free to increase.
 const DirLevelsToPrintForTriggers = 1
-
-// TemplPkgPath is the import path for the templ package.
-const TemplPkgPath = "github.com/a-h/templ"
-
-// TemplRuntimePkgPath is the import path for the templ runtime package.
-const TemplRuntimePkgPath = "github.com/a-h/templ/runtime"

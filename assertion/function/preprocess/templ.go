@@ -19,9 +19,13 @@ import (
 	"go/types"
 	"slices"
 
-	"go.uber.org/nilaway/config"
 	"golang.org/x/tools/go/analysis/passes/ctrlflow"
 	"golang.org/x/tools/go/cfg"
+)
+
+const (
+	_templPkgPath        = "github.com/a-h/templ"
+	_templRuntimePkgPath = "github.com/a-h/templ/runtime"
 )
 
 // inlineTemplComponentFuncLit "inlines" the function literal that is used to create a templ component
@@ -83,7 +87,7 @@ func (p *Preprocessor) extractTemplComponentFuncLit(funcDecl *ast.FuncDecl) (*as
 		return nil, nil
 	}
 	obj := named.Obj()
-	if obj == nil || obj.Pkg() == nil || (obj.Pkg().Path() != config.TemplPkgPath && obj.Pkg().Path() != "stubs/"+config.TemplPkgPath) || obj.Name() != "Component" {
+	if obj == nil || obj.Pkg() == nil || (obj.Pkg().Path() != _templPkgPath && obj.Pkg().Path() != "stubs/"+_templPkgPath) || obj.Name() != "Component" {
 		return nil, nil
 	}
 
@@ -108,7 +112,7 @@ func (p *Preprocessor) extractTemplComponentFuncLit(funcDecl *ast.FuncDecl) (*as
 		return nil, nil
 	}
 	funObj := p.pass.TypesInfo.ObjectOf(sel.Sel)
-	if funObj == nil || (funObj.Pkg().Path() != config.TemplRuntimePkgPath && funObj.Pkg().Path() != "stubs/"+config.TemplRuntimePkgPath) || funObj.Name() != "GeneratedTemplate" {
+	if funObj == nil || (funObj.Pkg().Path() != _templRuntimePkgPath && funObj.Pkg().Path() != "stubs/"+_templRuntimePkgPath) || funObj.Name() != "GeneratedTemplate" {
 		return nil, nil
 	}
 
