@@ -165,3 +165,97 @@ func testAlwaysSafeMultipleHops() {
 	v2, _ := f1(0)
 	print(*v2) //want "dereferenced"
 }
+
+type Value[T any] struct {
+	value T
+	valid bool
+}
+
+func (v Value[T]) Get() (T, bool) {
+	return v.value, v.valid
+}
+
+type V struct{}
+
+func retV() (V, bool) {
+	return V{}, true
+}
+
+func retInt() (int, bool) {
+	return 42, true
+}
+
+func TestAssignmentToNonPointerTypes(i int, v Value[V]) {
+	switch i {
+	case 1:
+		var sum *V
+		if a, ok := v.Get(); ok {
+			sum = &a
+			_ = *sum
+		}
+
+	case 2:
+		var sum *V
+		if a, ok := v.Get(); ok {
+			_ = &a
+			_ = *sum //want "dereferenced"
+		}
+
+	case 3:
+		var sum1, sum2 *V
+		if a, ok := v.Get(); ok {
+			sum1 = &a
+			_ = *sum1
+			_ = *sum2 //want "dereferenced"
+		}
+
+	case 4:
+		var sum *V
+		if a, ok := retV(); ok {
+			sum = &a
+			_ = *sum
+		}
+
+	case 5:
+		var sum *V
+		if a, ok := retV(); ok {
+			_ = &a
+			_ = *sum //want "dereferenced"
+		}
+
+	case 6:
+		var sum1, sum2 *V
+		if a, ok := retV(); ok {
+			sum1 = &a
+			_ = *sum1
+			_ = *sum2 //want "dereferenced"
+		}
+
+	case 7:
+		var sum *int
+		if a, ok := retInt(); ok {
+			sum = &a
+			_ = *sum
+		}
+
+	case 8:
+		var sum *int
+		if a, ok := retInt(); ok {
+			_ = &a
+			_ = *sum //want "dereferenced"
+		}
+
+	case 9:
+		var sum *V
+		a, _ := retV()
+		sum = &a
+		_ = *sum
+
+	case 10:
+		var sum *V
+		if a, ok := retV(); !ok {
+			sum = &a
+			_ = *sum
+		}
+	}
+}
