@@ -354,8 +354,7 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 		for i := 0; i < len(lhs)-1; i++ {
 			lhsExpr := lhs[i]
 			lhsValueParsed := parseExpr(rootNode, lhsExpr)
-			if lhsValueParsed == nil || util.ExprBarsNilness(rootNode.Pass(), lhsExpr) {
-				// ignore assignments to any variables whose type bars nilness, such as 'int'
+			if lhsValueParsed == nil {
 				continue
 			}
 			// here, the lhs `value` operand is trackable
@@ -421,9 +420,7 @@ func NodeTriggersFuncErrRet(rootNode *RootAssertionNode, nonceGenerator *util.Gu
 		lhsExpr := lhs[i]
 		lhsExprParsed := parseExpr(rootNode, lhsExpr)
 
-		if lhsExprParsed == nil || util.ExprBarsNilness(rootNode.Pass(), lhsExpr) {
-			// for now, we ignore assignments into anything but local variables
-			// we also ignore assignments to any variables whose type bars nilness, such as 'int'
+		if lhsExprParsed == nil {
 			continue
 		}
 

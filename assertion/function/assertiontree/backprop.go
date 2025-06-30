@@ -312,10 +312,27 @@ func backpropAcrossAssignment(rootNode *RootAssertionNode, lhs, rhs []ast.Expr) 
 			return backpropAcrossTypeSwitch(rootNode, lhsIdent, r.X)
 		}
 
-		// Range statement of the form `for x := range y`, which is not overly complex to
-		// handle but does involve distinct semantics.
-		if r, ok := rhsNode.(*ast.UnaryExpr); ok && r.Op == token.RANGE {
-			return backpropAcrossRange(rootNode, lhs, r.X)
+		if r, ok := rhsNode.(*ast.UnaryExpr); ok {
+			switch r.Op {
+			case token.RANGE:
+				// Range statement of the form `for x := range y`, which is not overly complex to
+				// handle but does involve distinct semantics.
+				return backpropAcrossRange(rootNode, lhs, r.X)
+			case token.AND:
+				if !rootNode.functionContext.functionConfig.EnableStructInitCheck {
+					// This is the case of creating a pointer and assigning it to a variable, e.g., `x := &y`,
+					// where y is a non-pointer type (e.g., y := S{}).
+					// Here, the pointer is always nonnil, so we can just add a ProduceTriggerNever.
+					if util.ExprBarsNilness(rootNode.Pass(), r.X) {
+						if len(lhs) == 1 && !util.IsEmptyExpr(lhs[0]) {
+							rootNode.AddProduction(&annotation.ProduceTrigger{
+								Annotation: &annotation.ProduceTriggerNever{},
+								Expr:       lhs[0],
+							})
+						}
+					}
+				}
+			}
 		}
 
 		// Now we handle special cases for "ok" contracts, the lhs must have length of 2, the first

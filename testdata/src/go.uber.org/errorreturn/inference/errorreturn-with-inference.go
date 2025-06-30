@@ -924,3 +924,97 @@ func TestDirectPassingOfErrorReturningFunc() {
 	}
 	print(*ptr) // safe
 }
+
+type Value[T any] struct {
+	value T
+	err   error
+}
+
+func (v Value[T]) Get() (T, error) {
+	return v.value, v.err
+}
+
+type V struct{}
+
+func retV() (V, error) {
+	return V{}, &myErr2{}
+}
+
+func retInt() (int, error) {
+	return 42, &myErr2{}
+}
+
+func TestAssignmentToNonPointerTypes(i int, v Value[V]) {
+	switch i {
+	case 1:
+		var sum *V
+		if a, err := v.Get(); err == nil {
+			sum = &a
+			_ = *sum
+		}
+
+	case 2:
+		var sum *V
+		if a, err := v.Get(); err == nil {
+			_ = &a
+			_ = *sum //want "dereferenced"
+		}
+
+	case 3:
+		var sum1, sum2 *V
+		if a, err := v.Get(); err == nil {
+			sum1 = &a
+			_ = *sum1
+			_ = *sum2 //want "dereferenced"
+		}
+
+	case 4:
+		var sum *V
+		if a, err := retV(); err == nil {
+			sum = &a
+			_ = *sum
+		}
+
+	case 5:
+		var sum *V
+		if a, err := retV(); err == nil {
+			_ = &a
+			_ = *sum //want "dereferenced"
+		}
+
+	case 6:
+		var sum1, sum2 *V
+		if a, err := retV(); err == nil {
+			sum1 = &a
+			_ = *sum1
+			_ = *sum2 //want "dereferenced"
+		}
+
+	case 7:
+		var sum *int
+		if a, err := retInt(); err == nil {
+			sum = &a
+			_ = *sum
+		}
+
+	case 8:
+		var sum *int
+		if a, err := retInt(); err == nil {
+			_ = &a
+			_ = *sum //want "dereferenced"
+		}
+
+	case 9:
+		var sum *V
+		a, _ := retV()
+		sum = &a
+		_ = *sum
+
+	case 10:
+		var sum *V
+		if a, err := retV(); err != nil {
+			sum = &a
+			_ = *sum
+		}
+	}
+}
