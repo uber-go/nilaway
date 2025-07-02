@@ -31,7 +31,6 @@ import (
 	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/typeshelper"
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/cfg"
 )
 
@@ -297,7 +296,7 @@ func backpropAcrossAssignment(rootNode *RootAssertionNode, lhs, rhs []ast.Expr) 
 	// and some cases for "ok" contracts, all of which will have a rhs with length 1.
 	if len(rhs) == 1 {
 		// Here we first strip the parentheses of the rhs to reveal the underlying nodes.
-		rhsNode := astutil.Unparen(rhs[0])
+		rhsNode := ast.Unparen(rhs[0])
 
 		// Type switch `x := y.(type)`, which needs special handling because TypesInfo.Defs
 		// can't find an object for the lhs.
@@ -771,7 +770,7 @@ func backpropAcrossManyToOneAssignment(rootNode *RootAssertionNode, lhs, rhs []a
 			"rhsVal count, but rhsVal count is also not 1")
 	}
 
-	rhsVal, ok := astutil.Unparen(rhs[0]).(*ast.CallExpr)
+	rhsVal, ok := ast.Unparen(rhs[0]).(*ast.CallExpr)
 	if !ok {
 		return errors.New("assumptions about assignment shape violated: lhs count does not equal " +
 			"rhsVal count, but rhsVal is not a call expression")
