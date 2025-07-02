@@ -25,7 +25,6 @@ import (
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/ast/astutil"
 )
 
 // RootAssertionNode is the object that will be directly handled by the propagation algorithm,

@@ -31,7 +31,6 @@ import (
 	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/typeshelper"
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/cfg"
 )
 
