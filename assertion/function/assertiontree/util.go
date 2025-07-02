@@ -22,6 +22,7 @@ import (
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/util/asthelper"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/ast/astutil"
 )
@@ -198,17 +199,6 @@ func AddNilCheck(pass *analysis.Pass, expr ast.Expr) (trueCheck, falseCheck Root
 		return noop, noop, true
 	}
 
-	asLenCall := func(expr ast.Expr) (ast.Expr, bool) {
-		if call, ok := expr.(*ast.CallExpr); ok {
-			if fun, ok := call.Fun.(*ast.Ident); ok {
-				if fun.Name == "len" && len(call.Args) == 1 {
-					return call.Args[0], true
-				}
-			}
-		}
-		return nil, false
-	}
-
 	isLiteralZeroInt := func(expr ast.Expr) bool {
 		if lit, ok := expr.(*ast.BasicLit); ok {
 			if lit.Kind == token.INT && lit.Value == "0" {
@@ -285,7 +275,7 @@ func AddNilCheck(pass *analysis.Pass, expr ast.Expr) (trueCheck, falseCheck Root
 		{ // this exprCheck matches on expressions like `len(a) == 0`
 			op: token.EQL,
 			matcher: func(x, y ast.Expr) (RootFunc, RootFunc, bool) {
-				if lenArg, isLen := asLenCall(x); isLen && isLiteralZeroInt(y) {
+				if lenArg := asthelper.AsLenCall(x, false /* allowNested */); lenArg != nil && isLiteralZeroInt(y) {
 					return noop, produceNegativeNilCheck(lenArg), false
 				}
 				return noop, noop, true
@@ -299,10 +289,10 @@ func AddNilCheck(pass *analysis.Pass, expr ast.Expr) (trueCheck, falseCheck Root
 			// it as a contract that only generates non-nil for one side when the other is checked
 			op: token.EQL,
 			matcher: func(x, y ast.Expr) (RootFunc, RootFunc, bool) {
-				xLenArg, xIsLen := asLenCall(x)
-				yLenArg, yIsLen := asLenCall(y)
+				xLenArg := asthelper.AsLenCall(x, true /* allowNested */)
+				yLenArg := asthelper.AsLenCall(y, true /* allowNested */)
 
-				if xIsLen && yIsLen {
+				if xLenArg != nil && yLenArg != nil {
 					return composeRootFuncs(
 						produceNegativeNilCheck(xLenArg),
 						produceNegativeNilCheck(yLenArg),
@@ -314,7 +304,7 @@ func AddNilCheck(pass *analysis.Pass, expr ast.Expr) (trueCheck, falseCheck Root
 		{ // this exprCheck matches on expressions like `len(a) == 37` or `len(a) == b`
 			op: token.EQL,
 			matcher: func(x, y ast.Expr) (RootFunc, RootFunc, bool) {
-				if lenArg, isLen := asLenCall(x); isLen && (isLiteralPositiveInt(y) || isNonLiteralInt(y)) {
+				if lenArg := asthelper.AsLenCall(x, true /* allowNested */); lenArg != nil && (isLiteralPositiveInt(y) || isNonLiteralInt(y)) {
 					return produceNegativeNilCheck(lenArg), noop, false
 				}
 				return noop, noop, true
@@ -323,7 +313,7 @@ func AddNilCheck(pass *analysis.Pass, expr ast.Expr) (trueCheck, falseCheck Root
 		{ // this exprCheck matches on expressions like `len(a) > 0` or `len(a) > 9`
 			op: token.GTR,
 			matcher: func(x, y ast.Expr) (RootFunc, RootFunc, bool) {
-				if lenArg, isLen := asLenCall(x); isLen && (isLiteralZeroInt(y) || isLiteralPositiveInt(y) || isNonLiteralInt(y)) {
+				if lenArg := asthelper.AsLenCall(x, true /* allowNested */); lenArg != nil && (isLiteralZeroInt(y) || isLiteralPositiveInt(y) || isNonLiteralInt(y)) {
 					return produceNegativeNilCheck(lenArg), noop, false
 				}
 				return noop, noop, true
@@ -332,7 +322,7 @@ func AddNilCheck(pass *analysis.Pass, expr ast.Expr) (trueCheck, falseCheck Root
 		{ // this exprCheck matches on expressions like `len(a) >= 19`
 			op: token.GEQ,
 			matcher: func(x, y ast.Expr) (RootFunc, RootFunc, bool) {
-				if lenArg, isLen := asLenCall(x); isLen && (isLiteralPositiveInt(y) || isNonLiteralInt(y)) {
+				if lenArg := asthelper.AsLenCall(x, true /* allowNested */); lenArg != nil && (isLiteralPositiveInt(y) || isNonLiteralInt(y)) {
 					return produceNegativeNilCheck(lenArg), noop, false
 				}
 				return noop, noop, true

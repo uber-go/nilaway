@@ -133,3 +133,46 @@ func ExtractLHSRHS(node ast.Node) (lhs, rhs []ast.Expr) {
 	}
 	return
 }
+
+// AsLenCall checks if the given expression is a call to the `len` function and returns the
+// argument if it is. If `allowNested` is true, it allows nested calls to `len` and returns
+// the innermost argument.
+func AsLenCall(expr ast.Expr, allowNested bool) ast.Expr {
+	if !allowNested {
+		return asLenCall(expr)
+	}
+
+	var lenExpr ast.Expr
+	ast.Inspect(expr, func(n ast.Node) bool {
+		expr, ok := n.(ast.Expr)
+		if !ok {
+			return true
+		}
+		if e := asLenCall(expr); e != nil {
+			// If we found a len call, we return it immediately.
+			lenExpr = e
+			return false // stop the inspection
+		}
+		return true
+	})
+
+	return lenExpr
+}
+
+func asLenCall(expr ast.Expr) ast.Expr {
+	callExpr, ok := expr.(*ast.CallExpr)
+	if !ok {
+		return nil
+	}
+
+	ident, ok := callExpr.Fun.(*ast.Ident)
+	if !ok || ident.Name != "len" {
+		return nil
+	}
+
+	if len(callExpr.Args) != 1 {
+		return nil
+	}
+
+	return callExpr.Args[0]
+}

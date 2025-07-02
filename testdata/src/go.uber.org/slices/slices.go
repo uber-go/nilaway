@@ -242,6 +242,14 @@ func lengthCheckAsNilCheckTest(a []int) int {
 		if 1 > len(a) {
 			return a[0] //want "sliced into"
 		}
+	case 30:
+		for i := 0; i < len(a); i++ {
+			_ = a[i]
+		}
+	case 31:
+		for i := 0; i < len(a)-1; i++ {
+			_ = a[i]
+		}
 	}
 	return 0
 }
