@@ -1264,8 +1264,8 @@ func (r *RootAssertionNode) isStable(expr ast.Expr) bool {
 // Between two stable expressions, check if we expect them to produce the same value
 // precondition: isStable(left) && isStable(right), then checks if left and right are equal
 func (r *RootAssertionNode) eqStable(left, right ast.Expr) bool {
-	left = astutil.Unparen(left)
-	right = astutil.Unparen(right)
+	left = ast.Unparen(left)
+	right = ast.Unparen(right)
 
 	switch left := left.(type) {
 	case *ast.BasicLit:

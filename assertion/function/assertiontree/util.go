@@ -179,7 +179,7 @@ func inverseToken(t token.Token) token.Token {
 func AddNilCheck(pass *analysis.Pass, expr ast.Expr) (trueCheck, falseCheck RootFunc, isNoop bool) {
 	noop := func(_ *RootAssertionNode) {}
 
-	expr = astutil.Unparen(expr)
+	expr = ast.Unparen(expr)
 
 	if e, ok := expr.(*ast.UnaryExpr); ok && e.Op == token.NOT {
 		// Check if the unary expression is a negation of a binary expression.
