@@ -37,7 +37,8 @@ var Analyzer = &analysis.Analyzer{
 	Requires:   []*analysis.Analyzer{config.Analyzer},
 }
 
-func run(pass *analysis.Pass) ([]annotation.FullTrigger, error) {
+func run(p *analysis.Pass) ([]annotation.FullTrigger, error) {
+	pass := analysishelper.NewEnhancedPass(p)
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
 
 	if !conf.IsPkgInScope(pass.Pkg) {

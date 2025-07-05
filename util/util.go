@@ -24,7 +24,7 @@ import (
 	"strings"
 
 	"go.uber.org/nilaway/config"
-	"golang.org/x/tools/go/analysis"
+	"go.uber.org/nilaway/util/analysishelper"
 )
 
 // ErrorType is the type of the builtin "error" interface.
@@ -236,7 +236,7 @@ func PortionAfterSep(input, sep string, occ int) string {
 // map is a good approximation.
 // Right now, this is used only to decide whether to print the location of the producer expression
 // in a full trigger.
-func ExprIsAuthentic(pass *analysis.Pass, expr ast.Expr) bool {
+func ExprIsAuthentic(pass *analysishelper.EnhancedPass, expr ast.Expr) bool {
 	t := pass.TypesInfo.TypeOf(expr)
 	return t != nil
 }
@@ -246,7 +246,7 @@ func ExprIsAuthentic(pass *analysis.Pass, expr ast.Expr) bool {
 // The function checks 2 things,
 // 1) Name of the called function is "builtin append"
 // 2) The first argument to the function is a slice
-func IsSliceAppendCall(node *ast.CallExpr, pass *analysis.Pass) (*types.Slice, bool) {
+func IsSliceAppendCall(node *ast.CallExpr, pass *analysishelper.EnhancedPass) (*types.Slice, bool) {
 	if funcName, ok := node.Fun.(*ast.Ident); ok {
 		if declObj := pass.TypesInfo.Uses[funcName]; declObj != nil {
 			if declObj.String() == "builtin append" {
@@ -290,7 +290,7 @@ func TypeBarsNilness(t types.Type) bool {
 
 // ExprBarsNilness returns if the expression can never be nil for the simple reason that nil does
 // not inhabit its type.
-func ExprBarsNilness(pass *analysis.Pass, expr ast.Expr) bool {
+func ExprBarsNilness(pass *analysishelper.EnhancedPass, expr ast.Expr) bool {
 	t := pass.TypesInfo.TypeOf(expr)
 	// `pass.TypesInfo.TypeOf` only checks Types, Uses, and Defs maps in TypesInfo. However, we may
 	// miss types for some expressions. For example, `f` in `s.f` can only be found in
@@ -513,7 +513,7 @@ func truncatePosition(position token.Position) token.Position {
 }
 
 // PosToLocation converts a token.Pos as a real code location, of token.Position.
-func PosToLocation(pos token.Pos, pass *analysis.Pass) token.Position {
+func PosToLocation(pos token.Pos, pass *analysishelper.EnhancedPass) token.Position {
 	return truncatePosition(pass.Fset.Position(pos))
 }
 

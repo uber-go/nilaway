@@ -17,6 +17,7 @@ package config
 
 import (
 	"flag"
+	"go.uber.org/nilaway/util/analysishelper"
 	"go/ast"
 	"go/types"
 	"reflect"
@@ -151,7 +152,8 @@ func newFlagSet() flag.FlagSet {
 	return *fs
 }
 
-func run(pass *analysis.Pass) (any, error) {
+func run(p *analysis.Pass) (any, error) {
+	pass := analysishelper.NewEnhancedPass(p)
 	// Set up default values for the config.
 	conf := &Config{
 		PrettyPrint:        true,

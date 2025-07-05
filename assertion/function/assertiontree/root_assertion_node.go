@@ -24,7 +24,7 @@ import (
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
-	"golang.org/x/tools/go/analysis"
+	"go.uber.org/nilaway/util/analysishelper"
 )
 
 // RootAssertionNode is the object that will be directly handled by the propagation algorithm,
@@ -76,7 +76,7 @@ func (r *RootAssertionNode) FuncDecl() *ast.FuncDecl {
 }
 
 // Pass the overarching analysis pass
-func (r *RootAssertionNode) Pass() *analysis.Pass {
+func (r *RootAssertionNode) Pass() *analysishelper.EnhancedPass {
 	return r.functionContext.pass
 }
 

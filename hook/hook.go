@@ -25,7 +25,7 @@ import (
 	"regexp"
 
 	"go.uber.org/nilaway/util"
-	"golang.org/x/tools/go/analysis"
+	"go.uber.org/nilaway/util/analysishelper"
 )
 
 // funcKind indicates the kind of the trusted function:
@@ -48,7 +48,7 @@ type trustedFuncSig struct {
 // match checks if a given call expression matches with a trusted function's signature. Namely,
 // it performs a strict matching for the function / method name and a user-defined regex match for
 // the enclosing package or struct path.
-func (t *trustedFuncSig) match(pass *analysis.Pass, call *ast.CallExpr) bool {
+func (t *trustedFuncSig) match(pass *analysishelper.EnhancedPass, call *ast.CallExpr) bool {
 	sel, ok := call.Fun.(*ast.SelectorExpr)
 	if !ok || !t.funcNameRegex.MatchString(sel.Sel.Name) {
 		return false

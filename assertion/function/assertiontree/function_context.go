@@ -20,7 +20,7 @@ import (
 
 	"go.uber.org/nilaway/assertion/anonymousfunc"
 	"go.uber.org/nilaway/assertion/function/functioncontracts"
-	"golang.org/x/tools/go/analysis"
+	"go.uber.org/nilaway/util/analysishelper"
 )
 
 // SelectorExprMap is used to cache artificially created ast selector expressions
@@ -37,7 +37,7 @@ type FunctionContext struct {
 	funcLit *ast.FuncLit
 
 	// pass records the overarching analysis pass - needed for identifier resolution.
-	pass *analysis.Pass
+	pass *analysishelper.EnhancedPass
 
 	// selectorExpressionCache we cache artificially created selector expressions nodes to avoid
 	// duplication. Duplication is dangerous as it will result in duplicate triggers and the
@@ -75,7 +75,7 @@ type FunctionConfig struct {
 
 // NewFunctionContext returns a new FunctionContext and initializes all the maps
 func NewFunctionContext(
-	pass *analysis.Pass,
+	pass *analysishelper.EnhancedPass,
 	decl *ast.FuncDecl,
 	funcLit *ast.FuncLit,
 	functionConfig FunctionConfig,

@@ -17,6 +17,7 @@ package functioncontracts
 import (
 	"fmt"
 	"go/types"
+	"golang.org/x/tools/go/analysis"
 	"strings"
 	"testing"
 
@@ -24,7 +25,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"go.uber.org/nilaway/util/analysishelper"
-	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
