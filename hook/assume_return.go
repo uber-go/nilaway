@@ -21,14 +21,14 @@ import (
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/util"
-	"golang.org/x/tools/go/analysis"
+	"go.uber.org/nilaway/util/analysishelper"
 )
 
 // AssumeReturn returns the producer for the return value of the given call expression, which would
 // have the assumed nilability. This is useful for modeling the return value of stdlib and 3rd party
 // functions that are not analyzed by NilAway. For example, "errors.New" is assumed to return a
 // nonnil value. If the given call expression does not match any known function, nil is returned.
-func AssumeReturn(pass *analysis.Pass, call *ast.CallExpr) *annotation.ProduceTrigger {
+func AssumeReturn(pass *analysishelper.EnhancedPass, call *ast.CallExpr) *annotation.ProduceTrigger {
 	for sig, act := range _assumeReturns {
 		if sig.match(pass, call) {
 			return act(call)
@@ -41,7 +41,7 @@ func AssumeReturn(pass *analysis.Pass, call *ast.CallExpr) *annotation.ProduceTr
 // AssumeReturnForErrorWrapperFunc returns the producer for the return value of the given call expression which is
 // an error wrapper function. This is useful for modeling the return value of error wrapper functions like
 // `errors.Wrapf(err, "message")` to return a non-nil error. If the given call expression is not an error wrapper, nil is returned.
-func AssumeReturnForErrorWrapperFunc(pass *analysis.Pass, call *ast.CallExpr) *annotation.ProduceTrigger {
+func AssumeReturnForErrorWrapperFunc(pass *analysishelper.EnhancedPass, call *ast.CallExpr) *annotation.ProduceTrigger {
 	if isErrorWrapperFunc(pass, call) {
 		return nonnilProducer(call)
 	}
@@ -52,7 +52,7 @@ func AssumeReturnForErrorWrapperFunc(pass *analysis.Pass, call *ast.CallExpr) *a
 // It does this by applying the following criteria:
 // - the function must have at least one argument of error-implementing type, and
 // - the function must return an error-implementing type as its last return value.
-func isErrorWrapperFunc(pass *analysis.Pass, call *ast.CallExpr) bool {
+func isErrorWrapperFunc(pass *analysishelper.EnhancedPass, call *ast.CallExpr) bool {
 	funcIdent := util.FuncIdentFromCallExpr(call)
 	if funcIdent == nil {
 		return false

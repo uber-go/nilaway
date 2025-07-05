@@ -74,7 +74,8 @@ var Analyzer = &analysis.Analyzer{
 //
 // Lastly, we export the _incremental_ information we have gathered from the analysis of local
 // package for use by downstream packages.
-func run(pass *analysis.Pass) (result interface{}, _ error) {
+func run(p *analysis.Pass) (result interface{}, _ error) {
+	pass := analysishelper.NewEnhancedPass(p)
 	// As a last resort, we recover from a panic when running the analyzer, convert the panic to
 	// a diagnostic and return.
 	defer func() {

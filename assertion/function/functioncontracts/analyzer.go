@@ -56,7 +56,8 @@ func (*Contracts) AFact() {}
 // Map stores the mappings from *types.Func to associated function contracts.
 type Map map[*types.Func]Contracts
 
-func run(pass *analysis.Pass) (Map, error) {
+func run(p *analysis.Pass) (Map, error) {
+	pass := analysishelper.NewEnhancedPass(p)
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
 	if !conf.IsPkgInScope(pass.Pkg) {
 		return make(Map), nil
@@ -122,7 +123,7 @@ type functionResult struct {
 // every function with its contracts if it has any. We prefer to parse handwritten contracts from
 // the comments at the top of each function. Only when there are no handwritten contracts there,
 // do we try to automatically infer contracts.
-func collectFunctionContracts(pass *analysis.Pass) (Map, error) {
+func collectFunctionContracts(pass *analysishelper.EnhancedPass) (Map, error) {
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
 
 	// Collect ssa for every function.

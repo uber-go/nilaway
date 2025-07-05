@@ -19,7 +19,7 @@ import (
 	"go/types"
 
 	"go.uber.org/nilaway/annotation"
-	"golang.org/x/tools/go/analysis"
+	"go.uber.org/nilaway/util/analysishelper"
 )
 
 // fieldUse is an int type to indicate how a field is used in the function
@@ -69,7 +69,7 @@ func (f *FieldContext) addEntry(funcDecl *types.Func, param int, fieldName strin
 }
 
 // processFunc parses the function body for collecting field uses (i.e., assignments and accesses) of a given struct passed as a parameter to the function
-func (f *FieldContext) processFunc(funcDecl *ast.FuncDecl, pass *analysis.Pass) {
+func (f *FieldContext) processFunc(funcDecl *ast.FuncDecl, pass *analysishelper.EnhancedPass) {
 	// get all assigned and accessed selector expressions from `funcDecl` of the form `s.f`
 	fieldRefUseList := collectIdentSelExpr(funcDecl)
 

@@ -22,7 +22,7 @@ import (
 	"regexp"
 
 	"go.uber.org/nilaway/util"
-	"golang.org/x/tools/go/analysis"
+	"go.uber.org/nilaway/util/analysishelper"
 )
 
 // SplitBlockOn splits the CFG block on seeing matched trusted functions, where the condition is
@@ -30,7 +30,7 @@ import (
 // function `assert.NotNil(t, x)`, and the CFG block is split as if it were written like
 // `if x != nil { <...code after the function call...> }`. This helps NilAway understand the
 // nilability of the arguments after certain functions with side effects.
-func SplitBlockOn(pass *analysis.Pass, call *ast.CallExpr) ast.Expr {
+func SplitBlockOn(pass *analysishelper.EnhancedPass, call *ast.CallExpr) ast.Expr {
 	for sig, act := range _splitBlockOn {
 		if sig.match(pass, call) {
 			return act.action(pass, call, act.argIndex)
@@ -40,10 +40,10 @@ func SplitBlockOn(pass *analysis.Pass, call *ast.CallExpr) ast.Expr {
 }
 
 // splitBlockOnAction defines the effect the trusted function can have on its argument `argIndex`.
-type splitBlockOnAction func(pass *analysis.Pass, call *ast.CallExpr, argIndex int) ast.Expr
+type splitBlockOnAction func(pass *analysishelper.EnhancedPass, call *ast.CallExpr, argIndex int) ast.Expr
 
 // nilBinaryExpr returns `expr == nil`. This is useful, for example, in asserting nilability of an object in the `testify` library: `assert.Nil(t, obj)`, which gets interpreted as `if obj == nil {...}` by preprocess
-var nilBinaryExpr splitBlockOnAction = func(_ *analysis.Pass, call *ast.CallExpr, argIndex int) ast.Expr {
+var nilBinaryExpr splitBlockOnAction = func(_ *analysishelper.EnhancedPass, call *ast.CallExpr, argIndex int) ast.Expr {
 	if argIndex < 0 || argIndex >= len(call.Args) {
 		return nil
 	}
@@ -51,7 +51,7 @@ var nilBinaryExpr splitBlockOnAction = func(_ *analysis.Pass, call *ast.CallExpr
 }
 
 // nonnilBinaryExpr returns `expr != nil`. This is useful, for example, in asserting non-nilability of an object in the `testify` library: `assert.NotNil(t, obj)`, which gets interpreted as `if obj != nil {...}` by preprocess
-var nonnilBinaryExpr splitBlockOnAction = func(_ *analysis.Pass, call *ast.CallExpr, argIndex int) ast.Expr {
+var nonnilBinaryExpr splitBlockOnAction = func(_ *analysishelper.EnhancedPass, call *ast.CallExpr, argIndex int) ast.Expr {
 	if argIndex < 0 || argIndex >= len(call.Args) {
 		return nil
 	}
@@ -60,7 +60,7 @@ var nonnilBinaryExpr splitBlockOnAction = func(_ *analysis.Pass, call *ast.CallE
 
 // selfExpr returns the expression itself. Currently, this is meant for only checking boolean expressions, implying `if expr {...}`, i.e., `if expr == true {...}`.
 // This is useful, for example, is asserting a boolean true value in the `testify` library: `assert.True(t, ok)`, which gets interpreted as `if ok {...}` by preprocess
-var selfExpr splitBlockOnAction = func(_ *analysis.Pass, call *ast.CallExpr, argIndex int) ast.Expr {
+var selfExpr splitBlockOnAction = func(_ *analysishelper.EnhancedPass, call *ast.CallExpr, argIndex int) ast.Expr {
 	if argIndex < 0 || argIndex >= len(call.Args) {
 		return nil
 	}
@@ -68,7 +68,7 @@ var selfExpr splitBlockOnAction = func(_ *analysis.Pass, call *ast.CallExpr, arg
 }
 
 // negatedSelfExpr is same as selfExpr, but returns a negated expr. E.g., `assert.False(t, ok)`, which gets interpreted as `if !ok {...}` by preprocess
-var negatedSelfExpr splitBlockOnAction = func(_ *analysis.Pass, call *ast.CallExpr, argIndex int) ast.Expr {
+var negatedSelfExpr splitBlockOnAction = func(_ *analysishelper.EnhancedPass, call *ast.CallExpr, argIndex int) ast.Expr {
 	if argIndex < 0 || argIndex >= len(call.Args) {
 		return nil
 	}
@@ -96,7 +96,7 @@ const (
 // requireComparators handles slightly more sophisticated cases of comparisons. We currently support:
 // - slice length comparison (e.g., `Equal(1, len(s))`, implying len(s) > 0, meaning s is nonnil)
 // - nil comparison (e.g., `Equal(nil, err)`).
-var requireComparators splitBlockOnAction = func(pass *analysis.Pass, call *ast.CallExpr, startIndex int) ast.Expr {
+var requireComparators splitBlockOnAction = func(pass *analysishelper.EnhancedPass, call *ast.CallExpr, startIndex int) ast.Expr {
 	// Comparator function calls must have at least two arguments.
 	if len(call.Args[startIndex:]) < 2 {
 		return nil
@@ -173,7 +173,7 @@ var requireComparators splitBlockOnAction = func(pass *analysis.Pass, call *ast.
 // - `nil` for pointers
 // - `false` for booleans
 // - `len == 0` for slices, maps, and channels
-var requireZeroComparators splitBlockOnAction = func(pass *analysis.Pass, call *ast.CallExpr, index int) ast.Expr {
+var requireZeroComparators splitBlockOnAction = func(pass *analysishelper.EnhancedPass, call *ast.CallExpr, index int) ast.Expr {
 	expr := call.Args[index]
 	if expr == nil {
 		return nil
@@ -252,7 +252,7 @@ func generateComparators(call *ast.CallExpr, actualExpr ast.Expr, actualExprInde
 
 // requireLen handles `require.Len` calls for slices: asserting the length of a slice > 0 implies
 // the slice is not nil.
-var requireLen splitBlockOnAction = func(pass *analysis.Pass, call *ast.CallExpr, startIndex int) ast.Expr {
+var requireLen splitBlockOnAction = func(pass *analysishelper.EnhancedPass, call *ast.CallExpr, startIndex int) ast.Expr {
 	if len(call.Args[startIndex:]) < 2 {
 		return nil
 	}

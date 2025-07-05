@@ -470,7 +470,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 		switch {
 		// For slice expressions `b[_:0:_]`, the result is always an empty (nilable in
 		// NilAway's eyes) slice. (`_` can be anything including empty.)
-		case r.isIntZero(expr.High):
+		case r.Pass().IsZero(expr.High):
 			// We should create a nilable producer.
 			return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{
 				Producer: &annotation.ProduceTrigger{
@@ -480,7 +480,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 		// For slice expressions `b[0:]` and `b[:]`, the result's nilability depends on the
 		// nilability of the original slice. Note that you cannot give empty High in 3-index
 		// slices.
-		case expr.High == nil && (expr.Low == nil || r.isIntZero(expr.Low)):
+		case expr.High == nil && (expr.Low == nil || r.Pass().IsZero(expr.Low)):
 			// TODO: for now we directly return the trackable expression of the original slice. We
 			// should instead properly create a trackable expression for the slice expression. See
 			//  for more details.

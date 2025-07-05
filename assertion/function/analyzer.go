@@ -82,7 +82,8 @@ type functionResult struct {
 	funcDecl *ast.FuncDecl
 }
 
-func run(pass *analysis.Pass) ([]annotation.FullTrigger, error) {
+func run(p *analysis.Pass) ([]annotation.FullTrigger, error) {
+	pass := analysishelper.NewEnhancedPass(p)
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
 	if !conf.IsPkgInScope(pass.Pkg) {
 		return nil, nil
@@ -244,7 +245,7 @@ func run(pass *analysis.Pass) ([]annotation.FullTrigger, error) {
 // create new full triggers that duplicates the original full triggers of the contracted functions
 // but uses the new producers/consumers instead.
 func duplicateFullTriggersFromContractedFunctionsToCallers(
-	pass *analysis.Pass,
+	pass *analysishelper.EnhancedPass,
 	funcContracts functioncontracts.Map,
 	funcTriggers [][]annotation.FullTrigger,
 	funcResults map[*types.Func]*functionResult,
@@ -327,7 +328,7 @@ func duplicateFullTrigger(
 	trigger annotation.FullTrigger,
 	callee *types.Func,
 	callExpr *ast.CallExpr,
-	pass *analysis.Pass,
+	pass *analysishelper.EnhancedPass,
 	isParamProducer bool,
 	isReturnConsumer bool,
 ) annotation.FullTrigger {
@@ -370,7 +371,7 @@ func duplicateFullTrigger(
 // call it.
 func findCallsToContractedFunctions(
 	funcNode *ast.FuncDecl,
-	pass *analysis.Pass,
+	pass *analysishelper.EnhancedPass,
 	functionContracts functioncontracts.Map,
 ) map[*types.Func][]*ast.CallExpr {
 	calls := map[*types.Func][]*ast.CallExpr{}
@@ -421,7 +422,7 @@ func hasOnlyNonNilToNonNilContract(funcContracts functioncontracts.Map, funcObj 
 // The actual result will be sent via the channel.
 func analyzeFunc(
 	ctx context.Context,
-	pass *analysis.Pass,
+	pass *analysishelper.EnhancedPass,
 	funcDecl *ast.FuncDecl,
 	funcContext assertiontree.FunctionContext,
 	graph *cfg.CFG,

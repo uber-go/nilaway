@@ -68,7 +68,8 @@ type VarInfo struct {
 // It contains an illegal character to avoid collisions with other variables.
 const _fakeFuncDeclPrefix = "__anonymousFunction$"
 
-func run(pass *analysis.Pass) (map[*ast.FuncLit]*FuncLitInfo, error) {
+func run(p *analysis.Pass) (map[*ast.FuncLit]*FuncLitInfo, error) {
+	pass := analysishelper.NewEnhancedPass(p)
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
 
 	if !conf.IsPkgInScope(pass.Pkg) {
@@ -110,7 +111,7 @@ func run(pass *analysis.Pass) (map[*ast.FuncLit]*FuncLitInfo, error) {
 // createFakeFuncDecl creates a fake function declaration (AST node and a type object) for the
 // given func lit node, where the parameter list is extended to include fake parameters that
 // represent the closure variables.
-func createFakeFuncDecl(pass *analysis.Pass, funcLit *ast.FuncLit, fakeParams []*VarInfo) (*ast.FuncDecl, *types.Func) {
+func createFakeFuncDecl(pass *analysishelper.EnhancedPass, funcLit *ast.FuncLit, fakeParams []*VarInfo) (*ast.FuncDecl, *types.Func) {
 	// The name for the node is named "<prefix>Line:Column" for easier identification.
 	pos := pass.Fset.Position(funcLit.Pos())
 	name := _fakeFuncDeclPrefix + strconv.Itoa(pos.Line) + ":" + strconv.Itoa(pos.Column)

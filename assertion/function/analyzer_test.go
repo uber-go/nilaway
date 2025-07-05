@@ -58,7 +58,7 @@ func TestCancelledContext(t *testing.T) {
 
 	// First do an analysis test run just to get the pass variable.
 	r := analysistest.Run(t, testdata, Analyzer, "go.uber.org/pkg")
-	pass := r[0].Pass
+	pass := analysishelper.NewEnhancedPass(r[0].Pass)
 
 	// Select the first function declaration node to run test.
 	var funcDecl *ast.FuncDecl
@@ -125,7 +125,7 @@ func TestAnalyzeFuncPanic(t *testing.T) {
 	// Intentionally give bad input data to cause a panic. We should convert the panic to an error
 	// and send it back to the original channel.
 	go analyzeFunc(ctx,
-		&analysis.Pass{},                /* pass */
+		analysishelper.NewEnhancedPass(&analysis.Pass{}), /* pass */
 		&ast.FuncDecl{},                 /* funcDecl */
 		assertiontree.FunctionContext{}, /* funcContext */
 		&cfg.CFG{},                      /* graph */
@@ -151,7 +151,7 @@ func TestBackpropFixpointConvergence(t *testing.T) {
 
 	// First do an analysis test run just to get the pass variable.
 	r := analysistest.Run(t, testdata, Analyzer, "go.uber.org/backprop")
-	pass := r[0].Pass
+	pass := analysishelper.NewEnhancedPass(r[0].Pass)
 
 	// Gather function declaration nodes from test.
 	var funcs []*ast.FuncDecl
@@ -184,7 +184,7 @@ func TestBackpropFixpointConvergence(t *testing.T) {
 		funcTriggers, roundCount, stableRoundCount, err := assertiontree.BackpropAcrossFunc(ctx, pass, funcDecl, funcContext, ctrlflowResult.FuncDecl(funcDecl))
 		require.NoError(t, err, "Backpropagation algorithm should not return an error")
 
-		expectedValues := nilawaytest.FindExpectedValues(pass, _wantFixpointPrefix)
+		expectedValues := nilawaytest.FindExpectedValues(pass.Pass, _wantFixpointPrefix)
 		expectedVals, ok := expectedValues[funcDecl]
 		if !ok {
 			// No expected values written in the test file, so we skip the comparison.

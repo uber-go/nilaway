@@ -24,7 +24,7 @@ import (
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
-	"golang.org/x/tools/go/analysis"
+	"go.uber.org/nilaway/util/analysishelper"
 )
 
 // Affiliation is used to track the association between an interface and its concrete implementations in the form of a map,
@@ -56,7 +56,7 @@ func (*AffliliationCache) AFact() {}
 
 // extractAffiliations processes all affiliations (e.g., interface and its implementing struct) and returns map documenting
 // the affiliations
-func (a *Affiliation) extractAffiliations(pass *analysis.Pass) {
+func (a *Affiliation) extractAffiliations(pass *analysishelper.EnhancedPass) {
 	// initialize
 	upstreamCache := make(ImplementedDeclaredTypesCache, 0) // store entries passed from upstream packages
 	currentCache := make(ImplementedDeclaredTypesCache, 0)  // store new entries witnessed in this current package
@@ -86,7 +86,7 @@ func (a *Affiliation) extractAffiliations(pass *analysis.Pass) {
 
 // computeTriggersForCastingSites analyzes all explicit and implicit sites of casts in the AST. For example, explicit casts,
 // variable assignments, variable declaration and initialization, method returns, and method parameters.
-func (a *Affiliation) computeTriggersForCastingSites(pass *analysis.Pass, upstreamCache ImplementedDeclaredTypesCache, currentCache ImplementedDeclaredTypesCache) {
+func (a *Affiliation) computeTriggersForCastingSites(pass *analysishelper.EnhancedPass, upstreamCache ImplementedDeclaredTypesCache, currentCache ImplementedDeclaredTypesCache) {
 	appendTypeToTypeTriggers := func(lhsType, rhsType types.Type) {
 		a.triggers = append(a.triggers, a.computeTriggersForTypes(lhsType, rhsType, upstreamCache, currentCache)...)
 	}

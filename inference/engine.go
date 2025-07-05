@@ -24,6 +24,7 @@ import (
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/assertion/function/assertiontree"
+	"go.uber.org/nilaway/util/analysishelper"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -38,7 +39,7 @@ type conflictHandler interface {
 // various tasks for the inference and stores an internal map that can be obtained by calling
 // Engine.InferredMap.
 type Engine struct {
-	pass *analysis.Pass
+	pass *analysishelper.EnhancedPass
 	// inferredMap is the internal inferred map that the engine writes to, it is initialized on the
 	// construction of the engine and populated by the "Observe*" methods of the engine. Users
 	// should use the Engine.InferredMap() method to obtain the current inferred map.
@@ -56,7 +57,7 @@ type Engine struct {
 }
 
 // NewEngine constructs an inference engine that is ready to run inference.
-func NewEngine(pass *analysis.Pass, diagnosticEngine conflictHandler) *Engine {
+func NewEngine(pass *analysishelper.EnhancedPass, diagnosticEngine conflictHandler) *Engine {
 	primitive := newPrimitivizer(pass)
 	return &Engine{
 		pass:             pass,

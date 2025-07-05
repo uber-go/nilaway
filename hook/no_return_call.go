@@ -19,7 +19,7 @@ import (
 	"regexp"
 	"slices"
 
-	"golang.org/x/tools/go/analysis"
+	"go.uber.org/nilaway/util/analysishelper"
 )
 
 // IsNoReturnCall returns whether the specific call expression terminates the program unconditionally.
@@ -30,7 +30,7 @@ import (
 // configured to just panic (but we cannot infer that purely from code).
 //
 // `testing.TB.Fatal`-related: they are interface methods without implementations.
-func IsNoReturnCall(pass *analysis.Pass, call *ast.CallExpr) bool {
+func IsNoReturnCall(pass *analysishelper.EnhancedPass, call *ast.CallExpr) bool {
 	return slices.ContainsFunc(_terminatingCalls, func(sig trustedFuncSig) bool { return sig.match(pass, call) })
 }
 

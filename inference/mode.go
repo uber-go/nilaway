@@ -16,8 +16,8 @@ package inference
 
 import (
 	"go.uber.org/nilaway/config"
+	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/asthelper"
-	"golang.org/x/tools/go/analysis"
 )
 
 // ModeOfInference is effectively an enum indicating the possible ways that we may conduct inference
@@ -38,7 +38,7 @@ const (
 // DetermineMode searches the files in this package for docstrings that indicate
 // inference should be entirely suppressed (returns NoInfer). By default, if no such
 // docstring is found, multi-package inference is used (returns FullInfer).
-func DetermineMode(pass *analysis.Pass) ModeOfInference {
+func DetermineMode(pass *analysishelper.EnhancedPass) ModeOfInference {
 	for _, file := range pass.Files {
 		if asthelper.DocContains(file, config.NilAwayNoInferString) {
 			return NoInfer

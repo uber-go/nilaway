@@ -57,7 +57,8 @@ type Range struct {
 	From, To int
 }
 
-func run(pass *analysis.Pass) ([]Range, error) {
+func run(p *analysis.Pass) ([]Range, error) {
+	pass := analysishelper.NewEnhancedPass(p)
 	var ranges []Range
 	for _, f := range pass.Files {
 		// CommentMap will correctly associate comments to the largest node group

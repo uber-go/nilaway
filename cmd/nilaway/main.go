@@ -26,6 +26,7 @@ import (
 
 	"go.uber.org/nilaway"
 	"go.uber.org/nilaway/config"
+	"go.uber.org/nilaway/util/analysishelper"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/singlechecker"
 )
@@ -49,7 +50,8 @@ var (
 	_excludeErrorsInFiles string
 )
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(p *analysis.Pass) (interface{}, error) {
+	pass := analysishelper.NewEnhancedPass(p)
 	// NilAway by default analyzes all packages, including dependencies. Even if specified to
 	// exclude packages from analysis via configurations, NilAway can still report errors on
 	// packages that are not analyzed if the nilness flow happens within the analyzed package, but
@@ -86,7 +88,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	// Delegate the real analysis run to the original nilaway analyzer.
-	return nilaway.Analyzer.Run(pass)
+	return nilaway.Analyzer.Run(p)
 }
 
 // parseFilePrefixes parses the comma-separated list of file prefixes, converts them to absolute

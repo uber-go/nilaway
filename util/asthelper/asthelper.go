@@ -22,7 +22,7 @@ import (
 	"io"
 	"strings"
 
-	"golang.org/x/tools/go/analysis"
+	"go.uber.org/nilaway/util/analysishelper"
 )
 
 // DocContains returns true if the comment group contains the given string.
@@ -43,7 +43,7 @@ func DocContains(file *ast.File, s string) bool {
 }
 
 // PrintExpr converts AST expression to string, and shortens long expressions if isShortenExpr is true
-func PrintExpr(e ast.Expr, pass *analysis.Pass, isShortenExpr bool) (string, error) {
+func PrintExpr(e ast.Expr, pass *analysishelper.EnhancedPass, isShortenExpr bool) (string, error) {
 	builder := &strings.Builder{}
 	var err error
 

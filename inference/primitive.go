@@ -19,8 +19,8 @@ import (
 	"go/token"
 
 	"go.uber.org/nilaway/annotation"
+	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/tokenhelper"
-	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/types/objectpath"
 )
 
@@ -118,7 +118,7 @@ func (s *primitiveSite) String() string {
 //
 // [archive importer]: https://github.com/golang/tools/blob/fa12f34b4218307705bf0365ab7df7c119b3653a/internal/gcimporter/bimport.go#L59-L69
 type primitivizer struct {
-	pass *analysis.Pass
+	pass *analysishelper.EnhancedPass
 	// upstreamObjPositions maps "<pkg path>.<object path>" to the correct position.
 	upstreamObjPositions map[string]token.Position
 	// objPathEncoder is used to encode object paths, which amortizes the cost of encoding the
@@ -127,7 +127,7 @@ type primitivizer struct {
 }
 
 // newPrimitivizer returns a new and properly-initialized primitivizer.
-func newPrimitivizer(pass *analysis.Pass) *primitivizer {
+func newPrimitivizer(pass *analysishelper.EnhancedPass) *primitivizer {
 	// To tackle the position discrepancies for upstream sites, we have added an ObjectPath field
 	// to primitiveSite, which can be used to uniquely identify an exported object relative to the
 	// package. Then, we simply cache the correct position information when importing

@@ -19,7 +19,7 @@ import (
 	"go/token"
 	"regexp"
 
-	"golang.org/x/tools/go/analysis"
+	"go.uber.org/nilaway/util/analysishelper"
 )
 
 // ReplaceConditional replaces a call to a matched function with the returned expression. This is
@@ -28,7 +28,7 @@ import (
 // `target != nil`, so it can be replaced with `target != nil`.
 //
 // If the call does not match any known function, nil is returned.
-func ReplaceConditional(pass *analysis.Pass, call *ast.CallExpr) ast.Expr {
+func ReplaceConditional(pass *analysishelper.EnhancedPass, call *ast.CallExpr) ast.Expr {
 	for sig, act := range _replaceConditionals {
 		if sig.match(pass, call) {
 			return act(pass, call)
@@ -37,7 +37,7 @@ func ReplaceConditional(pass *analysis.Pass, call *ast.CallExpr) ast.Expr {
 	return nil
 }
 
-type replaceConditionalAction func(pass *analysis.Pass, call *ast.CallExpr) ast.Expr
+type replaceConditionalAction func(pass *analysishelper.EnhancedPass, call *ast.CallExpr) ast.Expr
 
 // _errorAsAction replaces a call to `errors.As(err, &target)` with an equivalent expression
 // `errors.As(err, &target) && target != nil`. Keeping the `errors.As(err, &target)` is important
@@ -50,7 +50,7 @@ type replaceConditionalAction func(pass *analysis.Pass, call *ast.CallExpr) ast.
 // assumes the target is non-nil after such check [1]. So here we make this assumption as well.
 //
 // [1] https://pkg.go.dev/errors#As
-var _errorAsAction replaceConditionalAction = func(_ *analysis.Pass, call *ast.CallExpr) ast.Expr {
+var _errorAsAction replaceConditionalAction = func(_ *analysishelper.EnhancedPass, call *ast.CallExpr) ast.Expr {
 	if len(call.Args) != 2 {
 		return nil
 	}

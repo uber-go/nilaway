@@ -23,8 +23,8 @@ import (
 
 	"github.com/klauspost/compress/s2"
 	"go.uber.org/nilaway/annotation"
+	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/orderedmap"
-	"golang.org/x/tools/go/analysis"
 )
 
 // An InferredMap is the state accumulated by multi-package inference. It's
@@ -105,7 +105,7 @@ func (i *InferredMap) OrderedRange(f func(primitiveSite, InferredVal) bool) {
 // encode all (in the go sense; i.e. capitalized) annotation sites (See chooseSitesToExport).
 // This ensures that only _incremental_ information is exported by this package and plays a _vital_
 // role in minimizing build output.
-func (i *InferredMap) Export(pass *analysis.Pass) {
+func (i *InferredMap) Export(pass *analysishelper.EnhancedPass) {
 	if len(i.mapping.Pairs) == 0 {
 		return
 	}

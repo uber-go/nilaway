@@ -20,7 +20,7 @@ import (
 	"go/types"
 
 	"go.uber.org/nilaway/annotation"
-	"golang.org/x/tools/go/analysis"
+	"go.uber.org/nilaway/util/analysishelper"
 )
 
 // collectClosure collects a set of variables in closure for the given function literal and updates
@@ -32,7 +32,7 @@ import (
 // modulo the ones defined in the scope of the enclosing function literals.
 // (2) If the node is an ident node that represents a variable which is not global, it updates the
 // closure set if the node doesn't exist in the current scope.
-func collectClosure(funcLit *ast.FuncLit, pass *analysis.Pass, closureMap map[*ast.FuncLit][]*VarInfo) {
+func collectClosure(funcLit *ast.FuncLit, pass *analysishelper.EnhancedPass, closureMap map[*ast.FuncLit][]*VarInfo) {
 	// Retrieve the scope of the given function literal
 	scope := pass.TypesInfo.Scopes[funcLit.Type]
 

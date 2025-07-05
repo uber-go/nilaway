@@ -40,7 +40,7 @@ type fileInfo struct {
 
 // Engine is the main engine for generating diagnostics from conflicts.
 type Engine struct {
-	pass      *analysis.Pass
+	pass      *analysishelper.EnhancedPass
 	conflicts []conflict
 	// files maps the file name (modulo the possible build-system prefix) to the token.File object
 	// for faster lookup when converting correct upstream position back to local token.Pos for
@@ -49,7 +49,7 @@ type Engine struct {
 }
 
 // NewEngine creates a new diagnostic engine.
-func NewEngine(pass *analysis.Pass) *Engine {
+func NewEngine(pass *analysishelper.EnhancedPass) *Engine {
 	// Iterate all files within the Fset (which includes upstream and current-package files), and
 	// store the mapping between its file name (modulo the possible build-system prefix) and the
 	// token.File object. This is needed for converting correct upstream position back to local
