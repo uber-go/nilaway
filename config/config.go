@@ -23,7 +23,6 @@ import (
 	"strings"
 
 	"go.uber.org/nilaway/util/analysishelper"
-
 	"go.uber.org/nilaway/util/asthelper"
 	"golang.org/x/tools/go/analysis"
 )

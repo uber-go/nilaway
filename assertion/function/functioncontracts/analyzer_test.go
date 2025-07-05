@@ -20,12 +20,11 @@ import (
 	"strings"
 	"testing"
 
-	"golang.org/x/tools/go/analysis"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"go.uber.org/nilaway/util/analysishelper"
+	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
