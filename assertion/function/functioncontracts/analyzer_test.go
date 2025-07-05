@@ -17,9 +17,10 @@ package functioncontracts
 import (
 	"fmt"
 	"go/types"
-	"golang.org/x/tools/go/analysis"
 	"strings"
 	"testing"
+
+	"golang.org/x/tools/go/analysis"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"

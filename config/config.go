@@ -17,11 +17,12 @@ package config
 
 import (
 	"flag"
-	"go.uber.org/nilaway/util/analysishelper"
 	"go/ast"
 	"go/types"
 	"reflect"
 	"strings"
+
+	"go.uber.org/nilaway/util/analysishelper"
 
 	"go.uber.org/nilaway/util/asthelper"
 	"golang.org/x/tools/go/analysis"
