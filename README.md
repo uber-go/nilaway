@@ -184,7 +184,8 @@ nogo(
     name = "my_nogo",
     visibility = ["//visibility:public"],  # must have public visibility
     deps = [
-+++     "@org_uber_go_nilaway//:go_default_library",
++       "@org_uber_go_nilaway//:go_default_library",
++       "@org_uber_go_nilaway//config:go_default_library",  # Add this line if your have rules_go < 0.55.0
     ],
     config = "config.json",
 )
