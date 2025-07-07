@@ -21,8 +21,8 @@ import (
 	"strings"
 
 	"go.uber.org/nilaway/config"
+	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/tokenhelper"
-	"golang.org/x/tools/go/analysis"
 )
 
 type conflict struct {
@@ -62,7 +62,7 @@ func (c *conflict) addSimilarConflict(conflict conflict) {
 }
 
 // groupConflicts groups conflicts with the same nil path together and update conflicts list.
-func groupConflicts(allConflicts []conflict, pass *analysis.Pass) []conflict {
+func groupConflicts(allConflicts []conflict, pass *analysishelper.EnhancedPass) []conflict {
 	conflictsMap := make(map[string]int)  // key: nil path string, value: index in `allConflicts`
 	indicesToIgnore := make(map[int]bool) // indices of conflicts to be ignored from `allConflicts`, since they are grouped with other conflicts
 
