@@ -20,6 +20,7 @@ import (
 	"go.uber.org/nilaway/accumulation"
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/util/analysishelper"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -36,7 +37,8 @@ var Analyzer = &analysis.Analyzer{
 	Requires:  []*analysis.Analyzer{config.Analyzer, accumulation.Analyzer},
 }
 
-func run(pass *analysis.Pass) (interface{}, error) {
+func run(p *analysis.Pass) (interface{}, error) {
+	pass := analysishelper.NewEnhancedPass(p)
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
 	deferredErrors := pass.ResultOf[accumulation.Analyzer].([]analysis.Diagnostic)
 	for _, e := range deferredErrors {

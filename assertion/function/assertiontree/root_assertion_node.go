@@ -17,14 +17,13 @@ package assertiontree
 import (
 	"fmt"
 	"go/ast"
-	"go/constant"
 	"go/token"
 	"go/types"
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
-	"golang.org/x/tools/go/analysis"
+	"go.uber.org/nilaway/util/analysishelper"
 )
 
 // RootAssertionNode is the object that will be directly handled by the propagation algorithm,
@@ -76,7 +75,7 @@ func (r *RootAssertionNode) FuncDecl() *ast.FuncDecl {
 }
 
 // Pass the overarching analysis pass
-func (r *RootAssertionNode) Pass() *analysis.Pass {
+func (r *RootAssertionNode) Pass() *analysishelper.EnhancedPass {
 	return r.functionContext.pass
 }
 
@@ -1204,21 +1203,9 @@ func (r *RootAssertionNode) isType(expr ast.Expr) bool {
 // even when the slice itself is nil, i.e, one of [:0] [0:0] [0:] [:] [:0:0] [0:0:0]
 func (r *RootAssertionNode) isZeroSlicing(expr *ast.SliceExpr) bool {
 	l, h, m := expr.Low, expr.High, expr.Max
-	return ((l == nil || r.isIntZero(l)) && r.isIntZero(h) && m == nil) || // [:0] [0:0]
-		((l == nil || r.isIntZero(l)) && h == nil && m == nil) || // [0:] [:]
-		((l == nil || r.isIntZero(l)) && r.isIntZero(h) && r.isIntZero(m)) // [:0:0] [0:0:0]
-}
-
-// isIntZero returns if the given expression is evaluated to integer zero at compile time. For
-// example, zero literal, zero const or binary expression that evaluates to zero, e.g., 1 - 1
-// should all return true. Note the function will return false for zero string `"0"`.
-func (r *RootAssertionNode) isIntZero(expr ast.Expr) bool {
-	tv, ok := r.Pass().TypesInfo.Types[expr]
-	if !ok {
-		return false
-	}
-	intValue, ok := constant.Val(tv.Value).(int64)
-	return ok && intValue == 0
+	return ((l == nil || r.Pass().IsZero(l)) && r.Pass().IsZero(h) && m == nil) || // [:0] [0:0]
+		((l == nil || r.Pass().IsZero(l)) && h == nil && m == nil) || // [0:] [:]
+		((l == nil || r.Pass().IsZero(l)) && r.Pass().IsZero(h) && r.Pass().IsZero(m)) // [:0:0] [0:0:0]
 }
 
 // This function defines whether an expression is `stable` - i.e. whether we assume it constant

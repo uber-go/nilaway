@@ -25,8 +25,8 @@ import (
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/hook"
 	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/asthelper"
-	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/cfg"
 )
 
@@ -686,10 +686,7 @@ func composeRootFuncs(f1, f2 RootFunc) RootFunc {
 // the end of that block
 //
 // postcondition - length of two return slices is equal
-//
-// nonnil(result 0, result 1)
-func blocksAndPreprocessingFromCFG(
-	pass *analysis.Pass, graph *cfg.CFG, richCheckBlocks [][]RichCheckEffect) (
+func blocksAndPreprocessingFromCFG(pass *analysishelper.EnhancedPass, graph *cfg.CFG, richCheckBlocks [][]RichCheckEffect) (
 	[]*cfg.Block, []*preprocessPair) {
 
 	numBlocks := len(graph.Blocks)
@@ -825,7 +822,7 @@ func CheckGuardOnFullTrigger(trigger annotation.FullTrigger) annotation.FullTrig
 }
 
 // addAssignmentToConsumer updates the consumer with assignment entries for informative printing of errors
-func addAssignmentToConsumer(lhs, rhs ast.Expr, pass *analysis.Pass, consumer annotation.ConsumingAnnotationTrigger) error {
+func addAssignmentToConsumer(lhs, rhs ast.Expr, pass *analysishelper.EnhancedPass, consumer annotation.ConsumingAnnotationTrigger) error {
 	var lhsExprStr, rhsExprStr string
 	var err error
 

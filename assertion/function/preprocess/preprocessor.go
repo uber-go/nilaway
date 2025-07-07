@@ -16,14 +16,16 @@
 // amenable to analysis.
 package preprocess
 
-import "golang.org/x/tools/go/analysis"
+import (
+	"go.uber.org/nilaway/util/analysishelper"
+)
 
 // Preprocessor handles different preprocessing logic for different types of input.
 type Preprocessor struct {
-	pass *analysis.Pass
+	pass *analysishelper.EnhancedPass
 }
 
 // New returns a new Preprocessor.
-func New(pass *analysis.Pass) *Preprocessor {
+func New(pass *analysishelper.EnhancedPass) *Preprocessor {
 	return &Preprocessor{pass: pass}
 }

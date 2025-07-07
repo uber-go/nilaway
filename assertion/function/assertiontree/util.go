@@ -22,7 +22,7 @@ import (
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/util"
-	"golang.org/x/tools/go/analysis"
+	"go.uber.org/nilaway/util/analysishelper"
 	"golang.org/x/tools/go/ast/astutil"
 )
 
@@ -38,7 +38,7 @@ func checkCFGFixedPointRuntime(passName string, currRound, numBlocks int) {
 }
 
 // GetDeclaringPath finds the path of nested AST nodes beginning with the passed interval `[start, end]`
-func GetDeclaringPath(pass *analysis.Pass, start, end token.Pos) ([]ast.Node, bool) {
+func GetDeclaringPath(pass *analysishelper.EnhancedPass, start, end token.Pos) ([]ast.Node, bool) {
 	astFile := lookupAstFromFile(pass, pass.Fset.File(start))
 	if astFile == nil {
 		astFile = lookupAstFromFilename(pass, pass.Fset.Position(start).Filename)
@@ -176,7 +176,7 @@ func inverseToken(t token.Token) token.Token {
 //
 // For better performance by the caller, it also returns a boolean flag `isNoop` indicating whether
 // the returned function is a no-op
-func AddNilCheck(pass *analysis.Pass, expr ast.Expr) (trueCheck, falseCheck RootFunc, isNoop bool) {
+func AddNilCheck(pass *analysishelper.EnhancedPass, expr ast.Expr) (trueCheck, falseCheck RootFunc, isNoop bool) {
 	noop := func(_ *RootAssertionNode) {}
 
 	expr = ast.Unparen(expr)
@@ -424,7 +424,7 @@ func CopyNode(node AssertionNode) AssertionNode {
 
 // lookupAstFromFile attempts to find the file ast for a given file (token.File)
 // nilable(result 0)
-func lookupAstFromFile(pass *analysis.Pass, file *token.File) *ast.File {
+func lookupAstFromFile(pass *analysishelper.EnhancedPass, file *token.File) *ast.File {
 	for _, astFile := range pass.Files {
 		if file != nil && int(astFile.Pos()) >= file.Base() && int(astFile.Pos()) <= file.Base()+file.Size() {
 			return astFile
@@ -435,7 +435,7 @@ func lookupAstFromFile(pass *analysis.Pass, file *token.File) *ast.File {
 
 // lookupAstFromFilename attempts to find the file ast for a given file (token.File)
 // nilable(result 0)
-func lookupAstFromFilename(pass *analysis.Pass, filename string) *ast.File {
+func lookupAstFromFilename(pass *analysishelper.EnhancedPass, filename string) *ast.File {
 	for _, astFile := range pass.Files {
 		if astFile.Name.Name == filename {
 			return astFile
