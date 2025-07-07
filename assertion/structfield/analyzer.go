@@ -36,7 +36,8 @@ var Analyzer = &analysis.Analyzer{
 	Requires:   []*analysis.Analyzer{config.Analyzer},
 }
 
-func run(pass *analysis.Pass) (*FieldContext, error) {
+func run(p *analysis.Pass) (*FieldContext, error) {
+	pass := analysishelper.NewEnhancedPass(p)
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
 
 	fieldContext := &FieldContext{fieldMap: make(relevantFieldsMap)}

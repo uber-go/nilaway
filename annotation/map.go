@@ -24,7 +24,7 @@ import (
 
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
-	"golang.org/x/tools/go/analysis"
+	"go.uber.org/nilaway/util/analysishelper"
 )
 
 // Map is an abstraction that concrete annotation maps must implement to be checked against.
@@ -416,7 +416,7 @@ func (set nilabilitySet) checkNilability(name string, t types.Type) Val {
 	return val
 }
 
-func newObservedMap(pass *analysis.Pass, files []*ast.File) *ObservedMap {
+func newObservedMap(pass *analysishelper.EnhancedPass, files []*ast.File) *ObservedMap {
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
 	// TODO - only store annotations for fields/vars/parameters of types that do not bar nilness
 
@@ -693,6 +693,6 @@ func newObservedMap(pass *analysis.Pass, files []*ast.File) *ObservedMap {
 	}
 }
 
-func getLineFromPos(pos token.Pos, pass *analysis.Pass) int {
+func getLineFromPos(pos token.Pos, pass *analysishelper.EnhancedPass) int {
 	return pass.Fset.Position(pos).Line
 }

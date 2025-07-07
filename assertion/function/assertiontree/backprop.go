@@ -29,8 +29,8 @@ import (
 	"go.uber.org/nilaway/assertion/function/preprocess"
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/typeshelper"
-	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/cfg"
 )
 
@@ -884,7 +884,7 @@ func computePostOrder(blocks []*cfg.Block) []int {
 // to the function, the set of assertions that must hold to avoid possible nil flow errors.
 func BackpropAcrossFunc(
 	ctx context.Context,
-	pass *analysis.Pass,
+	pass *analysishelper.EnhancedPass,
 	decl *ast.FuncDecl,
 	functionContext FunctionContext,
 	graph *cfg.CFG,
