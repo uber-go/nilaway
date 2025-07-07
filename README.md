@@ -3,29 +3,29 @@
 [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov]
 
 > [!WARNING]  
-> NilAway is currently under active development: false positives and breaking changes can happen. 
+> NilAway is currently under active development: false positives and breaking changes can happen.
 > We highly appreciate any feedback and contributions!
 
-NilAway is a static analysis tool that seeks to help developers avoid nil panics in production by catching them at 
+NilAway is a static analysis tool that seeks to help developers avoid nil panics in production by catching them at
 compile time rather than runtime. NilAway is similar to the standard
-[nilness analyzer](https://pkg.go.dev/golang.org/x/tools/go/analysis/passes/nilness), however, it employs much more 
+[nilness analyzer](https://pkg.go.dev/golang.org/x/tools/go/analysis/passes/nilness), however, it employs much more
 sophisticated and powerful static analysis techniques to track nil flows within a package as well _across_ packages, and
 report errors providing users with the nilness flows for easier debugging.
 
 NilAway enjoys three key properties that make it stand out:
 
-* It is **fully-automated**: NilAway is equipped with an inference engine, making it require _no_ any additional 
-information from the developers (e.g., annotations) besides standard Go code.
+- It is **fully-automated**: NilAway is equipped with an inference engine, making it require _no_ any additional
+  information from the developers (e.g., annotations) besides standard Go code.
 
-* It is **fast**: we have designed NilAway to be fast and scalable, making it suitable for large codebases. In our
-measurements, we have observed less than 5% build-time overhead when NilAway is enabled. We are also constantly applying
-optimizations to further reduce its footprint.
+- It is **fast**: we have designed NilAway to be fast and scalable, making it suitable for large codebases. In our
+  measurements, we have observed less than 5% build-time overhead when NilAway is enabled. We are also constantly applying
+  optimizations to further reduce its footprint.
 
-* It is **practical**: it does not prevent _all_ possible nil panics in your code, but it catches most of the potential
-nil panics we have observed in production, allowing NilAway to maintain a good balance between usefulness and build-time 
-overhead.
+- It is **practical**: it does not prevent _all_ possible nil panics in your code, but it catches most of the potential
+  nil panics we have observed in production, allowing NilAway to maintain a good balance between usefulness and build-time
+  overhead.
 
-:star2: For more detailed technical discussion, please check our [Wiki][wiki], [Engineering Blog][blog], and paper (WIP).
+:star2: For more detailed technical discussion, please check our [docs][docs], [Engineering Blog][blog], and paper (WIP).
 
 ## Running NilAway
 
@@ -33,49 +33,51 @@ NilAway is implemented using the standard [go/analysis][go-analysis], making it 
 drivers (i.e., [golangci-lint][golangci-lint], [nogo][nogo], or [running as a standalone checker][singlechecker]).
 
 > [!IMPORTANT]  
-> By default, NilAway analyzes _all_ Go code, including the standard libraries and dependencies. This helps NilAway 
-> better understand the code form dependencies and reduce its false negatives. However, this would also incur a 
-> significant performance cost (only once for drivers with modular support) and increase the number of non-actionable 
+> By default, NilAway analyzes _all_ Go code, including the standard libraries and dependencies. This helps NilAway
+> better understand the code form dependencies and reduce its false negatives. However, this would also incur a
+> significant performance cost (only once for drivers with modular support) and increase the number of non-actionable
 > errors in dependencies, for large Go projects with a lot of dependencies.
-> 
-> We highly recommend using the [include-pkgs][include-pkgs-flag] flag to narrow down the analysis to your project's 
-> code exclusively. This directs NilAway to skip analyzing dependencies (e.g., third-party libraries), allowing you to 
+>
+> We highly recommend using the [include-pkgs][include-pkgs-flag] flag to narrow down the analysis to your project's
+> code exclusively. This directs NilAway to skip analyzing dependencies (e.g., third-party libraries), allowing you to
 > focus solely on potential nil panics reported by NilAway in your first-party code!
 
 ### Standalone Checker
 
 > [!IMPORTANT]  
-> Due to the sophistication of the analyses that NilAway does, NilAway caches its findings about a 
-> particular package via the [Fact Mechanism][fact-mechanism] from the [go/analysis][go-analysis] 
-> framework. Therefore, it is _highly_ recommended to leverage a driver that supports modular 
-> analysis (i.e., bazel/nogo or golangci-lint, but _not_ the standalone checker since it stores all 
+> Due to the sophistication of the analyses that NilAway does, NilAway caches its findings about a
+> particular package via the [Fact Mechanism][fact-mechanism] from the [go/analysis][go-analysis]
+> framework. Therefore, it is _highly_ recommended to leverage a driver that supports modular
+> analysis (i.e., bazel/nogo or golangci-lint, but _not_ the standalone checker since it stores all
 > facts in memory) for better performance on large projects. The standalone checker is provided
 > more for evaluation purposes since it is easy to get started.
 
-Install the binary from source by running: 
+Install the binary from source by running:
+
 ```shell
 go install go.uber.org/nilaway/cmd/nilaway@latest
 ```
 
 Then, run the linter by:
+
 ```shell
 nilaway -include-pkgs="<YOUR_PKG_PREFIX>,<YOUR_PKG_PREFIX_2>" ./...
 ```
 
 > [!TIP]  
 > Disable the `pretty-print` flag when output as JSON:
+>
 > ```shell
 > nilaway -json -pretty-print=false -include-pkgs="<YOUR_PKG_PREFIX>,<YOUR_PKG_PREFIX_2>" ./...
 > ```
 
-
 ### golangci-lint (>= v1.57.0)
 
-NilAway, in its current form, can report false positives. This unfortunately hinders its immediate 
-merging in [golangci-lint][golangci-lint] and be offered as a linter (see [PR#4045][pr-4045]). 
-Therefore, you need to build NilAway as a plugin to golangci-lint to be executed as a private 
-linter. There are two plugin systems in golangci-lint, and it is much easier to use the 
-[Module Plugin System][golangci-lint-module-plugin] (introduced since v1.57.0), and it is the only 
+NilAway, in its current form, can report false positives. This unfortunately hinders its immediate
+merging in [golangci-lint][golangci-lint] and be offered as a linter (see [PR#4045][pr-4045]).
+Therefore, you need to build NilAway as a plugin to golangci-lint to be executed as a private
+linter. There are two plugin systems in golangci-lint, and it is much easier to use the
+[Module Plugin System][golangci-lint-module-plugin] (introduced since v1.57.0), and it is the only
 supported approach to run NilAway in golangci-lint.
 
 (1) Create a `.custom-gcl.yml` file at the root of the repository if you have not done so, add the
@@ -110,7 +112,6 @@ linters:
           include-pkgs: "<YOUR_PACKAGE_PREFIXES>"
 ```
 
-
 <details>
 
 <summary>For golangci-lint v1:</summary>
@@ -125,7 +126,7 @@ linters-settings:
         # Settings must be a "map from string to string" to mimic command line flags: the keys are
         # flag names and the values are the values to the particular flags.
         include-pkgs: "<YOUR_PACKAGE_PREFIXES>"
-# NilAway can be referred to as `nilaway` just like any other golangci-lint analyzers in other 
+# NilAway can be referred to as `nilaway` just like any other golangci-lint analyzers in other
 # parts of the configuration file.
 ```
 
@@ -145,7 +146,7 @@ instructions).
 > [!TIP]  
 > Cache the custom binary to avoid having to build it again to save resources, you can use the
 > hash of the `.custom-gcl.yml` file as the cache key if you are using a fixed version of NilAway.
-> If you are using `latest` as NilAway version, you can append the date of build to the cache key 
+> If you are using `latest` as NilAway version, you can append the date of build to the cache key
 > to force cache expiration after certain time period.
 
 (4) Run the custom binary instead of `golangci-lint`:
@@ -157,15 +158,16 @@ $ ./custom-gcl run ./...
 
 ### Bazel/nogo
 
-Running with bazel/nogo requires slightly more efforts. First follow the instructions from [rules_go][rules-go], 
-[gazelle][gazelle], and [nogo][nogo] to set up your Go project such that it can be built with bazel/nogo with no or 
+Running with bazel/nogo requires slightly more efforts. First follow the instructions from [rules_go][rules-go],
+[gazelle][gazelle], and [nogo][nogo] to set up your Go project such that it can be built with bazel/nogo with no or
 default set of linters configured. Then,
 
-(1) Add `import _ "go.uber.org/nilaway"` to your `tools.go` file (or other file that you use for configuring tool 
-dependencies, see [How can I track tool dependencies for a module?][track-tool-dependencies] from Go Modules 
+(1) Add `import _ "go.uber.org/nilaway"` to your `tools.go` file (or other file that you use for configuring tool
+dependencies, see [How can I track tool dependencies for a module?][track-tool-dependencies] from Go Modules
 documentation) to avoid `go mod tidy` from removing NilAway as a tool dependency.
 
 (2) Run the following commands to add NilAway as a tool dependency to your project:
+
 ```bash
 # Get NilAway as a dependency, as well as getting its transitive dependencies in go.mod file.
 $ go get go.uber.org/nilaway@latest
@@ -188,14 +190,14 @@ nogo(
 )
 ```
 
-(4) Run bazel build to see NilAway working (any nogo error will stop the bazel build, you can use the `--keep_going` 
+(4) Run bazel build to see NilAway working (any nogo error will stop the bazel build, you can use the `--keep_going`
 flag to request bazel to build as much as possible):
 
 ```bash
 $ bazel build --keep_going //...
 ```
 
-(5) See [nogo documentation][nogo-configure-analyzers] on how to pass a configuration JSON to the nogo driver, and see 
+(5) See [nogo documentation][nogo-configure-analyzers] on how to pass a configuration JSON to the nogo driver, and see
 our [wiki page][nogo-configure-nilaway] on how to pass configurations to NilAway.
 
 ## Code Examples
@@ -236,7 +238,7 @@ func bar() {
 
 In this example, the function `foo` returns a nil pointer, which is directly dereferenced in `bar`, resulting in a panic
 whenever `bar` is called. NilAway is able to catch this potential nil flow and reports the following error, describing
-the nilness flow across function boundaries: 
+the nilness flow across function boundaries:
 
 ```
 go.uber.org/example.go:23:13: error: Potential nil panic detected. Observed nil flow from source to dereference point:
@@ -254,17 +256,17 @@ We expose a set of flags via the standard flag passing mechanism in [go/analysis
 Please check [wiki/Configuration](https://github.com/uber-go/nilaway/wiki/Configuration) to see the available flags and
 how to pass them using different linter drivers.
 
-## Support 
+## Support
 
-We follow the same [version support policy](https://go.dev/doc/devel/release#policy) as the [Go](https://golang.org/) 
+We follow the same [version support policy](https://go.dev/doc/devel/release#policy) as the [Go](https://golang.org/)
 project: we support and test the last two major versions of Go.
 
-Please feel free to [open a GitHub issue](https://github.com/uber-go/nilaway/issues) if you have any questions, bug 
+Please feel free to [open a GitHub issue](https://github.com/uber-go/nilaway/issues) if you have any questions, bug
 reports, and feature requests.
 
 ## Contributions
 
-We'd love for you to contribute to NilAway! Please note that once you create a pull request, you will be asked to sign 
+We'd love for you to contribute to NilAway! Please note that once you create a pull request, you will be asked to sign
 our [Uber Contributor License Agreement](https://cla-assistant.io/uber-go/nilaway).
 
 ## License
@@ -282,15 +284,15 @@ This project is copyright 2023 Uber Technologies, Inc., and licensed under Apach
 [ci]: https://github.com/uber-go/nilaway/actions/workflows/ci.yml
 [cov-img]: https://codecov.io/gh/uber-go/nilaway/branch/main/graph/badge.svg
 [cov]: https://codecov.io/gh/uber-go/nilaway
-[wiki]: https://github.com/uber-go/nilaway/wiki
+[docs]: https://github.com/uber-go/nilaway/tree/main/docs
 [blog]: https://www.uber.com/blog/nilaway-practical-nil-panic-detection-for-go/
 [fact-mechanism]: https://pkg.go.dev/golang.org/x/tools/go/analysis#hdr-Modular_analysis_with_Facts
-[include-pkgs-flag]: https://github.com/uber-go/nilaway/wiki/Configuration#include-pkgs
+[include-pkgs-flag]: https://github.com/uber-go/nilaway/tree/main/docs/Configuration.md#include-pkgs
 [pr-4045]: https://github.com/golangci/golangci-lint/issues/4045
 [nilaway-as-a-plugin]: https://golangci-lint.run/contributing/new-linters/#how-to-add-a-private-linter-to-golangci-lint
 [rules-go]: https://github.com/bazelbuild/rules_go
 [gazelle]: https://github.com/bazelbuild/bazel-gazelle
 [track-tool-dependencies]: https://go.dev/wiki/Modules#how-can-i-track-tool-dependencies-for-a-module
 [nogo-configure-analyzers]: https://github.com/bazelbuild/rules_go/blob/master/go/nogo.rst#id14
-[nogo-configure-nilaway]: https://github.com/uber-go/nilaway/wiki/Configuration#nogo
+[nogo-configure-nilaway]: https://github.com/uber-go/nilaway/tree/main/docs/Configuration.md#nogo
 [nogo-instructions]: https://github.com/uber-go/nilaway?tab=readme-ov-file#bazelnogo
