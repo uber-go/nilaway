@@ -382,6 +382,19 @@ func backpropAcrossAssignment(rootNode *RootAssertionNode, lhs, rhs []ast.Expr) 
 				// TODO: properly handle type assertions' "OK" contract
 				return backpropAcrossOneToOneAssignment(rootNode, lhs[0:1], rhs)
 			}
+
+			// Generic function call
+			// TODO: currently we do not handle generic rich-check-effect function calls, so as a temporary solution,
+			//  we suppress reporting of errors. Note that this helps suppress false positives, but it also means that
+			//  we don't report true positives either. We should fix this in the future when we add support for generics.
+			if c := util.CallExprFromExpr(rhsNode); c != nil {
+				if _, ok := c.Fun.(*ast.IndexExpr); ok {
+					rootNode.AddProduction(&annotation.ProduceTrigger{
+						Annotation: &annotation.ProduceTriggerNever{},
+						Expr:       lhs[0],
+					})
+				}
+			}
 		}
 	}
 

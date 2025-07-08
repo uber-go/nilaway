@@ -259,3 +259,54 @@ func TestAssignmentToNonPointerTypes(i int, v Value[V]) {
 		}
 	}
 }
+
+// Test generic functions with "ok" form
+// TODO: Note that currently we do not support generics in NilAway. Hence, the below cases are expected to not report
+//  errors since we have put a suppresion in place for generic rich-check-effect functions' error reporting.
+
+func GenericFunc[T any]() (*T, bool) {
+	var resp T
+	if dummy {
+		return nil, false
+	}
+	return &resp, true
+}
+
+func GenericFuncAlwaysSafe[T any]() (*T, bool) {
+	var resp T
+	return &resp, true
+}
+
+func GenericFuncAlwaysUnsafe[T any]() (*T, bool) {
+	return nil, false
+}
+
+func TestGenericFunc(s string) {
+	switch s {
+	case "conditionally safe":
+		v, ok := GenericFunc[int]()
+		if !ok {
+			return
+		}
+		print(*v)
+
+	case "conditionally unsafe":
+		if v, ok := GenericFunc[int](); !ok {
+			// TODO: This is a false negative since we do not support generics yet.
+			print(*v) // "dereferenced"
+		}
+
+	case "always safe":
+		v, ok := GenericFuncAlwaysSafe[int]()
+		if !ok {
+			return
+		}
+		print(*v)
+
+	case "always unsafe":
+		if v, ok := GenericFuncAlwaysUnsafe[int](); ok {
+			// TODO: This is a false negative since we do not support generics yet.
+			print(*v) // "dereferenced"
+		}
+	}
+}
