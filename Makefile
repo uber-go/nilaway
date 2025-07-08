@@ -60,9 +60,9 @@ install-golangci-lint:
 .PHONY: format-lint
 format-lint: install-golangci-lint
 	@$(foreach mod,$(MODULE_DIRS), \
-    		(cd $(mod) && \
-    		echo "[lint] golangci-lint fmt: $(mod)" && \
-    		$(GOBIN)/golangci-lint fmt $(if $(FIX),,--diff)) &&) true
+    	(cd $(mod) && \
+    	echo "[lint] golangci-lint fmt: $(mod)" && \
+    	$(GOBIN)/golangci-lint fmt $(if $(FIX),,--diff)) &&) true
 
 .PHONY: golangci-lint
 golangci-lint: install-golangci-lint
