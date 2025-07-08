@@ -3,7 +3,7 @@
 ## Building
 
 ```bash
-make build                    # Build the nilaway binary to ./bin/
+make build                    # Build the nilaway binary to <project root>/bin/
 ```
 
 ## Testing
@@ -11,17 +11,35 @@ make build                    # Build the nilaway binary to ./bin/
 ```bash
 make test                     # Run unit tests for all modules
 make cover                    # Run tests with coverage reports
-make golden-test              # Run golden tests on stdlib (Use $ARGS env var to pass arguments)
-make integration-test         # Run integration tests
+make integration-test         # Run integration tests (using real drivers)
+```
+
+The following golden tests are available, which run NilAway on a base (usually `main`) and test (usually `HEAD`) branches
+on stdlib and compare the differences of NilAway violations. This is mostly run in CI to catch unexpected breakages.
+
+```bash
+# The arguments are passed as an environment variable `ARGS`.
+# Use `make golden-test ARGS="-h" to see the available arguments.
+make golden-test ARGS="-base-branch main -test-branch HEAD -result-file /tmp/result.txt"
 ```
 
 ## Linting
 
 ```bash
-make lint                    # Run all linting (golangci-lint, nilaway self-check, mod tidy)
+make lint                    # Run all linting (format check, mod tidy, golangci-lint, nilaway self-check)
+make lint-fix                # Run all linting with autofix (and auto-formats) applied
+```
+
+The following subcommands are available if you need to run individual linting components. Pass in `FIX=true` environment
+variable to apply auto-fixes _if available_. 
+
+In most cases you only need to ever run `make lint` or `make lint-fix` instead of these.
+
+```bash
+make format-lint             # Check if Go files are correctly formatted
+make tidy-lint               # Check go.mod tidiness
 make golangci-lint           # Run golangci-lint only
 make nilaway-lint            # Run nilaway on itself
-make tidy-lint               # Check go.mod tidiness
 ```
 
 ### Running NilAway

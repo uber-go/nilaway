@@ -41,7 +41,12 @@ integration-test:
 	@$(GOBIN)/integration-test
 
 .PHONY: lint
-lint: golangci-lint nilaway-lint tidy-lint
+lint: format-lint tidy-lint golangci-lint nilaway-lint
+	@echo "Run \`make lint-fix\` to automatically apply fixes (if available)"
+
+.PHONY: lint-fix
+lint-fix: export FIX=true
+lint-fix: format-lint tidy-lint golangci-lint nilaway-lint
 
 # Install golangci-lint with the required version in GOBIN if it is not already installed.
 .PHONY: install-golangci-lint
@@ -50,22 +55,28 @@ install-golangci-lint:
 		@echo "[lint] installing golangci-lint v$(REQUIRED_GOLANGCI_LINT_VERSION) since current version is \"$(GOLANGCI_LINT_VERSION)\""
 		@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOBIN) v$(REQUIRED_GOLANGCI_LINT_VERSION)
     endif
+	@echo "[lint] $(shell $(GOBIN)/golangci-lint version)"
+
+.PHONY: format-lint
+format-lint: install-golangci-lint
+	@$(foreach mod,$(MODULE_DIRS), \
+    		(cd $(mod) && \
+    		echo "[lint] golangci-lint fmt: $(mod)" && \
+    		$(GOBIN)/golangci-lint fmt $(if $(FIX),,--diff)) &&) true
 
 .PHONY: golangci-lint
 golangci-lint: install-golangci-lint
-	@echo "[lint] $(shell $(GOBIN)/golangci-lint version)"
 	@$(foreach mod,$(MODULE_DIRS), \
 		(cd $(mod) && \
 		echo "[lint] golangci-lint: $(mod)" && \
-		$(GOBIN)/golangci-lint run --path-prefix $(mod)) &&) true
+		$(GOBIN)/golangci-lint run $(if $(FIX),--fix) --path-prefix $(mod)) &&) true
 
 .PHONY: tidy-lint
 tidy-lint:
 	@$(foreach mod,$(MODULE_DIRS), \
 		(cd $(mod) && \
 		echo "[lint] mod tidy: $(mod)" && \
-		go mod tidy && \
-		git diff --exit-code -- go.mod go.sum) &&) true
+		go mod tidy $(if $(FIX),,-diff)) &&) true
 
 .PHONY: nilaway-lint
 nilaway-lint: build
