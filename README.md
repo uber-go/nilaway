@@ -199,7 +199,7 @@ $ bazel build --keep_going //...
 ```
 
 (5) See [nogo documentation][nogo-configure-analyzers] on how to pass a configuration JSON to the nogo driver, and see
-our [wiki page][nogo-configure-nilaway] on how to pass configurations to NilAway.
+our [docs][nogo-configure-nilaway] on how to pass configurations to NilAway.
 
 ## Code Examples
 
@@ -254,7 +254,7 @@ interfaces, type assertions, type switches, and more.
 ## Configurations
 
 We expose a set of flags via the standard flag passing mechanism in [go/analysis](https://pkg.go.dev/golang.org/x/tools/go/analysis).
-Please check [wiki/Configuration](https://github.com/uber-go/nilaway/wiki/Configuration) to see the available flags and
+Please check [docs/Configurations](https://github.com/uber-go/nilaway/blob/main/docs/Configurations.md) to see the available flags and
 how to pass them using different linter drivers.
 
 ## Support
@@ -285,7 +285,7 @@ This project is copyright 2023 Uber Technologies, Inc., and licensed under Apach
 [ci]: https://github.com/uber-go/nilaway/actions/workflows/ci.yml
 [cov-img]: https://codecov.io/gh/uber-go/nilaway/branch/main/graph/badge.svg
 [cov]: https://codecov.io/gh/uber-go/nilaway
-[docs]: https://github.com/uber-go/nilaway/tree/main/docs
+[docs]: https://github.com/uber-go/nilaway/blob/main/docs/index.md
 [blog]: https://www.uber.com/blog/nilaway-practical-nil-panic-detection-for-go/
 [fact-mechanism]: https://pkg.go.dev/golang.org/x/tools/go/analysis#hdr-Modular_analysis_with_Facts
 [include-pkgs-flag]: https://github.com/uber-go/nilaway/tree/main/docs/Configuration.md#include-pkgs
@@ -295,5 +295,5 @@ This project is copyright 2023 Uber Technologies, Inc., and licensed under Apach
 [gazelle]: https://github.com/bazelbuild/bazel-gazelle
 [track-tool-dependencies]: https://go.dev/wiki/Modules#how-can-i-track-tool-dependencies-for-a-module
 [nogo-configure-analyzers]: https://github.com/bazelbuild/rules_go/blob/master/go/nogo.rst#id14
-[nogo-configure-nilaway]: https://github.com/uber-go/nilaway/tree/main/docs/Configuration.md#nogo
+[nogo-configure-nilaway]: https://github.com/uber-go/nilaway/blob/main/docs/Configurations.md#bazelnogo
 [nogo-instructions]: https://github.com/uber-go/nilaway?tab=readme-ov-file#bazelnogo
