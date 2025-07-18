@@ -20,7 +20,7 @@ import (
 	"go/token"
 
 	"go.uber.org/nilaway/hook"
-	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/util/asthelper"
 	"golang.org/x/tools/go/cfg"
 )
 
@@ -336,7 +336,7 @@ func (p *Preprocessor) canonicalizeConditional(graph *cfg.CFG, thisBlock *cfg.Bl
 		// Standardize binary expressions to be of the form `expr OP literal` by swapping `x` and `y`, if `x` is a literal.
 		// For example, standardizes `nil == v` to the `v == nil` form
 		x, y := cond.X, cond.Y
-		if util.IsLiteral(x, "nil", "true", "false") {
+		if asthelper.IsLiteral(x, "nil", "true", "false") {
 			newCond := &ast.BinaryExpr{
 				// Swap X and Y
 				X:     y,
@@ -367,7 +367,7 @@ func (p *Preprocessor) canonicalizeConditional(graph *cfg.CFG, thisBlock *cfg.Bl
 		// and replace the original node pointer with the clone in the block.Nodes slice instead.
 		case token.NEQ:
 			// Rewrite when operand `y` is a literal `nil`.
-			if util.IsLiteral(y, "nil") {
+			if asthelper.IsLiteral(y, "nil") {
 				// Copy the AST Node first.
 				newCond := &ast.BinaryExpr{
 					X:     x,
@@ -384,9 +384,9 @@ func (p *Preprocessor) canonicalizeConditional(graph *cfg.CFG, thisBlock *cfg.Bl
 
 			// For explicit boolean NEQ checks, we replace the AST nodes for `ok != true` and `ok != false`
 			// (also, `true != ok` and `false != ok`) with `ok` and `!ok` form for the true and false cases, respectively.
-			if util.IsLiteral(y, "false") {
+			if asthelper.IsLiteral(y, "false") {
 				replaceCond(x) // replaces `ok != false` with `ok`
-			} else if util.IsLiteral(y, "true") {
+			} else if asthelper.IsLiteral(y, "true") {
 				newCond := &ast.UnaryExpr{
 					OpPos: y.Pos(),
 					Op:    token.NOT,
@@ -399,9 +399,9 @@ func (p *Preprocessor) canonicalizeConditional(graph *cfg.CFG, thisBlock *cfg.Bl
 		case token.EQL:
 			// For explicit boolean EQL checks, we replace the AST nodes for `ok == true` and `ok == false`
 			// (also, `true == ok` and `false == ok`) with `ok` and `!ok` form for the true and false cases, respectively.
-			if util.IsLiteral(y, "true") {
+			if asthelper.IsLiteral(y, "true") {
 				replaceCond(x) // replaces `ok == true` with `ok`
-			} else if util.IsLiteral(y, "false") {
+			} else if asthelper.IsLiteral(y, "false") {
 				newCond := &ast.UnaryExpr{
 					OpPos: y.Pos(),
 					Op:    token.NOT,

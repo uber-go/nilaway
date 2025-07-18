@@ -23,6 +23,7 @@ import (
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/asthelper"
 	"golang.org/x/tools/go/ast/astutil"
 )
 
@@ -276,7 +277,7 @@ func AddNilCheck(pass *analysishelper.EnhancedPass, expr ast.Expr) (trueCheck, f
 		{ // this exprCheck matches on expressions like `nil == a`
 			op: token.EQL,
 			matcher: func(x, y ast.Expr) (RootFunc, RootFunc, bool) {
-				if util.IsLiteral(x, "nil") && !util.IsLiteral(y, "nil") {
+				if asthelper.IsLiteral(x, "nil") && !asthelper.IsLiteral(y, "nil") {
 					return noop, produceNegativeNilCheck(y), false
 				}
 				return noop, noop, true

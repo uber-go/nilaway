@@ -464,18 +464,6 @@ func GetSelectorExprHeadIdent(selExpr *ast.SelectorExpr) *ast.Ident {
 	return nil
 }
 
-// IsLiteral returns true if `expr` is a literal that matches with one of the given literal values (e.g., "nil", "true", "false)
-func IsLiteral(expr ast.Expr, literals ...string) bool {
-	if ident, ok := expr.(*ast.Ident); ok {
-		for _, literal := range literals {
-			if ident.Name == literal {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 // TruncatePosition truncates the prefix of the filename to keep it at the given depth (config.DirLevelsToPrintForTriggers)
 func TruncatePosition(position token.Position) token.Position {
 	position.Filename = PortionAfterSep(

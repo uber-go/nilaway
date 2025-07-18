@@ -461,7 +461,7 @@ func nodeAssignsOneWithoutOther(rootNode *RootAssertionNode, node ast.Node, one,
 // variable `checksVar`. Note that because of preprocessing done in `restructureBlock` from
 // `preprocess_blocks.go`, this suffices to handle cases such as `nil != checksVar` as well.
 func exprIsPositiveNilCheck(rootNode *RootAssertionNode, expr ast.Expr, checksExpr TrackableExpr) bool {
-	if binExpr, ok := expr.(*ast.BinaryExpr); ok && binExpr.Op == token.EQL && util.IsLiteral(binExpr.Y, "nil") {
+	if binExpr, ok := expr.(*ast.BinaryExpr); ok && binExpr.Op == token.EQL && asthelper.IsLiteral(binExpr.Y, "nil") {
 		return exprMatchesTrackableExpr(rootNode, binExpr.X, checksExpr)
 	}
 	return false
