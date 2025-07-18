@@ -52,18 +52,12 @@ func (p *EnhancedPass) ConstInt(expr ast.Expr) (int64, bool) {
 	return intValue, true
 }
 
+// IsNil checks if the given expression evaluates to untyped nil at compile time. It also treats
+// the identifier `nil` as nil too to support cases where we have inserted a fake identifier.
 func (p *EnhancedPass) IsNil(expr ast.Expr) bool {
 	tv, ok := p.TypesInfo.Types[expr]
 	if !ok {
 		return false
 	}
 	return tv.IsNil()
-}
-
-func (p *EnhancedPass) IsConst(expr ast.Expr) bool {
-	tv, ok := p.TypesInfo.Types[expr]
-	if !ok {
-		return false
-	}
-	return tv.IsNil() || tv.IsValue()
 }
