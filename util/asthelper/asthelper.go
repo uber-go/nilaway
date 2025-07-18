@@ -133,3 +133,15 @@ func ExtractLHSRHS(node ast.Node) (lhs, rhs []ast.Expr) {
 	}
 	return
 }
+
+// IsLiteral returns true if `expr` is a literal that matches with one of the given literal values (e.g., "nil", "true", "false)
+func IsLiteral(expr ast.Expr, literals ...string) bool {
+	if ident, ok := expr.(*ast.Ident); ok {
+		for _, literal := range literals {
+			if ident.Name == literal {
+				return true
+			}
+		}
+	}
+	return false
+}
