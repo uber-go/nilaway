@@ -18,6 +18,7 @@ import (
 	"go/ast"
 	"go/constant"
 
+	"go.uber.org/nilaway/util/asthelper"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -55,6 +56,9 @@ func (p *EnhancedPass) ConstInt(expr ast.Expr) (int64, bool) {
 // IsNil checks if the given expression evaluates to untyped nil at compile time. It also treats
 // the identifier `nil` as nil too to support cases where we have inserted a fake identifier.
 func (p *EnhancedPass) IsNil(expr ast.Expr) bool {
+	if asthelper.IsLiteral(expr, "nil") {
+		return true
+	}
 	tv, ok := p.TypesInfo.Types[expr]
 	if !ok {
 		return false
