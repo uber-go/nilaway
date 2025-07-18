@@ -36,10 +36,34 @@ func NewEnhancedPass(pass *analysis.Pass) *EnhancedPass {
 // example, zero literal, zero const or binary expression that evaluates to zero, e.g., 1 - 1
 // should all return true. Note the function will return false for zero string `"0"`.
 func (p *EnhancedPass) IsZero(expr ast.Expr) bool {
+	value, ok := p.ConstInt(expr)
+	return ok && value == 0
+}
+
+func (p *EnhancedPass) ConstInt(expr ast.Expr) (int64, bool) {
+	tv, ok := p.TypesInfo.Types[expr]
+	if !ok {
+		return 0, false
+	}
+	intValue, ok := constant.Val(tv.Value).(int64)
+	if !ok {
+		return 0, false
+	}
+	return intValue, true
+}
+
+func (p *EnhancedPass) IsNil(expr ast.Expr) bool {
 	tv, ok := p.TypesInfo.Types[expr]
 	if !ok {
 		return false
 	}
-	intValue, ok := constant.Val(tv.Value).(int64)
-	return ok && intValue == 0
+	return tv.IsNil()
+}
+
+func (p *EnhancedPass) IsConst(expr ast.Expr) bool {
+	tv, ok := p.TypesInfo.Types[expr]
+	if !ok {
+		return false
+	}
+	return tv.IsNil() || tv.IsValue()
 }
