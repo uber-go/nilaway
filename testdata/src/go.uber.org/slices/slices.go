@@ -353,6 +353,11 @@ func lengthCheckByIntExprTest(a []int, i int) int {
 		if len(a) + 2 + b > j {
 			return a[0]
 		}
+	case 21:
+		var b int
+		if j < len(a) + 2 + b {
+			return a[0]
+		}
 	}
 	return 0
 }
