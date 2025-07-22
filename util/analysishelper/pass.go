@@ -41,6 +41,8 @@ func (p *EnhancedPass) IsZero(expr ast.Expr) bool {
 	return ok && value == 0
 }
 
+// ConstInt returns the constant integer value of the given expression if it is a constant. The
+// boolean return value indicates whether the expression is a constant integer or not.
 func (p *EnhancedPass) ConstInt(expr ast.Expr) (int64, bool) {
 	tv, ok := p.TypesInfo.Types[expr]
 	if !ok {

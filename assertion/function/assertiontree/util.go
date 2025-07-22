@@ -178,17 +178,25 @@ func AddNilCheck(pass *analysishelper.EnhancedPass, expr ast.Expr) (trueCheck, f
 	// The list of patterns that we match on that, if successful, will give us a pair
 	// of functions updating a root node in the true and false branches of a conditional
 	// to indicate the information that can be gained from that conditional.
+	// We will apply each of the checkers to see if we can use it to trigger a return from this
+	// function.
+	//
+	// The converse, inverse, and contrapositive of the binary expression is checked automatically
+	// below. So each checker only has to present the base case.
 	checkers := []struct {
 		// op is the operation of the binary expression being parsed that this exprCheck expects
 		op token.Token
 		// matcher is a function that examines the two operands of the binary expression
-		// and can potentially trigger a return from the enclosing call to `AddNillCheck`
+		// and can potentially trigger a return from the enclosing call to `AddNilCheck`
 		// if it finds a match
 		matcher func(ast.Expr, ast.Expr) (RootFunc, RootFunc, bool)
 	}{
 		{
-			// `a == nil` / `nil == a`
-			// `a != nil` / `nil != a`
+			// `a == nil`
+			// Automatic cases:
+			//   - `nil == a`
+			//   - `a != nil`
+			//   - `nil != a`
 			op: token.EQL,
 			matcher: func(x, y ast.Expr) (RootFunc, RootFunc, bool) {
 				if !pass.IsNil(x) && pass.IsNil(y) {
@@ -198,26 +206,30 @@ func AddNilCheck(pass *analysishelper.EnhancedPass, expr ast.Expr) (trueCheck, f
 			},
 		},
 		{
-			// `len(a) == 0` / `0 == len(a)`
-			// `len(a) != 0` / `0 != len(a)`
+			// `len(a) == 0`
+			// Automatic cases:
+			//   - `0 == len(a)`
+			//   - `len(a) != 0`
+			//   - `0 != len(a)`
 			op: token.EQL,
 			matcher: func(x, y ast.Expr) (RootFunc, RootFunc, bool) {
-				if lenArg := extractLenArg(x); lenArg != nil && pass.IsZero(y) {
-					return noop, produceNegativeNilChecks(lenArg), false
+				if lenArgs := extractLenArgs(x, false /* allowNested */); len(lenArgs) == 1 && pass.IsZero(y) {
+					return noop, produceNegativeNilChecks(lenArgs[0]), false
 				}
 				return noop, noop, true
 			},
 		},
 		{
-			// this exprCheck matches on expressions like `len(a) == len(b)`
-			// we interpret these as generating non-nil for both `a` and `b`, which is technically
-			// unsound, but in practice is used sufficiently frequently that we seem to need to admit
-			// it
-			// TODO - evaluate the impact of this unsound assumption, and maybe switch to treating
-			// it as a contract that only generates non-nil for one side when the other is checked
+			// `len(a) - len(c) == len(b) * len(d)`
+			// We interpret all slices in the `len()` calls as non-nil slices, which is technically
+			// unsound but happens frequently enough in practice that it is worth doing.
+			// Automatic cases:
+			//   - `len(b) * len(d) == len(a) - len(c)`
+			//   - `len(a) - len(c) != len(b) * len(d)`
+			//   - `len(b) * len(d) != len(a) - len(c)`
 			op: token.EQL,
 			matcher: func(x, y ast.Expr) (RootFunc, RootFunc, bool) {
-				xLenArgs, yLenArgs := extractLenArgs(x), extractLenArgs(y)
+				xLenArgs, yLenArgs := extractLenArgs(x, true /* allowNested */), extractLenArgs(y, true /* allowNested */)
 				if len(xLenArgs) != 0 && len(yLenArgs) != 0 {
 					return produceNegativeNilChecks(slices.Concat(xLenArgs, yLenArgs)...), noop, false
 				}
@@ -225,81 +237,68 @@ func AddNilCheck(pass *analysishelper.EnhancedPass, expr ast.Expr) (trueCheck, f
 			},
 		},
 		{
-			// `len(a) == [non-zero]` / `len(a) == [int-typed expr]` /
-			// `len(a) != <non-zero>` / `len(a) != b`
+			// `len(a) - 1 + b == [positive-int]`
+			// Automatic cases:
+			//   - `[positive-int] == len(a) - 1 + b`
+			//   - `len(a) - 1 + b != [positive-int]`
+			//   - `[positive-int] != len(a) - 1 + b`
 			op: token.EQL,
 			matcher: func(x, y ast.Expr) (RootFunc, RootFunc, bool) {
-				if lenArg := extractLenArg(x); lenArg != nil && isPositiveInt(pass, y) {
-					return produceNegativeNilChecks(lenArg), noop, false
+				if lenArgs := extractLenArgs(x, true /* allowNested */); len(lenArgs) == 1 && maybePositiveInt(pass, y) {
+					return produceNegativeNilChecks(lenArgs[0]), noop, false
 				}
 				return noop, noop, true
 			},
 		},
 		{
-			// `len(a) > 0` / `len(a) > 9` / `len(a) > [int-typed expr]` /
-			// `len(a) <= 0` / `len(a) <= 9` / `len(a) <= [int-typed expr]`
+			// `len(a) - 1 + b > [0 or positive-int]`
+			// Automatic cases:
+			//   - `[0 or positive-int] < len(a) - 1 + b`
+			//   - `len(a) - 1 + b <= [0 or positive-int]`
+			//   - `[0 or positive-int] >= len(a) - 1 + b`
 			op: token.GTR,
 			matcher: func(x, y ast.Expr) (RootFunc, RootFunc, bool) {
-				if lenArgs := extractLenArgs(x); len(lenArgs) != 0 && (pass.IsZero(y) || isPositiveInt(pass, y)) {
-					return produceNegativeNilChecks(lenArgs...), noop, false
+				if lenArgs := extractLenArgs(x, true /* allowNested */); len(lenArgs) == 1 && (pass.IsZero(y) || maybePositiveInt(pass, y)) {
+					return produceNegativeNilChecks(lenArgs[0]), noop, false
 				}
 				return noop, noop, true
 			},
 		},
 		{
-			// `len(a) >= 19` / `len(a) >= [int-typed expr]`
-			// `len(a) < 19` / `len(a) < [int-typed expr]`
+			// `len(a) - 1 + b >= [positive-int]`
+			//
+			// Automatic cases:
+			//   - `[positive-int] <= len(a)`
+			//   - `len(a) < [positive-int]`
+			//   - `[positive-int] > len(a)`
 			op: token.GEQ,
 			matcher: func(x, y ast.Expr) (RootFunc, RootFunc, bool) {
-				if lenArg := extractLenArg(x); lenArg != nil && isPositiveInt(pass, y) {
-					return produceNegativeNilChecks(lenArg), noop, false
+				if lenArgs := extractLenArgs(x, true /* allowNested */); len(lenArgs) == 1 && maybePositiveInt(pass, y) {
+					return produceNegativeNilChecks(lenArgs[0]), noop, false
 				}
 				return noop, noop, true
 			},
 		},
 	}
 
-	// this applies each of the checkers to see if we can use it to trigger a return from this function
-	// the converse, inverse, and contrapositive of each exprCheck is checked as well
+	// Apply the checkers.
 	for _, check := range checkers {
-		// switch binExpr.Op {
-		// case check.op, tokenhelper.Inverse(check.op):
-		// 	trueCheck, falseCheck, isNoop = check.matcher(binExpr.X, binExpr.Y)
-		// 	if binExpr.Op == tokenhelper.Inverse(check.op) {
-		// 		trueCheck, falseCheck = falseCheck, trueCheck
-		// 	}
-		// 	if !isNoop {
-		// 		return
-		// 	}
-		// case tokenhelper.Converse(check.op),tokenhelper.Converse(tokenhelper.Inverse(check.op)):
-		// 	trueCheck, falseCheck, isNoop = check.matcher(binExpr.Y, binExpr.X)
-		// 	if binExpr.Op == tokenhelper.Converse(tokenhelper.Inverse(check.op)) {
-		// 		trueCheck, falseCheck = falseCheck, trueCheck
-		// 	}
-		// 	if !isNoop {
-		// 		return
-		// 	}
-		// }
-		if binExpr.Op == check.op {
+		switch binExpr.Op {
+		// `X op Y` and `X inverse(op) Y`.
+		case check.op, tokenhelper.Inverse(check.op):
 			trueCheck, falseCheck, isNoop = check.matcher(binExpr.X, binExpr.Y)
+			if binExpr.Op == tokenhelper.Inverse(check.op) {
+				trueCheck, falseCheck = falseCheck, trueCheck
+			}
 			if !isNoop {
 				return
 			}
-		}
-		if binExpr.Op == tokenhelper.Converse(check.op) {
+		// `Y converse(op) X` and `Y inverse(converse(op)) X`.
+		case tokenhelper.Converse(check.op), tokenhelper.Converse(tokenhelper.Inverse(check.op)):
 			trueCheck, falseCheck, isNoop = check.matcher(binExpr.Y, binExpr.X)
-			if !isNoop {
-				return
+			if binExpr.Op == tokenhelper.Converse(tokenhelper.Inverse(check.op)) {
+				trueCheck, falseCheck = falseCheck, trueCheck
 			}
-		}
-		if binExpr.Op == tokenhelper.Inverse(check.op) {
-			falseCheck, trueCheck, isNoop = check.matcher(binExpr.X, binExpr.Y)
-			if !isNoop {
-				return
-			}
-		}
-		if binExpr.Op == tokenhelper.Converse(tokenhelper.Inverse(check.op)) {
-			falseCheck, trueCheck, isNoop = check.matcher(binExpr.Y, binExpr.X)
 			if !isNoop {
 				return
 			}
@@ -308,39 +307,29 @@ func AddNilCheck(pass *analysishelper.EnhancedPass, expr ast.Expr) (trueCheck, f
 	return noop, noop, true
 }
 
-func extractLenArg(expr ast.Expr) ast.Expr {
-	// this is a helper function that extracts the argument of a len call, if it exists
-	// it returns nil if no len call is found
-	if call, ok := expr.(*ast.CallExpr); ok {
-		if fun, ok := call.Fun.(*ast.Ident); ok && fun.Name == "len" && len(call.Args) == 1 {
-			return call.Args[0]
-		}
-	}
-	return nil
-}
-
-func extractLenArgs(expr ast.Expr) []ast.Expr {
+func extractLenArgs(expr ast.Expr, allowNested bool) []ast.Expr {
 	var args []ast.Expr
 	ast.Inspect(expr, func(n ast.Node) bool {
 		e, ok := n.(ast.Expr)
 		if !ok {
-			return true
+			return allowNested
 		}
-		if arg := extractLenArg(e); arg != nil {
-			args = append(args, arg)
+		if call, ok := e.(*ast.CallExpr); ok {
+			if fun, ok := call.Fun.(*ast.Ident); ok && fun.Name == "len" && len(call.Args) == 1 {
+				args = append(args, call.Args[0])
+			}
 		}
-		return true
+		return allowNested
 	})
 	return args
 }
 
-// We optimistically assume that non-literal integer typed expressions in length checks
-// are positive - see the uses of this function below to admit nonliteral ints everywhere
-// positive ints are matched on
-// TODO - evaluate the unsoundness of this assumption in practice more completely
-func isPositiveInt(pass *analysishelper.EnhancedPass, expr ast.Expr) bool {
-	if v, ok := pass.ConstInt(expr); ok && v <= 0 {
-		return false
+// maybePositiveInt checks if the given expression is a positive integer. We optimistically assume
+// that non-constant int-typed expressions to be positive integers, which is technically unsound
+// but happens frequently enough in practice that it is worth doing.
+func maybePositiveInt(pass *analysishelper.EnhancedPass, expr ast.Expr) bool {
+	if v, ok := pass.ConstInt(expr); ok && v > 0 {
+		return true
 	}
 	if t, ok := pass.TypesInfo.TypeOf(expr).Underlying().(*types.Basic); ok {
 		return t.Info()&types.IsInteger != 0
