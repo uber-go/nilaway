@@ -242,6 +242,31 @@ func lengthCheckAsNilCheckTest(a []int) int {
 		if 1 > len(a) {
 			return a[0] //want "sliced into"
 		}
+
+	// Checks in loop conditions.
+	case 30:
+		for i := 0; i < len(a); i++ {
+			_ = a[i]
+		}
+	case 31:
+		for i := 0; i < len(a)-1; i++ {
+			_ = a[i]
+		}
+	case 32:
+		var b int
+		for i := 0; i < len(a) + 2 + b; i ++ {
+			_ = a[i]
+		}
+	case 33:
+		var b int
+		for i := 0; i + 1 < len(a) + 2 + b; i ++ {
+			_ = a[i]
+		}
+	case 34:
+		var b int
+		for i := 0; i <= len(a) + 2 + b; i ++ {
+			_ = a[i]
+		}
 	}
 	return 0
 }
@@ -325,6 +350,28 @@ func lengthCheckByIntExprTest(a []int, i int) int {
 		if len(a) != k {
 			return a[0] //want "sliced into"
 		}
+	case 20:
+		var b int
+		if len(a) + 2 + b > j {
+			return a[0]
+		}
+	case 21:
+		var b int
+		if len(a) + 2 + b <= j {
+			return 0
+		}
+		_ = a[0]
+	case 22:
+		var b int
+		if j < len(a) + 2 + b {
+			return a[0]
+		}
+	case 23:
+		var b int
+		if j >= len(a) + 2 + b {
+			return 0
+		}
+		_ = a[0]
 	}
 	return 0
 }
@@ -335,7 +382,7 @@ func dummyBool() bool          { return true }
 // this function tests whether we properly interpret double len equality checks
 // as producing non-nil - this is technically unsound, but used so often in practice
 // that we support it
-func testDoubleLenCheck(a, b []int) int {
+func testDoubleLenCheck(a, b, c, d []int) int {
 	switch 0 {
 	case 1:
 		if dummyBool() {
@@ -361,6 +408,17 @@ func testDoubleLenCheck(a, b []int) int {
 			return 0
 		}
 		return b[0]
+	case 5:
+		// We will optimistically assume all slices are non-nil.
+		if len(a) - len(c) == len(b) * len(d) {
+			_, _, _, _ = a[0], b[0], c[0], d[0]
+		}
+	case 6:
+		if len(a) - len(c) != len(b) * len(d) {
+			return 0
+		}
+		// We will optimistically assume all slices are non-nil.
+		_, _, _, _ = a[0], b[0], c[0], d[0]
 	}
 	return 0
 }

@@ -17,6 +17,8 @@
 package tokenhelper
 
 import (
+	"fmt"
+	"go/token"
 	"os"
 	"path/filepath"
 )
@@ -35,4 +37,44 @@ func RelToCwd(filename string) string {
 		return rel
 	}
 	return filename
+}
+
+// Converse returns the converse of the given token. It panics if the token is not a valid comparison.
+func Converse(t token.Token) token.Token {
+	switch t {
+	case token.EQL:
+		return token.EQL
+	case token.NEQ:
+		return token.NEQ
+	case token.LSS:
+		return token.GTR
+	case token.GTR:
+		return token.LSS
+	case token.LEQ:
+		return token.GEQ
+	case token.GEQ:
+		return token.LEQ
+	default:
+		panic(fmt.Sprintf("unrecognized token %q has no known converse", t.String()))
+	}
+}
+
+// Inverse returns the inverse of the given token. It panics if the token is not a valid comparison.
+func Inverse(t token.Token) token.Token {
+	switch t {
+	case token.EQL:
+		return token.NEQ
+	case token.NEQ:
+		return token.EQL
+	case token.LSS:
+		return token.GEQ
+	case token.GTR:
+		return token.LEQ
+	case token.LEQ:
+		return token.GTR
+	case token.GEQ:
+		return token.LSS
+	default:
+		panic(fmt.Sprintf("unrecognized token %q has no known inverse", t.String()))
+	}
 }

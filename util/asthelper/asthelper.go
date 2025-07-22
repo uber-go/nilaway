@@ -21,8 +21,6 @@ import (
 	"go/token"
 	"io"
 	"strings"
-
-	"go.uber.org/nilaway/util/analysishelper"
 )
 
 // DocContains returns true if the comment group contains the given string.
@@ -43,16 +41,16 @@ func DocContains(file *ast.File, s string) bool {
 }
 
 // PrintExpr converts AST expression to string, and shortens long expressions if isShortenExpr is true
-func PrintExpr(e ast.Expr, pass *analysishelper.EnhancedPass, isShortenExpr bool) (string, error) {
+func PrintExpr(e ast.Expr, fset *token.FileSet, isShortenExpr bool) (string, error) {
 	builder := &strings.Builder{}
 	var err error
 
 	if !isShortenExpr {
-		err = printer.Fprint(builder, pass.Fset, e)
+		err = printer.Fprint(builder, fset, e)
 	} else {
 		// traverse over the AST expression's subtree and shorten long expressions
 		// (e.g., s.foo(longVarName, anotherLongVarName, someOtherLongVarName) --> s.foo(...))
-		err = printExpr(builder, pass.Fset, e)
+		err = printExpr(builder, fset, e)
 	}
 
 	return builder.String(), err

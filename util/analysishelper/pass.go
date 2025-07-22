@@ -18,6 +18,7 @@ import (
 	"go/ast"
 	"go/constant"
 
+	"go.uber.org/nilaway/util/asthelper"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -36,10 +37,33 @@ func NewEnhancedPass(pass *analysis.Pass) *EnhancedPass {
 // example, zero literal, zero const or binary expression that evaluates to zero, e.g., 1 - 1
 // should all return true. Note the function will return false for zero string `"0"`.
 func (p *EnhancedPass) IsZero(expr ast.Expr) bool {
+	value, ok := p.ConstInt(expr)
+	return ok && value == 0
+}
+
+// ConstInt returns the constant integer value of the given expression if it is a constant. The
+// boolean return value indicates whether the expression is a constant integer or not.
+func (p *EnhancedPass) ConstInt(expr ast.Expr) (int64, bool) {
+	tv, ok := p.TypesInfo.Types[expr]
+	if !ok {
+		return 0, false
+	}
+	intValue, ok := constant.Val(tv.Value).(int64)
+	if !ok {
+		return 0, false
+	}
+	return intValue, true
+}
+
+// IsNil checks if the given expression evaluates to untyped nil at compile time. It also treats
+// the identifier `nil` as nil too to support cases where we have inserted a fake identifier.
+func (p *EnhancedPass) IsNil(expr ast.Expr) bool {
+	if asthelper.IsLiteral(expr, "nil") {
+		return true
+	}
 	tv, ok := p.TypesInfo.Types[expr]
 	if !ok {
 		return false
 	}
-	intValue, ok := constant.Val(tv.Value).(int64)
-	return ok && intValue == 0
+	return tv.IsNil()
 }

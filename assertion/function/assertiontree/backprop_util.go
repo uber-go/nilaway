@@ -826,10 +826,10 @@ func addAssignmentToConsumer(lhs, rhs ast.Expr, pass *analysishelper.EnhancedPas
 	var lhsExprStr, rhsExprStr string
 	var err error
 
-	if lhsExprStr, err = asthelper.PrintExpr(lhs, pass, true /* isShortenExpr */); err != nil {
+	if lhsExprStr, err = asthelper.PrintExpr(lhs, pass.Fset, true /* isShortenExpr */); err != nil {
 		return fmt.Errorf("converting LHS of assignment to string: %w", err)
 	}
-	if rhsExprStr, err = asthelper.PrintExpr(rhs, pass, true /* isShortenExpr */); err != nil {
+	if rhsExprStr, err = asthelper.PrintExpr(rhs, pass.Fset, true /* isShortenExpr */); err != nil {
 		return fmt.Errorf("converting RHS of assignment to string: %w", err)
 	}
 
