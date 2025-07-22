@@ -290,6 +290,9 @@ func AddNilCheck(pass *analysishelper.EnhancedPass, expr ast.Expr) (trueCheck, f
 
 	// Apply the checkers.
 	for _, check := range checkers {
+		// Note that `op` might be equal to `converse(op)` (e.g., `==` = `==`), so we must check
+		// both cases.
+
 		// `X op Y` and `X inverse(op) Y`.
 		if binExpr.Op == check.op || binExpr.Op == tokenhelper.Inverse(check.op) {
 			trueCheck, falseCheck, isNoop = check.matcher(binExpr.X, binExpr.Y)
