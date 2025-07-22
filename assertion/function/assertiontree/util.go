@@ -244,7 +244,7 @@ func AddNilCheck(pass *analysishelper.EnhancedPass, expr ast.Expr) (trueCheck, f
 			//   - `[positive-int] != len(a) - 1 + b`
 			op: token.EQL,
 			matcher: func(x, y ast.Expr) (RootFunc, RootFunc, bool) {
-				if lenArgs := extractLenArgs(x, true /* allowNested */); len(lenArgs) == 1 && maybePositiveInt(pass, y) {
+				if lenArgs := extractLenArgs(x, true /* allowNested */); len(lenArgs) == 1 && likelyPositiveInt(pass, y) {
 					return produceNegativeNilChecks(lenArgs[0]), noop, false
 				}
 				return noop, noop, true
@@ -258,7 +258,7 @@ func AddNilCheck(pass *analysishelper.EnhancedPass, expr ast.Expr) (trueCheck, f
 			//   - `[0 or positive-int] >= len(a) - 1 + b`
 			op: token.GTR,
 			matcher: func(x, y ast.Expr) (RootFunc, RootFunc, bool) {
-				if lenArgs := extractLenArgs(x, true /* allowNested */); len(lenArgs) == 1 && (pass.IsZero(y) || maybePositiveInt(pass, y)) {
+				if lenArgs := extractLenArgs(x, true /* allowNested */); len(lenArgs) == 1 && (pass.IsZero(y) || likelyPositiveInt(pass, y)) {
 					return produceNegativeNilChecks(lenArgs[0]), noop, false
 				}
 				return noop, noop, true
@@ -273,7 +273,7 @@ func AddNilCheck(pass *analysishelper.EnhancedPass, expr ast.Expr) (trueCheck, f
 			//   - `[positive-int] > len(a)`
 			op: token.GEQ,
 			matcher: func(x, y ast.Expr) (RootFunc, RootFunc, bool) {
-				if lenArgs := extractLenArgs(x, true /* allowNested */); len(lenArgs) == 1 && maybePositiveInt(pass, y) {
+				if lenArgs := extractLenArgs(x, true /* allowNested */); len(lenArgs) == 1 && likelyPositiveInt(pass, y) {
 					return produceNegativeNilChecks(lenArgs[0]), noop, false
 				}
 				return noop, noop, true
@@ -281,11 +281,17 @@ func AddNilCheck(pass *analysishelper.EnhancedPass, expr ast.Expr) (trueCheck, f
 		},
 	}
 
+	if binExpr.Op == token.NEQ {
+		l, ok := binExpr.X.(*ast.BasicLit)
+		if ok && l.Kind == token.INT && l.Value == "0" {
+			print("123")
+		}
+	}
+
 	// Apply the checkers.
 	for _, check := range checkers {
-		switch binExpr.Op {
 		// `X op Y` and `X inverse(op) Y`.
-		case check.op, tokenhelper.Inverse(check.op):
+		if binExpr.Op == check.op || binExpr.Op == tokenhelper.Inverse(check.op) {
 			trueCheck, falseCheck, isNoop = check.matcher(binExpr.X, binExpr.Y)
 			if binExpr.Op == tokenhelper.Inverse(check.op) {
 				trueCheck, falseCheck = falseCheck, trueCheck
@@ -293,8 +299,9 @@ func AddNilCheck(pass *analysishelper.EnhancedPass, expr ast.Expr) (trueCheck, f
 			if !isNoop {
 				return
 			}
+		}
 		// `Y converse(op) X` and `Y inverse(converse(op)) X`.
-		case tokenhelper.Converse(check.op), tokenhelper.Converse(tokenhelper.Inverse(check.op)):
+		if binExpr.Op == tokenhelper.Converse(check.op) || binExpr.Op == tokenhelper.Converse(tokenhelper.Inverse(check.op)) {
 			trueCheck, falseCheck, isNoop = check.matcher(binExpr.Y, binExpr.X)
 			if binExpr.Op == tokenhelper.Converse(tokenhelper.Inverse(check.op)) {
 				trueCheck, falseCheck = falseCheck, trueCheck
@@ -324,12 +331,12 @@ func extractLenArgs(expr ast.Expr, allowNested bool) []ast.Expr {
 	return args
 }
 
-// maybePositiveInt checks if the given expression is a positive integer. We optimistically assume
-// that non-constant int-typed expressions to be positive integers, which is technically unsound
-// but happens frequently enough in practice that it is worth doing.
-func maybePositiveInt(pass *analysishelper.EnhancedPass, expr ast.Expr) bool {
-	if v, ok := pass.ConstInt(expr); ok && v > 0 {
-		return true
+// likelyPositiveInt return true if the given expression is likely a positive integer. We
+// optimistically assume that non-constant int-typed expressions to be positive integers, which is
+// technically unsound but happens frequently enough in practice that it is worth doing.
+func likelyPositiveInt(pass *analysishelper.EnhancedPass, expr ast.Expr) bool {
+	if v, ok := pass.ConstInt(expr); ok {
+		return v > 0
 	}
 	if t, ok := pass.TypesInfo.TypeOf(expr).Underlying().(*types.Basic); ok {
 		return t.Info()&types.IsInteger != 0

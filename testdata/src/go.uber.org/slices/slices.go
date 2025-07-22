@@ -251,10 +251,9 @@ func lengthCheckAsNilCheckTest(a []int) int {
 			_ = a[i]
 		}
 	case 32:
-		var b []int
-		for i := 0; i < len(a) + 2 * len(b); i ++ {
+		var b int
+		for i := 0; i < len(a) + 2 + b; i ++ {
 			_ = a[i]
-			_ = b[i]
 		}
 	}
 	return 0
