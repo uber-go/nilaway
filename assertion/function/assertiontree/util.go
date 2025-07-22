@@ -281,13 +281,6 @@ func AddNilCheck(pass *analysishelper.EnhancedPass, expr ast.Expr) (trueCheck, f
 		},
 	}
 
-	if binExpr.Op == token.NEQ {
-		l, ok := binExpr.X.(*ast.BasicLit)
-		if ok && l.Kind == token.INT && l.Value == "0" {
-			print("123")
-		}
-	}
-
 	// Apply the checkers.
 	for _, check := range checkers {
 		// Note that `op` might be equal to `converse(op)` (e.g., `==` = `==`), so we must check
