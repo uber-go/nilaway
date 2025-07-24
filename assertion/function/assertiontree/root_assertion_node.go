@@ -1143,15 +1143,17 @@ func (r *RootAssertionNode) isBuiltIn(ident *ast.Ident) bool {
 	return ok
 }
 
-// builtInConversionFuncBasicType checks if it is a built-in conversion function call, such as `string(x)`, and if yes returns the basic type object
-func (r *RootAssertionNode) builtInConversionFuncBasicType(call *ast.CallExpr) *types.Basic {
+// builtInConversionFuncBasicType checks if it is a built-in conversion function call, such as `string(x)`.
+// If yes returns the basic type object, otherwise nil.
+func (r *RootAssertionNode) builtInConversionFuncBasicType(call *ast.CallExpr) (b *types.Basic) {
 	if ident := util.FuncIdentFromCallExpr(call); ident != nil {
 		if obj := r.ObjectOf(ident); obj != nil {
-			b, _ := obj.Type().(*types.Basic)
-			return b
+			if tname, ok := obj.(*types.TypeName); ok {
+				b, _ = tname.Type().(*types.Basic)
+			}
 		}
 	}
-	return nil
+	return
 }
 
 // checks if a constant - e.g. "true"
