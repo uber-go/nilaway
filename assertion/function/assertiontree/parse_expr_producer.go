@@ -435,7 +435,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 					return false
 				case *ast.CallExpr:
 					if fun, ok := index.Fun.(*ast.Ident); ok {
-						if r.isBuiltIn(fun) {
+						if r.isBuiltIn(fun) || r.builtInConversionFuncBasicType(index) != nil {
 							// iterate over the arguments of the call expression
 							for _, arg := range index.Args {
 								if !isIndexTrackable(arg) {

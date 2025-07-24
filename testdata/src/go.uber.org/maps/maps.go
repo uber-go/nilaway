@@ -940,6 +940,22 @@ func testNonLiteralMapAccess(mp map[int]*int, i, j int) {
 			return
 		}
 		print(*vs[0])
+
+	case 15:
+		var v uint8
+		m := make(map[string]*int)
+		if m[string(v)] != nil {
+			_ = *m[string(v)]
+		}
+
+		if v, ok := m[string(v)]; ok {
+			_ = *v
+		}
+
+	case 16:
+		var v uint8
+		m := make(map[string]*int)
+		_ = *m[string(v)] //want "lacking guarding"
 	}
 }
 
