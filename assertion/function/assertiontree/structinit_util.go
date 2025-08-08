@@ -136,7 +136,7 @@ func (r *RootAssertionNode) getFieldProducersForFuncReturns(calledFuncDecl *type
 
 			if util.TypeBarsNilness(fieldDecl.Type()) {
 				// We do not create field triggers for types that are not nilable
-				return nil
+				continue
 			}
 
 			retKey := annotation.NewRetFldAnnKey(calledFuncDecl, retNum, fieldDecl)

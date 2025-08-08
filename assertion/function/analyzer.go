@@ -23,7 +23,6 @@ import (
 	"go/types"
 	"reflect"
 	"runtime/debug"
-	"strings"
 	"sync"
 
 	"go.uber.org/nilaway/annotation"
@@ -89,15 +88,11 @@ func run(p *analysis.Pass) ([]annotation.FullTrigger, error) {
 		return nil, nil
 	}
 
-	// Construct experimental features. By default, enable all features on NilAway itself.
-	functionConfig := assertiontree.FunctionConfig{}
-	if strings.HasPrefix(pass.Pkg.Path(), config.NilAwayPkgPathPrefix) { //nolint:revive
-		// TODO: enable struct initialization flag (tracked in Issue #23).
-		// TODO: enable anonymous function flag.
-	} else {
-		functionConfig.EnableStructInitCheck = conf.ExperimentalStructInitEnable
-		functionConfig.EnableAnonymousFunc = conf.ExperimentalAnonymousFuncEnable
-	}
+    // Respect driver flags for experimental features for all packages.
+    functionConfig := assertiontree.FunctionConfig{
+        EnableStructInitCheck: conf.ExperimentalStructInitEnable,
+        EnableAnonymousFunc:   conf.ExperimentalAnonymousFuncEnable,
+    }
 
 	ctrlflowResult := pass.ResultOf[ctrlflow.Analyzer].(*ctrlflow.CFGs)
 	anonymousFuncResult := pass.ResultOf[anonymousfunc.Analyzer].(*analysishelper.Result[map[*ast.FuncLit]*anonymousfunc.FuncLitInfo])
