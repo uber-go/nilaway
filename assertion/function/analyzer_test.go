@@ -94,7 +94,7 @@ func TestCancelledContext(t *testing.T) {
 	wg.Add(1)
 
 	// Give a cancelled context, so back propagation should immediately return with an error.
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	ctrlflowResult := pass.ResultOf[ctrlflow.Analyzer].(*ctrlflow.CFGs)
@@ -116,7 +116,7 @@ func TestCancelledContext(t *testing.T) {
 func TestAnalyzeFuncPanic(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	resultChan := make(chan functionResult)
 	var wg sync.WaitGroup
@@ -177,7 +177,7 @@ func TestBackpropFixpointConvergence(t *testing.T) {
 			funcConfig, emptyFuncLitMap, emptyPkgFakeIdentMap, emptyFuncContracts)
 		ctrlflowResult := pass.ResultOf[ctrlflow.Analyzer].(*ctrlflow.CFGs)
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 
 		// Run the backpropagation algorithm and collect the results.

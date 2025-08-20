@@ -114,7 +114,7 @@ func nolintContainsNilAway(text string) bool {
 	if len(parts) == 1 {
 		return true
 	}
-	for _, linter := range strings.Split(strings.TrimSpace(parts[1]), ",") {
+	for linter := range strings.SplitSeq(strings.TrimSpace(parts[1]), ",") {
 		if strings.EqualFold(linter, "all") || strings.EqualFold(linter, "nilaway") {
 			return true
 		}
