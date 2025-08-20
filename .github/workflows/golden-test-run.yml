@@ -21,7 +21,7 @@ jobs:
     name: Run
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         name: Check out repository
 
       - name: Fetch base branch (${{ github.event.pull_request.base.ref }}) locally
@@ -30,16 +30,24 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.24.x
+          go-version: 1.25.x
           cache: false
+
+      # Our Golden tests run NilAway on the entire standard library, which is very resource-intensive.
+      # GitHub Actions terminates the job if it hits the resource limits (both in CPU and memory).
+      # For CPU limit we set GOMAXPROCS to be one less than the number of available CPUs.
+      # For memory limit we create a 16G swap file and set GOMEMLIMIT to 24G.
+      - name: Create swap file in Github Actions to avoid OOM killer
+        run: |
+          sudo fallocate -l 16G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
 
       - name: Golden Test
         id: golden_test
-        # Run golden test by comparing HEAD and the base branch (the target branch of the PR).
-        # GitHub Actions terminates the job if it hits the resource limits. Here we limit the
-        # memory usage to 8GiB to avoid that.
         run: |
-          make golden-test GOMEMLIMIT=8192MiB ARGS="-base-branch ${{ github.event.pull_request.base.ref }} -result-file ${{ runner.temp }}/golden-test-comment.md"
+          make golden-test GOMAXPROCS=$(( $(nproc) - 1 )) GOMEMLIMIT=24576MiB ARGS="-base-branch ${{ github.event.pull_request.base.ref }} -result-file ${{ runner.temp }}/golden-test-comment.md"
 
       - uses: actions/upload-artifact@v4
         with:
