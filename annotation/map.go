@@ -319,7 +319,7 @@ func nilabilityFromCommentGroup(group *ast.CommentGroup) nilabilitySet {
 					deepFunc, shallowFunc = markDeepNilable, markNilable
 				}
 
-				for _, match := range strings.Split(seqMatch[2], sep) {
+				for match := range strings.SplitSeq(seqMatch[2], sep) {
 					match = strings.TrimSpace(match)
 					n := len(match)
 
