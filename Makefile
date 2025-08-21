@@ -30,6 +30,30 @@ cover:
 		go test -race -coverprofile=cover.out -coverpkg=./... ./... \
 		&& go tool cover -html=cover.out -o cover.html) &&) true
 
+.PHONY: upgrade-deps
+upgrade-deps: MODULE_DIRS := $(MODULE_DIRS) ./testdata/integration
+upgrade-deps:
+	@echo "[upgrade-deps] Upgrading dependencies and tools"
+	@echo "[upgrade-deps] Checking for latest golangci-lint version"
+	@CURRENT_VERSION=$$(cat .golangci.version); \
+	LATEST_VERSION=$$(curl -s https://api.github.com/repos/golangci/golangci-lint/releases/latest | grep '"tag_name"' | sed 's/.*"v\([^"]*\)".*/\1/'); \
+	echo "[upgrade-deps] Current golangci-lint version: $$CURRENT_VERSION"; \
+	echo "[upgrade-deps] Latest golangci-lint version: $$LATEST_VERSION"; \
+	if [ "$$CURRENT_VERSION" != "$$LATEST_VERSION" ]; then \
+		echo "[upgrade-deps] Updating .golangci.version from $$CURRENT_VERSION to $$LATEST_VERSION"; \
+		printf "$$LATEST_VERSION" > .golangci.version; \
+	else \
+		echo "[upgrade-deps] golangci-lint already up to date"; \
+	fi
+	@echo "[upgrade-deps] Upgrading dependencies in all modules: $(MODULE_DIRS)"
+	@$(foreach mod,$(MODULE_DIRS), \
+		(cd $(mod) && \
+		$(if $(GO_VERSION),echo "[upgrade-deps] go mod edit -go=$(GO_VERSION): $(mod)" && go mod edit -go=$(GO_VERSION) &&) \
+		echo "[upgrade-deps] go get -u ./...: $(mod)" && \
+		go get -u ./... && \
+		echo "[upgrade-deps] go mod tidy: $(mod)" && \
+		go mod tidy) &&) true
+
 .PHONY: golden-test
 golden-test:
 	@cd tools && go install go.uber.org/nilaway/tools/cmd/golden-test
