@@ -42,6 +42,12 @@ make golangci-lint           # Run golangci-lint only
 make nilaway-lint            # Run nilaway on itself
 ```
 
+### Upgrading Dependencies
+
+Run `make upgrade-deps` to upgrade all dependencies and tools to their latest versions for all modules within NilAway.
+
+Optionally, set `GO_VERSION=<version>` environment variable to upgrade to a specific Go version (e.g., `1.21`).
+
 ### Running NilAway
 
 ```bash

@@ -1,10 +1,21 @@
 version: "2"
 linters:
+  default: standard
   enable:
     - goheader
     - nolintlint
     - paralleltest
     - revive
+  exclusions:
+    rules:
+      # revive's var-naming rule forbids `util` package name, and is non-deterministic in placing the
+      # lint error on which file inside the package. Disable it for the entire `util/` package for now
+      # until we can rename the package to something more specific.
+      - path: util/
+        text: "var-naming:"
+        linters:
+          - revive
+
   settings:
     staticcheck:
       checks:
