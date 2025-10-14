@@ -22,6 +22,7 @@ import (
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/typeshelper"
 )
 
 // AssumeReturn returns the producer for the return value of the given call expression, which would
@@ -29,13 +30,21 @@ import (
 // functions that are not analyzed by NilAway. For example, "errors.New" is assumed to return a
 // nonnil value. If the given call expression does not match any known function, nil is returned.
 func AssumeReturn(pass *analysishelper.EnhancedPass, call *ast.CallExpr) *annotation.ProduceTrigger {
-	for sig, act := range _assumeReturns {
-		if sig.match(pass, call) {
-			return act(call)
-		}
+	trigger, done := matchTrustedFuncs(pass, call)
+	if done {
+		return trigger
 	}
 
 	return AssumeReturnForErrorWrapperFunc(pass, call)
+}
+
+func matchTrustedFuncs(pass *analysishelper.EnhancedPass, call *ast.CallExpr) (*annotation.ProduceTrigger, bool) {
+	for sig, act := range _assumeReturns {
+		if sig.match(pass, call) {
+			return act(call), true
+		}
+	}
+	return nil, false
 }
 
 // AssumeReturnForErrorWrapperFunc returns the producer for the return value of the given call expression which is
@@ -48,6 +57,8 @@ func AssumeReturnForErrorWrapperFunc(pass *analysishelper.EnhancedPass, call *as
 	return nil
 }
 
+var _newErrorFuncNameRegex = regexp.MustCompile(`(?i)new[^ ]*error[^ ]*`)
+
 // isErrorWrapperFunc implements a heuristic to identify error wrapper functions (e.g., `errors.Wrapf(err, "message")`).
 // It does this by applying the following criteria:
 // - the function must have at least one argument of error-implementing type, and
@@ -58,53 +69,62 @@ func isErrorWrapperFunc(pass *analysishelper.EnhancedPass, call *ast.CallExpr) b
 		return false
 	}
 
-	obj := pass.TypesInfo.ObjectOf(funcIdent)
-	if obj == nil {
+	// Return early if the function object is nil or does not return an error.
+	var funcObj *types.Func
+	if obj := pass.TypesInfo.ObjectOf(funcIdent); obj != nil {
+		if fObj, ok := obj.(*types.Func); ok {
+			if util.FuncIsErrReturning(typeshelper.GetFuncSignature(fObj.Signature())) {
+				funcObj = fObj
+			}
+		}
+	}
+	if funcObj == nil {
 		return false
 	}
 
-	// If the call expr is built-in `new`, then we check if its argument type implements the error interface.
-	// This case particularly gets triggered for the expression: `Wrap(new(MyErrorStruct), "message")`.
-	if obj == util.BuiltinNew {
-		if argIdent := util.IdentOf(call.Args[0]); argIdent != nil {
-			ptr := types.NewPointer(pass.TypesInfo.TypeOf(argIdent))
-			if types.Implements(ptr, util.ErrorInterface) {
+	// Check if the function is an error wrapper: consumes an error and returns an error.
+	for _, arg := range call.Args {
+		// Check if the argument is a call expression.
+		if callExpr, ok := arg.(*ast.CallExpr); ok {
+			if _, ok := matchTrustedFuncs(pass, callExpr); ok {
+				// Check if the argument is a trusted error returning function call.
+				// Example: `wrapError(errors.New("new error"))`
+				return true
+			}
+
+			// This is to cover the case `NewInternalError(err.Error())` where the argument is a method call on an error.
+			// We want to extract the raw error argument `err` in this case.
+			if s, ok := callExpr.Fun.(*ast.SelectorExpr); ok {
+				if util.IsError(pass, s.X) {
+					return true
+				}
+			}
+
+			// Recursively check if the argument is an error wrapper function call.
+			// Example: `wrapError(wrapError(wrapError(err)))`
+			if isErrorWrapperFunc(pass, callExpr) {
 				return true
 			}
 		}
 
-		return false
-	}
-
-	funcObj, ok := obj.(*types.Func)
-	if !ok {
-		return false
-	}
-	if util.FuncIsErrReturning(funcObj.Signature()) {
-		args := call.Args
-
-		// If the function is a method, we need to check if the receiver is an error-implementing type.
-		// This is to cover the case where some error wrappers facilitate a chaining functionality, i.e., the receiver
-		// is an error-implementing type (e.g., Wrap().WithOtherFields()). By adding the receiver to the argument list,
-		// we can check if it is an error-implementing type and support this case.
-		if funcObj.Type().(*types.Signature).Recv() != nil {
-			args = append(args, call.Fun)
+		if util.IsError(pass, arg) {
+			// Return the raw error argument expression
+			return true
 		}
-		for _, arg := range args {
-			if callExpr, ok := ast.Unparen(arg).(*ast.CallExpr); ok {
-				if isErrorWrapperFunc(pass, callExpr) {
-					return true
-				}
-			}
+	}
 
-			if argIdent := util.IdentOf(arg); argIdent != nil {
-				argObj := pass.TypesInfo.ObjectOf(argIdent)
-				if util.ImplementsError(argObj) {
-					return true
-				}
+	// Check if the function is creating a new error:
+	// - consumes a message string and returns an error
+	// - matches regex "new*error" as its function name (e.g., `NewInternalError()`)
+	if _newErrorFuncNameRegex.MatchString(funcObj.Name()) {
+		for i := 0; i < funcObj.Signature().Params().Len(); i++ {
+			param := funcObj.Signature().Params().At(i)
+			if t, ok := param.Type().(*types.Basic); ok && t.Kind() == types.String && i < len(call.Args) {
+				return true
 			}
 		}
 	}
+
 	return false
 }
 
@@ -135,6 +155,21 @@ var _assumeReturns = map[trustedFuncSig]assumeReturnAction{
 		kind:           _func,
 		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/pkg/errors$`),
 		funcNameRegex:  regexp.MustCompile(`^New$`),
+	}: nonnilProducer,
+
+	// `errors.Join`
+	// Note that `errors.Join` can return nil if all arguments are nil [1]. However, in practice this should rarely
+	// happen such that we assume it returns a non-nil error for simplicity. Here we are making a conscious trade-off
+	// between soundness and practicality.
+	//
+	// We make the same practical assumption for `errors.Unwrap` as well, which returns nil if the argument is nil [2].
+	//
+	// [1] https://pkg.go.dev/errors#Join
+	// [2] https://pkg.go.dev/errors#Unwrap
+	{
+		kind:           _func,
+		enclosingRegex: regexp.MustCompile(`^errors$`),
+		funcNameRegex:  regexp.MustCompile(`^Join$`),
 	}: nonnilProducer,
 }
 

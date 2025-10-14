@@ -547,3 +547,22 @@ func IdentOf(expr ast.Expr) *ast.Ident {
 		return nil
 	}
 }
+
+// IsError checks if the given expression is of type error.
+func IsError(pass *analysishelper.EnhancedPass, expr ast.Expr) bool {
+	t := pass.TypesInfo.TypeOf(expr)
+	if t == nil {
+		return false
+	}
+	// Check if expr represents an implementation of the error interface
+	return implementsError(t)
+}
+
+// implementsError checks if the given object implements the error interface. It also covers the case of
+// interfaces that embed the error interface.
+func implementsError(t types.Type) bool {
+	if ErrorInterface == nil {
+		return false
+	}
+	return types.Implements(t, ErrorInterface)
+}
