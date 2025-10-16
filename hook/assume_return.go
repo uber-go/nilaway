@@ -30,11 +30,10 @@ import (
 // functions that are not analyzed by NilAway. For example, "errors.New" is assumed to return a
 // nonnil value. If the given call expression does not match any known function, nil is returned.
 func AssumeReturn(pass *analysishelper.EnhancedPass, call *ast.CallExpr) *annotation.ProduceTrigger {
-	trigger, done := matchTrustedFuncs(pass, call)
-	if done {
+	trigger, ok := matchTrustedFuncs(pass, call)
+	if ok {
 		return trigger
 	}
-
 	return AssumeReturnForErrorWrapperFunc(pass, call)
 }
 
@@ -162,10 +161,7 @@ var _assumeReturns = map[trustedFuncSig]assumeReturnAction{
 	// happen such that we assume it returns a non-nil error for simplicity. Here we are making a conscious trade-off
 	// between soundness and practicality.
 	//
-	// We make the same practical assumption for `errors.Unwrap` as well, which returns nil if the argument is nil [2].
-	//
 	// [1] https://pkg.go.dev/errors#Join
-	// [2] https://pkg.go.dev/errors#Unwrap
 	{
 		kind:           _func,
 		enclosingRegex: regexp.MustCompile(`^errors$`),
