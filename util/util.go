@@ -320,26 +320,10 @@ func IsEmptyExpr(expr ast.Expr) bool {
 
 // ImplementsError checks if the given object implements the error interface. It also covers the case of
 // interfaces that embed the error interface.
-func ImplementsError(obj types.Object) bool {
-	if ErrorInterface == nil || obj == nil {
+func ImplementsError(t types.Type) bool {
+	if t == nil {
 		return false
 	}
-
-	underlyingType := func(t types.Type) types.Type {
-		switch t := t.(type) {
-		case *types.Pointer:
-			return UnwrapPtr(t)
-		case *types.Slice:
-			return t.Elem().Underlying()
-		case *types.Array:
-			return t.Elem().Underlying()
-		default:
-			return t
-		}
-	}
-
-	t := underlyingType(obj.Type())
-
 	return types.Implements(t, ErrorInterface)
 }
 
@@ -359,12 +343,12 @@ func FuncIsErrReturning(sig *types.Signature) bool {
 	}
 
 	errRes := results.At(n - 1)
-	if !ImplementsError(errRes) {
+	if !ImplementsError(errRes.Type()) {
 		return false
 	}
 
 	for i := 0; i < n-1; i++ {
-		if ImplementsError(results.At(i)) {
+		if ImplementsError(results.At(i).Type()) {
 			return false
 		}
 	}
