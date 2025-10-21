@@ -30,20 +30,19 @@ import (
 // functions that are not analyzed by NilAway. For example, "errors.New" is assumed to return a
 // nonnil value. If the given call expression does not match any known function, nil is returned.
 func AssumeReturn(pass *analysishelper.EnhancedPass, call *ast.CallExpr) *annotation.ProduceTrigger {
-	trigger, ok := matchTrustedFuncs(pass, call)
-	if ok {
+	if trigger := matchTrustedFuncs(pass, call); trigger != nil {
 		return trigger
 	}
 	return AssumeReturnForErrorWrapperFunc(pass, call)
 }
 
-func matchTrustedFuncs(pass *analysishelper.EnhancedPass, call *ast.CallExpr) (*annotation.ProduceTrigger, bool) {
+func matchTrustedFuncs(pass *analysishelper.EnhancedPass, call *ast.CallExpr) *annotation.ProduceTrigger {
 	for sig, act := range _assumeReturns {
 		if sig.match(pass, call) {
-			return act(call), true
+			return act(call)
 		}
 	}
-	return nil, false
+	return nil
 }
 
 // AssumeReturnForErrorWrapperFunc returns the producer for the return value of the given call expression which is
@@ -85,7 +84,7 @@ func isErrorWrapperFunc(pass *analysishelper.EnhancedPass, call *ast.CallExpr) b
 	for _, arg := range call.Args {
 		// Check if the argument is a call expression.
 		if callExpr, ok := arg.(*ast.CallExpr); ok {
-			if _, ok := matchTrustedFuncs(pass, callExpr); ok {
+			if matchTrustedFuncs(pass, callExpr) != nil {
 				// Check if the argument is a trusted error returning function call.
 				// Example: `wrapError(errors.New("new error"))`
 				return true
@@ -94,7 +93,8 @@ func isErrorWrapperFunc(pass *analysishelper.EnhancedPass, call *ast.CallExpr) b
 			// This is to cover the case `NewInternalError(err.Error())` where the argument is a method call on an error.
 			// We want to extract the raw error argument `err` in this case.
 			if s, ok := callExpr.Fun.(*ast.SelectorExpr); ok {
-				if util.IsError(pass, s.X) {
+				t := pass.TypesInfo.TypeOf(s.X)
+				if t != nil && util.ImplementsError(t) {
 					return true
 				}
 			}
@@ -106,7 +106,8 @@ func isErrorWrapperFunc(pass *analysishelper.EnhancedPass, call *ast.CallExpr) b
 			}
 		}
 
-		if util.IsError(pass, arg) {
+		argType := pass.TypesInfo.TypeOf(arg)
+		if argType != nil && util.ImplementsError(argType) {
 			// Return the raw error argument expression
 			return true
 		}
