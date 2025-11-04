@@ -18,8 +18,10 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"go/types"
 
 	"go.uber.org/nilaway/hook"
+	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/asthelper"
 	"golang.org/x/tools/go/cfg"
 )
@@ -263,15 +265,273 @@ func (p *Preprocessor) replaceConditional(graph *cfg.CFG, block *cfg.Block) {
 		return
 	}
 
-	replaced := hook.ReplaceConditional(p.pass, call)
-	if replaced == nil {
+	// First, try replacing with a hook-based conditional transformation.
+	if hookReplacement := hook.ReplaceConditional(p.pass, call); hookReplacement != nil {
+		block.Nodes[len(block.Nodes)-1] = hookReplacement
+		p.canonicalizeConditional(graph, block)
 		return
 	}
 
-	block.Nodes[len(block.Nodes)-1] = replaced
-	// The returned expression may be a binary expression, so we need to canonicalize the CFG again
-	// after such replacement.
-	p.canonicalizeConditional(graph, block)
+	// Second, try extracting and inlining a custom function's boolean expression.
+	// Example:
+	// ```
+	// func isValid(x *int) bool {
+	// 	return x != nil
+	// }
+	// func foo() {
+	// 	var p *int
+	// 	if isValid(p) {
+	// 		print(*p)
+	//	}
+	// ```
+	// This will transform the condition to: `if isValid(p) { ... }` to `if p != nil { ... }` by extracting the
+	// boolean expression from isValid and substituting the parameter with the argument. This inlining allows NilAway to
+	// correctlyinfer the nilability of the argument after the custom function call.
+	//
+	// Note: We append instead of replace here, as we want to leverage NilAway's trigger logic if
+	// there is a potential nil panic in the custom function.
+	// For example,
+	// ```
+	// L1. func isValid(x *int) bool {
+	// L2. 	return x != nil || *x > 0 // nil panic!
+	// L3. }
+	// L4. func foo() {
+	// L5. 	var p *int
+	// L6. 	if isValid(p) {
+	// L7. 		print(*p)
+	// L8. 	}
+	// L9. }
+	// ```
+	// In this case, the advantage of appending instead of replacing can be seen:
+	// - If we "replace" the call with the adapted binary expression (`L6. if isValid(p)` with `L6. if p != nil || *p > 0`),
+	// NilAway will report the error at the call site on L6: "unassigned variable `p` dereferenced". This would be confusing
+	// for the users because the error should actually be reported at L2.
+	// - If we "append" the adapted binary expression, leaving the original call intact, NilAway will correctly report the error at the call site on L2:
+	// 		"L6: unassigned variable `p` passed as arg `x` to `isValid()`"
+	// 		"L2: function parameter `x` dereferenced".
+	// The downside of this however, is that NilAway will also report a duplicate error at L6 for the nil panic in the adapted binary expression
+	// "L6: unassigned variable `p` dereferenced".
+	// This is a conscious trade-off that we are making to keep the logic simpler and more efficient, while still reporting the correct errors,
+	// and better user experience. Also, we don't expect binary expressions in custom functions to be nil panic-prone, so the downside is manageable.
+	// TODO: ideally, we should expand the capability of the contract analyzer to handle the custom function logic to be more robust and accurate.
+	//  We can remove this logic in pre-preprocessing once we do that.
+	if customFuncReplacement := p.inlineBoolFunc(call); customFuncReplacement != nil {
+		block.Nodes = append(block.Nodes, customFuncReplacement)
+		p.canonicalizeConditional(graph, block)
+	}
+}
+
+// inlineBoolFunc inlines a boolean expression from a custom function (i.e. nil-check function) into the call site.
+// For example:
+// ```
+//
+//	func isPtrNonnil(x *int) bool {
+//		return x != nil && *x > 0
+//	}
+//	func foo(p *int) {
+//		if isPtrNonnil(p) {
+//			print(*p)
+//		}
+//	}
+//
+// ```
+// This will transform the condition to: `if isPtrNonnil(p) { ... }` to `if p != nil && *p > 0 { ... }` by extracting the
+// binary expression from isPtrNonnil and substituting the parameter with the argument. This inlining allows NilAway to
+// correctly infer the nilability of the argument after the custom function call.
+func (p *Preprocessor) inlineBoolFunc(call *ast.CallExpr) ast.Expr {
+	calledFuncDecl := p.findFuncDeclFromCallExpr(call)
+	if calledFuncDecl == nil {
+		return nil
+	}
+
+	binaryExpr := p.extractBinaryExpressionFromFunc(calledFuncDecl)
+	if binaryExpr == nil {
+		return nil
+	}
+
+	return p.adaptBinaryExpr(binaryExpr, calledFuncDecl, call)
+}
+
+// findFuncDeclFromCallExpr finds the function declaration from a call expression.
+func (p *Preprocessor) findFuncDeclFromCallExpr(call *ast.CallExpr) *ast.FuncDecl {
+	ident := util.FuncIdentFromCallExpr(call)
+
+	if ident == nil || ident.Obj == nil || ident.Obj.Decl == nil {
+		return nil
+	}
+	funcDecl, ok := ident.Obj.Decl.(*ast.FuncDecl)
+	if !ok {
+		return nil
+	}
+	return funcDecl
+}
+
+// extractBinaryExpressionFromFunc extracts a binary expression from a function if:
+// 1. The function returns a boolean value
+// 2. The function body contains only one statement, and that statement is a return of a binary expression.
+// For example, `func isPtrNonnil(x *int) bool { return x != nil }` will return the binary expression `x != nil`.
+func (p *Preprocessor) extractBinaryExpressionFromFunc(funcDecl *ast.FuncDecl) *ast.BinaryExpr {
+	if funcDecl == nil || funcDecl.Body == nil {
+		return nil
+	}
+
+	var funcObj *types.Func
+	if obj := p.pass.Pass.TypesInfo.ObjectOf(funcDecl.Name); obj != nil {
+		funcObj, _ = obj.(*types.Func)
+	}
+	if funcObj == nil {
+		return nil
+	}
+
+	// Check if the function returns a boolean value.
+	results := funcObj.Signature().Results()
+	n := results.Len()
+	if n != 1 || !types.Identical(results.At(n-1).Type(), util.BoolType) {
+		return nil
+	}
+
+	// Check if the function only contains one return statement of a binary expression.
+	if len(funcDecl.Body.List) != 1 {
+		return nil
+	}
+	retStmt, ok := funcDecl.Body.List[0].(*ast.ReturnStmt)
+	if !ok || len(retStmt.Results) != 1 {
+		return nil
+	}
+	binExpr, ok := retStmt.Results[0].(*ast.BinaryExpr)
+	if !ok {
+		return nil
+	}
+	return binExpr
+}
+
+// adaptBinaryExpr adapts identifiers in a binary expression inside funcDecl
+// by replacing function parameter identifiers with the corresponding call arguments.
+// It handles nested expressions (unary, binary, calls, selectors, indexing, etc.).
+func (p *Preprocessor) adaptBinaryExpr(binaryExpr *ast.BinaryExpr, funcDecl *ast.FuncDecl, call *ast.CallExpr) *ast.BinaryExpr {
+	if binaryExpr == nil || funcDecl == nil || call == nil || funcDecl.Type.Params == nil {
+		return nil // early return on nil inputs
+	}
+
+	// Build a mapping from parameter name -> argument expression
+	paramToArg := make(map[string]ast.Expr)
+	var paramFlatList []*ast.Ident
+	for _, field := range funcDecl.Type.Params.List {
+		for _, name := range field.Names {
+			paramFlatList = append(paramFlatList, name)
+		}
+	}
+	if len(paramFlatList) != len(call.Args) {
+		return nil // early return if mismatch
+	}
+
+	for i, param := range paramFlatList {
+		paramToArg[param.Name] = call.Args[i]
+	}
+
+	// Rebuild the binary expression with fully adapted subtrees
+	return &ast.BinaryExpr{
+		X:     p.adaptExprDeep(binaryExpr.X, paramToArg),
+		OpPos: binaryExpr.OpPos,
+		Op:    binaryExpr.Op,
+		Y:     p.adaptExprDeep(binaryExpr.Y, paramToArg),
+	}
+}
+
+// adaptExprDeep recursively substitutes identifiers that match function parameters
+// with their corresponding call-argument expressions throughout the expression tree.
+// Note that adaptExprDeep always returns a new expression tree and does not modify
+// the input expression in place.
+func (p *Preprocessor) adaptExprDeep(expr ast.Expr, subst map[string]ast.Expr) ast.Expr {
+	if expr == nil {
+		return nil
+	}
+
+	switch e := expr.(type) {
+	case *ast.Ident:
+		if arg, ok := subst[e.Name]; ok && arg != nil {
+			return arg
+		}
+		return e
+
+	case *ast.ParenExpr:
+		return &ast.ParenExpr{
+			X:      p.adaptExprDeep(e.X, subst),
+			Lparen: e.Lparen,
+			Rparen: e.Rparen,
+		}
+
+	case *ast.UnaryExpr:
+		return &ast.UnaryExpr{
+			X:     p.adaptExprDeep(e.X, subst),
+			Op:    e.Op,
+			OpPos: e.OpPos,
+		}
+
+	case *ast.BinaryExpr:
+		return &ast.BinaryExpr{
+			X:     p.adaptExprDeep(e.X, subst),
+			Y:     p.adaptExprDeep(e.Y, subst),
+			Op:    e.Op,
+			OpPos: e.OpPos,
+		}
+
+	case *ast.CallExpr:
+		newArgs := make([]ast.Expr, len(e.Args))
+		for i, arg := range e.Args {
+			newArgs[i] = p.adaptExprDeep(arg, subst)
+		}
+		return &ast.CallExpr{
+			Fun:      p.adaptExprDeep(e.Fun, subst),
+			Args:     newArgs,
+			Ellipsis: e.Ellipsis,
+			Lparen:   e.Lparen,
+			Rparen:   e.Rparen,
+		}
+
+	case *ast.SelectorExpr:
+		return &ast.SelectorExpr{
+			X:   p.adaptExprDeep(e.X, subst),
+			Sel: e.Sel, // field/method name stays as-is
+		}
+
+	case *ast.IndexExpr:
+		return &ast.IndexExpr{
+			X:      p.adaptExprDeep(e.X, subst),
+			Index:  p.adaptExprDeep(e.Index, subst),
+			Lbrack: e.Lbrack,
+			Rbrack: e.Rbrack,
+		}
+
+	case *ast.StarExpr:
+		return &ast.StarExpr{
+			X:    p.adaptExprDeep(e.X, subst),
+			Star: e.Star,
+		}
+
+	case *ast.TypeAssertExpr:
+		return &ast.TypeAssertExpr{
+			X:      p.adaptExprDeep(e.X, subst),
+			Type:   e.Type, // type stays as-is
+			Lparen: e.Lparen,
+			Rparen: e.Rparen,
+		}
+
+	case *ast.SliceExpr:
+		return &ast.SliceExpr{
+			X:      p.adaptExprDeep(e.X, subst),
+			Low:    p.adaptExprDeep(e.Low, subst),
+			High:   p.adaptExprDeep(e.High, subst),
+			Max:    p.adaptExprDeep(e.Max, subst),
+			Slice3: e.Slice3,
+			Lbrack: e.Lbrack,
+			Rbrack: e.Rbrack,
+		}
+
+	default:
+		// Unhandled node kinds are returned as-is.
+		return e
+	}
 }
 
 // canonicalizeConditional canonicalizes the conditional CFG structures to make it easier to reason

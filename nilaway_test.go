@@ -75,6 +75,7 @@ func TestNilAway(t *testing.T) {
 		{name: "AbnormalFlow", patterns: []string{"go.uber.org/abnormalflow"}},
 		{name: "NoLint", patterns: []string{"go.uber.org/nolint"}},
 		{name: "Templ", patterns: []string{"go.uber.org/templ"}},
+		{name: "CustomFuncNilChecks", patterns: []string{"go.uber.org/customfuncnilchecks"}},
 	}
 
 	for _, tt := range tests {
