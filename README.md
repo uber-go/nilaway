@@ -288,7 +288,7 @@ This project is copyright 2023 Uber Technologies, Inc., and licensed under Apach
 [docs]: https://github.com/uber-go/nilaway/blob/main/docs/index.md
 [blog]: https://www.uber.com/blog/nilaway-practical-nil-panic-detection-for-go/
 [fact-mechanism]: https://pkg.go.dev/golang.org/x/tools/go/analysis#hdr-Modular_analysis_with_Facts
-[include-pkgs-flag]: https://github.com/uber-go/nilaway/tree/main/docs/Configuration.md#include-pkgs
+[include-pkgs-flag]: https://github.com/uber-go/nilaway/blob/main/docs/Configurations.md#include-pkgs
 [pr-4045]: https://github.com/golangci/golangci-lint/issues/4045
 [nilaway-as-a-plugin]: https://golangci-lint.run/contributing/new-linters/#how-to-add-a-private-linter-to-golangci-lint
 [rules-go]: https://github.com/bazelbuild/rules_go
