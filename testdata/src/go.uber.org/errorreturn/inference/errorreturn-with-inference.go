@@ -20,6 +20,7 @@ package inference
 
 import (
 	"errors"
+	"fmt"
 
 	"go.uber.org/errorreturn"
 	"go.uber.org/errorreturn/inference/otherPkg"
@@ -27,7 +28,9 @@ import (
 
 var dummy2 bool
 
-type myErr2 struct{}
+type myErr2 struct {
+	msg string
+}
 
 func (myErr2) Error() string { return "myErr2 message" }
 
@@ -37,6 +40,14 @@ func retNilErr2() error {
 
 func retNonNilErr2() error {
 	return &myErr2{}
+}
+
+func NewError(msg string) error {
+	return &myErr2{msg: msg}
+}
+
+func NewInternalError(msg string) error {
+	return &myErr2{msg: msg}
 }
 
 // ***** the below test case checks error return via a function and assigned to a variable *****
@@ -439,21 +450,18 @@ func Wrap(err error, msg string) WrappedErr {
 
 func GetFirstErr(errs ...error) error {
 	if len(errs) == 0 {
-		return nil
+		return fmt.Errorf("GetFirstErr called with no errors")
 	}
 	return errs[0]
 }
 
 func GetFirstErrArr(errs [2]error) error {
-	if errs[0] == nil && errs[1] == nil {
-		return nil
-	}
 	return errs[0]
 }
 
 func GetErrPtr(e *error) error {
 	if e == nil {
-		return nil
+		return fmt.Errorf("GetErrPtr called with nil error")
 	}
 	return *e
 }
@@ -554,7 +562,7 @@ func callTestErrorWrapper(i int) {
 		if err != nil {
 			return
 		}
-		_ = *x //want "dereferenced"
+		_ = *x
 
 	case 3:
 		x, err := testErrorWrapper3()
@@ -1067,5 +1075,96 @@ func TestGenericFunc(s string) {
 			// TODO: This is a false negative since we do not support generics yet.
 			print(*v) // "dereferenced"
 		}
+	}
+}
+
+func retPtrErrForNewInternalErrorLitString() (*int, error) {
+	resp, err := retPtrAndErr3()
+	if err != nil {
+		return nil, NewInternalError("some other error")
+	}
+	return resp, nil
+}
+
+func retPtrErrForNewInternalErrorCallExpr() (*int, error) {
+	resp, err := retPtrAndErr3()
+	if err != nil {
+		return nil, NewInternalError(err.Error())
+	}
+	return resp, nil
+}
+
+func retPtrErrForNewErrorLitString() (*int, error) {
+	resp, err := retPtrAndErr3()
+	if err != nil {
+		return nil, NewError("some other error")
+	}
+	return resp, nil
+}
+
+func retPtrErrWrappedNewErrorUnsafe() (*int, error) {
+	resp, err := retPtrAndErr3()
+	return resp, Wrapf(Wrapf(Wrapf(NewError(err.Error())))) //want "called `Error"
+}
+
+func retPtrErrWrappedNewErrorSafe() (*int, error) {
+	resp, err := retPtrAndErr3()
+	if err != nil {
+		return resp, Wrapf(Wrapf(Wrapf(NewError(err.Error()))))
+	}
+	return resp, nil
+}
+
+func retPtrErrUnwrap() (*int, error) {
+	resp, err := retPtrAndErr3()
+	if err != nil {
+		return resp, NewError(errors.Unwrap(err).Error())
+	}
+	return resp, nil
+}
+
+func TestNewError(s string) {
+	switch s {
+	case "NewInternalError with literal string message":
+		resp, err := retPtrErrForNewInternalErrorLitString()
+		if err != nil {
+			return
+		}
+		_ = *resp
+
+	case "NewInternalError with err.Error()":
+		resp, err := retPtrErrForNewInternalErrorCallExpr()
+		if err != nil {
+			return
+		}
+		_ = *resp
+
+	case "NewError with literal string message":
+		resp, err := retPtrErrForNewErrorLitString()
+		if err != nil {
+			return
+		}
+		_ = *resp
+
+	case "wrapped error with NewError, unsafe":
+		resp, err := retPtrErrWrappedNewErrorUnsafe()
+		if err != nil {
+			return
+		}
+		_ = *resp
+
+	case "wrapped error with NewError, safe":
+		resp, err := retPtrErrWrappedNewErrorSafe()
+		if err != nil {
+			return
+		}
+		_ = *resp
+
+	case "errors.Unwrap with NewError":
+		resp, err := retPtrErrUnwrap()
+		if err != nil {
+			return
+		}
+		_ = *resp
 	}
 }
