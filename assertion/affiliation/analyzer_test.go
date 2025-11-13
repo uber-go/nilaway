@@ -66,6 +66,7 @@ func TestFact_Codec(t *testing.T) {
 		var decoded *Cache
 		err = gob.NewDecoder(&buf).Decode(&decoded)
 		require.NoError(t, err)
+		require.NotNil(t, decoded)
 		require.Equal(t, cache.Content.Pairs, decoded.Content.Pairs, "decoded fact is not the same as encoded fact")
 	}
 }
