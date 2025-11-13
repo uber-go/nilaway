@@ -180,7 +180,7 @@ var _assumeReturns = map[trustedFuncSig]assumeReturnAction{
 	{
 		kind:           _func,
 		enclosingRegex: regexp.MustCompile(`^strings$`),
-		funcNameRegex:  regexp.MustCompile(`^Split$`),
+		funcNameRegex:  regexp.MustCompile(`^Split(After)?$`),
 	}: nonnilProducer,
 }
 

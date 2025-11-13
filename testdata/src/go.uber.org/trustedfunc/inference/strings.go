@@ -13,5 +13,13 @@ func stringsTest(c string) {
 		res := strings.Split("", "")
 		// Technically this is unsafe, but it falls out of scope for NilAway.
 		print(res[0])
+
+	// `strings.SplitAfter` -- variant of `strings.Split` above.
+	case "strings.SplitAfter":
+		res := strings.SplitAfter("", " ")
+		print(res[0])
+	case "strings.SplitAfter (false negative)":
+		res := strings.SplitAfter("", "")
+		print(res[0])
 	}
 }
