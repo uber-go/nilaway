@@ -139,13 +139,13 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 	// this function is only to be used in cases when we have determined that the parsed
 	// expression is not trackable.
 	parseDeepRead := func(
-		recv TrackableExpr,                   // the already parsed prefix to `expr` - all we care about is whether nil
-		deepExpr ast.Expr,                    // the expression we identified is being deeply read for this parse
-		expr ast.Expr,                        // the overall expression being parsed - used to construct `annotation.ProduceTrigger`s
+		recv TrackableExpr, // the already parsed prefix to `expr` - all we care about is whether nil
+		deepExpr ast.Expr, // the expression we identified is being deeply read for this parse
+		expr ast.Expr, // the overall expression being parsed - used to construct `annotation.ProduceTrigger`s
 		rproducers []producer.ParsedProducer, // the, possibly already set, parse of `deepExpr`
-	// in general - our goal is to obtain the parse of `deepExpr` - then lift its deep producer to
-	// the shallow producer of a new `ParsedProducer`, and populate the new deep producer by a default
-	// based on type name if applicable
+		// in general - our goal is to obtain the parse of `deepExpr` - then lift its deep producer to
+		// the shallow producer of a new `ParsedProducer`, and populate the new deep producer by a default
+		// based on type name if applicable
 	) []producer.ParsedProducer {
 
 		if recv != nil {
