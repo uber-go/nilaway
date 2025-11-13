@@ -34,7 +34,7 @@ var Analyzer = &analysis.Analyzer{
 	Name:       "nilaway_affiliation_analyzer",
 	Doc:        _doc,
 	Run:        analysishelper.WrapRun(run),
-	FactTypes:  []analysis.Fact{new(AffliliationCache)},
+	FactTypes:  []analysis.Fact{new(Cache)},
 	ResultType: reflect.TypeOf((*analysishelper.Result[[]annotation.FullTrigger])(nil)),
 	Requires:   []*analysis.Analyzer{config.Analyzer},
 }

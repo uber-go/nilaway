@@ -25,6 +25,7 @@ import (
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/orderedmap"
 )
 
 // Affiliation is used to track the association between an interface and its concrete implementations in the form of a map,
@@ -41,34 +42,31 @@ type Pair struct {
 	DeclaredID    string
 }
 
-// ImplementedDeclaredTypesCache declares a map of a concrete implementation (e.g., struct) and its implemented interfaces
-// in the form of their fully qualified paths (key: <structFQ>#<interfaceFQ>, value: true/false)
-type ImplementedDeclaredTypesCache map[Pair]bool
-
-// AffliliationCache stores the mapping between interfaces and their implementations that have been analyzed. This
+// Cache stores the mapping between interfaces and their implementations that have been analyzed. This
 // information can be used by downstream packages to avoid re-analysis of the same affiliations
-type AffliliationCache struct {
-	Cache ImplementedDeclaredTypesCache
+type Cache struct {
+	// Content declares a map of a concrete implementation (e.g., struct) and its implemented interfaces
+	// in the form of their fully qualified paths (key: <structFQ>#<interfaceFQ>, value: true/false)
+	Content *orderedmap.OrderedMap[Pair, bool]
 }
 
 // AFact enables use of the facts passing mechanism in Go's analysis framework
-func (*AffliliationCache) AFact() {}
+func (*Cache) AFact() {}
 
 // extractAffiliations processes all affiliations (e.g., interface and its implementing struct) and returns map documenting
 // the affiliations
 func (a *Affiliation) extractAffiliations(pass *analysishelper.EnhancedPass) {
-	// initialize
-	upstreamCache := make(ImplementedDeclaredTypesCache, 0) // store entries passed from upstream packages
-	currentCache := make(ImplementedDeclaredTypesCache, 0)  // store new entries witnessed in this current package
+	upstreamCache := orderedmap.New[Pair, bool]() // store entries passed from upstream packages
+	currentCache := orderedmap.New[Pair, bool]()  // store new entries witnessed in this current package
 
 	// populate upstreamCache by importing entries passed from upstream packages
 	facts := pass.AllPackageFacts()
 	if len(facts) > 0 {
 		for _, f := range facts {
 			switch c := f.Fact.(type) {
-			case *AffliliationCache:
-				for k, v := range c.Cache {
-					upstreamCache[k] = v
+			case *Cache:
+				for _, p := range c.Content.Pairs {
+					upstreamCache.Store(p.Key, p.Value)
 				}
 			}
 		}
@@ -77,16 +75,14 @@ func (a *Affiliation) extractAffiliations(pass *analysishelper.EnhancedPass) {
 	a.computeTriggersForCastingSites(pass, upstreamCache, currentCache)
 
 	// export upstreamCache from this package by adding new entries (if any)
-	if len(currentCache) > 0 {
-		pass.ExportPackageFact(&AffliliationCache{
-			Cache: currentCache,
-		})
+	if len(currentCache.Pairs) > 0 {
+		pass.ExportPackageFact(&Cache{Content: currentCache})
 	}
 }
 
 // computeTriggersForCastingSites analyzes all explicit and implicit sites of casts in the AST. For example, explicit casts,
 // variable assignments, variable declaration and initialization, method returns, and method parameters.
-func (a *Affiliation) computeTriggersForCastingSites(pass *analysishelper.EnhancedPass, upstreamCache ImplementedDeclaredTypesCache, currentCache ImplementedDeclaredTypesCache) {
+func (a *Affiliation) computeTriggersForCastingSites(pass *analysishelper.EnhancedPass, upstreamCache, currentCache *orderedmap.OrderedMap[Pair, bool]) {
 	appendTypeToTypeTriggers := func(lhsType, rhsType types.Type) {
 		a.triggers = append(a.triggers, a.computeTriggersForTypes(lhsType, rhsType, upstreamCache, currentCache)...)
 	}
@@ -235,7 +231,7 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysishelper.Enhanc
 }
 
 // computeTriggersForTypes finds corresponding concrete implementation and their declared methods and populates them in a map
-func (a *Affiliation) computeTriggersForTypes(lhsType types.Type, rhsType types.Type, upstreamCache ImplementedDeclaredTypesCache, currentCache ImplementedDeclaredTypesCache) []annotation.FullTrigger {
+func (a *Affiliation) computeTriggersForTypes(lhsType types.Type, rhsType types.Type, upstreamCache, currentCache *orderedmap.OrderedMap[Pair, bool]) []annotation.FullTrigger {
 	if lhsType == nil || rhsType == nil {
 		return nil
 	}
@@ -252,14 +248,14 @@ func (a *Affiliation) computeTriggersForTypes(lhsType types.Type, rhsType types.
 	// Don't process if the affiliation is already analyzed in upstream packages' upstreamCache or
 	// the current package's upstreamCache.
 	key := computeAfflitiationCacheKey(lhsObj, rhsObj)
-	if upstreamCache[key] {
+	if upstreamCache.Value(key) {
 		return nil
 	}
-	if currentCache[key] {
+	if currentCache.Value(key) {
 		return nil
 	}
 	// Add unvisited entry.
-	currentCache[key] = true
+	currentCache.Store(key, true)
 
 	var triggers []annotation.FullTrigger
 	// for each method declared in the interface, find its corresponding concrete implementation
