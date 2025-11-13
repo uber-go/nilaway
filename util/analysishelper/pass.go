@@ -15,6 +15,7 @@
 package analysishelper
 
 import (
+	"fmt"
 	"go/ast"
 	"go/constant"
 
@@ -31,6 +32,12 @@ type EnhancedPass struct {
 // NewEnhancedPass creates a new EnhancedPass from the given *analysis.Pass.
 func NewEnhancedPass(pass *analysis.Pass) *EnhancedPass {
 	return &EnhancedPass{Pass: pass}
+}
+
+// Panic panics with the given message and additional position information on the node.
+func (p *EnhancedPass) Panic(msg string, node ast.Node) {
+	pos := p.Fset.Position(node.Pos())
+	panic(fmt.Sprintf("%s (%s:%d)", msg, pos.Filename, pos.Line))
 }
 
 // IsZero returns if the given expression is evaluated to integer zero at compile time. For
