@@ -15,10 +15,9 @@
 package analysishelper
 
 import (
-	"testing"
-
 	"go/parser"
 	"go/token"
+	"testing"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/tools/go/analysis"
