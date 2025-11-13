@@ -15,12 +15,16 @@
 package affiliation
 
 import (
+	"bytes"
+	"encoding/gob"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/orderedmap"
 )
 
 func TestAnalyzer(t *testing.T) {
@@ -31,6 +35,39 @@ func TestAnalyzer(t *testing.T) {
 	r, err := Analyzer.Run(nil /* pass */)
 	require.NoError(t, err)
 	require.ErrorContains(t, r.(*analysishelper.Result[[]annotation.FullTrigger]).Err, "INTERNAL PANIC")
+}
+
+func TestFact_Codec(t *testing.T) {
+	t.Parallel()
+
+	const n = 1000
+	content := orderedmap.New[Pair, bool]()
+	for i := range n {
+		k := Pair{DeclaredID: "Declared" + strconv.Itoa(i), ImplementedID: "ImplementedID" + strconv.Itoa(i)}
+		v := i%2 == 0
+		content.Store(k, v)
+	}
+	cache := &Cache{Content: content}
+
+	// Encode the fact 10 times and check that the result is always the same for determinism.
+	var previous []byte
+	for range 10 {
+		var buf bytes.Buffer
+		err := gob.NewEncoder(&buf).Encode(cache)
+		require.NoError(t, err)
+		require.NotEmpty(t, buf.Bytes())
+
+		if len(previous) == 0 {
+			previous = buf.Bytes()
+			continue
+		}
+		require.Equal(t, previous, buf.Bytes(), "encoded fact must be deterministic")
+
+		var decoded *Cache
+		err = gob.NewDecoder(&buf).Decode(&decoded)
+		require.NoError(t, err)
+		require.Equal(t, cache.Content.Pairs, decoded.Content.Pairs, "decoded fact is not the same as encoded fact")
+	}
 }
 
 func TestMain(m *testing.M) {
