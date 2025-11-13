@@ -168,6 +168,20 @@ var _assumeReturns = map[trustedFuncSig]assumeReturnAction{
 		enclosingRegex: regexp.MustCompile(`^errors$`),
 		funcNameRegex:  regexp.MustCompile(`^Join$`),
 	}: nonnilProducer,
+
+	// `strings.Split`
+	// It always returns a non-nil slice. In most cases it returns a slice with at least length 1, with the only
+	// exception being the case where both arguments to `strings.Split` are empty [1], in which case the result is
+	// a _non-nil_ empty slice. So, here we make a conscious trade-off to reduce false positive by treating the result
+	// to be non-nil altogether (which is technically correct), where the exception should be both rare and out of scope
+	// for NilAway.
+	//
+	// [1] https://pkg.go.dev/strings#Split
+	{
+		kind:           _func,
+		enclosingRegex: regexp.MustCompile(`^strings$`),
+		funcNameRegex:  regexp.MustCompile(`^Split$`),
+	}: nonnilProducer,
 }
 
 var nonnilProducer assumeReturnAction = func(call *ast.CallExpr) *annotation.ProduceTrigger {
