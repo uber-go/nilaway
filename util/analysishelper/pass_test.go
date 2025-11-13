@@ -34,5 +34,5 @@ func TestEnhancedPass_Panic(t *testing.T) {
 	pass := NewEnhancedPass(&analysis.Pass{Fset: fset})
 
 	msg := "test panic"
-	require.PanicsWithValue(t, msg+" (sample.go:1)", func() { pass.Panic(msg, file) })
+	require.PanicsWithValue(t, msg+" (sample.go:1)", func() { pass.Panic(msg, file.Pos()) })
 }
