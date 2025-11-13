@@ -15,8 +15,10 @@
 package analysishelper
 
 import (
+	"fmt"
 	"go/ast"
 	"go/constant"
+	"go/token"
 
 	"go.uber.org/nilaway/util/asthelper"
 	"golang.org/x/tools/go/analysis"
@@ -31,6 +33,12 @@ type EnhancedPass struct {
 // NewEnhancedPass creates a new EnhancedPass from the given *analysis.Pass.
 func NewEnhancedPass(pass *analysis.Pass) *EnhancedPass {
 	return &EnhancedPass{Pass: pass}
+}
+
+// Panic panics with the given message and additional position information.
+func (p *EnhancedPass) Panic(msg string, pos token.Pos) {
+	position := p.Fset.Position(pos)
+	panic(fmt.Sprintf("%s (%s:%d)", msg, position.Filename, position.Line))
 }
 
 // IsZero returns if the given expression is evaluated to integer zero at compile time. For

@@ -496,7 +496,7 @@ func newObservedMap(pass *analysishelper.EnhancedPass, files []*ast.File) *Obser
 	readRecvAnnotations := func(decl *ast.FuncDecl, set nilabilitySet) Val {
 		if decl.Recv != nil {
 			if len(decl.Recv.List) > 1 {
-				panic(fmt.Sprintf("Multiple receivers found for method %s", decl.Name))
+				pass.Panic(fmt.Sprintf("Multiple receivers found for method %s", decl.Name), decl.Pos())
 			}
 			return accFromFieldList(set, decl.Recv, false, false)[0]
 		}

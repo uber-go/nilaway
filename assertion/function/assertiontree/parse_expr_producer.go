@@ -60,7 +60,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 
 	parseIdent := func(expr *ast.Ident) (TrackableExpr, []producer.ParsedProducer) {
 		if util.IsEmptyExpr(expr) {
-			panic("the empty identifier is not an expression - don't pass it to ParseExprAsProducer")
+			r.Pass().Panic("the empty identifier is not an expression - don't pass it to ParseExprAsProducer", expr.Pos())
 		}
 		if r.isNil(expr) {
 			return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{
