@@ -286,9 +286,9 @@ func (p *Preprocessor) replaceConditional(graph *cfg.CFG, block *cfg.Block) {
 	// ```
 	// This will transform the condition to: `if isValid(p) { ... }` to `if p != nil { ... }` by extracting the
 	// boolean expression from isValid and substituting the parameter with the argument. This inlining allows NilAway to
-	// correctlyinfer the nilability of the argument after the custom function call.
+	// correctly infer the nilability of the argument after the custom function call.
 	//
-	// Note: We append instead of replace here, as we want to leverage NilAway's trigger logic if
+	// Note: We append the conditional instead of replace here, as we want to leverage NilAway's trigger logic if
 	// there is a potential nil panic in the custom function.
 	// For example,
 	// ```
@@ -554,7 +554,7 @@ func (p *Preprocessor) canonicalizeConditional(graph *cfg.CFG, thisBlock *cfg.Bl
 	swapTrueFalseBranches := func() { replaceTrueBranch(falseBranch); replaceFalseBranch(trueBranch) }
 
 	cond, ok := thisBlock.Nodes[len(thisBlock.Nodes)-1].(ast.Expr)
-	if !ok {
+	if !ok || cond == nil {
 		return
 	}
 
