@@ -311,14 +311,14 @@ func (p *Preprocessor) canonicalizeConditional(graph *cfg.CFG, thisBlock *cfg.Bl
 			p.canonicalizeConditional(graph, thisBlock) // recur within NOT
 		}
 	case *ast.BinaryExpr:
-		if cond == nil {
-			e, err := asthelper.PrintExpr(cond, p.pass.Fset, false)
-			if err != nil {
-				e = "<error printing expr>"
-			}
-			panic(fmt.Sprintf("unexpected nil binary expr in canonicalizeConditional: %s", e))
-			return
-		}
+		// if cond == nil {
+		// 	e, err := asthelper.PrintExpr(cond, p.pass.Fset, false)
+		// 	if err != nil {
+		// 		e = "<error printing expr>"
+		// 	}
+		// 	panic(fmt.Sprintf("unexpected nil binary expr in canonicalizeConditional: %s", e))
+		// 	return
+		// }
 
 		// Logical AND and Logical OR actually require the exact same short circuiting behavior
 		// except for whether the true or false branch leads to the short circuiting. This split
