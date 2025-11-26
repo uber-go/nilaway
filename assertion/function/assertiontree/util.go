@@ -334,9 +334,9 @@ func likelyPositiveInt(pass *analysishelper.EnhancedPass, expr ast.Expr) bool {
 		return v > 0
 	}
 	exprType := pass.TypesInfo.TypeOf(expr)
-	if exprType == nil {
-		return false
-	}
+	// if exprType == nil {
+	// 	return false
+	// }
 	if t, ok := exprType.Underlying().(*types.Basic); ok {
 		return t.Info()&types.IsInteger != 0
 	}
