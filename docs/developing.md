@@ -124,4 +124,4 @@ The decoupling of error generation and error reporting logic makes it possible t
 - `testdata/` directory: Comprehensive test cases organized by feature
 
 ## More docs
-Refer to `docs/` directory for more documentations on 
+Refer to `docs/` directory for more documentations on other aspects of NilAway.
