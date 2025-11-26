@@ -1,5 +1,9 @@
 # Developing
 
+NilAway is a static analysis tool that detects potential nil panics in Go code. It uses
+sophisticated analysis techniques to track nil flows within and across packages, reporting errors
+with nilness flows for easier debugging.
+
 ## Building
 
 ```bash
@@ -118,3 +122,6 @@ The decoupling of error generation and error reporting logic makes it possible t
 - Root module: Core NilAway implementation
 - `tools/` module: Development tools (golden-test, integration-test)
 - `testdata/` directory: Comprehensive test cases organized by feature
+
+## More docs
+Refer to `docs/` directory for more documentations on 

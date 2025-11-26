@@ -254,7 +254,7 @@ interfaces, type assertions, type switches, and more.
 ## Configurations
 
 We expose a set of flags via the standard flag passing mechanism in [go/analysis](https://pkg.go.dev/golang.org/x/tools/go/analysis).
-Please check [docs/Configurations](https://github.com/uber-go/nilaway/blob/main/docs/Configurations.md) to see the available flags and
+Please check [docs/Configurations][docs-configurations] to see the available flags and
 how to pass them using different linter drivers.
 
 ## Support
@@ -269,6 +269,9 @@ reports, and feature requests.
 
 We'd love for you to contribute to NilAway! Please note that once you create a pull request, you will be asked to sign
 our [Uber Contributor License Agreement](https://cla-assistant.io/uber-go/nilaway).
+
+Refer to [docs/developing][docs-developing] for additional information on developing NilAway. We also support AI agents 
+(which use this file as initial context), but please review any AI-generated code before submitting a PR to ensure high quality.
 
 ## License
 
@@ -288,12 +291,14 @@ This project is copyright 2023 Uber Technologies, Inc., and licensed under Apach
 [docs]: https://github.com/uber-go/nilaway/blob/main/docs/index.md
 [blog]: https://www.uber.com/blog/nilaway-practical-nil-panic-detection-for-go/
 [fact-mechanism]: https://pkg.go.dev/golang.org/x/tools/go/analysis#hdr-Modular_analysis_with_Facts
-[include-pkgs-flag]: https://github.com/uber-go/nilaway/blob/main/docs/Configurations.md#include-pkgs
+[docs-configurations]: https://github.com/uber-go/nilaway/blob/main/docs/configurations.md
+[docs-developing]: https://github.com/uber-go/nilaway/blob/main/docs/developing.md
+[include-pkgs-flag]: https://github.com/uber-go/nilaway/blob/main/docs/configurations.md#include-pkgs
 [pr-4045]: https://github.com/golangci/golangci-lint/issues/4045
 [nilaway-as-a-plugin]: https://golangci-lint.run/contributing/new-linters/#how-to-add-a-private-linter-to-golangci-lint
 [rules-go]: https://github.com/bazelbuild/rules_go
 [gazelle]: https://github.com/bazelbuild/bazel-gazelle
 [track-tool-dependencies]: https://go.dev/wiki/Modules#how-can-i-track-tool-dependencies-for-a-module
 [nogo-configure-analyzers]: https://github.com/bazelbuild/rules_go/blob/master/go/nogo.rst#id14
-[nogo-configure-nilaway]: https://github.com/uber-go/nilaway/blob/main/docs/Configurations.md#bazelnogo
+[nogo-configure-nilaway]: https://github.com/uber-go/nilaway/blob/main/docs/configurations.md#bazelnogo
 [nogo-instructions]: https://github.com/uber-go/nilaway?tab=readme-ov-file#bazelnogo
