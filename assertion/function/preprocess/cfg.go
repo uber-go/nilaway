@@ -312,6 +312,11 @@ func (p *Preprocessor) canonicalizeConditional(graph *cfg.CFG, thisBlock *cfg.Bl
 		}
 	case *ast.BinaryExpr:
 		if cond == nil {
+			e, err := asthelper.PrintExpr(cond, p.pass.Fset, false)
+			if err != nil {
+				e = "<error printing expr>"
+			}
+			panic(fmt.Sprintf("unexpected nil binary expr in canonicalizeConditional: %s", e))
 			return
 		}
 
