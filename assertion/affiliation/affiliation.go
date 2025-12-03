@@ -54,6 +54,12 @@ type AffliliationCache struct {
 // AFact enables use of the facts passing mechanism in Go's analysis framework
 func (*AffliliationCache) AFact() {}
 
+func newAffliliationCache() *AffliliationCache {
+	return &AffliliationCache{
+		Cache: make(ImplementedDeclaredTypesCache),
+	}
+}
+
 // extractAffiliations processes all affiliations (e.g., interface and its implementing struct) and returns map documenting
 // the affiliations
 func (a *Affiliation) extractAffiliations(pass *analysishelper.EnhancedPass) {
