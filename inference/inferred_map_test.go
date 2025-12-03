@@ -79,7 +79,7 @@ func TestEncoding_Deterministic(t *testing.T) {
 func TestDecoding(t *testing.T) {
 	t.Parallel()
 
-	m := newInferredMap(nil /* primitive */)
+	m := NewInferredMap(nil /* primitive */)
 	site := primitiveSite{
 		Position: token.Position{
 			Filename: "foo.go",
@@ -107,7 +107,7 @@ func TestDecoding(t *testing.T) {
 // newBigInferredMap creates an inferred map with 3000 sites, where the first 1000 are determined,
 // and the next 2000 with implications between them for stress testing.
 func newBigInferredMap() *InferredMap {
-	m := newInferredMap(nil /* primitivizer */)
+	m := NewInferredMap(nil /* primitivizer */)
 	siteTemplate := primitiveSite{
 		Position: token.Position{
 			Filename: "foo.go",

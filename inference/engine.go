@@ -62,7 +62,7 @@ func NewEngine(pass *analysishelper.EnhancedPass, diagnosticEngine conflictHandl
 	return &Engine{
 		pass:             pass,
 		primitive:        primitive,
-		inferredMap:      newInferredMap(primitive),
+		inferredMap:      NewInferredMap(primitive),
 		diagnosticEngine: diagnosticEngine,
 	}
 }

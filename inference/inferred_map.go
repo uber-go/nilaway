@@ -41,13 +41,14 @@ import (
 // inferredValDiff on shared keys is used to ensure that only
 // information present in `Mapping` but not `UpstreamMapping` is exported.
 type InferredMap struct {
-	primitive       *primitivizer
-	upstreamMapping map[primitiveSite]InferredVal
-	mapping         *orderedmap.OrderedMap[primitiveSite, InferredVal]
+	primitive          *primitivizer
+	upstreamMapping    map[primitiveSite]InferredVal
+	mapping            *orderedmap.OrderedMap[primitiveSite, InferredVal]
+	DummyExportedField bool
 }
 
-// newInferredMap returns a new, empty InferredMap.
-func newInferredMap(primitive *primitivizer) *InferredMap {
+// NewInferredMap returns a new, empty InferredMap.
+func NewInferredMap(primitive *primitivizer) *InferredMap {
 	return &InferredMap{
 		primitive:       primitive,
 		upstreamMapping: make(map[primitiveSite]InferredVal),
@@ -155,7 +156,7 @@ func (i *InferredMap) Export(pass *analysishelper.EnhancedPass) {
 	if len(exported.Pairs) > 0 {
 		// We do not need to encode the primitivizer since it is just a helper for the analysis of
 		// the current package.
-		m := newInferredMap(nil /* primitive */)
+		m := NewInferredMap(nil /* primitive */)
 		m.mapping = exported
 
 		pass.ExportPackageFact(m)
