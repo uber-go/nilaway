@@ -41,10 +41,9 @@ import (
 // inferredValDiff on shared keys is used to ensure that only
 // information present in `Mapping` but not `UpstreamMapping` is exported.
 type InferredMap struct {
-	primitive          *primitivizer
-	upstreamMapping    map[primitiveSite]InferredVal
-	mapping            *orderedmap.OrderedMap[primitiveSite, InferredVal]
-	DummyExportedField bool
+	primitive       *primitivizer
+	upstreamMapping map[primitiveSite]InferredVal
+	mapping         *orderedmap.OrderedMap[primitiveSite, InferredVal]
 }
 
 // NewInferredMap returns a new, empty InferredMap.

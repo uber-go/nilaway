@@ -44,7 +44,7 @@ var Analyzer = &analysis.Analyzer{
 	Name:       "nilaway_accumulation_analyzer",
 	Doc:        _doc,
 	Run:        run,
-	FactTypes:  []analysis.Fact{new(inference.InferredMap)},
+	FactTypes:  []analysis.Fact{inference.NewInferredMap(nil /* primitive */)},
 	Requires:   []*analysis.Analyzer{config.Analyzer, assertion.Analyzer, annotation.Analyzer, diagnostic.NoLintAnalyzer},
 	ResultType: reflect.TypeOf(([]analysis.Diagnostic)(nil)),
 }
