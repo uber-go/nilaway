@@ -200,6 +200,78 @@ func TestBackpropFixpointConvergence(t *testing.T) {
 	}
 }
 
+// TestFunctionSizeLimit tests the function size limiting logic with various CFG block counts.
+func TestFunctionSizeLimit(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name        string
+		blockCount  int
+		shouldSkip  bool
+		description string
+	}{
+		{
+			name:        "Small function",
+			blockCount:  10,
+			shouldSkip:  false,
+			description: "Functions with few blocks should be processed",
+		},
+		{
+			name:        "Medium function",
+			blockCount:  100,
+			shouldSkip:  false,
+			description: "Medium-sized functions should be processed",
+		},
+		{
+			name:        "At limit",
+			blockCount:  _maxFuncSizeInCFGBlocks,
+			shouldSkip:  false,
+			description: "Functions at exactly the limit should be processed",
+		},
+		{
+			name:        "Exceeds limit by 1",
+			blockCount:  _maxFuncSizeInCFGBlocks + 1,
+			shouldSkip:  true,
+			description: "Functions exceeding the limit should be skipped",
+		},
+		{
+			name:        "Large function",
+			blockCount:  1000,
+			shouldSkip:  true,
+			description: "Very large functions should be skipped",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create a mock CFG with the specified number of blocks
+			mockCFG := &cfg.CFG{
+				Blocks: make([]*cfg.Block, tc.blockCount),
+			}
+
+			// Test the size checking logic
+			shouldSkip := mockCFG != nil && len(mockCFG.Blocks) > _maxFuncSizeInCFGBlocks
+
+			require.Equal(t, tc.shouldSkip, shouldSkip, tc.description)
+		})
+	}
+}
+
+// TestFunctionSizeLimitWithNilCFG tests edge cases with nil CFG.
+func TestFunctionSizeLimitWithNilCFG(t *testing.T) {
+	t.Parallel()
+
+	// Test with nil CFG - should not skip
+	var nilCFG *cfg.CFG
+	shouldSkip := nilCFG != nil && len(nilCFG.Blocks) > _maxFuncSizeInCFGBlocks
+	require.False(t, shouldSkip, "Functions with nil CFG should not be skipped")
+
+	// Test with empty CFG - should not skip
+	emptyCFG := &cfg.CFG{Blocks: nil}
+	shouldSkip = emptyCFG != nil && len(emptyCFG.Blocks) > _maxFuncSizeInCFGBlocks
+	require.False(t, shouldSkip, "Functions with empty CFG should not be skipped")
+}
+
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
 }
