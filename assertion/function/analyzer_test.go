@@ -258,6 +258,8 @@ func TestFunctionSizeLimit(t *testing.T) {
 	require.True(t, ok, "Result should be of type *analysishelper.Result[[]annotation.FullTrigger]")
 
 	for _, tc := range testCases {
+		t.Parallel()
+
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.shouldBeSkipped {
 				// Function should be skipped - verify error contains expected messages
