@@ -135,7 +135,6 @@ func Run(writer io.Writer, baseBranch, testBranch string) error {
 
 		// Run the built NilAway binary on the stdlib and parse the diagnostics.
 		var buf bytes.Buffer
-		// Time the execution of NilAway.
 		start := time.Now()
 		cmd := exec.Command("bin/nilaway", "-include-errors-in-files", "/", "-json", "-pretty-print=false", "-group-error-messages=true", "std")
 		cmd.Stdout = &buf
