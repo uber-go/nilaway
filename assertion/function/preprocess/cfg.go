@@ -595,6 +595,11 @@ func (p *Preprocessor) canonicalizeConditional(graph *cfg.CFG, thisBlock *cfg.Bl
 
 		// Standardize binary expressions to be of the form `expr OP literal` by swapping `x` and `y`, if `x` is a literal.
 		// For example, standardizes `nil == v` to the `v == nil` form
+		if cond == nil {
+			panic(fmt.Sprintf("cond nil in pkg: %s. thisBlock: %s. node[0]: %s",
+				p.pass.Pkg.Path(), thisBlock.String(), p.pass.Pass.Fset.Position(thisBlock.Nodes[0].Pos())))
+		}
+
 		x, y := cond.X, cond.Y
 		if asthelper.IsLiteral(x, "nil", "true", "false") {
 			newCond := &ast.BinaryExpr{
