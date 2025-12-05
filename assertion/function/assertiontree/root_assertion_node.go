@@ -918,7 +918,7 @@ func getFuncIdent(expr *ast.CallExpr, fc *FunctionContext) *ast.Ident {
 // anonymous function, returns the ident of the fake function declaration created
 // for that. Otherwise, return nil.
 func getFuncLitFromAssignment(ident *ast.Ident) *ast.FuncLit {
-	if ident.Obj == nil || ident.Obj.Decl == nil {
+	if ident == nil || ident.Obj == nil || ident.Obj.Decl == nil {
 		return nil
 	}
 
