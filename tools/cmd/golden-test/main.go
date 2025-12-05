@@ -146,7 +146,7 @@ func Run(writer io.Writer, baseBranch, testBranch string) error {
 			return fmt.Errorf("run NilAway: %w", err)
 		}
 		elapsed := time.Since(start)
-		log.Printf("NilAway execution time for branch %s: %s", branch.Name, elapsed)
+		log.Printf("NilAway execution time for branch \"%s\": %s", branch.Name, elapsed)
 		diagnostics, err := ParseDiagnostics(&buf)
 		if err != nil {
 			return fmt.Errorf("parse diagnostics: %w", err)
