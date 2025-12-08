@@ -19,7 +19,7 @@ NilAway enjoys three key properties that make it stand out:
 
 - It is **fast**: we have designed NilAway to be fast and scalable, making it suitable for large codebases. In our
   measurements, we have observed less than 5% build-time overhead when NilAway is enabled. We are also constantly applying
-  optimizations to further reduce its footprint.
+  optimizations to reduce its footprint further.
 
 - It is **practical**: it does not prevent _all_ possible nil panics in your code, but it catches most of the potential
   nil panics we have observed in production, allowing NilAway to maintain a good balance between usefulness and build-time
