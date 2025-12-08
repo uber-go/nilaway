@@ -302,3 +302,4 @@ This project is copyright 2023 Uber Technologies, Inc., and licensed under Apach
 [nogo-configure-analyzers]: https://github.com/bazelbuild/rules_go/blob/master/go/nogo.rst#id14
 [nogo-configure-nilaway]: https://github.com/uber-go/nilaway/blob/main/docs/configurations.md#bazelnogo
 [nogo-instructions]: https://github.com/uber-go/nilaway?tab=readme-ov-file#bazelnogo
+
