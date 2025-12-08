@@ -60,10 +60,9 @@ var Analyzer = &analysis.Analyzer{
 }
 
 // This limit is in place to prevent the expensive assertions analyzer from being run on
-// overly-sized functions. A possible alternative to this is capping on size of CFG in nodes
-// instead.
-// TODO: test how often (if ever) this is hit
-const _maxFuncSizeInBytes = 10000
+// overly-sized functions. The limit is based on the number of CFG blocks, which provides
+// a better measure of function complexity than token/byte count.
+const _maxFuncSizeInCFGBlocks = 500
 
 // functionResult is the struct that stores the results for analyzing a function declaration.
 type functionResult struct {
@@ -83,6 +82,7 @@ type functionResult struct {
 }
 
 func run(p *analysis.Pass) ([]annotation.FullTrigger, error) {
+	var err error
 	pass := analysishelper.NewEnhancedPass(p)
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
 	if !conf.IsPkgInScope(pass.Pkg) {
@@ -175,9 +175,12 @@ func run(p *analysis.Pass) ([]annotation.FullTrigger, error) {
 			if funcDecl.Body == nil {
 				continue
 			}
-			// Skip if the function is too large.
-			funcSizeInBytes := int(funcDecl.Body.Rbrace - funcDecl.Body.Lbrace)
-			if funcSizeInBytes > _maxFuncSizeInBytes {
+			// Skip if the function is too large based on CFG complexity.
+			// Use CFG block count as a more accurate measure of function complexity
+			// than token/byte count, which can be misleading due to comments and formatting.
+			if graph != nil && len(graph.Blocks) > _maxFuncSizeInCFGBlocks {
+				err = errors.Join(err, fmt.Errorf("skipping function `%s()` at %s: function too large (%d CFG blocks, exceeds limit of %d blocks)",
+					funcDecl.Name.Name, pass.Fset.Position(funcDecl.Pos()), len(graph.Blocks), _maxFuncSizeInCFGBlocks))
 				continue
 			}
 
@@ -202,7 +205,6 @@ func run(p *analysis.Pass) ([]annotation.FullTrigger, error) {
 	// as if the analyses were done serially). So we first store the result triggers in order,
 	// then flatten the slice.
 	// TODO: remove this extra logic once  is done.
-	var err error
 	funcTriggers := make([][]annotation.FullTrigger, funcIndex)
 	triggerCount := 0
 	funcResults := map[*types.Func]*functionResult{}

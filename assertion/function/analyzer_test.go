@@ -200,6 +200,88 @@ func TestBackpropFixpointConvergence(t *testing.T) {
 	}
 }
 
+// TestFunctionSizeLimit tests that functions are properly handled based on their CFG block count.
+// Large functions (>500 blocks) should be skipped, while smaller functions should be processed normally.
+func TestFunctionSizeLimit(t *testing.T) {
+	t.Parallel()
+
+	testdata := analysistest.TestData()
+
+	testCases := []struct {
+		name                  string
+		functionName          string
+		expectedCFGBlocks     int
+		shouldBeSkipped       bool
+		expectedErrorContains []string
+	}{
+		{
+			name:              "VeryLargeComplexFunction should be skipped",
+			functionName:      "VeryLargeComplexFunction",
+			expectedCFGBlocks: 700,
+			shouldBeSkipped:   true,
+			expectedErrorContains: []string{
+				"function too large",
+			},
+		},
+		{
+			name:                  "LargeFunction at limit should be processed",
+			functionName:          "LargeFunction",
+			expectedCFGBlocks:     500,
+			shouldBeSkipped:       false,
+			expectedErrorContains: nil,
+		},
+		{
+			name:                  "MediumFunction should be processed",
+			functionName:          "MediumFunction",
+			expectedCFGBlocks:     100,
+			shouldBeSkipped:       false,
+			expectedErrorContains: nil,
+		},
+		{
+			name:                  "SmallFunction should be processed",
+			functionName:          "SmallFunction",
+			expectedCFGBlocks:     25,
+			shouldBeSkipped:       false,
+			expectedErrorContains: nil,
+		},
+	}
+
+	// Run the analyzer on the funcsizelimit package which contains all test functions
+	results := analysistest.Run(t, testdata, Analyzer, "go.uber.org/funcsizelimit")
+	require.Len(t, results, 1, "Expected exactly one analysis result")
+
+	result := results[0]
+	require.NotNil(t, result, "Analysis result should not be nil")
+
+	// Extract the actual result from the enhanced result wrapper
+	enhancedResult, ok := result.Result.(*analysishelper.Result[[]annotation.FullTrigger])
+	require.True(t, ok, "Result should be of type *analysishelper.Result[[]annotation.FullTrigger]")
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if tc.shouldBeSkipped {
+				// Function should be skipped - verify error contains expected messages
+				require.Error(t, enhancedResult.Err, "Should have error about %s being skipped", tc.functionName)
+
+				errorMessage := enhancedResult.Err.Error()
+				for _, expectedText := range tc.expectedErrorContains {
+					require.Contains(t, errorMessage, expectedText,
+						"Error should contain '%s' for function %s", expectedText, tc.functionName)
+				}
+			} else {
+				// Function should be processed - verify no error about this specific function being skipped
+				if enhancedResult.Err != nil {
+					errorMessage := enhancedResult.Err.Error()
+					require.NotContains(t, errorMessage, tc.functionName,
+						"Function %s should not be mentioned in skipped functions error", tc.functionName)
+				}
+			}
+		})
+	}
+}
+
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
 }
