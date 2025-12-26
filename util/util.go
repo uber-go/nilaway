@@ -20,6 +20,8 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -448,11 +450,31 @@ func GetSelectorExprHeadIdent(selExpr *ast.SelectorExpr) *ast.Ident {
 	return nil
 }
 
-// TruncatePosition truncates the prefix of the filename to keep it at the given depth (config.DirLevelsToPrintForTriggers)
-func TruncatePosition(position token.Position) token.Position {
-	position.Filename = PortionAfterSep(
-		position.Filename, "/",
-		config.DirLevelsToPrintForTriggers)
+// HumanReadablePosition modifies the Position's filename to be more human-friendly (truncated or relative to cwd).
+func HumanReadablePosition(pass *analysishelper.EnhancedPass, position token.Position) token.Position {
+	conf := pass.ResultOf[config.Analyzer].(*config.Config)
+	if conf.PrintFullFilePath {
+		// Convert absolute paths to relative. If the path is not absolute, leave it alone.
+		if filepath.IsAbs(position.Filename) {
+			workdir, err := os.Getwd()
+			if err != nil {
+				panic(fmt.Errorf("resolve current working directory: %w", err))
+			}
+			newpath, err := filepath.Rel(workdir, position.Filename)
+			if err != nil {
+				panic(fmt.Errorf("make filename relative: %w", err))
+			}
+			// Only update the filename if it would produce a path inside our current working directory (in other words, no "../")
+			if filepath.IsLocal(newpath) {
+				position.Filename = newpath
+			}
+		}
+
+	} else {
+		position.Filename = PortionAfterSep(
+			position.Filename, "/",
+			config.DirLevelsToPrintForTriggers)
+	}
 	return position
 }
 
@@ -475,18 +497,9 @@ func PrettyPrintErrorMessage(msg string) string {
 	return msg
 }
 
-// truncatePosition removes part of prefix of the full file path, determined by
-// config.DirLevelsToPrintForTriggers.
-func truncatePosition(position token.Position) token.Position {
-	position.Filename = PortionAfterSep(
-		position.Filename, "/",
-		config.DirLevelsToPrintForTriggers)
-	return position
-}
-
 // PosToLocation converts a token.Pos as a real code location, of token.Position.
 func PosToLocation(pos token.Pos, pass *analysishelper.EnhancedPass) token.Position {
-	return truncatePosition(pass.Fset.Position(pos))
+	return HumanReadablePosition(pass, pass.Fset.Position(pos))
 }
 
 // CallExprFromExpr returns the call expression from the given expression. It recursively

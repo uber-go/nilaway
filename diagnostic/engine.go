@@ -157,7 +157,7 @@ func (e *Engine) AddOverconstraintConflict(nilReason, nonnilReason inference.Exp
 		} else {
 			flow.addNilPathNode(annotation.LocatedPrestring{
 				Contained: r,
-				Location:  util.TruncatePosition(r.Position()),
+				Location:  util.HumanReadablePosition(e.pass, r.Position()),
 			}, nil)
 		}
 	}
@@ -181,7 +181,7 @@ func (e *Engine) AddOverconstraintConflict(nilReason, nonnilReason inference.Exp
 		} else {
 			flow.addNonNilPathNode(annotation.LocatedPrestring{
 				Contained: r,
-				Location:  util.TruncatePosition(r.Position()),
+				Location:  util.HumanReadablePosition(e.pass, r.Position()),
 			}, nil)
 			reportPosition = position
 		}
