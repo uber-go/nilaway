@@ -17,6 +17,7 @@ package inference
 import (
 	"fmt"
 	"go/token"
+	"go/types"
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/util/analysishelper"
@@ -124,6 +125,9 @@ type primitivizer struct {
 	// objPathEncoder is used to encode object paths, which amortizes the cost of encoding the
 	// paths of multiple objects.
 	objPathEncoder *objectpath.Encoder
+	// objPathCache caches the results of objPathEncoder.For() to avoid redundant expensive lookups
+	// for the same types.Object.
+	objPathCache map[types.Object]objectpath.Path
 }
 
 // newPrimitivizer returns a new and properly-initialized primitivizer.
@@ -170,6 +174,7 @@ func newPrimitivizer(pass *analysishelper.EnhancedPass) *primitivizer {
 		pass:                 pass,
 		upstreamObjPositions: upstreamObjPositions,
 		objPathEncoder:       &objectpath.Encoder{},
+		objPathCache:         make(map[types.Object]objectpath.Path),
 	}
 }
 
@@ -191,11 +196,17 @@ func (p *primitivizer) fullTrigger(trigger annotation.FullTrigger) primitiveFull
 
 // site returns the primitive version of the annotation site.
 func (p *primitivizer) site(key annotation.Key, isDeep bool) primitiveSite {
-	objPath, err := p.objPathEncoder.For(key.Object())
-	if err != nil {
-		// An error will occur when trying to get object path for unexported objects, in which case
-		// we simply assign an empty object path.
-		objPath = ""
+	obj := key.Object()
+	objPath, cached := p.objPathCache[obj]
+	if !cached {
+		var err error
+		objPath, err = p.objPathEncoder.For(obj)
+		if err != nil {
+			// An error will occur when trying to get object path for unexported objects, in which case
+			// we simply assign an empty object path.
+			objPath = ""
+		}
+		p.objPathCache[obj] = objPath
 	}
 
 	pkgRepr := ""
