@@ -50,7 +50,7 @@ type RootAssertionNode struct {
 
 // LocationOf returns the location of the given expression.
 func (r *RootAssertionNode) LocationOf(expr ast.Expr) token.Position {
-	return util.PosToLocation(expr.Pos(), r.Pass())
+	return r.Pass().PosToLocation(expr.Pos())
 }
 
 // HasContract returns if the given function has any contracts.

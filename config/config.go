@@ -22,7 +22,6 @@ import (
 	"reflect"
 	"strings"
 
-	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/asthelper"
 	"golang.org/x/tools/go/analysis"
 )
@@ -157,8 +156,7 @@ func newFlagSet() flag.FlagSet {
 	return *fs
 }
 
-func run(p *analysis.Pass) (any, error) {
-	pass := analysishelper.NewEnhancedPass(p)
+func run(pass *analysis.Pass) (any, error) {
 	// Set up default values for the config.
 	conf := &Config{
 		PrettyPrint:        true,

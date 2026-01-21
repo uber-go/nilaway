@@ -18,15 +18,11 @@ package util
 import (
 	"fmt"
 	"go/ast"
-	"go/token"
 	"go/types"
-	"os"
-	"path/filepath"
 	"regexp"
-	"strings"
 
-	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/tokenhelper"
 )
 
 // ErrorType is the type of the builtin "error" interface.
@@ -209,27 +205,9 @@ func FuncIdentFromCallExpr(expr *ast.CallExpr) *ast.Ident {
 // if defined
 func PartiallyQualifiedFuncName(f *types.Func) string {
 	if sig, ok := f.Type().(*types.Signature); ok && sig.Recv() != nil {
-		return fmt.Sprintf("%s.%s", PortionAfterSep(sig.Recv().Type().String(), ".", 0), f.Name())
+		return fmt.Sprintf("%s.%s", tokenhelper.PortionAfterSep(sig.Recv().Type().String(), ".", 0), f.Name())
 	}
 	return f.Name()
-}
-
-// PortionAfterSep returns the suffix of the passed string `input` containing at most `occ` occurrences
-// of the separator `sep`
-func PortionAfterSep(input, sep string, occ int) string {
-	splits := strings.Split(input, sep)
-	n := len(splits)
-	if n <= occ+1 {
-		return input // input contains at most `occ` occurrences of `sep`
-	}
-	out := ""
-	for i := n - (1 + occ); i < n; i++ {
-		if len(out) > 0 {
-			out += sep
-		}
-		out += splits[i]
-	}
-	return out
 }
 
 // ExprIsAuthentic aims to return true iff the passed expression is an AST node
@@ -450,34 +428,6 @@ func GetSelectorExprHeadIdent(selExpr *ast.SelectorExpr) *ast.Ident {
 	return nil
 }
 
-// HumanReadablePosition modifies the Position's filename to be more human-friendly (truncated or relative to cwd).
-func HumanReadablePosition(pass *analysishelper.EnhancedPass, position token.Position) token.Position {
-	conf := pass.ResultOf[config.Analyzer].(*config.Config)
-	if conf.PrintFullFilePath {
-		// Convert absolute paths to relative. If the path is not absolute, leave it alone.
-		if filepath.IsAbs(position.Filename) {
-			workdir, err := os.Getwd()
-			if err != nil {
-				panic(fmt.Errorf("resolve current working directory: %w", err))
-			}
-			newpath, err := filepath.Rel(workdir, position.Filename)
-			if err != nil {
-				panic(fmt.Errorf("make filename relative: %w", err))
-			}
-			// Only update the filename if it would produce a path inside our current working directory (in other words, no "../")
-			if filepath.IsLocal(newpath) {
-				position.Filename = newpath
-			}
-		}
-
-	} else {
-		position.Filename = PortionAfterSep(
-			position.Filename, "/",
-			config.DirLevelsToPrintForTriggers)
-	}
-	return position
-}
-
 var codeReferencePattern = regexp.MustCompile("\\`(.*?)\\`")
 var pathPattern = regexp.MustCompile(`"(.*?)"`)
 var nilabilityPattern = regexp.MustCompile(`([\(|^\t](?i)(found\s|must\sbe\s)(nilable|nonnil)[\)]?)`)
@@ -495,11 +445,6 @@ func PrettyPrintErrorMessage(msg string) string {
 	msg = pathPattern.ReplaceAllString(msg, pathStr)
 	msg = errorStr + msg
 	return msg
-}
-
-// PosToLocation converts a token.Pos as a real code location, of token.Position.
-func PosToLocation(pos token.Pos, pass *analysishelper.EnhancedPass) token.Position {
-	return HumanReadablePosition(pass, pass.Fset.Position(pos))
 }
 
 // CallExprFromExpr returns the call expression from the given expression. It recursively
