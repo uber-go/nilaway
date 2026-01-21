@@ -155,6 +155,21 @@ func TestGroupErrorMessages(t *testing.T) { //nolint:paralleltest
 	}()
 }
 
+func TestPrintFullFilePath(t *testing.T) { //nolint:paralleltest
+	// We specifically do not set this test to be parallel such that this test is run separately
+	// from the parallel tests. This makes it possible to set the print-full-file-path flag to true for
+	// testing and false for the other tests.
+	err := config.Analyzer.Flags.Set(config.PrintFullFilePathFlag, "true")
+	require.NoError(t, err)
+	defer func() {
+		err := config.Analyzer.Flags.Set(config.PrintFullFilePathFlag, "false")
+		require.NoError(t, err)
+	}()
+
+	testdata := analysistest.TestData()
+	analysistest.Run(t, testdata, Analyzer, "printfullfilepath")
+}
+
 func TestMain(m *testing.M) {
 	flags := map[string]string{
 		// Pretty print should be turned off for easier error message matching in test files.
