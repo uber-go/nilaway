@@ -670,9 +670,9 @@ func newObservedMap(pass *analysishelper.EnhancedPass, files []*ast.File) *Obser
 					"have parsed annotations once for every function declaration and the " +
 					"mappings should have been set up.")
 			}
-			callSite := CallSite{Fun: funcObj, Location: util.PosToLocation(expr.Pos(), pass)}
+			callSite := CallSite{Fun: funcObj, Location: pass.PosToLocation(expr.Pos())}
 			for i, val := range accFromFieldList(set, funcDecl.Type.Params, true, true) {
-				argLoc := util.PosToLocation(expr.Args[i].Pos(), pass)
+				argLoc := pass.PosToLocation(expr.Args[i].Pos())
 				funcCallSiteParamAnnMap[callSite] = append(funcCallSiteParamAnnMap[callSite],
 					ArgLocAndVal{Location: argLoc, Val: val})
 			}
