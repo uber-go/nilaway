@@ -27,6 +27,7 @@ import (
 	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/asthelper"
+	"go.uber.org/nilaway/util/typeshelper"
 	"golang.org/x/tools/go/cfg"
 )
 
@@ -194,7 +195,7 @@ func computeAndConsumeResults(rootNode *RootAssertionNode, node *ast.ReturnStmt)
 		}
 	}
 
-	n := util.FuncNumResults(rootNode.FuncObj())
+	n := typeshelper.FuncNumResults(rootNode.FuncObj())
 	if len(node.Results) != n {
 		return fmt.Errorf(
 			"ERROR: function %s returns %d results where signature indicates it should return %d",
@@ -244,7 +245,7 @@ func isErrorReturnNil(rootNode *RootAssertionNode, errRet ast.Expr) bool {
 
 // isErrorReturnNonnil returns true if the error return is guaranteed to be nonnil, false otherwise
 func isErrorReturnNonnil(rootNode *RootAssertionNode, errRet ast.Expr) bool {
-	if t := rootNode.Pass().TypesInfo.TypeOf(errRet); util.TypeAsDeeplyStruct(t) != nil {
+	if t := rootNode.Pass().TypesInfo.TypeOf(errRet); typeshelper.AsDeeplyStruct(t) != nil {
 		return true
 	}
 	if callExpr, ok := errRet.(*ast.CallExpr); ok {
@@ -264,7 +265,7 @@ func isErrorReturnNonnil(rootNode *RootAssertionNode, errRet ast.Expr) bool {
 //
 // Note that `results` should be explicitly passed since `retStmt` of a named return will contain no results
 func handleErrorReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, results []ast.Expr, isNamedReturn bool) bool {
-	if !util.FuncIsErrReturning(rootNode.FuncObj().Signature()) {
+	if !typeshelper.FuncIsErrReturning(rootNode.FuncObj().Signature()) {
 		return false
 	}
 
@@ -318,7 +319,7 @@ func handleErrorReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, re
 func handleBooleanReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, results []ast.Expr, isNamedReturn bool) bool {
 	// FuncIsOkReturning checks that the length of the results defined for the current function is at least 2, and that
 	// the last return type is a boolean, the value of which can be determined at compile time (e.g., return true)
-	if !util.FuncIsOkReturning(rootNode.FuncObj().Signature()) {
+	if !typeshelper.FuncIsOkReturning(rootNode.FuncObj().Signature()) {
 		return false
 	}
 
@@ -452,7 +453,7 @@ func typeIsString(t types.Type) bool {
 func exprAsConsumedByAssignment(rootNode *RootAssertionNode, expr ast.Node) *annotation.ConsumeTrigger {
 	if exprType, ok := expr.(*ast.IndexExpr); ok {
 		t := rootNode.Pass().TypesInfo.TypeOf(exprType.X)
-		if util.TypeIsDeeplyMap(t) {
+		if typeshelper.IsDeeplyMap(t) {
 			return &annotation.ConsumeTrigger{
 				Annotation: &annotation.MapWrittenTo{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
 				Expr:       exprType.X,
@@ -494,7 +495,7 @@ func exprAsAssignmentConsumer(rootNode *RootAssertionNode, expr ast.Node, exprRH
 		func(ident *ast.Ident) annotation.ConsumingAnnotationTrigger {
 			funcObj := rootNode.FuncObj()
 			varObj := rootNode.ObjectOf(ident).(*types.Var)
-			if util.TypeIsDeep(varObj.Type()) {
+			if typeshelper.IsDeep(varObj.Type()) {
 				if annotation.VarIsParam(funcObj, varObj) {
 					// we've found an assignment to a parameter with deep type - have to check its deep annotation!
 					paramKey := annotation.ParamKeyFromName(funcObj, varObj)
@@ -541,7 +542,7 @@ func exprAsAssignmentConsumer(rootNode *RootAssertionNode, expr ast.Node, exprRH
 
 				// this is an assignment to an index of a field
 				fldObj := rootNode.ObjectOf(expr.Sel).(*types.Var)
-				if fldObj.IsField() && util.TypeIsDeep(fldObj.Type()) {
+				if fldObj.IsField() && typeshelper.IsDeep(fldObj.Type()) {
 					return &annotation.FieldAssignDeep{
 						TriggerIfDeepNonNil: &annotation.TriggerIfDeepNonNil{
 							Ann: &annotation.FieldAnnotationKey{FieldDecl: fldObj},
@@ -613,8 +614,8 @@ func exprAsAssignmentConsumer(rootNode *RootAssertionNode, expr ast.Node, exprRH
 	case *ast.Ident:
 		// This block checks if the rhs of the assignment is the builtin append function for slices.
 		varObj := rootNode.ObjectOf(expr).(*types.Var)
-		if call, ok := exprRHS.(*ast.CallExpr); ok && util.TypeIsSlice(varObj.Type()) {
-			if fun, ok := call.Fun.(*ast.Ident); ok && rootNode.ObjectOf(fun) == util.BuiltinAppend {
+		if call, ok := exprRHS.(*ast.CallExpr); ok && typeshelper.IsSlice(varObj.Type()) {
+			if fun, ok := call.Fun.(*ast.Ident); ok && rootNode.ObjectOf(fun) == typeshelper.BuiltinAppend {
 				if annotation.VarIsParam(rootNode.FuncObj(), varObj) {
 					// If there is a deep assignment to a slice using append method
 					return handleDeepAssignmentToExpr(expr)
@@ -861,7 +862,7 @@ func addReturnConsumers(rootNode *RootAssertionNode, node *ast.ReturnStmt, expr 
 	//   return s  // <-- track shallow and deep nilability of `s` here
 	// }
 	// ```
-	if util.TypeIsDeep(rootNode.Pass().TypesInfo.TypeOf(expr)) {
+	if typeshelper.IsDeep(rootNode.Pass().TypesInfo.TypeOf(expr)) {
 		producer := &annotation.ProduceTrigger{
 			Annotation: exprAsDeepProducer(rootNode, expr),
 			Expr:       expr,

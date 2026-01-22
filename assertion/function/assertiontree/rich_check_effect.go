@@ -262,7 +262,7 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 		}
 
 		rhsXType := rootNode.Pass().TypesInfo.Types[rhs.X].Type
-		if util.TypeIsDeeplyMap(rhsXType) {
+		if typeshelper.IsDeeplyMap(rhsXType) {
 			// Create a rich check effect for `v` part of the map read in `v, ok := mp[k]`
 			if lhsValueParsed := parseExpr(rootNode, lhs[0]); lhsValueParsed != nil {
 				// Here, the lhs `value` operand is trackable
@@ -312,7 +312,7 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 		}
 
 		rhsXType := rootNode.Pass().TypesInfo.Types[rhs.X].Type
-		if rhs.Op == token.ARROW && util.TypeIsDeeplyChan(rhsXType) {
+		if rhs.Op == token.ARROW && typeshelper.IsDeeplyChan(rhsXType) {
 			lhsValueParsed := parseExpr(rootNode, lhs[0])
 			if lhsValueParsed != nil {
 				// here, the lhs `value` operand is trackable
@@ -346,7 +346,7 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 
 		rhsFuncDecl, ok := rootNode.ObjectOf(callIdent).(*types.Func)
 
-		if !ok || !util.FuncIsOkReturning(rhsFuncDecl.Signature()) {
+		if !ok || !typeshelper.FuncIsOkReturning(rhsFuncDecl.Signature()) {
 			return nil, false
 		}
 
@@ -392,7 +392,7 @@ func NodeTriggersFuncErrRet(rootNode *RootAssertionNode, nonceGenerator *util.Gu
 	// Get signature of the function call (normal and anonymous both)
 	sig := typeshelper.GetFuncSignature(rootNode.Pass().TypesInfo.TypeOf(callExpr.Fun))
 
-	if sig == nil || !util.FuncIsErrReturning(sig) {
+	if sig == nil || !typeshelper.FuncIsErrReturning(sig) {
 		return nil, false
 	}
 

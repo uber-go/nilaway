@@ -25,7 +25,7 @@ import (
 	"slices"
 
 	"github.com/stretchr/testify/mock"
-	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/util/typeshelper"
 	"golang.org/x/tools/go/packages"
 )
 
@@ -132,12 +132,12 @@ func collectMethods(t *types.Named, visitedMethods map[string]*types.Func, visit
 	}
 
 	// collect methods from embedded fields
-	if s := util.TypeAsDeeplyStruct(t); s != nil && !visitedStructs[s] {
+	if s := typeshelper.AsDeeplyStruct(t); s != nil && !visitedStructs[s] {
 		visitedStructs[s] = true
 		for i := 0; i < s.NumFields(); i++ {
 			f := s.Field(i)
 			if f.Embedded() {
-				if n, ok := util.UnwrapPtr(types.Unalias(f.Type())).(*types.Named); ok {
+				if n, ok := typeshelper.UnwrapPtr(types.Unalias(f.Type())).(*types.Named); ok {
 					collectMethods(n, visitedMethods, visitedStructs)
 				}
 			}

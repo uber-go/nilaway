@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"go/types"
 
-	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/util/typeshelper"
 )
 
 // DeepNilabilityAsNamedType tries to interpret the named type as a typedef of a map or slice,
@@ -61,11 +61,11 @@ func DeepNilabilityAsNamedType(typ types.Type) ProducingAnnotationTrigger {
 func DeepNilabilityOfFuncRet(fn *types.Func, retNum int) ProducingAnnotationTrigger {
 	fsig := fn.Type().(*types.Signature)
 	retType := fsig.Results().At(retNum).Type()
-	if util.TypeIsDeep(retType) {
+	if typeshelper.IsDeep(retType) {
 		return &FuncReturnDeep{
 			TriggerIfDeepNilable: &TriggerIfDeepNilable{
 				Ann:        RetKeyFromRetNum(fn, retNum),
-				NeedsGuard: util.TypeIsDeeplyMap(retType)},
+				NeedsGuard: typeshelper.IsDeeplyMap(retType)},
 		}
 	}
 	return DeepNilabilityAsNamedType(retType)
@@ -73,13 +73,13 @@ func DeepNilabilityOfFuncRet(fn *types.Func, retNum int) ProducingAnnotationTrig
 
 // DeepNilabilityOfFld inspects a struct field for deep nilability annotation
 func DeepNilabilityOfFld(fld *types.Var) ProducingAnnotationTrigger {
-	if util.TypeIsDeep(fld.Type()) {
+	if typeshelper.IsDeep(fld.Type()) {
 		// in this case, the deep nilability of the field comes from its declaring annotations
 		return &FldReadDeep{
 			TriggerIfDeepNilable: &TriggerIfDeepNilable{
 				Ann: &FieldAnnotationKey{
 					FieldDecl: fld},
-				NeedsGuard: util.TypeIsDeeplyMap(fld.Type())},
+				NeedsGuard: typeshelper.IsDeeplyMap(fld.Type())},
 		}
 	}
 	return DeepNilabilityAsNamedType(fld.Type())
@@ -87,7 +87,7 @@ func DeepNilabilityOfFld(fld *types.Var) ProducingAnnotationTrigger {
 
 // DeepNilabilityOfVar inspects a variable for deep nilability annotation
 func DeepNilabilityOfVar(fdecl *types.Func, v *types.Var) ProducingAnnotationTrigger {
-	if util.TypeIsDeep(v.Type()) {
+	if typeshelper.IsDeep(v.Type()) {
 		// in each of the following cases, the deep nilability of the variable comes from its
 		// declaring annotations
 		if VarIsGlobal(v) {
@@ -96,7 +96,7 @@ func DeepNilabilityOfVar(fdecl *types.Func, v *types.Var) ProducingAnnotationTri
 					Ann: &GlobalVarAnnotationKey{
 						VarDecl: v,
 					},
-					NeedsGuard: util.TypeIsDeeplyMap(v.Type())},
+					NeedsGuard: typeshelper.IsDeeplyMap(v.Type())},
 			}
 		}
 		if VarIsParam(fdecl, v) {
@@ -115,7 +115,7 @@ func DeepNilabilityOfVar(fdecl *types.Func, v *types.Var) ProducingAnnotationTri
 				Ann: &LocalVarAnnotationKey{
 					VarDecl: v,
 				},
-				NeedsGuard: util.TypeIsDeeplyMap(v.Type()),
+				NeedsGuard: typeshelper.IsDeeplyMap(v.Type()),
 			},
 		}
 	}
@@ -195,12 +195,12 @@ func paramAsDeepProducer(fdecl *types.Func, param *types.Var) ProducingAnnotatio
 		return &VariadicFuncParamDeep{
 			TriggerIfNilable: &TriggerIfNilable{
 				Ann:        paramKey,
-				NeedsGuard: util.TypeIsDeeplyMap(param.Type())}}
+				NeedsGuard: typeshelper.IsDeeplyMap(param.Type())}}
 	}
 	return &FuncParamDeep{
 		TriggerIfDeepNilable: &TriggerIfDeepNilable{
 			Ann:        paramKey,
-			NeedsGuard: util.TypeIsDeeplyMap(param.Type())},
+			NeedsGuard: typeshelper.IsDeeplyMap(param.Type())},
 	}
 }
 

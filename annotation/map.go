@@ -23,7 +23,6 @@ import (
 	"strings"
 
 	"go.uber.org/nilaway/config"
-	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/asthelper"
 	"go.uber.org/nilaway/util/typeshelper"
@@ -357,7 +356,7 @@ func TypeIsDefaultNilable(t types.Type) bool {
 	}
 
 	// Builtin error type should be nilable by default.
-	if types.Identical(t, util.ErrorType) {
+	if types.Identical(t, typeshelper.ErrorType) {
 		return true
 	}
 

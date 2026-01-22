@@ -23,10 +23,10 @@ import (
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/config"
-	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/asthelper"
 	"go.uber.org/nilaway/util/orderedmap"
+	"go.uber.org/nilaway/util/typeshelper"
 )
 
 // Affiliation is used to track the association between an interface and its concrete implementations in the form of a map,
@@ -209,7 +209,7 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysishelper.Enhanc
 								rhsType = pass.TypesInfo.TypeOf(kv.Value)
 							} else {
 								// In this case the initialization is serial. E.g. s = &S{&T{}}
-								if sObj := util.TypeAsDeeplyStruct(pass.TypesInfo.TypeOf(node)); sObj != nil {
+								if sObj := typeshelper.AsDeeplyStruct(pass.TypesInfo.TypeOf(node)); sObj != nil {
 									lhsType = sObj.Field(i).Type()
 									rhsType = pass.TypesInfo.TypeOf(elt)
 								}
@@ -241,7 +241,7 @@ func (a *Affiliation) computeTriggersForTypes(lhsType types.Type, rhsType types.
 	if !ok {
 		return nil
 	}
-	rhsObj, ok := util.UnwrapPtr(rhsType).(*types.Named)
+	rhsObj, ok := typeshelper.UnwrapPtr(rhsType).(*types.Named)
 	if !ok {
 		return nil
 	}

@@ -20,7 +20,6 @@ import (
 	"regexp"
 
 	"go.uber.org/nilaway/annotation"
-	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/asthelper"
 	"go.uber.org/nilaway/util/typeshelper"
@@ -72,7 +71,7 @@ func isErrorWrapperFunc(pass *analysishelper.EnhancedPass, call *ast.CallExpr) b
 	var funcObj *types.Func
 	if obj := pass.TypesInfo.ObjectOf(funcIdent); obj != nil {
 		if fObj, ok := obj.(*types.Func); ok {
-			if util.FuncIsErrReturning(typeshelper.GetFuncSignature(fObj.Signature())) {
+			if typeshelper.FuncIsErrReturning(typeshelper.GetFuncSignature(fObj.Signature())) {
 				funcObj = fObj
 			}
 		}
@@ -95,7 +94,7 @@ func isErrorWrapperFunc(pass *analysishelper.EnhancedPass, call *ast.CallExpr) b
 			// We want to extract the raw error argument `err` in this case.
 			if s, ok := callExpr.Fun.(*ast.SelectorExpr); ok {
 				t := pass.TypesInfo.TypeOf(s.X)
-				if t != nil && util.ImplementsError(t) {
+				if t != nil && typeshelper.ImplementsError(t) {
 					return true
 				}
 			}
@@ -108,7 +107,7 @@ func isErrorWrapperFunc(pass *analysishelper.EnhancedPass, call *ast.CallExpr) b
 		}
 
 		argType := pass.TypesInfo.TypeOf(arg)
-		if argType != nil && util.ImplementsError(argType) {
+		if argType != nil && typeshelper.ImplementsError(argType) {
 			// Return the raw error argument expression
 			return true
 		}

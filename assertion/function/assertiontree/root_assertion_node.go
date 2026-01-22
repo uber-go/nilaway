@@ -25,6 +25,7 @@ import (
 	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/asthelper"
+	"go.uber.org/nilaway/util/typeshelper"
 )
 
 // RootAssertionNode is the object that will be directly handled by the propagation algorithm,
@@ -530,7 +531,7 @@ func (r *RootAssertionNode) AddGuardMatch(expr ast.Expr, behavior GuardMatchBeha
 
 func (r *RootAssertionNode) consumeIndexExpr(expr ast.Expr) {
 	t := r.Pass().TypesInfo.Types[expr].Type
-	if util.TypeIsDeeplySlice(t) {
+	if typeshelper.IsDeeplySlice(t) {
 		r.AddConsumption(&annotation.ConsumeTrigger{
 			Annotation: &annotation.SliceAccess{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
 			Expr:       expr,
@@ -613,12 +614,12 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 							funcObj := r.ObjectOf(argFuncIdent).(*types.Func)
 
 							// Check if it is a rich check effect function call. If yes, this needs special handling.
-							if util.FuncIsErrReturning(funcObj.Signature()) || util.FuncIsOkReturning(funcObj.Signature()) {
+							if typeshelper.FuncIsErrReturning(funcObj.Signature()) || typeshelper.FuncIsOkReturning(funcObj.Signature()) {
 								// TODO: this is a temporary suppression which will be removed once we add support for
 								//  handling such cases precisely.
 								return true
 							}
-							if n := util.FuncNumResults(funcObj); n > 1 {
+							if n := typeshelper.FuncNumResults(funcObj); n > 1 {
 								// is a pass of a multiply returning function to another function
 								_, producers := r.ParseExprAsProducer(argFunc, true)
 								if len(producers) != n {
@@ -710,7 +711,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 					//   foo(s) // <-- track shallow and deep nilability of `s` here
 					// }
 					// ```
-					if util.TypeIsDeep(r.Pass().TypesInfo.TypeOf(arg)) {
+					if typeshelper.IsDeep(r.Pass().TypesInfo.TypeOf(arg)) {
 						deepProducer := &annotation.ProduceTrigger{
 							Annotation: exprAsDeepProducer(r, arg),
 							Expr:       arg,
@@ -806,11 +807,11 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 		allowNilable := false
 		if funcObj, ok := r.ObjectOf(expr.Sel).(*types.Func); ok { // Check 1:  selector expression is a method invocation
 			recv := funcObj.Type().(*types.Signature).Recv()
-			if util.TypeIsPointer(recv.Type()) { // Check 2: receiver is an explicit or implicit pointer receiver
+			if typeshelper.IsPointer(recv.Type()) { // Check 2: receiver is an explicit or implicit pointer receiver
 				conf := r.Pass().ResultOf[config.Analyzer].(*config.Config)
 				if conf.IsPkgInScope(funcObj.Pkg()) { // Check 3: invoked method is in scope
 					// Here, `t` can only be of type interface, struct, or named, of which we only support for struct and named types.
-					if !util.TypeIsDeeplyInterface(r.Pass().TypesInfo.TypeOf(expr.X)) { // Check 4: invoking expression (caller) is of a non-interface type (e.g., struct or named)
+					if !typeshelper.IsDeeplyInterface(r.Pass().TypesInfo.TypeOf(expr.X)) { // Check 4: invoking expression (caller) is of a non-interface type (e.g., struct or named)
 						allowNilable = true
 						// We are in the special case of supporting nilable receivers! Can be nilable depending on declaration annotation/inferred nilability.
 						r.AddConsumption(&annotation.ConsumeTrigger{
@@ -1025,7 +1026,7 @@ func (r *RootAssertionNode) ProcessEntry() {
 	}
 
 	// filter triggers for error return handling -- intra-procedural
-	if util.FuncIsErrReturning(r.FuncObj().Signature()) {
+	if typeshelper.FuncIsErrReturning(r.FuncObj().Signature()) {
 		r.triggers, _ = FilterTriggersForErrorReturn(
 			r.triggers,
 			func(p *annotation.ProduceTrigger) ProducerNilability {

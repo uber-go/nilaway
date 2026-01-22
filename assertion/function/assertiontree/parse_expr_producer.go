@@ -22,7 +22,6 @@ import (
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/assertion/function/producer"
 	"go.uber.org/nilaway/hook"
-	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/asthelper"
 	"go.uber.org/nilaway/util/typeshelper"
 )
@@ -259,7 +258,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 				funcLit := getFuncLitFromAssignment(fun)
 				if funcLit != nil {
 					sig := typeshelper.GetFuncSignature(r.Pass().TypesInfo.TypeOf(funcLit))
-					if sig != nil && util.FuncIsErrReturning(sig) {
+					if sig != nil && typeshelper.FuncIsErrReturning(sig) {
 						return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: &annotation.ProduceTrigger{
 							Annotation: &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
 							Expr:       expr,
@@ -302,7 +301,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 				// only two arguments and the first argument is the same as the lhs of assignment.
 				// Since in Go it is allowed to have only one argument in the append method, we need
 				// to have a check to make sure that len(expr.Args) > 1
-				if r.ObjectOf(fun) == util.BuiltinAppend && len(expr.Args) > 1 {
+				if r.ObjectOf(fun) == typeshelper.BuiltinAppend && len(expr.Args) > 1 {
 					// TODO: handle the correlation of return type of append with its first argument .
 					// TODO: iterate over the arguments of the append call if it has more than two args
 					rec, producers := r.ParseExprAsProducer(expr.Args[1], false)
@@ -316,7 +315,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 				// uninitialized with a `new(S)`.
 				// TODO: below logic won't be required once we standardize the calls by replacing `new(S)` with `&S{}`
 				//  in the preprocessing phase after  is implemented.
-				if r.functionContext.functionConfig.EnableStructInitCheck && r.ObjectOf(fun) == util.BuiltinNew {
+				if r.functionContext.functionConfig.EnableStructInitCheck && r.ObjectOf(fun) == typeshelper.BuiltinNew {
 					rproducer := r.parseStructCreateExprAsProducer(expr.Args[0], nil)
 					if rproducer != nil {
 						return nil, []producer.ParsedProducer{rproducer}
@@ -381,7 +380,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 				// TODO: this is a temporary fix to handle the case of anonymous functions.
 				//  Remove this once we have have enabled the anonymous function support.
 				sig := r.Pass().TypesInfo.TypeOf(fun).(*types.Signature)
-				if util.FuncIsErrReturning(sig) {
+				if typeshelper.FuncIsErrReturning(sig) {
 					return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: &annotation.ProduceTrigger{
 						Annotation: &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
 						Expr:       expr,
@@ -510,7 +509,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 		}
 		if expr.Op == token.AND {
 			// we treat a struct object pointer (e.g., &A{}) and struct object (e.g., A{}) identically for creating field producers
-			if s := util.TypeAsDeeplyStruct(r.Pass().TypesInfo.TypeOf(expr.X)); s != nil {
+			if s := typeshelper.AsDeeplyStruct(r.Pass().TypesInfo.TypeOf(expr.X)); s != nil {
 				return r.ParseExprAsProducer(expr.X, doNotTrack)
 			}
 		}
@@ -535,9 +534,9 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 func (r *RootAssertionNode) getFuncReturnProducers(ident *ast.Ident, expr *ast.CallExpr) []producer.ParsedProducer {
 	funcObj := r.ObjectOf(ident).(*types.Func)
 
-	numResults := util.FuncNumResults(funcObj)
-	isErrReturning := util.FuncIsErrReturning(funcObj.Signature())
-	isOkReturning := util.FuncIsOkReturning(funcObj.Signature())
+	numResults := typeshelper.FuncNumResults(funcObj)
+	isErrReturning := typeshelper.FuncIsErrReturning(funcObj.Signature())
+	isOkReturning := typeshelper.FuncIsOkReturning(funcObj.Signature())
 
 	producers := make([]producer.ParsedProducer, numResults)
 
@@ -587,7 +586,7 @@ func (r *RootAssertionNode) getFuncReturnProducers(ident *ast.Ident, expr *ast.C
 func (r *RootAssertionNode) parseStructCreateExprAsProducer(expr ast.Expr, fieldInitializations []ast.Expr) producer.ParsedProducer {
 	exprType := r.Pass().TypesInfo.TypeOf(expr)
 
-	if structType := util.TypeAsDeeplyStruct(exprType); structType != nil {
+	if structType := typeshelper.AsDeeplyStruct(exprType); structType != nil {
 		numFields := structType.NumFields()
 		fieldProducerArray := make([]*annotation.ProduceTrigger, numFields)
 

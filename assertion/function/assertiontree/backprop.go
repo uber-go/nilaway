@@ -192,7 +192,7 @@ func backpropAcrossReturn(rootNode *RootAssertionNode, node *ast.ReturnStmt) err
 				return errors.New("fident variable is nil")
 			}
 			funcObj := rootNode.ObjectOf(fident).(*types.Func)
-			if util.FuncNumResults(funcObj) > 1 {
+			if typeshelper.FuncNumResults(funcObj) > 1 {
 				// this is the case we were looking for!
 				// we've identified that a multiply-returning function is being returned
 
@@ -205,8 +205,8 @@ func backpropAcrossReturn(rootNode *RootAssertionNode, node *ast.ReturnStmt) err
 					// since we don't individually track the returns of a multiply returning function,
 					// we form full triggers for each return whose type doesn't bar nilness
 					if !typeshelper.TypeBarsNilness(funcObj.Type().(*types.Signature).Results().At(i).Type()) {
-						isErrReturning := util.FuncIsErrReturning(funcObj.Signature())
-						isOkReturning := util.FuncIsOkReturning(funcObj.Signature())
+						isErrReturning := typeshelper.FuncIsErrReturning(funcObj.Signature())
+						isOkReturning := typeshelper.FuncIsOkReturning(funcObj.Signature())
 
 						trigger := annotation.FullTrigger{
 							Producer: &annotation.ProduceTrigger{
@@ -491,13 +491,13 @@ func backpropAcrossRange(rootNode *RootAssertionNode, lhs []ast.Expr, rhs ast.Ex
 	case 1:
 		// If we are ranging over a map slice or string with only a single lhs operand, then that
 		// operand will be int-valued.
-		if util.TypeIsDeeplyMap(rhsType) || util.TypeIsDeeplySlice(rhsType) || util.TypeIsDeeplyArray(rhsType) || typeIsString(rhsType) {
+		if typeshelper.IsDeeplyMap(rhsType) || typeshelper.IsDeeplySlice(rhsType) || typeshelper.IsDeeplyArray(rhsType) || typeIsString(rhsType) {
 			produceAsIndex(0)
 			return nil
 		}
 		// Iterating over a channel with only a single lhs operand will still result in deeply
 		// produced lhs values.
-		if util.TypeIsDeeplyChan(rhsType) {
+		if typeshelper.IsDeeplyChan(rhsType) {
 			produceAsDeepRHS(0)
 			return nil
 		}

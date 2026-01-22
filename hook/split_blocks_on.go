@@ -21,8 +21,8 @@ import (
 	"go/types"
 	"regexp"
 
-	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/typeshelper"
 )
 
 // SplitBlockOn splits the CFG block on seeing matched trusted functions, where the condition is
@@ -119,7 +119,7 @@ var requireComparators splitBlockOnAction = func(pass *analysishelper.EnhancedPa
 			if !ok {
 				continue
 			}
-			if pass.TypesInfo.ObjectOf(wrapperFunc) != util.BuiltinLen || len(expr.Args) != 1 {
+			if pass.TypesInfo.ObjectOf(wrapperFunc) != typeshelper.BuiltinLen || len(expr.Args) != 1 {
 				continue
 			}
 			// Check if `<slice_expr>` is of slice type.

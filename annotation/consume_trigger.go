@@ -23,6 +23,7 @@ import (
 
 	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/orderedmap"
+	"go.uber.org/nilaway/util/typeshelper"
 )
 
 // A ConsumingAnnotationTrigger indicated a possible reason that a nil flow to this site would indicate
@@ -995,8 +996,8 @@ func (i *InterfaceResultFromImplementation) Prestring() Prestring {
 	retAnn := i.Ann.(*RetAnnotationKey)
 	return InterfaceResultFromImplementationPrestring{
 		retAnn.RetNum,
-		util.PartiallyQualifiedFuncName(retAnn.FuncDecl),
-		util.PartiallyQualifiedFuncName(i.ImplementingMethod),
+		typeshelper.PartiallyQualifiedFuncName(retAnn.FuncDecl),
+		typeshelper.PartiallyQualifiedFuncName(i.ImplementingMethod),
 		i.String(),
 	}
 }
@@ -1045,8 +1046,8 @@ func (m *MethodParamFromInterface) Prestring() Prestring {
 	paramAnn := m.Ann.(*ParamAnnotationKey)
 	return MethodParamFromInterfacePrestring{
 		paramAnn.ParamNameString(),
-		util.PartiallyQualifiedFuncName(paramAnn.FuncDecl),
-		util.PartiallyQualifiedFuncName(m.InterfaceMethod),
+		typeshelper.PartiallyQualifiedFuncName(paramAnn.FuncDecl),
+		typeshelper.PartiallyQualifiedFuncName(m.InterfaceMethod),
 		m.String(),
 	}
 }
