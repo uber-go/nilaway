@@ -45,7 +45,7 @@ func run(p *analysis.Pass) (interface{}, error) {
 	deferredErrors := pass.ResultOf[accumulation.Analyzer].([]analysis.Diagnostic)
 	for _, e := range deferredErrors {
 		if conf.PrettyPrint {
-			e.Message = prettyPrintErrorMessage(e.Message)
+			e.Message = PrettyPrintErrorMessage(e.Message)
 		}
 		pass.Report(e)
 	}
@@ -57,8 +57,8 @@ var codeReferencePattern = regexp.MustCompile("\\`(.*?)\\`")
 var pathPattern = regexp.MustCompile(`"(.*?)"`)
 var nilabilityPattern = regexp.MustCompile(`([\(|^\t](?i)(found\s|must\sbe\s)(nilable|nonnil)[\)]?)`)
 
-// prettyPrintErrorMessage is used in error reporting to post process and pretty print the output with colors
-func prettyPrintErrorMessage(msg string) string {
+// PrettyPrintErrorMessage is used in error reporting to post process and pretty print the output with colors
+func PrettyPrintErrorMessage(msg string) string {
 	// TODO: below string parsing should not be required after  is implemented
 	errorStr := fmt.Sprintf("\x1b[%dm%s\x1b[0m", 31, "error: ")      // red
 	codeStr := fmt.Sprintf("\u001B[%dm%s\u001B[0m", 95, "`${1}`")    // magenta
