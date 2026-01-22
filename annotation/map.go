@@ -26,6 +26,7 @@ import (
 	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/asthelper"
+	"go.uber.org/nilaway/util/typeshelper"
 )
 
 // Map is an abstraction that concrete annotation maps must implement to be checked against.
@@ -383,7 +384,7 @@ func TypeIsDeepDefaultNilable(t types.Type) bool {
 			return TypeIsDeepDefaultNilable(e)
 		}
 		// assign deep nilability based on the element type
-		return !util.TypeBarsNilness(t.Elem())
+		return !typeshelper.TypeBarsNilness(t.Elem())
 	case *types.Slice:
 		return TypeIsDefaultNilable(t.Elem())
 	case *types.Map:

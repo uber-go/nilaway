@@ -19,10 +19,12 @@ import (
 	"go/ast"
 	"go/constant"
 	"go/token"
+	"go/types"
 
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util/asthelper"
 	"go.uber.org/nilaway/util/tokenhelper"
+	"go.uber.org/nilaway/util/typeshelper"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -92,4 +94,48 @@ func (p *EnhancedPass) HumanReadablePosition(position token.Position) token.Posi
 // PosToLocation converts a token.Pos as a real code location, of token.Position.
 func (p *EnhancedPass) PosToLocation(pos token.Pos) token.Position {
 	return p.HumanReadablePosition(p.Fset.Position(pos))
+}
+
+// ExprBarsNilness returns if the expression can never be nil for the simple reason that nil does
+// not inhabit its type.
+func (p *EnhancedPass) ExprBarsNilness(expr ast.Expr) bool {
+	t := p.TypesInfo.TypeOf(expr)
+	// `p.TypesInfo.TypeOf` only checks Types, Uses, and Defs maps in TypesInfo. However, we may
+	// miss types for some expressions. For example, `f` in `s.f` can only be found in
+	// `p.TypesInfo.Selections` map (see the comments of p.TypesInfo.Types for more details).
+	// Be conservative for those cases for now.
+	// TODO:  to investigate and find more cases.
+	if t == nil {
+		return false
+	}
+	return typeshelper.TypeBarsNilness(p.TypesInfo.TypeOf(expr))
+}
+
+// IsSliceAppendCall checks if `node` represents the builtin append(slice []Type, elems ...Type) []Type
+// call on a slice.
+// The function checks 2 things,
+// 1) Name of the called function is "builtin append"
+// 2) The first argument to the function is a slice
+func (p *EnhancedPass) IsSliceAppendCall(node *ast.CallExpr) (*types.Slice, bool) {
+	if funcName, ok := node.Fun.(*ast.Ident); ok {
+		if declObj := p.TypesInfo.Uses[funcName]; declObj != nil {
+			if declObj.String() == "builtin append" {
+				if sliceType, ok := p.TypesInfo.TypeOf(node.Args[0]).(*types.Slice); ok {
+					return sliceType, true
+				}
+			}
+		}
+	}
+	return nil, false
+}
+
+// ExprIsAuthentic aims to return true iff the passed expression is an AST node
+// found in the source program of this pass - not one that we created as an intermediate value.
+// There is no fully sound way to do this - but returning whether it is present in the `Types` map
+// map is a good approximation.
+// Right now, this is used only to decide whether to print the location of the producer expression
+// in a full trigger.
+func (p *EnhancedPass) ExprIsAuthentic(expr ast.Expr) bool {
+	t := p.TypesInfo.TypeOf(expr)
+	return t != nil
 }

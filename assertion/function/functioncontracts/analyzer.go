@@ -27,8 +27,8 @@ import (
 	"sync"
 
 	"go.uber.org/nilaway/config"
-	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/typeshelper"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
@@ -170,8 +170,8 @@ func collectFunctionContracts(pass *analysishelper.EnhancedPass) (Map, error) {
 			// function. We need to infer contracts for this function.
 			if funcDecl.Type.Params.NumFields() != 1 ||
 				funcDecl.Type.Results.NumFields() != 1 ||
-				util.TypeBarsNilness(funcObj.Type().(*types.Signature).Params().At(0).Type()) ||
-				util.TypeBarsNilness(funcObj.Type().(*types.Signature).Results().At(0).Type()) ||
+				typeshelper.TypeBarsNilness(funcObj.Type().(*types.Signature).Params().At(0).Type()) ||
+				typeshelper.TypeBarsNilness(funcObj.Type().(*types.Signature).Results().At(0).Type()) ||
 				funcObj.Type().(*types.Signature).Variadic() {
 				// We definitely want to ignore any function without any parameters or return
 				// values since they cannot have any contracts.
