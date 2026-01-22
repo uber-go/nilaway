@@ -389,10 +389,12 @@ func backpropAcrossAssignment(rootNode *RootAssertionNode, lhs, rhs []ast.Expr) 
 			//  we don't report true positives either. We should fix this in the future when we add support for generics.
 			if c := util.CallExprFromExpr(rhsNode); c != nil {
 				if _, ok := c.Fun.(*ast.IndexExpr); ok {
-					rootNode.AddProduction(&annotation.ProduceTrigger{
-						Annotation: &annotation.ProduceTriggerNever{},
-						Expr:       lhs[0],
-					})
+					if !util.IsEmptyExpr(lhs[0]) {
+						rootNode.AddProduction(&annotation.ProduceTrigger{
+							Annotation: &annotation.ProduceTriggerNever{},
+							Expr:       lhs[0],
+						})
+					}
 				}
 			}
 		}
