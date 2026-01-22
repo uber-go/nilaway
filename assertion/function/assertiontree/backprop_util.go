@@ -836,7 +836,7 @@ func addAssignmentToConsumer(lhs, rhs ast.Expr, pass *analysishelper.EnhancedPas
 	consumer.AddAssignment(annotation.Assignment{
 		LHSExprStr: lhsExprStr,
 		RHSExprStr: rhsExprStr,
-		Position:   util.TruncatePosition(util.PosToLocation(lhs.Pos(), pass)),
+		Position:   pass.PosToLocation(lhs.Pos()),
 	})
 
 	return nil

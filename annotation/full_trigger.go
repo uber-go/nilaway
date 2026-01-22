@@ -60,7 +60,7 @@ func (t *FullTrigger) Check(annMap Map) bool {
 }
 
 func (t *FullTrigger) truncatedConsumerPos(pass *analysishelper.EnhancedPass) token.Position {
-	return util.PosToLocation(t.Consumer.Pos(), pass)
+	return pass.PosToLocation(t.Consumer.Pos())
 }
 
 func (t *FullTrigger) truncatedProducerPos(pass *analysishelper.EnhancedPass) token.Position {
@@ -73,7 +73,7 @@ func (t *FullTrigger) truncatedProducerPos(pass *analysishelper.EnhancedPass) to
 	if t.Producer.Expr == nil {
 		panic(fmt.Sprintf("nil Expr for producer %q", t.Producer))
 	}
-	return util.PosToLocation(t.Producer.Expr.Pos(), pass)
+	return pass.PosToLocation(t.Producer.Expr.Pos())
 }
 
 // equals returns true if the two passed FullTriggers are equal, and false otherwise.

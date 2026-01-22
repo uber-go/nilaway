@@ -20,7 +20,9 @@ import (
 	"go/constant"
 	"go/token"
 
+	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util/asthelper"
+	"go.uber.org/nilaway/util/tokenhelper"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -74,4 +76,20 @@ func (p *EnhancedPass) IsNil(expr ast.Expr) bool {
 		return false
 	}
 	return tv.IsNil()
+}
+
+// HumanReadablePosition modifies the Position's filename to be more human-friendly (truncated or relative to cwd).
+func (p *EnhancedPass) HumanReadablePosition(position token.Position) token.Position {
+	conf := p.ResultOf[config.Analyzer].(*config.Config)
+	if conf.PrintFullFilePath {
+		position.Filename = tokenhelper.RelToCwd(position.Filename)
+	} else {
+		position.Filename = tokenhelper.PortionAfterSep(position.Filename, "/", config.DirLevelsToPrintForTriggers)
+	}
+	return position
+}
+
+// PosToLocation converts a token.Pos as a real code location, of token.Position.
+func (p *EnhancedPass) PosToLocation(pos token.Pos) token.Position {
+	return p.HumanReadablePosition(p.Fset.Position(pos))
 }

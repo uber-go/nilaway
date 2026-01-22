@@ -25,7 +25,6 @@ import (
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/inference"
-	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/tokenhelper"
 	"golang.org/x/tools/go/analysis"
@@ -157,7 +156,7 @@ func (e *Engine) AddOverconstraintConflict(nilReason, nonnilReason inference.Exp
 		} else {
 			flow.addNilPathNode(annotation.LocatedPrestring{
 				Contained: r,
-				Location:  util.TruncatePosition(r.Position()),
+				Location:  e.pass.HumanReadablePosition(r.Position()),
 			}, nil)
 		}
 	}
@@ -181,7 +180,7 @@ func (e *Engine) AddOverconstraintConflict(nilReason, nonnilReason inference.Exp
 		} else {
 			flow.addNonNilPathNode(annotation.LocatedPrestring{
 				Contained: r,
-				Location:  util.TruncatePosition(r.Position()),
+				Location:  e.pass.HumanReadablePosition(r.Position()),
 			}, nil)
 			reportPosition = position
 		}

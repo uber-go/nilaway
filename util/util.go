@@ -18,13 +18,11 @@ package util
 import (
 	"fmt"
 	"go/ast"
-	"go/token"
 	"go/types"
 	"regexp"
-	"strings"
 
-	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/tokenhelper"
 )
 
 // ErrorType is the type of the builtin "error" interface.
@@ -207,27 +205,9 @@ func FuncIdentFromCallExpr(expr *ast.CallExpr) *ast.Ident {
 // if defined
 func PartiallyQualifiedFuncName(f *types.Func) string {
 	if sig, ok := f.Type().(*types.Signature); ok && sig.Recv() != nil {
-		return fmt.Sprintf("%s.%s", PortionAfterSep(sig.Recv().Type().String(), ".", 0), f.Name())
+		return fmt.Sprintf("%s.%s", tokenhelper.PortionAfterSep(sig.Recv().Type().String(), ".", 0), f.Name())
 	}
 	return f.Name()
-}
-
-// PortionAfterSep returns the suffix of the passed string `input` containing at most `occ` occurrences
-// of the separator `sep`
-func PortionAfterSep(input, sep string, occ int) string {
-	splits := strings.Split(input, sep)
-	n := len(splits)
-	if n <= occ+1 {
-		return input // input contains at most `occ` occurrences of `sep`
-	}
-	out := ""
-	for i := n - (1 + occ); i < n; i++ {
-		if len(out) > 0 {
-			out += sep
-		}
-		out += splits[i]
-	}
-	return out
 }
 
 // ExprIsAuthentic aims to return true iff the passed expression is an AST node
@@ -448,14 +428,6 @@ func GetSelectorExprHeadIdent(selExpr *ast.SelectorExpr) *ast.Ident {
 	return nil
 }
 
-// TruncatePosition truncates the prefix of the filename to keep it at the given depth (config.DirLevelsToPrintForTriggers)
-func TruncatePosition(position token.Position) token.Position {
-	position.Filename = PortionAfterSep(
-		position.Filename, "/",
-		config.DirLevelsToPrintForTriggers)
-	return position
-}
-
 var codeReferencePattern = regexp.MustCompile("\\`(.*?)\\`")
 var pathPattern = regexp.MustCompile(`"(.*?)"`)
 var nilabilityPattern = regexp.MustCompile(`([\(|^\t](?i)(found\s|must\sbe\s)(nilable|nonnil)[\)]?)`)
@@ -473,20 +445,6 @@ func PrettyPrintErrorMessage(msg string) string {
 	msg = pathPattern.ReplaceAllString(msg, pathStr)
 	msg = errorStr + msg
 	return msg
-}
-
-// truncatePosition removes part of prefix of the full file path, determined by
-// config.DirLevelsToPrintForTriggers.
-func truncatePosition(position token.Position) token.Position {
-	position.Filename = PortionAfterSep(
-		position.Filename, "/",
-		config.DirLevelsToPrintForTriggers)
-	return position
-}
-
-// PosToLocation converts a token.Pos as a real code location, of token.Position.
-func PosToLocation(pos token.Pos, pass *analysishelper.EnhancedPass) token.Position {
-	return truncatePosition(pass.Fset.Position(pos))
 }
 
 // CallExprFromExpr returns the call expression from the given expression. It recursively

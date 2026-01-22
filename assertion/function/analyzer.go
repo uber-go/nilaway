@@ -336,7 +336,7 @@ func duplicateFullTrigger(
 ) annotation.FullTrigger {
 	// TODO: what if we have more than one parameter, planned in future revisions
 	argExpr := callExpr.Args[0]
-	argLoc := util.PosToLocation(argExpr.Pos(), pass)
+	argLoc := pass.PosToLocation(argExpr.Pos())
 
 	// Create the duplicated full trigger
 	// TODO: we just copy the pointer for producer and consumer because I don't see a problem when
@@ -358,7 +358,7 @@ func duplicateFullTrigger(
 		dupTrigger.Producer = annotation.DuplicateParamProducer(trigger.Producer, argLoc)
 	}
 	if isReturnConsumer {
-		retLoc := util.PosToLocation(callExpr.Pos(), pass)
+		retLoc := pass.PosToLocation(callExpr.Pos())
 		dupTrigger.Consumer = annotation.DuplicateReturnConsumer(trigger.Consumer, retLoc)
 		// Set up the site that controls the controlled full trigger to be created
 		c := annotation.NewCallSiteParamKey(callee, 0, argLoc)

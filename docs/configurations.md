@@ -63,6 +63,12 @@ A boolean flag enabling experimental support for anonymous functions in NilAway.
 
 Added in v0.1.0
 
+#### `print-full-file-path`
+
+> Default `false`
+
+A boolean flag enabling printing full file paths in error output. When enabled, NilAway will print the filename relative to the current working directory (or the absolute path for files outside of the working directory), instead of truncating to the last two components.
+
 ## Driver-Specific Flags
 
 #### Standalone Checker
