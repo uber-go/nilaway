@@ -71,3 +71,32 @@ func GetFuncSignature(t types.Type) *types.Signature {
 	}
 	return sig
 }
+
+// TypeBarsNilness returns false iff the type `t` is inhabited by nil.
+func TypeBarsNilness(t types.Type) bool {
+	switch t := t.(type) {
+	case *types.Array:
+		return true
+	case *types.Slice:
+		return false
+	case *types.Pointer:
+		return false
+	case *types.Tuple:
+		return false
+	case *types.Signature:
+		return true // function-types are not inhabited by nil
+	case *types.Map:
+		return false
+	case *types.Chan:
+		return false
+	case *types.Alias, *types.Named:
+		return TypeBarsNilness(t.Underlying())
+	case *types.Interface:
+		return false
+	case *types.Basic:
+		// all basic types except UntypedNil are not inhabited by nil
+		return t.Kind() != types.UntypedNil
+	default:
+		return true
+	}
+}

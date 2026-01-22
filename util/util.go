@@ -17,11 +17,9 @@ package util
 
 import (
 	"fmt"
-	"go/ast"
 	"go/types"
 	"regexp"
 
-	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/tokenhelper"
 )
 
@@ -194,79 +192,6 @@ func PartiallyQualifiedFuncName(f *types.Func) string {
 		return fmt.Sprintf("%s.%s", tokenhelper.PortionAfterSep(sig.Recv().Type().String(), ".", 0), f.Name())
 	}
 	return f.Name()
-}
-
-// ExprIsAuthentic aims to return true iff the passed expression is an AST node
-// found in the source program of this pass - not one that we created as an intermediate value.
-// There is no fully sound way to do this - but returning whether it is present in the `Types` map
-// map is a good approximation.
-// Right now, this is used only to decide whether to print the location of the producer expression
-// in a full trigger.
-func ExprIsAuthentic(pass *analysishelper.EnhancedPass, expr ast.Expr) bool {
-	t := pass.TypesInfo.TypeOf(expr)
-	return t != nil
-}
-
-// IsSliceAppendCall checks if `node` represents the builtin append(slice []Type, elems ...Type) []Type
-// call on a slice.
-// The function checks 2 things,
-// 1) Name of the called function is "builtin append"
-// 2) The first argument to the function is a slice
-func IsSliceAppendCall(node *ast.CallExpr, pass *analysishelper.EnhancedPass) (*types.Slice, bool) {
-	if funcName, ok := node.Fun.(*ast.Ident); ok {
-		if declObj := pass.TypesInfo.Uses[funcName]; declObj != nil {
-			if declObj.String() == "builtin append" {
-				if sliceType, ok := pass.TypesInfo.TypeOf(node.Args[0]).(*types.Slice); ok {
-					return sliceType, true
-				}
-			}
-		}
-	}
-	return nil, false
-}
-
-// TypeBarsNilness returns false iff the type `t` is inhabited by nil.
-func TypeBarsNilness(t types.Type) bool {
-	switch t := t.(type) {
-	case *types.Array:
-		return true
-	case *types.Slice:
-		return false
-	case *types.Pointer:
-		return false
-	case *types.Tuple:
-		return false
-	case *types.Signature:
-		return true // function-types are not inhabited by nil
-	case *types.Map:
-		return false
-	case *types.Chan:
-		return false
-	case *types.Alias, *types.Named:
-		return TypeBarsNilness(t.Underlying())
-	case *types.Interface:
-		return false
-	case *types.Basic:
-		// all basic types except UntypedNil are not inhabited by nil
-		return t.Kind() != types.UntypedNil
-	default:
-		return true
-	}
-}
-
-// ExprBarsNilness returns if the expression can never be nil for the simple reason that nil does
-// not inhabit its type.
-func ExprBarsNilness(pass *analysishelper.EnhancedPass, expr ast.Expr) bool {
-	t := pass.TypesInfo.TypeOf(expr)
-	// `pass.TypesInfo.TypeOf` only checks Types, Uses, and Defs maps in TypesInfo. However, we may
-	// miss types for some expressions. For example, `f` in `s.f` can only be found in
-	// `pass.TypesInfo.Selections` map (see the comments of pass.TypesInfo.Types for more details).
-	// Be conservative for those cases for now.
-	// TODO:  to investigate and find more cases.
-	if t == nil {
-		return false
-	}
-	return TypeBarsNilness(pass.TypesInfo.TypeOf(expr))
 }
 
 // FuncNumResults looks at a function declaration and returns the number of results of that function

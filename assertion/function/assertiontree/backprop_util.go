@@ -159,7 +159,7 @@ func computeAndConsumeResults(rootNode *RootAssertionNode, node *ast.ReturnStmt)
 					}
 				} else {
 					// special handling if retVariable is a blank identifier (e.g., _ *int)
-					if !util.ExprBarsNilness(rootNode.Pass(), retVariable) {
+					if !rootNode.Pass().ExprBarsNilness(retVariable) {
 						producer := &annotation.ProduceTrigger{
 							Annotation: &annotation.BlankVarReturn{ProduceTriggerTautology: &annotation.ProduceTriggerTautology{}},
 							Expr:       retVariable,

@@ -204,7 +204,7 @@ func backpropAcrossReturn(rootNode *RootAssertionNode, node *ast.ReturnStmt) err
 					}
 					// since we don't individually track the returns of a multiply returning function,
 					// we form full triggers for each return whose type doesn't bar nilness
-					if !util.TypeBarsNilness(funcObj.Type().(*types.Signature).Results().At(i).Type()) {
+					if !typeshelper.TypeBarsNilness(funcObj.Type().(*types.Signature).Results().At(i).Type()) {
 						isErrReturning := util.FuncIsErrReturning(funcObj.Signature())
 						isOkReturning := util.FuncIsOkReturning(funcObj.Signature())
 
@@ -323,7 +323,7 @@ func backpropAcrossAssignment(rootNode *RootAssertionNode, lhs, rhs []ast.Expr) 
 					// This is the case of creating a pointer and assigning it to a variable, e.g., `x := &y`,
 					// where y is a non-pointer type (e.g., y := S{}).
 					// Here, the pointer is always nonnil, so we can just add a ProduceTriggerNever.
-					if util.ExprBarsNilness(rootNode.Pass(), r.X) {
+					if rootNode.Pass().ExprBarsNilness(r.X) {
 						if len(lhs) == 1 && !asthelper.IsEmptyExpr(lhs[0]) {
 							rootNode.AddProduction(&annotation.ProduceTrigger{
 								Annotation: &annotation.ProduceTriggerNever{},
@@ -840,7 +840,7 @@ func backpropAcrossManyToOneAssignment(rootNode *RootAssertionNode, lhs, rhs []a
 			// lhsVal is a field read, so this is a field assignment
 			// since multiple return functions aren't trackable, this is a completed trigger
 			// as long as the type of the expression being assigned doesn't bar nilness
-			if !util.ExprBarsNilness(rootNode.Pass(), lhsVal) {
+			if !rootNode.Pass().ExprBarsNilness(lhsVal) {
 				rootNode.AddNewTriggers(annotation.FullTrigger{
 					Producer: &annotation.ProduceTrigger{
 						// We are assigning directly into the field, so we only care about shallow,

@@ -18,7 +18,7 @@ import (
 	"go/token"
 	"go/types"
 
-	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/util/typeshelper"
 	"golang.org/x/tools/go/ssa"
 )
 
@@ -316,7 +316,7 @@ func branch(b *ssa.BasicBlock) (*ssa.BasicBlock, *ssa.BasicBlock, *ssa.BinOp) {
 	}
 	binOp, ok := ifInstr.Cond.(*ssa.BinOp)
 	// Check only one operand is sufficient since the two operands must have the same type.
-	if !ok || util.TypeBarsNilness(binOp.X.Type()) {
+	if !ok || typeshelper.TypeBarsNilness(binOp.X.Type()) {
 		// not a binary comparison or the type cannot have nil as a value.
 		return nil, nil, nil
 	}

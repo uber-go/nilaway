@@ -145,7 +145,7 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysishelper.Enhanc
 					}
 
 					// slice is declared to be of interface type, and append function is used to add struct
-					if sliceType, ok := util.IsSliceAppendCall(node, pass); ok {
+					if sliceType, ok := pass.IsSliceAppendCall(node); ok {
 						for i := 1; i < len(node.Args); i++ {
 							lhsType := sliceType.Elem()
 							rhsType := pass.TypesInfo.TypeOf(node.Args[i])
