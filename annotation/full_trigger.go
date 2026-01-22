@@ -114,7 +114,7 @@ func (l LocatedPrestring) String() string {
 // expressions.
 func (t *FullTrigger) Prestrings(pass *analysishelper.EnhancedPass) (Prestring, Prestring) {
 	producerPrestring := t.Producer.Annotation.Prestring()
-	if util.ExprIsAuthentic(pass, t.Producer.Expr) {
+	if pass.ExprIsAuthentic(t.Producer.Expr) {
 		producerPrestring = LocatedPrestring{
 			Contained: producerPrestring,
 			Location:  t.truncatedProducerPos(pass),

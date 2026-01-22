@@ -256,7 +256,7 @@ func (r *RootAssertionNode) linkPath(path TrackableExpr) *RootAssertionNode {
 func (r *RootAssertionNode) AddConsumption(consumer *annotation.ConsumeTrigger) {
 
 	// we check if the type of the expression `expr` prevents it from ever being nil in the first place
-	if util.ExprBarsNilness(r.Pass(), consumer.Expr) {
+	if r.Pass().ExprBarsNilness(consumer.Expr) {
 		return // expr cannot be nil, so do nothing
 	}
 

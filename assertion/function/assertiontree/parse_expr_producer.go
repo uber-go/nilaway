@@ -595,7 +595,7 @@ func (r *RootAssertionNode) parseStructCreateExprAsProducer(expr ast.Expr, field
 			fieldDecl := structType.Field(i)
 			field := r.GetDeclaringIdent(fieldDecl)
 
-			if util.TypeBarsNilness(fieldDecl.Type()) {
+			if typeshelper.TypeBarsNilness(fieldDecl.Type()) {
 				// we do not create producers for fields that are not nilable
 				continue
 			}
