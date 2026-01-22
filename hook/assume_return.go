@@ -22,6 +22,7 @@ import (
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/asthelper"
 	"go.uber.org/nilaway/util/typeshelper"
 )
 
@@ -62,7 +63,7 @@ var _newErrorFuncNameRegex = regexp.MustCompile(`(?i)new[^ ]*error[^ ]*`)
 // - the function must have at least one argument of error-implementing type, and
 // - the function must return an error-implementing type as its last return value.
 func isErrorWrapperFunc(pass *analysishelper.EnhancedPass, call *ast.CallExpr) bool {
-	funcIdent := util.FuncIdentFromCallExpr(call)
+	funcIdent := asthelper.FuncIdentFromCallExpr(call)
 	if funcIdent == nil {
 		return false
 	}

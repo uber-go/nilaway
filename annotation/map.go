@@ -25,6 +25,7 @@ import (
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/asthelper"
 )
 
 // Map is an abstraction that concrete annotation maps must implement to be checked against.
@@ -648,7 +649,7 @@ func newObservedMap(pass *analysishelper.EnhancedPass, files []*ast.File) *Obser
 				return true
 			}
 
-			ident := util.FuncIdentFromCallExpr(expr)
+			ident := asthelper.FuncIdentFromCallExpr(expr)
 			// if ident is nil, keep searching for nested CallExpr nodes.
 			if ident == nil {
 				return true

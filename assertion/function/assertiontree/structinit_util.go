@@ -22,6 +22,7 @@ import (
 	"go.uber.org/nilaway/assertion/structfield"
 	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/asthelper"
 )
 
 // addProductionsForAssignmentFields adds production for each produce trigger in fieldProducers.
@@ -67,7 +68,7 @@ func (r *RootAssertionNode) addConsumptionsForFieldsOfReturns(retExpr ast.Expr, 
 		numFields := resType.NumFields()
 
 		// For field selection chains we add the consumptions for fields by creating artificial selector expression
-		if util.IsFieldSelectorChain(retExpr) {
+		if asthelper.IsFieldSelectorChain(retExpr) {
 			for fieldID := 0; fieldID < numFields; fieldID++ {
 				fieldDecl := resType.Field(fieldID)
 
@@ -287,7 +288,7 @@ func (r *RootAssertionNode) addConsumptionsForArgFieldsAtIndex(arg ast.Expr, fun
 		numFields := paramType.NumFields()
 
 		// For field selection chains we add the consumptions for fields by creating artificial selector expression
-		if util.IsFieldSelectorChain(arg) {
+		if asthelper.IsFieldSelectorChain(arg) {
 			for fieldIdx := 0; fieldIdx < numFields; fieldIdx++ {
 				fieldDecl := paramType.Field(fieldIdx)
 
@@ -432,7 +433,7 @@ func (r *RootAssertionNode) addConsumptionsForFieldsOfParams() {
 	for i := 0; i < funcSig.Params().Len(); i++ {
 		param := funcSig.Params().At(i)
 
-		paramNode := util.GetFunctionParamNode(r.FuncDecl(), param)
+		paramNode := asthelper.GetFunctionParamNode(r.FuncDecl(), param)
 		if paramNode != nil {
 			r.addConsumptionsForFieldsOfParam(param, paramNode, i, result.Res)
 		}
@@ -450,7 +451,7 @@ func (r *RootAssertionNode) addConsumptionsForFieldsOfParams() {
 
 		// The length of receivers can only be 0 (unnamed receiver) or 1 (named receiver).
 		// We only need to handle the named case if it is not an empty (`_`) receiver.
-		if len(receivers) != 0 && !util.IsEmptyExpr(receivers[0]) {
+		if len(receivers) != 0 && !asthelper.IsEmptyExpr(receivers[0]) {
 			r.addConsumptionsForFieldsOfParam(funcSig.Recv(), receivers[0], annotation.ReceiverParamIndex, result.Res)
 		}
 	}
