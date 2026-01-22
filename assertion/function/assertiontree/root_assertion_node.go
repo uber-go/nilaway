@@ -748,6 +748,15 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 				// Add Consumptions for struct field params
 				r.addConsumptionsForArgAndReceiverFields(expr, fun)
 			}
+		} else if fun := getFuncIdent(expr, &r.functionContext); fun != nil && r.isVariable(fun) {
+			// Check if this is a function variable that can be resolved to an underlying function.
+			// This enables nil tracking through function variables like `var ProcessFunc = process`.
+			if resolvedFunc := r.resolveFuncVariable(fun); resolvedFunc != nil {
+				consumeArg = consumeArgTrigger(resolvedFunc)
+			} else {
+				// Could not resolve the function variable - fall back to no-op
+				consumeArg = consumeArgNoop
+			}
 		} else {
 			// here we have found either a builtin function like make or new,
 			// or a typecast like int(x) - in either case (at least for now), do nothing to try
@@ -935,6 +944,58 @@ func getFuncLitFromAssignment(ident *ast.Ident) *ast.FuncLit {
 			}
 			if rhs, ok := assign.Rhs[i].(*ast.FuncLit); ok {
 				return rhs
+			}
+		}
+	}
+
+	return nil
+}
+
+// resolveFuncVariable attempts to resolve a function variable to the underlying function it points to.
+// This handles the common pattern of package-level function variables like `var ProcessFunc = process`
+// or local assignments like `f := someFunc`. Returns the resolved *types.Func if successful, nil otherwise.
+// This enables nilaway to track nil flows through function variables instead of treating them as trusted.
+func (r *RootAssertionNode) resolveFuncVariable(ident *ast.Ident) *types.Func {
+	if ident == nil || ident.Obj == nil || ident.Obj.Decl == nil {
+		return nil
+	}
+
+	// Case 1: Package-level variable declaration (var ProcessFunc = process)
+	if valSpec, ok := ident.Obj.Decl.(*ast.ValueSpec); ok {
+		// Only handle 1-1 assignments for now
+		if len(valSpec.Names) != len(valSpec.Values) {
+			return nil
+		}
+
+		for i, name := range valSpec.Names {
+			if name.Obj != ident.Obj {
+				continue
+			}
+			// Check if RHS is an identifier pointing to a function
+			if rhsIdent, ok := valSpec.Values[i].(*ast.Ident); ok {
+				if funcObj, ok := r.Pass().TypesInfo.ObjectOf(rhsIdent).(*types.Func); ok {
+					return funcObj
+				}
+			}
+		}
+	}
+
+	// Case 2: Local assignment statement (f := someFunc or f = someFunc)
+	if assign, ok := ident.Obj.Decl.(*ast.AssignStmt); ok {
+		if len(assign.Lhs) != len(assign.Rhs) {
+			return nil
+		}
+
+		for i := range assign.Lhs {
+			lhsIdent, ok := assign.Lhs[i].(*ast.Ident)
+			if !ok || lhsIdent.Obj != ident.Obj {
+				continue
+			}
+			// Check if RHS is an identifier pointing to a function
+			if rhsIdent, ok := assign.Rhs[i].(*ast.Ident); ok {
+				if funcObj, ok := r.Pass().TypesInfo.ObjectOf(rhsIdent).(*types.Func); ok {
+					return funcObj
+				}
 			}
 		}
 	}

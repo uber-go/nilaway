@@ -288,9 +288,20 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 			}
 
 			// Check if the method is a function value, e.g., `f := func() {}` and then `f()`.
-			// TODO: this is a temporary fix to suppress false positives caused by function values.
-			//  Remove this once we have have implemented the function value support.
+			// For function variables, attempt to resolve to the underlying function for proper nil tracking.
+			// If resolution fails (dynamic assignment, etc.), fall back to trusted behavior.
 			if r.isVariable(fun) {
+				// Try to resolve the function variable to its underlying function
+				if resolvedFunc := r.resolveFuncVariable(fun); resolvedFunc != nil {
+					// Successfully resolved - use the resolved function for analysis
+					if !doNotTrack && litArgs() {
+						return TrackableExpr{&funcAssertionNode{
+							decl: resolvedFunc, args: expr.Args}}, nil
+					}
+					// function call has non-literal args, so is not literal, use its return annotation
+					return nil, r.getFuncReturnProducersForFunc(resolvedFunc, expr)
+				}
+				// Could not resolve - fall back to trusted behavior to avoid false positives
 				return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: &annotation.ProduceTrigger{
 					Annotation: &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
 					Expr:       expr,
@@ -534,7 +545,12 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 // getFuncReturnProducers returns a list of producers that are triggered at the call expression
 func (r *RootAssertionNode) getFuncReturnProducers(ident *ast.Ident, expr *ast.CallExpr) []producer.ParsedProducer {
 	funcObj := r.ObjectOf(ident).(*types.Func)
+	return r.getFuncReturnProducersForFunc(funcObj, expr)
+}
 
+// getFuncReturnProducersForFunc returns a list of producers for a given function object and call expression.
+// This is the core implementation used by getFuncReturnProducers and also for resolved function variables.
+func (r *RootAssertionNode) getFuncReturnProducersForFunc(funcObj *types.Func, expr *ast.CallExpr) []producer.ParsedProducer {
 	numResults := util.FuncNumResults(funcObj)
 	isErrReturning := util.FuncIsErrReturning(funcObj.Signature())
 	isOkReturning := util.FuncIsOkReturning(funcObj.Signature())
