@@ -25,6 +25,7 @@ import (
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/asthelper"
 	"go.uber.org/nilaway/util/orderedmap"
 )
 
@@ -130,7 +131,7 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysishelper.Enhanc
 					}
 				case *ast.CallExpr:
 					// e.g., func foo(i I), foo(&S{})
-					if ident := util.FuncIdentFromCallExpr(node); ident != nil {
+					if ident := asthelper.FuncIdentFromCallExpr(node); ident != nil {
 						if declObj := pass.TypesInfo.Uses[ident]; declObj != nil {
 							if fdecl, ok := declObj.(*types.Func); ok {
 								fsig := fdecl.Type().(*types.Signature)

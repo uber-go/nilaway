@@ -32,8 +32,8 @@ import (
 	"go.uber.org/nilaway/assertion/function/functioncontracts"
 	"go.uber.org/nilaway/assertion/structfield"
 	"go.uber.org/nilaway/config"
-	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/asthelper"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/ctrlflow"
 	"golang.org/x/tools/go/cfg"
@@ -383,7 +383,7 @@ func findCallsToContractedFunctions(
 			return true
 		}
 
-		ident := util.FuncIdentFromCallExpr(callExpr)
+		ident := asthelper.FuncIdentFromCallExpr(callExpr)
 		if ident == nil {
 			return true
 		}

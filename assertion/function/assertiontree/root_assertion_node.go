@@ -24,6 +24,7 @@ import (
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/asthelper"
 )
 
 // RootAssertionNode is the object that will be directly handled by the propagation algorithm,
@@ -893,7 +894,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 // is an anonymous function, it will return the fake function declaration created in the
 // function analyzer
 func getFuncIdent(expr *ast.CallExpr, fc *FunctionContext) *ast.Ident {
-	ident := util.FuncIdentFromCallExpr(expr)
+	ident := asthelper.FuncIdentFromCallExpr(expr)
 
 	var funcLit *ast.FuncLit
 	// if ident is nil, check if the expr represents a FuncLit node
@@ -1146,7 +1147,7 @@ func (r *RootAssertionNode) isBuiltIn(ident *ast.Ident) bool {
 // builtInConversionFuncBasicType checks if it is a built-in conversion function call, such as `string(x)`.
 // If yes returns the basic type object, otherwise nil.
 func (r *RootAssertionNode) builtInConversionFuncBasicType(call *ast.CallExpr) (b *types.Basic) {
-	if ident := util.FuncIdentFromCallExpr(call); ident != nil {
+	if ident := asthelper.FuncIdentFromCallExpr(call); ident != nil {
 		if obj := r.ObjectOf(ident); obj != nil {
 			if tname, ok := obj.(*types.TypeName); ok {
 				b, _ = tname.Type().(*types.Basic)

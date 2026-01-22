@@ -99,7 +99,7 @@ func exprCallsKnownNilableErrFunc(expr ast.Expr) bool {
 		return false
 	}
 
-	ident := util.FuncIdentFromCallExpr(callExpr)
+	ident := asthelper.FuncIdentFromCallExpr(callExpr)
 
 	if ident == nil {
 		// no ident - anonymous function
@@ -151,7 +151,7 @@ func computeAndConsumeResults(rootNode *RootAssertionNode, node *ast.ReturnStmt)
 				retKey := annotation.RetKeyFromRetNum(rootNode.ObjectOf(rootNode.FuncNameIdent()).(*types.Func), i)
 
 				// default handling if retVariable is not a blank identifier (e.g., i *int)
-				if !util.IsEmptyExpr(retVariable) {
+				if !asthelper.IsEmptyExpr(retVariable) {
 					addReturnConsumers(rootNode, node, retVariable, retKey, true /* isNamedReturn */)
 
 					if rootNode.functionContext.functionConfig.EnableStructInitCheck {
@@ -230,7 +230,7 @@ func isErrorReturnNil(rootNode *RootAssertionNode, errRet ast.Expr) bool {
 	}
 
 	// check for false cases where error return value may be nil
-	if util.IsEmptyExpr(errRet) {
+	if asthelper.IsEmptyExpr(errRet) {
 		// error result is a blank named return ("_ error"), so it's always nil
 		return true
 	}
@@ -366,7 +366,7 @@ func createConsumerForErrorReturn(rootNode *RootAssertionNode, errRetExpr ast.Ex
 func createGeneralReturnConsumers(rootNode *RootAssertionNode, results []ast.Expr, retStmt *ast.ReturnStmt, isNamedReturn bool) {
 	for i := range results {
 		// don't do anything if the expression is a blank identifier ("_")
-		if util.IsEmptyExpr(results[i]) {
+		if asthelper.IsEmptyExpr(results[i]) {
 			continue
 		}
 		rootNode.AddConsumption(&annotation.ConsumeTrigger{
@@ -386,7 +386,7 @@ func createGeneralReturnConsumers(rootNode *RootAssertionNode, results []ast.Exp
 func createReturnConsumersForAlwaysSafe(rootNode *RootAssertionNode, nonErrResults []ast.Expr, retStmt *ast.ReturnStmt, isNamedReturn bool) {
 	for i := range nonErrResults {
 		// don't do anything if the expression is a blank identifier ("_")
-		if util.IsEmptyExpr(nonErrResults[i]) {
+		if asthelper.IsEmptyExpr(nonErrResults[i]) {
 			continue
 		}
 
@@ -411,7 +411,7 @@ func createReturnConsumersForAlwaysSafe(rootNode *RootAssertionNode, nonErrResul
 func createSpecialConsumersForAllReturns(rootNode *RootAssertionNode, nonErrRetExpr []ast.Expr, errRetExpr ast.Expr, errRetIndex int, retStmt *ast.ReturnStmt, isNamedReturn bool) {
 	for i := range nonErrRetExpr {
 		// don't do anything if the expression is a blank identifier ("_")
-		if util.IsEmptyExpr(nonErrRetExpr[i]) {
+		if asthelper.IsEmptyExpr(nonErrRetExpr[i]) {
 			continue
 		}
 		consumer := &annotation.ConsumeTrigger{
@@ -473,7 +473,7 @@ func exprAsConsumedByAssignment(rootNode *RootAssertionNode, expr ast.Node) *ann
 // not `ast.Expr`, and various "deep" assignments such as to an index of an object
 // nilable(result 0)
 func exprAsAssignmentConsumer(rootNode *RootAssertionNode, expr ast.Node, exprRHS ast.Node) (annotation.ConsumingAnnotationTrigger, error) {
-	if expr, ok := expr.(ast.Expr); ok && util.IsEmptyExpr(expr) {
+	if expr, ok := expr.(ast.Expr); ok && asthelper.IsEmptyExpr(expr) {
 		return nil, nil
 	}
 
@@ -550,7 +550,7 @@ func exprAsAssignmentConsumer(rootNode *RootAssertionNode, expr ast.Node, exprRH
 				}
 			case *ast.CallExpr:
 				// check if this is a call to a function by name
-				if ident := util.FuncIdentFromCallExpr(expr); ident != nil {
+				if ident := asthelper.FuncIdentFromCallExpr(expr); ident != nil {
 					obj := rootNode.ObjectOf(ident).(*types.Func)
 					if obj.Type().(*types.Signature).Results().Len() != 1 {
 						return nil, errors.New("multiply returning function treated as assignment consumer")
@@ -633,7 +633,7 @@ func exprAsAssignmentConsumer(rootNode *RootAssertionNode, expr ast.Node, exprRH
 		}
 
 		if rootNode.functionContext.functionConfig.EnableStructInitCheck {
-			if head := util.GetSelectorExprHeadIdent(expr); head != nil {
+			if head := asthelper.GetSelectorExprHeadIdent(expr); head != nil {
 				if obj, ok := rootNode.ObjectOf(head).(*types.Var); ok {
 					if !annotation.VarIsGlobal(obj) {
 						// If field access for a variable that is not a global var we rely on default field nilability based on

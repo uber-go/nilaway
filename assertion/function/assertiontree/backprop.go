@@ -30,6 +30,7 @@ import (
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/asthelper"
 	"go.uber.org/nilaway/util/typeshelper"
 	"golang.org/x/tools/go/cfg"
 )
@@ -323,7 +324,7 @@ func backpropAcrossAssignment(rootNode *RootAssertionNode, lhs, rhs []ast.Expr) 
 					// where y is a non-pointer type (e.g., y := S{}).
 					// Here, the pointer is always nonnil, so we can just add a ProduceTriggerNever.
 					if util.ExprBarsNilness(rootNode.Pass(), r.X) {
-						if len(lhs) == 1 && !util.IsEmptyExpr(lhs[0]) {
+						if len(lhs) == 1 && !asthelper.IsEmptyExpr(lhs[0]) {
 							rootNode.AddProduction(&annotation.ProduceTrigger{
 								Annotation: &annotation.ProduceTriggerNever{},
 								Expr:       lhs[0],
@@ -362,7 +363,7 @@ func backpropAcrossAssignment(rootNode *RootAssertionNode, lhs, rhs []ast.Expr) 
 				rootNode.AddGuardMatch(r.X, ProduceAsNonnil)
 				// Add produce trigger for channel receive on the expression `v` here itself,
 				// since we want to set guarding = true.
-				if !util.IsEmptyExpr(lhs[0]) {
+				if !asthelper.IsEmptyExpr(lhs[0]) {
 					producer := exprAsDeepProducer(rootNode, r.X)
 					producer.SetNeedsGuard(true)
 
@@ -387,9 +388,9 @@ func backpropAcrossAssignment(rootNode *RootAssertionNode, lhs, rhs []ast.Expr) 
 			// TODO: currently we do not handle generic rich-check-effect function calls, so as a temporary solution,
 			//  we suppress reporting of errors. Note that this helps suppress false positives, but it also means that
 			//  we don't report true positives either. We should fix this in the future when we add support for generics.
-			if c := util.CallExprFromExpr(rhsNode); c != nil {
+			if c := asthelper.CallExprFromExpr(rhsNode); c != nil {
 				if _, ok := c.Fun.(*ast.IndexExpr); ok {
-					if !util.IsEmptyExpr(lhs[0]) {
+					if !asthelper.IsEmptyExpr(lhs[0]) {
 						rootNode.AddProduction(&annotation.ProduceTrigger{
 							Annotation: &annotation.ProduceTriggerNever{},
 							Expr:       lhs[0],
@@ -415,7 +416,7 @@ func backpropAcrossRange(rootNode *RootAssertionNode, lhs []ast.Expr, rhs ast.Ex
 	// because it necessarily has basic type (int or char)
 	produceAsIndex := func(i int) {
 		// if nonempty, produce the index as definitely non-nil
-		if !util.IsEmptyExpr(lhs[i]) {
+		if !asthelper.IsEmptyExpr(lhs[i]) {
 			rootNode.AddProduction(&annotation.ProduceTrigger{
 				Annotation: &annotation.RangeIndexAssignment{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
 				Expr:       lhs[i],
@@ -429,7 +430,7 @@ func backpropAcrossRange(rootNode *RootAssertionNode, lhs []ast.Expr, rhs ast.Ex
 		// we can't track the rhs of ranges since we would need to discover non-nil assignments
 		// to an unbounded number of indices to conclude anything other than the annotation-based
 		// deep nilability of rhs
-		if !util.IsEmptyExpr(lhs[i]) {
+		if !asthelper.IsEmptyExpr(lhs[i]) {
 			producer := exprAsDeepProducer(rootNode, rhs)
 			producer.SetNeedsGuard(false)
 
@@ -444,7 +445,7 @@ func backpropAcrossRange(rootNode *RootAssertionNode, lhs []ast.Expr, rhs ast.Ex
 
 	// produceNonNil marks the ith lhs expression as nonnil due to limitations of NilAway.
 	produceNonNil := func(i int) {
-		if !util.IsEmptyExpr(lhs[i]) {
+		if !asthelper.IsEmptyExpr(lhs[i]) {
 			rootNode.AddProduction(&annotation.ProduceTrigger{
 				Annotation: &annotation.ProduceTriggerNever{},
 				Expr:       lhs[i],
@@ -595,7 +596,7 @@ func backpropAcrossOneToOneAssignment(rootNode *RootAssertionNode, lhs, rhs []as
 	parsedLHS := make([][]AssertionNode, n)
 	for i := range lhs {
 		var seq []AssertionNode
-		if !util.IsEmptyExpr(lhs[i]) {
+		if !asthelper.IsEmptyExpr(lhs[i]) {
 			seq, _ = rootNode.ParseExprAsProducer(lhs[i], false)
 		}
 		parsedLHS[i] = seq
@@ -796,7 +797,7 @@ func backpropAcrossManyToOneAssignment(rootNode *RootAssertionNode, lhs, rhs []a
 		lhsVal := lhs[i]
 
 		// Eliminates checking of the `_` instances in the lhs of a multiple assignment
-		if util.IsEmptyExpr(lhsVal) {
+		if asthelper.IsEmptyExpr(lhsVal) {
 			continue
 		}
 

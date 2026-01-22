@@ -23,6 +23,7 @@ import (
 	"go.uber.org/nilaway/assertion/function/producer"
 	"go.uber.org/nilaway/hook"
 	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/util/asthelper"
 	"go.uber.org/nilaway/util/typeshelper"
 )
 
@@ -59,7 +60,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 	shallowSeq TrackableExpr, producers []producer.ParsedProducer) {
 
 	parseIdent := func(expr *ast.Ident) (TrackableExpr, []producer.ParsedProducer) {
-		if util.IsEmptyExpr(expr) {
+		if asthelper.IsEmptyExpr(expr) {
 			r.Pass().Panic("the empty identifier is not an expression - don't pass it to ParseExprAsProducer", expr.Pos())
 		}
 		if r.isNil(expr) {
@@ -447,7 +448,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 					}
 					return false
 				case *ast.SelectorExpr:
-					return util.IsFieldSelectorChain(index)
+					return asthelper.IsFieldSelectorChain(index)
 				default:
 					return r.isStable(expr)
 				}
@@ -600,7 +601,7 @@ func (r *RootAssertionNode) parseStructCreateExprAsProducer(expr ast.Expr, field
 			}
 
 			// extract the value assigned to the field in the composite
-			fieldVal := util.GetFieldVal(fieldInitializations, field.Name, numFields, i)
+			fieldVal := asthelper.GetFieldVal(fieldInitializations, field.Name, numFields, i)
 
 			if fieldVal == nil {
 				// this means the field is not assigned any value, thus unassigned field should be produced

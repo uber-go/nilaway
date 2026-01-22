@@ -227,7 +227,7 @@ func parseExpr(rootNode *RootAssertionNode, expr ast.Expr) TrackableExpr {
 		_ = recover()
 	}()
 	// this handles being passed the empty expression
-	if util.IsEmptyExpr(expr) {
+	if asthelper.IsEmptyExpr(expr) {
 		return nil
 	}
 	parsed, _ := rootNode.ParseExprAsProducer(expr, false)
@@ -337,7 +337,7 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 			}
 		}
 	case *ast.CallExpr:
-		callIdent := util.FuncIdentFromCallExpr(rhs)
+		callIdent := asthelper.FuncIdentFromCallExpr(rhs)
 		if callIdent == nil {
 			// this discards the case of an anonymous function
 			// perhaps in the future we could change this

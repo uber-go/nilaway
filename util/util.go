@@ -187,20 +187,6 @@ func UnwrapPtr(t types.Type) types.Type {
 	return t
 }
 
-// FuncIdentFromCallExpr return a function identified from a call expression, nil otherwise
-// nilable(result 0)
-func FuncIdentFromCallExpr(expr *ast.CallExpr) *ast.Ident {
-	switch fun := expr.Fun.(type) {
-	case *ast.Ident:
-		return fun
-	case *ast.SelectorExpr:
-		return fun.Sel
-	default:
-		// case of anonymous function
-		return nil
-	}
-}
-
 // PartiallyQualifiedFuncName returns the name of the passed function, with the name of its receiver
 // if defined
 func PartiallyQualifiedFuncName(f *types.Func) string {
@@ -288,16 +274,6 @@ func FuncNumResults(decl *types.Func) int {
 	return decl.Type().(*types.Signature).Results().Len()
 }
 
-// IsEmptyExpr checks if an expression is the empty identifier
-func IsEmptyExpr(expr ast.Expr) bool {
-	if id, ok := expr.(*ast.Ident); ok {
-		if id.Name == "_" {
-			return true
-		}
-	}
-	return false
-}
-
 // ImplementsError checks if the given object implements the error interface. It also covers the case of
 // interfaces that embed the error interface.
 func ImplementsError(t types.Type) bool {
@@ -356,52 +332,6 @@ func FuncIsOkReturning(sig *types.Signature) bool {
 	return true
 }
 
-// IsFieldSelectorChain returns true if the expr is chain of idents. e.g, x.y.z
-// It returns for false for expressions such as x.y().z
-func IsFieldSelectorChain(expr ast.Expr) bool {
-	switch expr := expr.(type) {
-	case *ast.Ident:
-		return true
-	case *ast.SelectorExpr:
-		return IsFieldSelectorChain(expr.X)
-	default:
-		return false
-	}
-}
-
-// GetFieldVal returns the assigned value for the field at index. compElts holds the  elements of the composite literal expression
-// for struct initialization
-func GetFieldVal(compElts []ast.Expr, fieldName string, numFields int, index int) ast.Expr {
-	for _, elt := range compElts {
-		if kv, ok := elt.(*ast.KeyValueExpr); ok {
-			if key, ok := kv.Key.(*ast.Ident); ok {
-				if key.Name == fieldName {
-					return kv.Value
-				}
-			}
-		}
-	}
-
-	// In this case the initialization is serial e.g. a = &A{p, q}
-	if numFields == len(compElts) {
-		return compElts[index]
-	}
-	return nil
-}
-
-// GetFunctionParamNode returns the ast param node matching the variable searchParam
-func GetFunctionParamNode(funcDecl *ast.FuncDecl, searchParam *types.Var) ast.Expr {
-	for _, params := range funcDecl.Type.Params.List {
-		for _, param := range params.Names {
-			if searchParam.Name() == param.Name && param.Name != "" && param.Name != "_" {
-				return param
-			}
-		}
-	}
-
-	return nil
-}
-
 // GetParamObjFromIndex get the variable corresponding to the parameter from the function functionType
 func GetParamObjFromIndex(functionType *types.Func, argIdx int) *types.Var {
 	fSig := functionType.Type().(*types.Signature)
@@ -415,17 +345,6 @@ func GetParamObjFromIndex(functionType *types.Func, argIdx int) *types.Var {
 		panic("Function is expected to be variadic in the case when argument index >= length of params")
 	}
 	return functionParams.At(functionParams.Len() - 1)
-}
-
-// GetSelectorExprHeadIdent gets the head of the chained selector expression if it is an ident. Returns nil otherwise
-func GetSelectorExprHeadIdent(selExpr *ast.SelectorExpr) *ast.Ident {
-	if ident, ok := selExpr.X.(*ast.Ident); ok {
-		return ident
-	}
-	if x, ok := selExpr.X.(*ast.SelectorExpr); ok {
-		return GetSelectorExprHeadIdent(x)
-	}
-	return nil
 }
 
 var codeReferencePattern = regexp.MustCompile("\\`(.*?)\\`")
@@ -445,47 +364,4 @@ func PrettyPrintErrorMessage(msg string) string {
 	msg = pathPattern.ReplaceAllString(msg, pathStr)
 	msg = errorStr + msg
 	return msg
-}
-
-// CallExprFromExpr returns the call expression from the given expression. It recursively
-// traverses the expression tree to find the call expression. If the expression is not a
-// call expression, it returns nil.
-func CallExprFromExpr(expr ast.Expr) *ast.CallExpr {
-	switch e := expr.(type) {
-	case *ast.CallExpr:
-		return e
-	case *ast.ParenExpr:
-		return CallExprFromExpr(e.X)
-	case *ast.UnaryExpr:
-		return CallExprFromExpr(e.X)
-	case *ast.SelectorExpr:
-		return CallExprFromExpr(e.X)
-	}
-	return nil
-}
-
-// IdentOf returns the identifier of the given AST expression, nil otherwise. For example,
-// - For ident `x`, it returns `x`.
-// - For call expr `x.y.z.foo()`, it returns `foo`.
-// - For selector expr `x.y`, it returns `y`.
-// - For unary expr `*x`, it returns `x`.
-// - For composite lit `&S{}`, it returns `S`
-// - For index expr `x[0]`, it returns `x`.
-func IdentOf(expr ast.Expr) *ast.Ident {
-	switch e := expr.(type) {
-	case *ast.Ident:
-		return e
-	case *ast.CallExpr:
-		return FuncIdentFromCallExpr(e)
-	case *ast.UnaryExpr:
-		return IdentOf(e.X)
-	case *ast.CompositeLit:
-		return IdentOf(e.Type)
-	case *ast.SelectorExpr:
-		return e.Sel
-	case *ast.IndexExpr:
-		return IdentOf(e.X)
-	default:
-		return nil
-	}
 }
