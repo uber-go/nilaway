@@ -17,9 +17,11 @@
 package nilaway
 
 import (
+	"fmt"
+	"regexp"
+
 	"go.uber.org/nilaway/accumulation"
 	"go.uber.org/nilaway/config"
-	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/analysishelper"
 	"golang.org/x/tools/go/analysis"
 )
@@ -43,10 +45,29 @@ func run(p *analysis.Pass) (interface{}, error) {
 	deferredErrors := pass.ResultOf[accumulation.Analyzer].([]analysis.Diagnostic)
 	for _, e := range deferredErrors {
 		if conf.PrettyPrint {
-			e.Message = util.PrettyPrintErrorMessage(e.Message)
+			e.Message = prettyPrintErrorMessage(e.Message)
 		}
 		pass.Report(e)
 	}
 
 	return nil, nil
+}
+
+var codeReferencePattern = regexp.MustCompile("\\`(.*?)\\`")
+var pathPattern = regexp.MustCompile(`"(.*?)"`)
+var nilabilityPattern = regexp.MustCompile(`([\(|^\t](?i)(found\s|must\sbe\s)(nilable|nonnil)[\)]?)`)
+
+// prettyPrintErrorMessage is used in error reporting to post process and pretty print the output with colors
+func prettyPrintErrorMessage(msg string) string {
+	// TODO: below string parsing should not be required after  is implemented
+	errorStr := fmt.Sprintf("\x1b[%dm%s\x1b[0m", 31, "error: ")      // red
+	codeStr := fmt.Sprintf("\u001B[%dm%s\u001B[0m", 95, "`${1}`")    // magenta
+	pathStr := fmt.Sprintf("\u001B[%dm%s\u001B[0m", 36, "${1}")      // cyan
+	nilabilityStr := fmt.Sprintf("\u001B[%dm%s\u001B[0m", 1, "${1}") // bold
+
+	msg = nilabilityPattern.ReplaceAllString(msg, nilabilityStr)
+	msg = codeReferencePattern.ReplaceAllString(msg, codeStr)
+	msg = pathPattern.ReplaceAllString(msg, pathStr)
+	msg = errorStr + msg
+	return msg
 }
