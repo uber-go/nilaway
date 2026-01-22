@@ -7,6 +7,11 @@ on:
     types:
       - completed
 
+permissions:
+  actions: read
+  pull-requests: write
+  statuses: write
+
 jobs:
   comment:
     name: Comment
@@ -20,7 +25,7 @@ jobs:
       # the Golden Test result is stale and can not be trusted. Here, we leverage the GitHub commit
       # status API to report the status.
       - name: Set PR status to be running
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             await github.rest.repos.createCommitStatus({
@@ -39,7 +44,7 @@ jobs:
       # [1]: https://github.com/orgs/community/discussions/25220
       - name: Find associated pull request
         id: pr
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const { data: pulls } = await github.rest.pulls.list({
@@ -57,7 +62,7 @@ jobs:
             return pr.number;
 
       - name: Download Golden Test result artifact
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
@@ -80,7 +85,7 @@ jobs:
       - run: unzip golden-test-comment.md.zip
 
       - name: Upload the Golden Test result
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const fsp = require('fs').promises;
@@ -137,7 +142,7 @@ jobs:
           echo "success=true" >> $GITHUB_OUTPUT
 
       - name: Set final PR status
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         if: always()
         with:
           script: |
