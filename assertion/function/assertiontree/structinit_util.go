@@ -34,7 +34,7 @@ import (
 func (r *RootAssertionNode) addProductionsForAssignmentFields(fieldProducers []*annotation.ProduceTrigger, lhsVal ast.Expr) {
 	structType := r.Pass().TypesInfo.TypeOf(lhsVal)
 
-	if structType := util.TypeAsDeeplyStruct(structType); structType != nil {
+	if structType := typeshelper.AsDeeplyStruct(structType); structType != nil {
 		for i, fieldProducer := range fieldProducers {
 			if fieldProducer == nil {
 				continue
@@ -65,7 +65,7 @@ func (r *RootAssertionNode) addConsumptionsForFieldsOfReturns(retExpr ast.Expr, 
 	// fdecl Type() is always a *Signature
 	res := fdecl.Type().(*types.Signature).Results().At(retNum)
 
-	if resType := util.TypeAsDeeplyStruct(res.Type()); resType != nil {
+	if resType := typeshelper.AsDeeplyStruct(res.Type()); resType != nil {
 		numFields := resType.NumFields()
 
 		// For field selection chains we add the consumptions for fields by creating artificial selector expression
@@ -129,7 +129,7 @@ func (r *RootAssertionNode) getFieldProducersForFuncReturns(calledFuncDecl *type
 	// calledFuncDecl Type() is always *Signature
 	result := calledFuncDecl.Type().(*types.Signature).Results().At(retNum)
 
-	if resType := util.TypeAsDeeplyStruct(result.Type()); resType != nil {
+	if resType := typeshelper.AsDeeplyStruct(result.Type()); resType != nil {
 		numFields := resType.NumFields()
 		producers := make([]*annotation.ProduceTrigger, numFields)
 
@@ -282,10 +282,10 @@ func (r *RootAssertionNode) addConsumptionsForArgFieldsAtIndex(arg ast.Expr, fun
 	if argIdx == annotation.ReceiverParamIndex {
 		param = funcObj.Type().(*types.Signature).Recv()
 	} else {
-		param = util.GetParamObjFromIndex(funcObj, argIdx)
+		param = typeshelper.GetParamObjFromIndex(funcObj, argIdx)
 	}
 
-	if paramType := util.TypeAsDeeplyStruct(param.Type()); paramType != nil {
+	if paramType := typeshelper.AsDeeplyStruct(param.Type()); paramType != nil {
 		numFields := paramType.NumFields()
 
 		// For field selection chains we add the consumptions for fields by creating artificial selector expression
@@ -397,10 +397,10 @@ func (r *RootAssertionNode) addProductionForFuncCallArgFieldsAtIndex(arg ast.Exp
 	if argIdx == annotation.ReceiverParamIndex {
 		param = methodType.Type().(*types.Signature).Recv()
 	} else {
-		param = util.GetParamObjFromIndex(methodType, argIdx)
+		param = typeshelper.GetParamObjFromIndex(methodType, argIdx)
 	}
 
-	if structType := util.TypeAsDeeplyStruct(param.Type()); structType != nil {
+	if structType := typeshelper.AsDeeplyStruct(param.Type()); structType != nil {
 		numFields := structType.NumFields()
 
 		for fieldID := 0; fieldID < numFields; fieldID++ {
@@ -460,7 +460,7 @@ func (r *RootAssertionNode) addConsumptionsForFieldsOfParams() {
 
 // addConsumptionsForFieldsOfParam is called by addConsumptionsForFieldsOfParams for parameter at index paramIdx
 func (r *RootAssertionNode) addConsumptionsForFieldsOfParam(param *types.Var, paramNode ast.Expr, paramIdx int, fieldContext *structfield.FieldContext) {
-	if resType := util.TypeAsDeeplyStruct(param.Type()); resType != nil {
+	if resType := typeshelper.AsDeeplyStruct(param.Type()); resType != nil {
 		numFields := resType.NumFields()
 		for fieldIdx := 0; fieldIdx < numFields; fieldIdx++ {
 			fieldDecl := resType.Field(fieldIdx)

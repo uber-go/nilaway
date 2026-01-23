@@ -24,8 +24,8 @@ import (
 	"go/types"
 	"regexp"
 
-	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/typeshelper"
 )
 
 // funcKind indicates the kind of the trusted function:
@@ -69,7 +69,7 @@ func (t *trustedFuncSig) match(pass *analysishelper.EnhancedPass, call *ast.Call
 
 		// add struct name to the path
 		if recv != nil {
-			if n, ok := util.UnwrapPtr(recv.Type()).(*types.Named); ok {
+			if n, ok := typeshelper.UnwrapPtr(recv.Type()).(*types.Named); ok {
 				path = path + "." + n.Obj().Name()
 			} else {
 				// we should likely never hit this case, but is only added for extra safety since

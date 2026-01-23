@@ -22,9 +22,9 @@ import (
 	"slices"
 
 	"go.uber.org/nilaway/annotation"
-	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/tokenhelper"
+	"go.uber.org/nilaway/util/typeshelper"
 	"golang.org/x/tools/go/ast/astutil"
 )
 
@@ -79,7 +79,7 @@ func deepNilabilityTriggerOf(node AssertionNode) annotation.ProducingAnnotationT
 		panic("deepNilabilityTriggerOf should NOT be called not the root node - as this would" +
 			" imply an indexNode is a child of the root node")
 	case *funcAssertionNode:
-		if util.FuncNumResults(node.decl) != 1 {
+		if typeshelper.FuncNumResults(node.decl) != 1 {
 			panic("multiply returning function entered into assertion tree - " +
 				"this should never happen")
 		}
