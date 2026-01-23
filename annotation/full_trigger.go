@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"go/token"
 
-	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/guard"
 	"go.uber.org/nilaway/util/analysishelper"
 )
 
@@ -192,7 +192,7 @@ func MergeFullTriggers(left []FullTrigger, right ...FullTrigger) []FullTrigger {
 
 	for i, l := range left {
 		if updateLeftGuard[i] {
-			l.Consumer.Guards = util.NoGuards()
+			l.Consumer.Guards = guard.NoGuards()
 			l.Consumer.GuardMatched = false
 		}
 		out = append(out, l)

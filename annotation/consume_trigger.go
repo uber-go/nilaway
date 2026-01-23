@@ -21,7 +21,7 @@ import (
 	"go/types"
 	"strings"
 
-	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/guard"
 	"go.uber.org/nilaway/util/orderedmap"
 	"go.uber.org/nilaway/util/typeshelper"
 )
@@ -1294,7 +1294,7 @@ func GetRetFldConsumer(retKey Key, expr ast.Expr) *ConsumeTrigger {
 			TriggerIfNonNil: &TriggerIfNonNil{
 				Ann: retKey}},
 		Expr:   expr,
-		Guards: util.NoGuards(),
+		Guards: guard.NoGuards(),
 	}
 }
 
@@ -1306,7 +1306,7 @@ func GetEscapeFldConsumer(escKey Key, selExpr ast.Expr) *ConsumeTrigger {
 				Ann: escKey,
 			}},
 		Expr:   selExpr,
-		Guards: util.NoGuards(),
+		Guards: guard.NoGuards(),
 	}
 }
 
@@ -1319,7 +1319,7 @@ func GetParamFldConsumer(paramKey Key, expr ast.Expr) *ConsumeTrigger {
 			IsPassed: true,
 		},
 		Expr:   expr,
-		Guards: util.NoGuards(),
+		Guards: guard.NoGuards(),
 	}
 }
 
@@ -2060,7 +2060,7 @@ func (u *UseAsErrorRetWithNilabilityUnknown) customPos() (token.Pos, bool) {
 type ConsumeTrigger struct {
 	Annotation   ConsumingAnnotationTrigger
 	Expr         ast.Expr
-	Guards       util.GuardNonceSet
+	Guards       guard.NonceSet
 	GuardMatched bool
 }
 
@@ -2127,7 +2127,7 @@ func MergeConsumeTriggerSlices(left, right []*ConsumeTrigger) []*ConsumeTrigger 
 
 // ConsumeTriggerSliceAsGuarded takes a slice of consume triggers,
 // and returns a new slice identical except that each trigger is guarded
-func ConsumeTriggerSliceAsGuarded(slice []*ConsumeTrigger, guards ...util.GuardNonce) []*ConsumeTrigger {
+func ConsumeTriggerSliceAsGuarded(slice []*ConsumeTrigger, guards ...guard.Nonce) []*ConsumeTrigger {
 	var out []*ConsumeTrigger
 	for _, trigger := range slice {
 		out = append(out, &ConsumeTrigger{

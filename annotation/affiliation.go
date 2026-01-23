@@ -18,7 +18,7 @@ import (
 	"go/ast"
 	"go/types"
 
-	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/guard"
 )
 
 // This file contains annotation-embdded obo the affiliations mechanism
@@ -73,7 +73,7 @@ func FullTriggerForInterfaceParamFlow(affiliation AffiliationPair, paramNum int)
 				AffiliationPair: affiliation,
 			},
 			Expr:         affiliation.implementingMethodAsExpr(),
-			Guards:       util.NoGuards(),
+			Guards:       guard.NoGuards(),
 			GuardMatched: false,
 		},
 	}
@@ -102,7 +102,7 @@ func FullTriggerForInterfaceResultFlow(affiliation AffiliationPair, retNum int) 
 				AffiliationPair: affiliation,
 			},
 			Expr:         affiliation.interfaceMethodAsExpr(),
-			Guards:       util.NoGuards(),
+			Guards:       guard.NoGuards(),
 			GuardMatched: false,
 		},
 	}

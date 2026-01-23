@@ -23,8 +23,8 @@ import (
 	"go/types"
 
 	"go.uber.org/nilaway/annotation"
+	"go.uber.org/nilaway/guard"
 	"go.uber.org/nilaway/hook"
-	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/asthelper"
 	"go.uber.org/nilaway/util/typeshelper"
@@ -175,7 +175,7 @@ func computeAndConsumeResults(rootNode *RootAssertionNode, node *ast.ReturnStmt)
 									RetStmt:       node,
 								},
 								Expr:   retVariable,
-								Guards: util.NoGuards(),
+								Guards: guard.NoGuards(),
 							},
 						}
 						rootNode.AddNewTriggers(fullTrigger)
@@ -359,7 +359,7 @@ func createConsumerForErrorReturn(rootNode *RootAssertionNode, errRetExpr ast.Ex
 			RetStmt:       retStmt,
 		},
 		Expr:   errRetExpr,
-		Guards: util.NoGuards(),
+		Guards: guard.NoGuards(),
 	})
 }
 
@@ -377,7 +377,7 @@ func createGeneralReturnConsumers(rootNode *RootAssertionNode, results []ast.Exp
 				IsNamedReturn: isNamedReturn,
 				RetStmt:       retStmt},
 			Expr:   results[i],
-			Guards: util.NoGuards(),
+			Guards: guard.NoGuards(),
 		})
 	}
 }
@@ -403,7 +403,7 @@ func createReturnConsumersForAlwaysSafe(rootNode *RootAssertionNode, nonErrResul
 				IsTrackingAlwaysSafe: true,
 				RetStmt:              retStmt},
 			Expr:   nonErrResults[i],
-			Guards: util.NoGuards(),
+			Guards: guard.NoGuards(),
 		})
 	}
 }
@@ -422,7 +422,7 @@ func createSpecialConsumersForAllReturns(rootNode *RootAssertionNode, nonErrRetE
 				IsNamedReturn:   isNamedReturn,
 			},
 			Expr:   nonErrRetExpr[i],
-			Guards: util.NoGuards(),
+			Guards: guard.NoGuards(),
 		}
 		rootNode.AddConsumption(consumer)
 	}
@@ -434,7 +434,7 @@ func createSpecialConsumersForAllReturns(rootNode *RootAssertionNode, nonErrRetE
 			IsNamedReturn:   isNamedReturn,
 		},
 		Expr:   errRetExpr,
-		Guards: util.NoGuards(),
+		Guards: guard.NoGuards(),
 	})
 }
 
@@ -457,7 +457,7 @@ func exprAsConsumedByAssignment(rootNode *RootAssertionNode, expr ast.Node) *ann
 			return &annotation.ConsumeTrigger{
 				Annotation: &annotation.MapWrittenTo{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
 				Expr:       exprType.X,
-				Guards:     util.NoGuards(),
+				Guards:     guard.NoGuards(),
 			}
 		}
 	}
@@ -852,7 +852,7 @@ func addReturnConsumers(rootNode *RootAssertionNode, node *ast.ReturnStmt, expr 
 			IsNamedReturn: isNamedReturn,
 			RetStmt:       node},
 		Expr:   expr,
-		Guards: util.NoGuards(),
+		Guards: guard.NoGuards(),
 	})
 
 	// If expr is a deep type, then we track its deep nilability as well.
@@ -874,7 +874,7 @@ func addReturnConsumers(rootNode *RootAssertionNode, node *ast.ReturnStmt, expr 
 				IsNamedReturn: isNamedReturn,
 				RetStmt:       node},
 			Expr:   expr,
-			Guards: util.NoGuards(),
+			Guards: guard.NoGuards(),
 		}
 		// since this is an implicit tracking of the deep nilability of expr, we don't need to
 		// check for its guarding.

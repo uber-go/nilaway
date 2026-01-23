@@ -19,7 +19,7 @@ import (
 	"go/types"
 
 	"go.uber.org/nilaway/annotation"
-	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/guard"
 	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/asthelper"
 	"go.uber.org/nilaway/util/typeshelper"
@@ -79,7 +79,7 @@ func getGlobalConsumers(pass *analysishelper.EnhancedPass, valspec *ast.ValueSpe
 							VarDecl: v,
 						}}},
 				Expr:         name,
-				Guards:       util.NoGuards(),
+				Guards:       guard.NoGuards(),
 				GuardMatched: false,
 			}
 		}

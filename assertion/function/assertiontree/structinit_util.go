@@ -20,7 +20,7 @@ import (
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/assertion/structfield"
-	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/guard"
 	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/asthelper"
 	"go.uber.org/nilaway/util/typeshelper"
@@ -309,7 +309,7 @@ func (r *RootAssertionNode) addConsumptionsForArgFieldsAtIndex(arg ast.Expr, fun
 									Ann: paramFieldKey,
 								},
 							},
-							Guards: util.NoGuards(),
+							Guards: guard.NoGuards(),
 							Expr:   selExpr})
 				}
 
@@ -478,7 +478,7 @@ func (r *RootAssertionNode) addConsumptionsForFieldsOfParam(param *types.Var, pa
 						IsPassed: true,
 					},
 					Expr:   selExpr,
-					Guards: util.NoGuards(),
+					Guards: guard.NoGuards(),
 				})
 			}
 		}
