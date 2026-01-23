@@ -22,7 +22,7 @@ import (
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/config"
-	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/guard"
 	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/asthelper"
 	"go.uber.org/nilaway/util/typeshelper"
@@ -43,7 +43,7 @@ type RootAssertionNode struct {
 	funcObj *types.Func
 
 	// exprNonceMap maps expressions to nonces created to track their contracts
-	exprNonceMap util.ExprNonceMap
+	exprNonceMap guard.ExprNonceMap
 
 	// functionContext holds the context of the function during backpropagation. The state includes
 	// map objects that are created at initialization, and configurations that are passed through function analyzer.
@@ -120,7 +120,7 @@ func (r *RootAssertionNode) FuncObj() *types.Func {
 
 // GetNonce returns the nonce associated with the passed expression, if one exists. the boolean
 // return indicates whether a nonce was found
-func (r *RootAssertionNode) GetNonce(expr ast.Expr) (util.GuardNonce, bool) {
+func (r *RootAssertionNode) GetNonce(expr ast.Expr) (guard.Nonce, bool) {
 	guard, ok := r.exprNonceMap[expr]
 	return guard, ok
 }
@@ -231,7 +231,7 @@ func (r *RootAssertionNode) IsStrictPrefix(a, b TrackableExpr) bool {
 	return len(b) > len(a) && r.IsPrefix(a, b)
 }
 
-func newRootAssertionNode(exprNonceMap util.ExprNonceMap, functionContext FunctionContext) *RootAssertionNode {
+func newRootAssertionNode(exprNonceMap guard.ExprNonceMap, functionContext FunctionContext) *RootAssertionNode {
 	return &RootAssertionNode{
 		exprNonceMap:    exprNonceMap,
 		functionContext: functionContext,
@@ -242,7 +242,7 @@ func newRootAssertionNode(exprNonceMap util.ExprNonceMap, functionContext Functi
 // at a new root. Except for that new root, all nodes are preserved so they can still be accessed as before
 // the call. The new root is returned
 func (r *RootAssertionNode) linkPath(path TrackableExpr) *RootAssertionNode {
-	root := newRootAssertionNode(make(util.ExprNonceMap), r.functionContext)
+	root := newRootAssertionNode(make(guard.ExprNonceMap), r.functionContext)
 	var currNode AssertionNode = root // use this currNode to build a linear tree to merge into r
 	for _, node := range path {
 		currNode.SetChildren([]AssertionNode{node})
@@ -535,7 +535,7 @@ func (r *RootAssertionNode) consumeIndexExpr(expr ast.Expr) {
 		r.AddConsumption(&annotation.ConsumeTrigger{
 			Annotation: &annotation.SliceAccess{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
 			Expr:       expr,
-			Guards:     util.NoGuards(),
+			Guards:     guard.NoGuards(),
 		})
 	}
 }
@@ -637,7 +637,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 													Ann: annotation.ParamKeyFromArgNum(fdecl, i),
 												}},
 											Expr:   argFunc,
-											Guards: util.NoGuards(),
+											Guards: guard.NoGuards(),
 										},
 									})
 								}
@@ -682,7 +682,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 									Ann: annotation.ParamKeyFromArgNum(fdecl, i),
 								}},
 							Expr:   arg,
-							Guards: util.NoGuards(),
+							Guards: guard.NoGuards(),
 						},
 					})
 				} else {
@@ -701,7 +701,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 								Ann: paramKey,
 							}},
 						Expr:   arg,
-						Guards: util.NoGuards(),
+						Guards: guard.NoGuards(),
 					}
 					r.AddConsumption(&consumer)
 
@@ -722,7 +722,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 									Ann: paramKey,
 								}},
 							Expr:   arg,
-							Guards: util.NoGuards(),
+							Guards: guard.NoGuards(),
 						}
 						// since this is an implicit tracking of the deep nilability of arg, we don't need to
 						// check for its guarding
@@ -822,7 +822,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 									},
 								}},
 							Expr:   expr.X,
-							Guards: util.NoGuards(),
+							Guards: guard.NoGuards(),
 						})
 					}
 				} else { // Check 5: invoked method is out of scope
@@ -838,7 +838,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 			r.AddConsumption(&annotation.ConsumeTrigger{
 				Annotation: &annotation.FldAccess{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}, Sel: r.ObjectOf(expr.Sel)},
 				Expr:       expr.X,
-				Guards:     util.NoGuards(),
+				Guards:     guard.NoGuards(),
 			})
 		}
 
@@ -854,7 +854,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 			r.AddConsumption(&annotation.ConsumeTrigger{
 				Annotation: &annotation.SliceAccess{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
 				Expr:       expr.X,
-				Guards:     util.NoGuards(),
+				Guards:     guard.NoGuards(),
 			})
 		}
 
@@ -867,7 +867,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 		r.AddConsumption(&annotation.ConsumeTrigger{
 			Annotation: &annotation.PtrLoad{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
 			Expr:       expr.X,
-			Guards:     util.NoGuards(),
+			Guards:     guard.NoGuards(),
 		})
 		r.AddComputation(expr.X)
 	case *ast.TypeAssertExpr:

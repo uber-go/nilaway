@@ -28,7 +28,7 @@ import (
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/assertion/function/preprocess"
 	"go.uber.org/nilaway/config"
-	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/guard"
 	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/asthelper"
 	"go.uber.org/nilaway/util/typeshelper"
@@ -135,7 +135,7 @@ func backpropAcrossSend(rootNode *RootAssertionNode, node *ast.SendStmt) error {
 		rootNode.AddConsumption(&annotation.ConsumeTrigger{
 			Annotation: consumer,
 			Expr:       node.Value,
-			Guards:     util.NoGuards(),
+			Guards:     guard.NoGuards(),
 		})
 	}
 
@@ -225,7 +225,7 @@ func backpropAcrossReturn(rootNode *RootAssertionNode, node *ast.ReturnStmt) err
 									RetStmt: node,
 								},
 								Expr:   call,
-								Guards: util.NoGuards(),
+								Guards: guard.NoGuards(),
 								// if an error returning function returns directly as the result of
 								// another error returning function, then its results can safely be
 								// interpreted as guarded
@@ -763,7 +763,7 @@ buildShadowMask:
 			rootNode.AddConsumption(&annotation.ConsumeTrigger{
 				Annotation: consumeTrigger,
 				Expr:       rhsVal,
-				Guards:     util.NoGuards(),
+				Guards:     guard.NoGuards(),
 			})
 		}
 		if consumer := exprAsConsumedByAssignment(rootNode, lhsVal); consumer != nil {
@@ -851,7 +851,7 @@ func backpropAcrossManyToOneAssignment(rootNode *RootAssertionNode, lhs, rhs []a
 					Consumer: &annotation.ConsumeTrigger{
 						Annotation: consumeTrigger,
 						Expr:       rhsVal,
-						Guards:     util.NoGuards(),
+						Guards:     guard.NoGuards(),
 					},
 				})
 			}

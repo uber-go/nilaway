@@ -21,7 +21,7 @@ import (
 	"go/types"
 
 	"go.uber.org/nilaway/annotation"
-	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/guard"
 	"go.uber.org/nilaway/util/asthelper"
 	"go.uber.org/nilaway/util/typeshelper"
 	"golang.org/x/tools/go/cfg"
@@ -70,7 +70,7 @@ type FuncErrRet struct {
 	root  *RootAssertionNode // an associated root node
 	err   TrackableExpr      // the `error`-typed return of the function
 	ret   TrackableExpr      // the return value of the function
-	guard util.GuardNonce    // the guard to be applied on a matching check
+	guard guard.Nonce        // the guard to be applied on a matching check
 }
 
 func (f *FuncErrRet) isTriggeredBy(expr ast.Expr) bool {
@@ -110,7 +110,7 @@ type okRead struct {
 	root  *RootAssertionNode // an associated root node
 	value TrackableExpr      // `value` could be a value for read from a map or channel, or the return value of a function
 	ok    TrackableExpr      // `ok` is boolean "ok" for read from a map or channel, or return from a function
-	guard util.GuardNonce    // the guard to be applied on a matching check
+	guard guard.Nonce        // the guard to be applied on a matching check
 }
 
 func (r *okRead) isTriggeredBy(expr ast.Expr) bool {
@@ -202,7 +202,7 @@ func (RichCheckNoop) equals(effect RichCheckEffect) bool {
 // RichCheckFromNode analyzes the passed `ast.Node` to see if it generates a rich check effect.
 // If it does, that effect is returned along with the boolean true
 // If it does not, then `nil, false` is returned.
-func RichCheckFromNode(rootNode *RootAssertionNode, nonceGenerator *util.GuardNonceGenerator, node ast.Node) ([]RichCheckEffect, bool) {
+func RichCheckFromNode(rootNode *RootAssertionNode, nonceGenerator *guard.NonceGenerator, node ast.Node) ([]RichCheckEffect, bool) {
 	var effects []RichCheckEffect
 	someEffects := false
 	if okReadEffects, ok := NodeTriggersOkRead(rootNode, nonceGenerator, node); ok {
@@ -239,7 +239,7 @@ func parseExpr(rootNode *RootAssertionNode, expr ast.Expr) TrackableExpr {
 // - `v, ok := mp[k]`
 // - `v, ok := <-ch`
 // - `r0, r1, r2, ..., ok := f()`
-func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardNonceGenerator, node ast.Node) ([]RichCheckEffect, bool) {
+func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *guard.NonceGenerator, node ast.Node) ([]RichCheckEffect, bool) {
 	lhs, rhs := asthelper.ExtractLHSRHS(node)
 	if len(lhs) < 2 || len(rhs) != 1 {
 		return nil, false
@@ -375,7 +375,7 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 
 // NodeTriggersFuncErrRet is a case of a node creating a rich check effect.
 // it matches on calls to functions with error-returning types
-func NodeTriggersFuncErrRet(rootNode *RootAssertionNode, nonceGenerator *util.GuardNonceGenerator, node ast.Node) ([]RichCheckEffect, bool) {
+func NodeTriggersFuncErrRet(rootNode *RootAssertionNode, nonceGenerator *guard.NonceGenerator, node ast.Node) ([]RichCheckEffect, bool) {
 	lhs, rhs := asthelper.ExtractLHSRHS(node)
 
 	if len(lhs) == 0 || len(rhs) != 1 {
@@ -484,13 +484,13 @@ func exprMatchesTrackableExpr(rootNode *RootAssertionNode, expr ast.Expr, checks
 
 // guardExpr marks all the consume triggers in the var assertion node corresponding to the passed
 // variable (if such a node exists) as guarded by the passed GuardNonce
-func guardExpr(rootNode *RootAssertionNode, expr TrackableExpr, guard util.GuardNonce) {
+func guardExpr(rootNode *RootAssertionNode, expr TrackableExpr, nonce guard.Nonce) {
 	lookedUpNode, _ := rootNode.lookupPath(expr)
 	if lookedUpNode != nil {
 		// The passed expression is tracked, so mark its corresponding node as guarded
 		lookedUpNode.SetConsumeTriggers(
 			annotation.ConsumeTriggerSliceAsGuarded(
-				lookedUpNode.ConsumeTriggers(), guard))
+				lookedUpNode.ConsumeTriggers(), nonce))
 	}
 }
 
@@ -504,9 +504,9 @@ func guardExpr(rootNode *RootAssertionNode, expr TrackableExpr, guard util.Guard
 //
 // Important: do not duplicate any pointers: each returned RichCheckEffect should be a unique object
 func genInitialRichCheckEffects(graph *cfg.CFG, functionContext FunctionContext) (
-	[][]RichCheckEffect, util.ExprNonceMap) {
+	[][]RichCheckEffect, guard.ExprNonceMap) {
 	richCheckBlocks := make([][]RichCheckEffect, len(graph.Blocks))
-	nonceGenerator := util.NewGuardNonceGenerator()
+	nonceGenerator := guard.NewNonceGenerator()
 
 	// There is no canonical instance of RootAssertionNode until backpropAcrossFunc returns.
 	// We use a temporary root here as a means to pass contextual information like the function
