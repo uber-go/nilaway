@@ -90,7 +90,10 @@ func run(p *analysis.Pass) ([]annotation.FullTrigger, error) {
 	}
 
 	// Construct experimental features. By default, enable all features on NilAway itself.
-	functionConfig := assertiontree.FunctionConfig{}
+	functionConfig := assertiontree.FunctionConfig{
+		EnableStructInitCheck: conf.ExperimentalStructInitEnable,
+		EnableAnonymousFunc:   conf.ExperimentalAnonymousFuncEnable,
+	}
 	if strings.HasPrefix(pass.Pkg.Path(), config.NilAwayPkgPathPrefix) { //nolint:revive
 		// TODO: enable struct initialization flag (tracked in Issue #23).
 		// TODO: enable anonymous function flag.
