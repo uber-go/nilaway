@@ -26,7 +26,7 @@ import (
 )
 
 // analyzeValueSpec returns full triggers corresponding to the declaration
-func analyzeValueSpec(pass *analysis.Pass, spec *ast.ValueSpec, initFuncDecls []*ast.FuncDecl) []annotation.FullTrigger {
+func analyzeValueSpec(pass *analysishelper.EnhancedPass, spec *ast.ValueSpec, initFuncDecls []*ast.FuncDecl) []annotation.FullTrigger {
 	var fullTriggers []annotation.FullTrigger
 
 	consumers := getGlobalConsumers(pass, spec, initFuncDecls)
@@ -65,7 +65,7 @@ func analyzeValueSpec(pass *analysis.Pass, spec *ast.ValueSpec, initFuncDecls []
 }
 
 // Returns a list of consumers corresponding to a global level variable declaration
-func getGlobalConsumers(pass *analysis.Pass, valspec *ast.ValueSpec, initFuncDecls []*ast.FuncDecl) []*annotation.ConsumeTrigger {
+func getGlobalConsumers(pass *analysishelper.EnhancedPass, valspec *ast.ValueSpec, initFuncDecls []*ast.FuncDecl) []*annotation.ConsumeTrigger {
 	consumers := make([]*annotation.ConsumeTrigger, len(valspec.Names))
 
 	for i, name := range valspec.Names {
