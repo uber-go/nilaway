@@ -18,8 +18,8 @@ import (
 	"fmt"
 	"go/token"
 
-	"go.uber.org/nilaway/util"
-	"golang.org/x/tools/go/analysis"
+	"go.uber.org/nilaway/guard"
+	"go.uber.org/nilaway/util/analysishelper"
 )
 
 // A FullTrigger is a completed assertion. It contains both a ProduceTrigger Producer and a
@@ -59,11 +59,11 @@ func (t *FullTrigger) Check(annMap Map) bool {
 		t.Consumer.Annotation.CheckConsume(annMap)
 }
 
-func (t *FullTrigger) truncatedConsumerPos(pass *analysis.Pass) token.Position {
-	return util.PosToLocation(t.Consumer.Pos(), pass)
+func (t *FullTrigger) truncatedConsumerPos(pass *analysishelper.EnhancedPass) token.Position {
+	return pass.PosToLocation(t.Consumer.Pos())
 }
 
-func (t *FullTrigger) truncatedProducerPos(pass *analysis.Pass) token.Position {
+func (t *FullTrigger) truncatedProducerPos(pass *analysishelper.EnhancedPass) token.Position {
 	// Our struct init analysis only tracks fields for depth 1 and relies on escape analysis for
 	// escaped fields (t.Producer.Expr here). Since there are functions that return nil producers
 	// (although they were never assigned to [FullTrigger.Producer]), NilAway concluded that
@@ -73,7 +73,7 @@ func (t *FullTrigger) truncatedProducerPos(pass *analysis.Pass) token.Position {
 	if t.Producer.Expr == nil {
 		panic(fmt.Sprintf("nil Expr for producer %q", t.Producer))
 	}
-	return util.PosToLocation(t.Producer.Expr.Pos(), pass)
+	return pass.PosToLocation(t.Producer.Expr.Pos())
 }
 
 // equals returns true if the two passed FullTriggers are equal, and false otherwise.
@@ -112,9 +112,9 @@ func (l LocatedPrestring) String() string {
 // with artifical expression generated from the position of that consumer in the assertion tree,
 // and producers that arise from non-trackable expressions correspond to those real non-trackable
 // expressions.
-func (t *FullTrigger) Prestrings(pass *analysis.Pass) (Prestring, Prestring) {
+func (t *FullTrigger) Prestrings(pass *analysishelper.EnhancedPass) (Prestring, Prestring) {
 	producerPrestring := t.Producer.Annotation.Prestring()
-	if util.ExprIsAuthentic(pass, t.Producer.Expr) {
+	if pass.ExprIsAuthentic(t.Producer.Expr) {
 		producerPrestring = LocatedPrestring{
 			Contained: producerPrestring,
 			Location:  t.truncatedProducerPos(pass),
@@ -192,7 +192,7 @@ func MergeFullTriggers(left []FullTrigger, right ...FullTrigger) []FullTrigger {
 
 	for i, l := range left {
 		if updateLeftGuard[i] {
-			l.Consumer.Guards = util.NoGuards()
+			l.Consumer.Guards = guard.NoGuards()
 			l.Consumer.GuardMatched = false
 		}
 		out = append(out, l)

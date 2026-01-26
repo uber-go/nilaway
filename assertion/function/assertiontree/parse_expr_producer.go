@@ -21,8 +21,9 @@ import (
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/assertion/function/producer"
-	"go.uber.org/nilaway/assertion/function/trustedfunc"
-	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/hook"
+	"go.uber.org/nilaway/util/asthelper"
+	"go.uber.org/nilaway/util/typeshelper"
 )
 
 // ParseExprAsProducer takes an expression, and determines whether it is `trackable` - i.e. if it is a
@@ -58,8 +59,8 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 	shallowSeq TrackableExpr, producers []producer.ParsedProducer) {
 
 	parseIdent := func(expr *ast.Ident) (TrackableExpr, []producer.ParsedProducer) {
-		if util.IsEmptyExpr(expr) {
-			panic("the empty identifier is not an expression - don't pass it to ParseExprAsProducer")
+		if asthelper.IsEmptyExpr(expr) {
+			r.Pass().Panic("the empty identifier is not an expression - don't pass it to ParseExprAsProducer", expr.Pos())
 		}
 		if r.isNil(expr) {
 			return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{
@@ -240,22 +241,67 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 			return true
 		}
 
-		if ret, ok := trustedfunc.As(expr, r.Pass()); ok {
-			if prod, ok := ret.(*annotation.ProduceTrigger); ok {
-				return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: prod}}
-			}
+		if prod := hook.AssumeReturn(r.Pass(), expr); prod != nil {
+			return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: prod}}
 		}
 
 		// the cases of a function and method call are different enough here that it would be useless
 		// to try to subsume this switch with funcIdentFromCallExpr
 		switch fun := expr.Fun.(type) {
 		case *ast.Ident: // direct function call
-			if !r.isFunc(fun) {
+			// Handle specially if the function is an anonymous function.
+			if r.functionContext.functionConfig.EnableAnonymousFunc {
+				fun = getFuncIdent(expr, &r.functionContext)
+			} else {
+				// TODO: this is a temporary fix to handle the case of anonymous functions.
+				//  Remove this once we have have enabled the anonymous function support.
+				funcLit := getFuncLitFromAssignment(fun)
+				if funcLit != nil {
+					sig := typeshelper.GetFuncSignature(r.Pass().TypesInfo.TypeOf(funcLit))
+					if sig != nil && typeshelper.FuncIsErrReturning(sig) {
+						return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: &annotation.ProduceTrigger{
+							Annotation: &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
+							Expr:       expr,
+						}}}
+					}
+				}
+			}
+
+			// Check if it is a type alias for a function type.
+			// e.g., type MyFunc func() (*int, error)
+			// func foo(f MyErrRetFunc) {
+			// 		x, err := f()
+			// 		if err != nil {
+			// 			return
+			// 		}
+			// 		_ = *x
+			// }
+			// TODO: this is only a temporary fix to suppress false positives caused by type aliases.
+			//  Remove this once we have implemented complete support for type aliases.
+			t := r.Pass().TypesInfo.TypeOf(fun)
+			if _, ok := t.(*types.Alias); ok {
+				return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: &annotation.ProduceTrigger{
+					Annotation: &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
+					Expr:       expr,
+				}}}
+			}
+
+			// Check if the method is a function value, e.g., `f := func() {}` and then `f()`.
+			// TODO: this is a temporary fix to suppress false positives caused by function values.
+			//  Remove this once we have have implemented the function value support.
+			if r.isVariable(fun) {
+				return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: &annotation.ProduceTrigger{
+					Annotation: &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
+					Expr:       expr,
+				}}}
+			}
+
+			if fun != nil && !r.isFunc(fun) {
 				// The following block implements the basic support for append function where it has
 				// only two arguments and the first argument is the same as the lhs of assignment.
 				// Since in Go it is allowed to have only one argument in the append method, we need
 				// to have a check to make sure that len(expr.Args) > 1
-				if r.ObjectOf(fun) == util.BuiltinAppend && len(expr.Args) > 1 {
+				if r.ObjectOf(fun) == typeshelper.BuiltinAppend && len(expr.Args) > 1 {
 					// TODO: handle the correlation of return type of append with its first argument .
 					// TODO: iterate over the arguments of the append call if it has more than two args
 					rec, producers := r.ParseExprAsProducer(expr.Args[1], false)
@@ -269,7 +315,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 				// uninitialized with a `new(S)`.
 				// TODO: below logic won't be required once we standardize the calls by replacing `new(S)` with `&S{}`
 				//  in the preprocessing phase after  is implemented.
-				if r.functionContext.functionConfig.EnableStructInitCheck && r.ObjectOf(fun) == util.BuiltinNew {
+				if r.functionContext.functionConfig.EnableStructInitCheck && r.ObjectOf(fun) == typeshelper.BuiltinNew {
 					rproducer := r.parseStructCreateExprAsProducer(expr.Args[0], nil)
 					if rproducer != nil {
 						return nil, []producer.ParsedProducer{rproducer}
@@ -291,6 +337,16 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 			return nil, r.getFuncReturnProducers(fun, expr)
 
 		case *ast.SelectorExpr: // method call
+			// Check if the method is a function value, e.g., `f := func() {}` and then `f()`.
+			// TODO: this is a temporary fix to handle the case of function values.
+			//  Remove this once we have have implemented the function value support.
+			if r.isVariable(fun.Sel) {
+				return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: &annotation.ProduceTrigger{
+					Annotation: &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
+					Expr:       expr,
+				}}}
+			}
+
 			if !r.isFunc(fun.Sel) {
 				// we assume builtins and type casts don't return nil
 				return nil, nil
@@ -313,6 +369,37 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 			}
 			// function call has non-literal args, so is not literal, use its return annotation
 			return nil, r.getFuncReturnProducers(fun.Sel, expr)
+
+		case *ast.FuncLit:
+			// TODO: This case can possibly be combined with the case of *ast.Ident above.
+			var funcIdent *ast.Ident
+
+			if r.functionContext.functionConfig.EnableAnonymousFunc {
+				funcIdent = getFuncIdent(expr, &r.functionContext)
+			} else {
+				// TODO: this is a temporary fix to handle the case of anonymous functions.
+				//  Remove this once we have have enabled the anonymous function support.
+				sig := r.Pass().TypesInfo.TypeOf(fun).(*types.Signature)
+				if typeshelper.FuncIsErrReturning(sig) {
+					return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: &annotation.ProduceTrigger{
+						Annotation: &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
+						Expr:       expr,
+					}}}
+				}
+			}
+
+			if funcIdent == nil {
+				return nil, nil
+			}
+
+			// non-builtin funcs
+			if !doNotTrack && litArgs() {
+				return TrackableExpr{&funcAssertionNode{
+					decl: r.ObjectOf(funcIdent).(*types.Func), args: expr.Args}}, nil
+			}
+			// function call has non-literal args, so is not literal, use its return annotation
+			// alternatively, doNotTrack was set
+			return nil, r.getFuncReturnProducers(funcIdent, expr)
 
 		default:
 			// this could result from calling a function returned anonymously from another function, such as f(4)(3), and
@@ -348,7 +435,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 					return false
 				case *ast.CallExpr:
 					if fun, ok := index.Fun.(*ast.Ident); ok {
-						if r.isBuiltIn(fun) {
+						if r.isBuiltIn(fun) || r.builtInConversionFuncBasicType(index) != nil {
 							// iterate over the arguments of the call expression
 							for _, arg := range index.Args {
 								if !isIndexTrackable(arg) {
@@ -360,7 +447,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 					}
 					return false
 				case *ast.SelectorExpr:
-					return util.IsFieldSelectorChain(index)
+					return asthelper.IsFieldSelectorChain(index)
 				default:
 					return r.isStable(expr)
 				}
@@ -383,7 +470,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 		switch {
 		// For slice expressions `b[_:0:_]`, the result is always an empty (nilable in
 		// NilAway's eyes) slice. (`_` can be anything including empty.)
-		case r.isIntZero(expr.High):
+		case r.Pass().IsZero(expr.High):
 			// We should create a nilable producer.
 			return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{
 				Producer: &annotation.ProduceTrigger{
@@ -393,7 +480,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 		// For slice expressions `b[0:]` and `b[:]`, the result's nilability depends on the
 		// nilability of the original slice. Note that you cannot give empty High in 3-index
 		// slices.
-		case expr.High == nil && (expr.Low == nil || r.isIntZero(expr.Low)):
+		case expr.High == nil && (expr.Low == nil || r.Pass().IsZero(expr.Low)):
 			// TODO: for now we directly return the trackable expression of the original slice. We
 			// should instead properly create a trackable expression for the slice expression. See
 			//  for more details.
@@ -422,7 +509,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 		}
 		if expr.Op == token.AND {
 			// we treat a struct object pointer (e.g., &A{}) and struct object (e.g., A{}) identically for creating field producers
-			if s := util.TypeAsDeeplyStruct(r.Pass().TypesInfo.TypeOf(expr.X)); s != nil {
+			if s := typeshelper.AsDeeplyStruct(r.Pass().TypesInfo.TypeOf(expr.X)); s != nil {
 				return r.ParseExprAsProducer(expr.X, doNotTrack)
 			}
 		}
@@ -447,9 +534,9 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 func (r *RootAssertionNode) getFuncReturnProducers(ident *ast.Ident, expr *ast.CallExpr) []producer.ParsedProducer {
 	funcObj := r.ObjectOf(ident).(*types.Func)
 
-	numResults := util.FuncNumResults(funcObj)
-	isErrReturning := util.FuncIsErrReturning(funcObj)
-	isOkReturning := util.FuncIsOkReturning(funcObj)
+	numResults := typeshelper.FuncNumResults(funcObj)
+	isErrReturning := typeshelper.FuncIsErrReturning(funcObj.Signature())
+	isOkReturning := typeshelper.FuncIsOkReturning(funcObj.Signature())
 
 	producers := make([]producer.ParsedProducer, numResults)
 
@@ -499,7 +586,7 @@ func (r *RootAssertionNode) getFuncReturnProducers(ident *ast.Ident, expr *ast.C
 func (r *RootAssertionNode) parseStructCreateExprAsProducer(expr ast.Expr, fieldInitializations []ast.Expr) producer.ParsedProducer {
 	exprType := r.Pass().TypesInfo.TypeOf(expr)
 
-	if structType := util.TypeAsDeeplyStruct(exprType); structType != nil {
+	if structType := typeshelper.AsDeeplyStruct(exprType); structType != nil {
 		numFields := structType.NumFields()
 		fieldProducerArray := make([]*annotation.ProduceTrigger, numFields)
 
@@ -507,13 +594,13 @@ func (r *RootAssertionNode) parseStructCreateExprAsProducer(expr ast.Expr, field
 			fieldDecl := structType.Field(i)
 			field := r.GetDeclaringIdent(fieldDecl)
 
-			if util.TypeBarsNilness(fieldDecl.Type()) {
+			if typeshelper.TypeBarsNilness(fieldDecl.Type()) {
 				// we do not create producers for fields that are not nilable
 				continue
 			}
 
 			// extract the value assigned to the field in the composite
-			fieldVal := util.GetFieldVal(fieldInitializations, field.Name, numFields, i)
+			fieldVal := asthelper.GetFieldVal(fieldInitializations, field.Name, numFields, i)
 
 			if fieldVal == nil {
 				// this means the field is not assigned any value, thus unassigned field should be produced

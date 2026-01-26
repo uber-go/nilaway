@@ -21,8 +21,9 @@ import (
 	"go/types"
 
 	"go.uber.org/nilaway/annotation"
-	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/guard"
 	"go.uber.org/nilaway/util/asthelper"
+	"go.uber.org/nilaway/util/typeshelper"
 	"golang.org/x/tools/go/cfg"
 )
 
@@ -69,7 +70,7 @@ type FuncErrRet struct {
 	root  *RootAssertionNode // an associated root node
 	err   TrackableExpr      // the `error`-typed return of the function
 	ret   TrackableExpr      // the return value of the function
-	guard util.GuardNonce    // the guard to be applied on a matching check
+	guard guard.Nonce        // the guard to be applied on a matching check
 }
 
 func (f *FuncErrRet) isTriggeredBy(expr ast.Expr) bool {
@@ -109,7 +110,7 @@ type okRead struct {
 	root  *RootAssertionNode // an associated root node
 	value TrackableExpr      // `value` could be a value for read from a map or channel, or the return value of a function
 	ok    TrackableExpr      // `ok` is boolean "ok" for read from a map or channel, or return from a function
-	guard util.GuardNonce    // the guard to be applied on a matching check
+	guard guard.Nonce        // the guard to be applied on a matching check
 }
 
 func (r *okRead) isTriggeredBy(expr ast.Expr) bool {
@@ -201,7 +202,7 @@ func (RichCheckNoop) equals(effect RichCheckEffect) bool {
 // RichCheckFromNode analyzes the passed `ast.Node` to see if it generates a rich check effect.
 // If it does, that effect is returned along with the boolean true
 // If it does not, then `nil, false` is returned.
-func RichCheckFromNode(rootNode *RootAssertionNode, nonceGenerator *util.GuardNonceGenerator, node ast.Node) ([]RichCheckEffect, bool) {
+func RichCheckFromNode(rootNode *RootAssertionNode, nonceGenerator *guard.NonceGenerator, node ast.Node) ([]RichCheckEffect, bool) {
 	var effects []RichCheckEffect
 	someEffects := false
 	if okReadEffects, ok := NodeTriggersOkRead(rootNode, nonceGenerator, node); ok {
@@ -226,7 +227,7 @@ func parseExpr(rootNode *RootAssertionNode, expr ast.Expr) TrackableExpr {
 		_ = recover()
 	}()
 	// this handles being passed the empty expression
-	if util.IsEmptyExpr(expr) {
+	if asthelper.IsEmptyExpr(expr) {
 		return nil
 	}
 	parsed, _ := rootNode.ParseExprAsProducer(expr, false)
@@ -238,7 +239,7 @@ func parseExpr(rootNode *RootAssertionNode, expr ast.Expr) TrackableExpr {
 // - `v, ok := mp[k]`
 // - `v, ok := <-ch`
 // - `r0, r1, r2, ..., ok := f()`
-func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardNonceGenerator, node ast.Node) ([]RichCheckEffect, bool) {
+func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *guard.NonceGenerator, node ast.Node) ([]RichCheckEffect, bool) {
 	lhs, rhs := asthelper.ExtractLHSRHS(node)
 	if len(lhs) < 2 || len(rhs) != 1 {
 		return nil, false
@@ -261,7 +262,7 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 		}
 
 		rhsXType := rootNode.Pass().TypesInfo.Types[rhs.X].Type
-		if util.TypeIsDeeplyMap(rhsXType) {
+		if typeshelper.IsDeeplyMap(rhsXType) {
 			// Create a rich check effect for `v` part of the map read in `v, ok := mp[k]`
 			if lhsValueParsed := parseExpr(rootNode, lhs[0]); lhsValueParsed != nil {
 				// Here, the lhs `value` operand is trackable
@@ -311,7 +312,7 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 		}
 
 		rhsXType := rootNode.Pass().TypesInfo.Types[rhs.X].Type
-		if rhs.Op == token.ARROW && util.TypeIsDeeplyChan(rhsXType) {
+		if rhs.Op == token.ARROW && typeshelper.IsDeeplyChan(rhsXType) {
 			lhsValueParsed := parseExpr(rootNode, lhs[0])
 			if lhsValueParsed != nil {
 				// here, the lhs `value` operand is trackable
@@ -336,7 +337,7 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 			}
 		}
 	case *ast.CallExpr:
-		callIdent := util.FuncIdentFromCallExpr(rhs)
+		callIdent := asthelper.FuncIdentFromCallExpr(rhs)
 		if callIdent == nil {
 			// this discards the case of an anonymous function
 			// perhaps in the future we could change this
@@ -345,7 +346,7 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 
 		rhsFuncDecl, ok := rootNode.ObjectOf(callIdent).(*types.Func)
 
-		if !ok || !util.FuncIsOkReturning(rhsFuncDecl) {
+		if !ok || !typeshelper.FuncIsOkReturning(rhsFuncDecl.Signature()) {
 			return nil, false
 		}
 
@@ -353,8 +354,7 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 		for i := 0; i < len(lhs)-1; i++ {
 			lhsExpr := lhs[i]
 			lhsValueParsed := parseExpr(rootNode, lhsExpr)
-			if lhsValueParsed == nil || util.ExprBarsNilness(rootNode.Pass(), lhsExpr) {
-				// ignore assignments to any variables whose type bars nilness, such as 'int'
+			if lhsValueParsed == nil {
 				continue
 			}
 			// here, the lhs `value` operand is trackable
@@ -375,7 +375,7 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *util.GuardN
 
 // NodeTriggersFuncErrRet is a case of a node creating a rich check effect.
 // it matches on calls to functions with error-returning types
-func NodeTriggersFuncErrRet(rootNode *RootAssertionNode, nonceGenerator *util.GuardNonceGenerator, node ast.Node) ([]RichCheckEffect, bool) {
+func NodeTriggersFuncErrRet(rootNode *RootAssertionNode, nonceGenerator *guard.NonceGenerator, node ast.Node) ([]RichCheckEffect, bool) {
 	lhs, rhs := asthelper.ExtractLHSRHS(node)
 
 	if len(lhs) == 0 || len(rhs) != 1 {
@@ -389,23 +389,16 @@ func NodeTriggersFuncErrRet(rootNode *RootAssertionNode, nonceGenerator *util.Gu
 		return nil, false
 	}
 
-	callIdent := util.FuncIdentFromCallExpr(callExpr)
+	// Get signature of the function call (normal and anonymous both)
+	sig := typeshelper.GetFuncSignature(rootNode.Pass().TypesInfo.TypeOf(callExpr.Fun))
 
-	if callIdent == nil {
-		// this discards the case of an anonymous function
-		// perhaps in the future we could change this
-		return nil, false
-	}
-
-	rhsFuncDecl, ok := rootNode.Pass().TypesInfo.ObjectOf(callIdent).(*types.Func)
-
-	if !ok || !util.FuncIsErrReturning(rhsFuncDecl) {
+	if sig == nil || !typeshelper.FuncIsErrReturning(sig) {
 		return nil, false
 	}
 
 	// we've found an assignment of vars to an error-returning function!
 
-	results := rhsFuncDecl.Type().(*types.Signature).Results()
+	results := sig.Results()
 	n := results.Len()
 	if len(lhs) != n {
 		panic(fmt.Sprintf("ERROR: AssignStmt found with %d operands on left, "+
@@ -427,9 +420,7 @@ func NodeTriggersFuncErrRet(rootNode *RootAssertionNode, nonceGenerator *util.Gu
 		lhsExpr := lhs[i]
 		lhsExprParsed := parseExpr(rootNode, lhsExpr)
 
-		if lhsExprParsed == nil || util.ExprBarsNilness(rootNode.Pass(), lhsExpr) {
-			// for now, we ignore assignments into anything but local variables
-			// we also ignore assignments to any variables whose type bars nilness, such as 'int'
+		if lhsExprParsed == nil {
 			continue
 		}
 
@@ -470,8 +461,17 @@ func nodeAssignsOneWithoutOther(rootNode *RootAssertionNode, node ast.Node, one,
 // variable `checksVar`. Note that because of preprocessing done in `restructureBlock` from
 // `preprocess_blocks.go`, this suffices to handle cases such as `nil != checksVar` as well.
 func exprIsPositiveNilCheck(rootNode *RootAssertionNode, expr ast.Expr, checksExpr TrackableExpr) bool {
-	if binExpr, ok := expr.(*ast.BinaryExpr); ok && binExpr.Op == token.EQL && util.IsLiteral(binExpr.Y, "nil") {
-		return exprMatchesTrackableExpr(rootNode, binExpr.X, checksExpr)
+	if binExpr, ok := expr.(*ast.BinaryExpr); ok && binExpr.Op == token.EQL && asthelper.IsLiteral(binExpr.Y, "nil") {
+		// Standard case: X == nil
+		if exprMatchesTrackableExpr(rootNode, binExpr.X, checksExpr) {
+			return true
+		}
+		// Special case: type-switch guard rewritten as "(x.(type)) == nil".
+		// In such cases, the BinaryExpr.X will be a *ast.TypeAssertExpr whose Type is nil,
+		// and we should treat it as if we are checking "x == nil".
+		if ta, ok := binExpr.X.(*ast.TypeAssertExpr); ok && ta.Type == nil {
+			return exprMatchesTrackableExpr(rootNode, ta.X, checksExpr)
+		}
 	}
 	return false
 }
@@ -484,13 +484,13 @@ func exprMatchesTrackableExpr(rootNode *RootAssertionNode, expr ast.Expr, checks
 
 // guardExpr marks all the consume triggers in the var assertion node corresponding to the passed
 // variable (if such a node exists) as guarded by the passed GuardNonce
-func guardExpr(rootNode *RootAssertionNode, expr TrackableExpr, guard util.GuardNonce) {
+func guardExpr(rootNode *RootAssertionNode, expr TrackableExpr, nonce guard.Nonce) {
 	lookedUpNode, _ := rootNode.lookupPath(expr)
 	if lookedUpNode != nil {
 		// The passed expression is tracked, so mark its corresponding node as guarded
 		lookedUpNode.SetConsumeTriggers(
 			annotation.ConsumeTriggerSliceAsGuarded(
-				lookedUpNode.ConsumeTriggers(), guard))
+				lookedUpNode.ConsumeTriggers(), nonce))
 	}
 }
 
@@ -504,9 +504,9 @@ func guardExpr(rootNode *RootAssertionNode, expr TrackableExpr, guard util.Guard
 //
 // Important: do not duplicate any pointers: each returned RichCheckEffect should be a unique object
 func genInitialRichCheckEffects(graph *cfg.CFG, functionContext FunctionContext) (
-	[][]RichCheckEffect, util.ExprNonceMap) {
+	[][]RichCheckEffect, guard.ExprNonceMap) {
 	richCheckBlocks := make([][]RichCheckEffect, len(graph.Blocks))
-	nonceGenerator := util.NewGuardNonceGenerator()
+	nonceGenerator := guard.NewNonceGenerator()
 
 	// There is no canonical instance of RootAssertionNode until backpropAcrossFunc returns.
 	// We use a temporary root here as a means to pass contextual information like the function

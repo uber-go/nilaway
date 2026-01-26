@@ -92,7 +92,7 @@ func testLocalDeepAssignNil(i int) {
 	case 7:
 		sl := make([]*int, 1)
 		sl[i] = retNilSometimes()
-		_ = *sl[i] // error here grouped with error in case 3
+		_ = *sl[i] //want "literal `nil` returned from `retNilSometimes"
 
 	case 8:
 		ch := make(chan *int)
@@ -196,7 +196,9 @@ func testDeepLocalInterprocedural(i int) {
 	case 10:
 		a := &A{}
 		a.f = nil
-		_ = *deepLocalReturn10(a)[0] //want "deep read from result 0 of `deepLocalReturn10.*` dereferenced"
+		// TODO: Error should be reported on the line below. It is currently not reported because of the suppression of
+		//  struct field assignment logic that we added until we add object sensitivity for precise handling (issue #339).
+		_ = *deepLocalReturn10(a)[0] // "deep read from result 0 of `deepLocalReturn10.*` dereferenced"
 	}
 }
 

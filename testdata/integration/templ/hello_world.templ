@@ -1,0 +1,25 @@
+// Note that this file is here for reference only and is not used in the tests.
+// The generated templ file is used and since we need to add "want" strings in the generated file
+// for testing purposes, we cannot ensure this original file stays consistent with the generated one.
+// We will try to keep this file up to date with the generated templ file, but use the generated
+// file as the source of truth.
+
+package templ
+
+templ Deref(p *string) {
+	<div>
+		Hello, { *p }
+	</div>
+}
+
+templ Hello() {
+	<html>
+		<head>
+			<title>Hello</title>
+		</head>
+		<body>
+			<h1>Hello World</h1>
+			@Deref(nil)
+		</body>
+	</html>
+}

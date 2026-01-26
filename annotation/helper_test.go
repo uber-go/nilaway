@@ -20,10 +20,12 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
+	"maps"
 	"reflect"
+	"slices"
 
 	"github.com/stretchr/testify/mock"
-	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/util/typeshelper"
 	"golang.org/x/tools/go/packages"
 )
 
@@ -109,11 +111,7 @@ func getImplementedMethods(t *types.Named) []*types.Func {
 	visitedMethods := make(map[string]*types.Func) // helps in only storing the latest overridden implementation of a method
 	visitedStructs := make(map[*types.Struct]bool) // helps in avoiding infinite recursion if there is a cycle in the struct embedding
 	collectMethods(t, visitedMethods, visitedStructs)
-	methods := make([]*types.Func, 0, len(visitedMethods))
-	for _, m := range visitedMethods {
-		methods = append(methods, m)
-	}
-	return methods
+	return slices.AppendSeq(make([]*types.Func, 0, len(visitedMethods)), maps.Values(visitedMethods))
 }
 
 // collectMethods is a helper function that recursively collects all `methods` implemented by the struct `t`.
@@ -134,12 +132,12 @@ func collectMethods(t *types.Named, visitedMethods map[string]*types.Func, visit
 	}
 
 	// collect methods from embedded fields
-	if s := util.TypeAsDeeplyStruct(t); s != nil && !visitedStructs[s] {
+	if s := typeshelper.AsDeeplyStruct(t); s != nil && !visitedStructs[s] {
 		visitedStructs[s] = true
 		for i := 0; i < s.NumFields(); i++ {
 			f := s.Field(i)
 			if f.Embedded() {
-				if n, ok := util.UnwrapPtr(f.Type()).(*types.Named); ok {
+				if n, ok := typeshelper.UnwrapPtr(types.Unalias(f.Type())).(*types.Named); ok {
 					collectMethods(n, visitedMethods, visitedStructs)
 				}
 			}
@@ -197,7 +195,7 @@ func structsImplementingInterface(interfaceName string, packageName ...string) m
 							if sObj == nil {
 								return true
 							}
-							sType, ok := sObj.Type().(*types.Named)
+							sType, ok := types.Unalias(sObj.Type()).(*types.Named)
 							if !ok {
 								return true
 							}

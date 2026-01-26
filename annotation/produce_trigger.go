@@ -21,7 +21,7 @@ import (
 	"go/types"
 	"strings"
 
-	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/util/typeshelper"
 )
 
 // A ProducingAnnotationTrigger is a possible reason that a nil value might be produced
@@ -460,7 +460,7 @@ func (BlankVarReturnPrestring) String() string {
 // DuplicateParamProducer duplicates a given produce trigger, assuming the given produce trigger
 // is of FuncParam.
 func DuplicateParamProducer(t *ProduceTrigger, location token.Position) *ProduceTrigger {
-	key := t.Annotation.(*FuncParam).TriggerIfNilable.Ann.(*ParamAnnotationKey)
+	key := t.Annotation.(*FuncParam).Ann.(*ParamAnnotationKey)
 	return &ProduceTrigger{
 		Annotation: &FuncParam{
 			TriggerIfNilable: &TriggerIfNilable{
@@ -837,8 +837,8 @@ type MethodResultReachesInterface struct {
 func (m *MethodResultReachesInterface) equals(other ProducingAnnotationTrigger) bool {
 	if other, ok := other.(*MethodResultReachesInterface); ok {
 		return m.TriggerIfNilable.equals(other.TriggerIfNilable) &&
-			m.AffiliationPair.InterfaceMethod == other.AffiliationPair.InterfaceMethod &&
-			m.AffiliationPair.ImplementingMethod == other.AffiliationPair.ImplementingMethod
+			m.InterfaceMethod == other.InterfaceMethod &&
+			m.ImplementingMethod == other.ImplementingMethod
 	}
 	return false
 }
@@ -848,8 +848,8 @@ func (m *MethodResultReachesInterface) Prestring() Prestring {
 	retAnn := m.Ann.(*RetAnnotationKey)
 	return MethodResultReachesInterfacePrestring{
 		retAnn.RetNum,
-		util.PartiallyQualifiedFuncName(retAnn.FuncDecl),
-		util.PartiallyQualifiedFuncName(m.InterfaceMethod),
+		typeshelper.PartiallyQualifiedFuncName(retAnn.FuncDecl),
+		typeshelper.PartiallyQualifiedFuncName(m.InterfaceMethod),
 	}
 }
 
@@ -874,8 +874,8 @@ type InterfaceParamReachesImplementation struct {
 func (i *InterfaceParamReachesImplementation) equals(other ProducingAnnotationTrigger) bool {
 	if other, ok := other.(*InterfaceParamReachesImplementation); ok {
 		return i.TriggerIfNilable.equals(other.TriggerIfNilable) &&
-			i.AffiliationPair.InterfaceMethod == other.AffiliationPair.InterfaceMethod &&
-			i.AffiliationPair.ImplementingMethod == other.AffiliationPair.ImplementingMethod
+			i.InterfaceMethod == other.InterfaceMethod &&
+			i.ImplementingMethod == other.ImplementingMethod
 	}
 	return false
 }
@@ -885,8 +885,8 @@ func (i *InterfaceParamReachesImplementation) Prestring() Prestring {
 	paramAnn := i.Ann.(*ParamAnnotationKey)
 	return InterfaceParamReachesImplementationPrestring{
 		paramAnn.ParamNameString(),
-		util.PartiallyQualifiedFuncName(paramAnn.FuncDecl),
-		util.PartiallyQualifiedFuncName(i.ImplementingMethod),
+		typeshelper.PartiallyQualifiedFuncName(paramAnn.FuncDecl),
+		typeshelper.PartiallyQualifiedFuncName(i.ImplementingMethod),
 	}
 }
 

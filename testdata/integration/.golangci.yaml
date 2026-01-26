@@ -1,0 +1,15 @@
+version: "2"
+
+linters:
+  exclusions:
+    generated: disable
+  default: none
+  enable:
+    - nilaway
+  settings:
+    custom:
+      nilaway:
+        type: module
+        description: Static analysis tool to detect potential nil panics in Go code.
+        settings:
+          pretty-print: "false"

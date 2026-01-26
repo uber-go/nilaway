@@ -114,3 +114,30 @@ func callFoo() {
 	ptr := foo(nil)
 	print(*ptr) //want "NILABLE because it is annotated as so"
 }
+
+type S struct {
+	Field *int
+}
+
+func f1() *S {
+	s := &S{}
+	s.Field = nil
+	print(*s.Field) //want "dereferenced"
+	return s
+}
+
+func f2() *S {
+	s := &S{Field: new(int)}
+	print(*s.Field) // safe
+	return s
+}
+
+func f3() {
+	s1 := f1()
+	// TODO: Error should be reported on the line below. It is currently not reported because of the suppression of
+	//  struct field assignment logic that we added until we add object sensitivity for precise handling (issue #339).
+	print(*s1.Field) // "dereferenced"
+
+	s2 := f2()
+	print(*s2.Field) // safe
+}

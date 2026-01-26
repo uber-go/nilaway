@@ -112,12 +112,12 @@ func inferredValDiff(newVal, oldVal InferredVal) (InferredVal, bool) {
 		panic(fmt.Sprintf("ERROR: new value %s does not supersede old value %s", newVal, oldVal))
 	}
 
-	sitesWithAssertionsDiff := func(new, old *orderedmap.OrderedMap[primitiveSite, primitiveFullTrigger]) (*orderedmap.OrderedMap[primitiveSite, primitiveFullTrigger], bool) {
+	sitesWithAssertionsDiff := func(newMap, oldMap *orderedmap.OrderedMap[primitiveSite, primitiveFullTrigger]) (*orderedmap.OrderedMap[primitiveSite, primitiveFullTrigger], bool) {
 		diff := orderedmap.New[primitiveSite, primitiveFullTrigger]()
 		diffNonempty := false
-		for _, p := range new.Pairs {
+		for _, p := range newMap.Pairs {
 			site, trigger := p.Key, p.Value
-			if _, oldPresent := old.Load(site); !oldPresent {
+			if _, oldPresent := oldMap.Load(site); !oldPresent {
 				diff.Store(site, trigger)
 				diffNonempty = true
 			}

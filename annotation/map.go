@@ -23,8 +23,9 @@ import (
 	"strings"
 
 	"go.uber.org/nilaway/config"
-	"go.uber.org/nilaway/util"
-	"golang.org/x/tools/go/analysis"
+	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/asthelper"
+	"go.uber.org/nilaway/util/typeshelper"
 )
 
 // Map is an abstraction that concrete annotation maps must implement to be checked against.
@@ -319,7 +320,7 @@ func nilabilityFromCommentGroup(group *ast.CommentGroup) nilabilitySet {
 					deepFunc, shallowFunc = markDeepNilable, markNilable
 				}
 
-				for _, match := range strings.Split(seqMatch[2], sep) {
+				for match := range strings.SplitSeq(seqMatch[2], sep) {
 					match = strings.TrimSpace(match)
 					n := len(match)
 
@@ -355,7 +356,7 @@ func TypeIsDefaultNilable(t types.Type) bool {
 	}
 
 	// Builtin error type should be nilable by default.
-	if types.Identical(t, util.ErrorType) {
+	if types.Identical(t, typeshelper.ErrorType) {
 		return true
 	}
 
@@ -365,14 +366,6 @@ func TypeIsDefaultNilable(t types.Type) bool {
 		return true
 	}
 
-	// Additionally, we allow custom default nilable types provided by the users.
-	if t, ok := t.(*types.Named); ok {
-		for _, defaultNilableNamedType := range config.DefaultNilableNamedTypes {
-			if t.String() == defaultNilableNamedType {
-				return true
-			}
-		}
-	}
 	return false
 }
 
@@ -390,7 +383,7 @@ func TypeIsDeepDefaultNilable(t types.Type) bool {
 			return TypeIsDeepDefaultNilable(e)
 		}
 		// assign deep nilability based on the element type
-		return !util.TypeBarsNilness(t.Elem())
+		return !typeshelper.TypeBarsNilness(t.Elem())
 	case *types.Slice:
 		return TypeIsDefaultNilable(t.Elem())
 	case *types.Map:
@@ -424,7 +417,7 @@ func (set nilabilitySet) checkNilability(name string, t types.Type) Val {
 	return val
 }
 
-func newObservedMap(pass *analysis.Pass, files []*ast.File) *ObservedMap {
+func newObservedMap(pass *analysishelper.EnhancedPass, files []*ast.File) *ObservedMap {
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
 	// TODO - only store annotations for fields/vars/parameters of types that do not bar nilness
 
@@ -504,7 +497,7 @@ func newObservedMap(pass *analysis.Pass, files []*ast.File) *ObservedMap {
 	readRecvAnnotations := func(decl *ast.FuncDecl, set nilabilitySet) Val {
 		if decl.Recv != nil {
 			if len(decl.Recv.List) > 1 {
-				panic(fmt.Sprintf("Multiple receivers found for method %s", decl.Name))
+				pass.Panic(fmt.Sprintf("Multiple receivers found for method %s", decl.Name), decl.Pos())
 			}
 			return accFromFieldList(set, decl.Recv, false, false)[0]
 		}
@@ -656,7 +649,7 @@ func newObservedMap(pass *analysis.Pass, files []*ast.File) *ObservedMap {
 				return true
 			}
 
-			ident := util.FuncIdentFromCallExpr(expr)
+			ident := asthelper.FuncIdentFromCallExpr(expr)
 			// if ident is nil, keep searching for nested CallExpr nodes.
 			if ident == nil {
 				return true
@@ -678,9 +671,9 @@ func newObservedMap(pass *analysis.Pass, files []*ast.File) *ObservedMap {
 					"have parsed annotations once for every function declaration and the " +
 					"mappings should have been set up.")
 			}
-			callSite := CallSite{Fun: funcObj, Location: util.PosToLocation(expr.Pos(), pass)}
+			callSite := CallSite{Fun: funcObj, Location: pass.PosToLocation(expr.Pos())}
 			for i, val := range accFromFieldList(set, funcDecl.Type.Params, true, true) {
-				argLoc := util.PosToLocation(expr.Args[i].Pos(), pass)
+				argLoc := pass.PosToLocation(expr.Args[i].Pos())
 				funcCallSiteParamAnnMap[callSite] = append(funcCallSiteParamAnnMap[callSite],
 					ArgLocAndVal{Location: argLoc, Val: val})
 			}
@@ -701,6 +694,6 @@ func newObservedMap(pass *analysis.Pass, files []*ast.File) *ObservedMap {
 	}
 }
 
-func getLineFromPos(pos token.Pos, pass *analysis.Pass) int {
+func getLineFromPos(pos token.Pos, pass *analysishelper.EnhancedPass) int {
 	return pass.Fset.Position(pos).Line
 }

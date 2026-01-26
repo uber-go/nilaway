@@ -34,12 +34,13 @@ var Analyzer = &analysis.Analyzer{
 	Name:       "nilaway_affiliation_analyzer",
 	Doc:        _doc,
 	Run:        analysishelper.WrapRun(run),
-	FactTypes:  []analysis.Fact{new(AffliliationCache)},
+	FactTypes:  []analysis.Fact{new(Cache)},
 	ResultType: reflect.TypeOf((*analysishelper.Result[[]annotation.FullTrigger])(nil)),
 	Requires:   []*analysis.Analyzer{config.Analyzer},
 }
 
-func run(pass *analysis.Pass) ([]annotation.FullTrigger, error) {
+func run(p *analysis.Pass) ([]annotation.FullTrigger, error) {
+	pass := analysishelper.NewEnhancedPass(p)
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
 
 	if !conf.IsPkgInScope(pass.Pkg) {

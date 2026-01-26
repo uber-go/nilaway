@@ -17,11 +17,10 @@ package inference
 import (
 	"fmt"
 	"go/token"
-	"os"
-	"path/filepath"
 
 	"go.uber.org/nilaway/annotation"
-	"golang.org/x/tools/go/analysis"
+	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/tokenhelper"
 	"golang.org/x/tools/go/types/objectpath"
 )
 
@@ -119,19 +118,16 @@ func (s *primitiveSite) String() string {
 //
 // [archive importer]: https://github.com/golang/tools/blob/fa12f34b4218307705bf0365ab7df7c119b3653a/internal/gcimporter/bimport.go#L59-L69
 type primitivizer struct {
-	pass *analysis.Pass
+	pass *analysishelper.EnhancedPass
 	// upstreamObjPositions maps "<pkg path>.<object path>" to the correct position.
 	upstreamObjPositions map[string]token.Position
-	// curDir is the current working directory, which is used to trim the prefix (e.g.,  random
-	// sandbox prefix if using bazel) from the file names for cross-package references.
-	curDir string
 	// objPathEncoder is used to encode object paths, which amortizes the cost of encoding the
 	// paths of multiple objects.
 	objPathEncoder *objectpath.Encoder
 }
 
 // newPrimitivizer returns a new and properly-initialized primitivizer.
-func newPrimitivizer(pass *analysis.Pass) *primitivizer {
+func newPrimitivizer(pass *analysishelper.EnhancedPass) *primitivizer {
 	// To tackle the position discrepancies for upstream sites, we have added an ObjectPath field
 	// to primitiveSite, which can be used to uniquely identify an exported object relative to the
 	// package. Then, we simply cache the correct position information when importing
@@ -153,28 +149,26 @@ func newPrimitivizer(pass *analysis.Pass) *primitivizer {
 			}
 
 			objRepr := site.PkgPath + "." + string(site.ObjectPath)
-			if existing, ok := upstreamObjPositions[objRepr]; ok && existing != site.Position {
-				panic(fmt.Sprintf(
-					"conflicting position information on upstream object %q: existing: %v, got: %v",
-					objRepr, existing, site.Position,
-				))
-			}
+			// TODO: This check seems to be triggered only for bazel/nogo driver (and usually for
+			//  generated files like protobuf). For now, we disable such panics to avoid breaking
+			//  the analysis, since it would only result in degraded performance (we will not
+			//  correctly associate the objects in local-package analysis with imported upstream
+			//  objects), but we should investigate the root cause and fix it.
+			//  See https://github.com/uber-go/nilaway/issues/149 for more details.
+			// if existing, ok := upstreamObjPositions[objRepr]; ok && existing != site.Position {
+			// 	panic(fmt.Sprintf(
+			// 		"conflicting position information on upstream object %q: existing: %v, got: %v",
+			// 		objRepr, existing, site.Position,
+			// 	))
+			// }
 			upstreamObjPositions[objRepr] = site.Position
 			return true
 		})
 	}
 
-	// Find the current working directory (e.g., random sandbox prefix if using bazel) for
-	// trimming the file names.
-	cwd, err := os.Getwd()
-	if err != nil {
-		panic(fmt.Sprintf("cannot get current working directory: %v", err))
-	}
-
 	return &primitivizer{
 		pass:                 pass,
 		upstreamObjPositions: upstreamObjPositions,
-		curDir:               cwd,
 		objPathEncoder:       &objectpath.Encoder{},
 	}
 }
@@ -260,9 +254,7 @@ func (p *primitivizer) toPosition(pos token.Pos) token.Position {
 	// For other drivers (standard or golangci-lint), we won't even have this prefix prepended,
 	// since the file paths will always be in the form of the relative paths (e.g.,
 	// `src/mypkg/mysrc1.go`). Trimming the prefixes here for them is simply a no-op.
-	if name, err := filepath.Rel(p.curDir, position.Filename); err == nil {
-		position.Filename = name
-	}
+	position.Filename = tokenhelper.RelToCwd(position.Filename)
 
 	return position
 }

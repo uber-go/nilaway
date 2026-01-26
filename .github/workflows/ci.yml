@@ -10,13 +10,13 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         name: Check out repository
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.22.x
+          go-version: 1.25.x
           cache: false
 
       - name: Read golangci-lint version from .golangci.version
@@ -26,7 +26,7 @@ jobs:
       # We do not really run golangci-lint here (hence we use the -h flag). We just use the
       # golangci-lint action to install it and reuses its internal caching infrastructure.
       # The actual execution is done in the Lint job (together with other custom linting tasks).
-      - uses: golangci/golangci-lint-action@v4
+      - uses: golangci/golangci-lint-action@v8
         name: Install golangci-lint
         with:
           version: v${{ steps.golangci-version.outputs.GOLANGCI_VERSION }}
@@ -43,12 +43,12 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go: [ "1.21.x", "1.22.x" ]
+        go: [ "1.24.x", "1.25.x" ]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go }}
           cache: true
@@ -78,12 +78,12 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go: [ "1.21.x", "1.22.x" ]
+        go: [ "1.24.x", "1.25.x" ]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go }}
           cache: true

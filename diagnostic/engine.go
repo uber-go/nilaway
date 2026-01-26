@@ -21,13 +21,12 @@ import (
 	"cmp"
 	"fmt"
 	"go/token"
-	"os"
-	"path/filepath"
 	"slices"
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/inference"
-	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/tokenhelper"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -40,26 +39,16 @@ type fileInfo struct {
 
 // Engine is the main engine for generating diagnostics from conflicts.
 type Engine struct {
-	pass      *analysis.Pass
+	pass      *analysishelper.EnhancedPass
 	conflicts []conflict
 	// files maps the file name (modulo the possible build-system prefix) to the token.File object
 	// for faster lookup when converting correct upstream position back to local token.Pos for
 	// reporting purposes.
 	files map[string]fileInfo
-	// cwd is the current working directory for trimming the file names to get truly package- and
-	// build-system- (bazel for example adds a random sandbox prefix) independent positions.
-	cwd string
 }
 
 // NewEngine creates a new diagnostic engine.
-func NewEngine(pass *analysis.Pass) *Engine {
-	// Find the current working directory (e.g., random sandbox prefix if using bazel) for trimming
-	// the file names.
-	cwd, err := os.Getwd()
-	if err != nil {
-		panic(fmt.Sprintf("cannot get current working directory: %v", err))
-	}
-
+func NewEngine(pass *analysishelper.EnhancedPass) *Engine {
 	// Iterate all files within the Fset (which includes upstream and current-package files), and
 	// store the mapping between its file name (modulo the possible build-system prefix) and the
 	// token.File object. This is needed for converting correct upstream position back to local
@@ -67,13 +56,9 @@ func NewEngine(pass *analysis.Pass) *Engine {
 	// [inference.primitivizer.toPosition] for more detailed explanations.
 	files := make(map[string]fileInfo)
 	pass.Fset.Iterate(func(file *token.File) bool {
-		name, err := filepath.Rel(cwd, file.Name())
-		if err != nil {
-			// For files that are not in the execroot (e.g., stdlib files start with "$GOROOT", and
-			// upstream files that do not have the build-system prefix), we can simply use the
-			// original file name.
-			name = file.Name()
-		}
+		// For files that are not in the execroot (e.g., stdlib files start with "$GOROOT", and
+		// upstream files that do not have the build-system prefix), it simply returns the original.
+		name := tokenhelper.RelToCwd(file.Name())
 
 		// The file will be fake (conceptually "\n" * 65535) if it is imported from archive. So we
 		// check if there are any gaps between the line starts to determine if the file is fake.
@@ -93,7 +78,7 @@ func NewEngine(pass *analysis.Pass) *Engine {
 		return true
 	})
 
-	return &Engine{pass: pass, files: files, cwd: cwd}
+	return &Engine{pass: pass, files: files}
 }
 
 // Diagnostics generates diagnostics from the internally-stored conflicts. The grouping parameter
@@ -114,12 +99,23 @@ func (e *Engine) Diagnostics(grouping bool) []analysis.Diagnostic {
 	conflicts := e.conflicts
 	if grouping {
 		// Group conflicts with the same nil path together for concise reporting.
-		conflicts = groupConflicts(e.conflicts, e.pass, e.cwd)
+		conflicts = groupConflicts(e.conflicts, e.pass)
 	}
 
-	// Build diagnostics from conflicts.
+	// Build diagnostics from conflicts. Apply cross-package nolint suppressions here as well.
+	nolintResult := e.pass.ResultOf[NoLintAnalyzer].(*analysishelper.Result[[]Range])
+	if nolintResult.Err != nil {
+		panic(fmt.Sprintf("failed to get nolint ranges: %v", nolintResult.Err))
+	}
+	nolintRanges := nolintResult.Res
+
 	diagnostics := make([]analysis.Diagnostic, 0, len(conflicts))
 	for _, c := range conflicts {
+		if slices.ContainsFunc(nolintRanges, func(r Range) bool {
+			return c.position.Filename == r.Filename && c.position.Line >= r.From && c.position.Line <= r.To
+		}) {
+			continue
+		}
 		diagnostics = append(diagnostics, analysis.Diagnostic{
 			Pos:     e.toPos(c.position),
 			Message: c.String(),
@@ -135,12 +131,8 @@ func (e *Engine) AddSingleAssertionConflict(trigger annotation.FullTrigger) {
 	flow.addNonNilPathNode(producer, consumer)
 
 	position := e.pass.Fset.Position(trigger.Consumer.Expr.Pos())
-	// Try to trim the build system prefix (i.e., the current working directory) from the position.
-	// If NilAway is running in a driver that does not add such prefix, we will hit an error here,
-	// but that is fine, and we just do not need to do anything.
-	if filename, err := filepath.Rel(e.cwd, position.Filename); err == nil {
-		position.Filename = filename
-	}
+	// Try to trim the build system prefix (i.e., the current working directory) if present.
+	position.Filename = tokenhelper.RelToCwd(position.Filename)
 	e.conflicts = append(e.conflicts, conflict{
 		position: position,
 		flow:     flow,
@@ -164,7 +156,7 @@ func (e *Engine) AddOverconstraintConflict(nilReason, nonnilReason inference.Exp
 		} else {
 			flow.addNilPathNode(annotation.LocatedPrestring{
 				Contained: r,
-				Location:  util.TruncatePosition(r.Position()),
+				Location:  e.pass.HumanReadablePosition(r.Position()),
 			}, nil)
 		}
 	}
@@ -188,7 +180,7 @@ func (e *Engine) AddOverconstraintConflict(nilReason, nonnilReason inference.Exp
 		} else {
 			flow.addNonNilPathNode(annotation.LocatedPrestring{
 				Contained: r,
-				Location:  util.TruncatePosition(r.Position()),
+				Location:  e.pass.HumanReadablePosition(r.Position()),
 			}, nil)
 			reportPosition = position
 		}

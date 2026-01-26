@@ -20,13 +20,17 @@ package inference
 
 import (
 	"errors"
+	"fmt"
 
+	"go.uber.org/errorreturn"
 	"go.uber.org/errorreturn/inference/otherPkg"
 )
 
 var dummy2 bool
 
-type myErr2 struct{}
+type myErr2 struct {
+	msg string
+}
 
 func (myErr2) Error() string { return "myErr2 message" }
 
@@ -36,6 +40,14 @@ func retNilErr2() error {
 
 func retNonNilErr2() error {
 	return &myErr2{}
+}
+
+func NewError(msg string) error {
+	return &myErr2{msg: msg}
+}
+
+func NewInternalError(msg string) error {
+	return &myErr2{msg: msg}
 }
 
 // ***** the below test case checks error return via a function and assigned to a variable *****
@@ -384,4 +396,775 @@ func testAlwaysSafeMultipleHops() {
 	// analysis of "return statements" to only the directly determinable cases (e.g., new(int), &S{}, NegativeNilCheck), not through multiple hops.
 	v2, _ := f1(0)
 	print(*v2) //want "dereferenced"
+}
+
+func testErrorWrapper1() (*int, error) {
+	err := &myErr2{}
+	if err != nil {
+		return nil, errorreturn.Wrapf(err)
+	}
+	return new(int), nil
+}
+
+func testErrorWrapper2() (*int, error) {
+	err := &myErr2{}
+	if err == nil {
+		return nil, errorreturn.Wrapf(errors.New("some error"))
+	}
+	return new(int), nil
+}
+
+type Fields map[string]interface{}
+type WrappedErr interface {
+	Error() string
+	WithFields(Fields) WrappedErr
+}
+
+type wrapped struct {
+	cause  error
+	msg    string
+	fields Fields
+}
+
+func (w *wrapped) Error() string {
+	return w.msg + ": " + w.cause.Error()
+}
+
+func (w *wrapped) WithFields(fields Fields) WrappedErr {
+	for k, v := range fields {
+		w.fields[k] = v
+	}
+	return w
+}
+
+func Wrap(err error, msg string) WrappedErr {
+	if err == nil {
+		return nil
+	}
+
+	return &wrapped{
+		msg:   msg,
+		cause: err,
+	}
+}
+
+func GetFirstErr(errs ...error) error {
+	if len(errs) == 0 {
+		return fmt.Errorf("GetFirstErr called with no errors")
+	}
+	return errs[0]
+}
+
+func GetFirstErrArr(errs [2]error) error {
+	return errs[0]
+}
+
+func GetErrPtr(e *error) error {
+	if e == nil {
+		return fmt.Errorf("GetErrPtr called with nil error")
+	}
+	return *e
+}
+
+// named type of error
+type myError error
+
+func GetErrNamedType(e myError) myError {
+	if e == nil {
+		return nil
+	}
+	return e
+}
+
+func testErrorWrapper3() (*int, error) {
+	if dummy2 {
+		err := &myErr2{}
+		return nil, Wrap(err, "test error")
+	}
+	return new(int), nil
+}
+
+func testErrorWrapper4() (*int, error) {
+	if dummy2 {
+		err := &myErr2{}
+		return nil, Wrap(err, "test error").WithFields(Fields{"key": "value"})
+	}
+	return new(int), nil
+}
+
+func testErrorWrapper5() error {
+	for i := 0; i < 10; i++ {
+		if i == 5 {
+			err := &myErr2{}
+			return Wrap(err, "test error").WithFields(Fields{"key": "value"})
+		}
+	}
+	return &myErr2{}
+}
+
+func testErrorWrapper6() (*int, error) {
+	if dummy2 {
+		err := &myErr2{}
+		return nil, Wrap(Wrap(Wrap(err, "test error"), "test error"), "test error").WithFields(nil)
+	}
+	return new(int), nil
+}
+
+func Wrapf(e error) error {
+	if e == nil {
+		return nil
+	}
+	return &myErr2{}
+}
+
+func testErrorWrapper7() (*int, error) {
+	if dummy2 {
+		return nil, Wrapf(Wrapf(Wrapf(&myErr2{})))
+	}
+	return new(int), nil
+}
+
+func testErrorWrapper8() (*int, error) {
+	if dummy2 {
+		return nil, errorreturn.Wrapf(errorreturn.Wrapf(errorreturn.Wrapf(&myErr2{})))
+	}
+	return new(int), nil
+}
+
+func testErrorWrapper9() (*int, error) {
+	if dummy2 {
+		w := &wrapped{cause: &myErr2{}}
+		return nil, w.cause
+	}
+	return new(int), nil
+}
+
+func testErrorWrapper10() (*int, error) {
+	if dummy2 {
+		return nil, Wrap(new(wrapped), "some message").WithFields(Fields{"key": "value"})
+	}
+	return new(int), nil
+}
+
+func consume(any) {}
+
+func callTestErrorWrapper(i int) {
+	switch i {
+	case 1:
+		x, err := testErrorWrapper1()
+		if err != nil {
+			return
+		}
+		_ = *x
+
+	case 2:
+		x, err := testErrorWrapper2()
+		if err != nil {
+			return
+		}
+		_ = *x
+
+	case 3:
+		x, err := testErrorWrapper3()
+		if err != nil {
+			return
+		}
+		_ = *x
+
+	case 4:
+		x, err := testErrorWrapper4()
+		if err != nil {
+			return
+		}
+		_ = *x
+
+	case 5:
+		err := &myErr2{}
+		consume(Wrap(err, "test error").WithFields(Fields{"key": "value"}).Error())
+
+	case 6:
+		err := testErrorWrapper5()
+		print(err.Error())
+
+	case 7:
+		var errs []error
+		err := &myErr2{}
+		errs = append(errs, err)
+		consume(GetFirstErr(errs...).Error())
+
+	case 8:
+		errs := [2]error{&myErr2{}, nil}
+		consume(GetFirstErrArr(errs).Error())
+
+	case 9:
+		x, err := testErrorWrapper6()
+		if err != nil {
+			return
+		}
+		_ = *x
+
+	case 10:
+		x, err := testErrorWrapper7()
+		if err != nil {
+			return
+		}
+		_ = *x
+
+	case 11:
+		x, err := testErrorWrapper8()
+		if err != nil {
+			return
+		}
+		_ = *x
+
+	case 12:
+		x, err := testErrorWrapper9()
+		if err != nil {
+			return
+		}
+		_ = *x
+
+	case 13:
+		var err error
+		err = &myErr2{}
+		ptrToErr := &err
+		consume(GetErrPtr(ptrToErr).Error())
+
+	case 14:
+		m := &myErr2{}
+		consume(GetErrNamedType(m).Error())
+
+	case 15:
+		x, err := testErrorWrapper10()
+		if err != nil {
+			return
+		}
+		_ = *x
+	}
+}
+
+// The below test checks for error returning functions that are named anonymous functions.
+// Note that until we make anonymous function support mainstream, we resort to suppressing the errors, which means
+// we don't report false positives, but we also don't report true positives.
+// TODO: remove this test once we have support for anonymous functions since similar, but more comprehensive tests are in the testdata/src/go.uber.org/anonymousfunction directory.
+func testNamedAnonErrReturningFunc(i int) {
+	f1 := func() (*int, error) {
+		if dummy2 {
+			return nil, &myErr2{}
+		}
+		return new(int), nil
+	}
+
+	f2 := func() (*int, error) {
+		if dummy2 {
+			return new(int), &myErr2{}
+		}
+		return new(int), nil
+	}
+
+	f3 := func() (*int, error) {
+		if dummy2 {
+			return nil, &myErr2{}
+		}
+		return nil, nil
+	}
+
+	switch i {
+	case 1:
+		x, err := f1()
+		if err != nil {
+			return
+		}
+		_ = *x
+
+	case 2:
+		if x2, err2 := f1(); err2 != nil {
+			// error expected, but a false negative for the reason explained above
+			_ = *x2
+		}
+
+	case 3:
+		x, err := f2()
+		if err != nil {
+			// safe since f2() always returns a non-nil value
+			_ = *x
+		}
+
+	case 4:
+		x, err := f3()
+		if err != nil {
+			return
+		}
+		// false negative: unsafe since f3() always returns a nil value
+		_ = *x
+	}
+}
+
+// The below test checks for error returning functions that are unnamed anonymous functions.
+// Note that until we make anonymous function support mainstream, we resort to suppressing the errors, which means
+// we don't report false positives, but we also don't report true positives.
+// TODO: remove this test once we have support for anonymous functions since similar, but more comprehensive tests are in the testdata/src/go.uber.org/anonymousfunction directory.
+func testUnnamedAnonErrReturningFunc(i int) {
+	switch i {
+	case 1:
+		x, err := func() (*int, error) {
+			if dummy2 {
+				return nil, &myErr2{}
+			}
+			return new(int), nil
+		}()
+		if err != nil {
+			return
+		}
+		_ = *x
+
+	case 2:
+		if x2, err2 := func() (*int, error) {
+			if dummy2 {
+				return nil, &myErr2{}
+			}
+			return new(int), nil
+		}(); err2 != nil {
+			// error expected, but a false negative for the reason explained above
+			_ = *x2
+		}
+
+	case 3:
+		x, err := func() (*int, error) {
+			if dummy2 {
+				return new(int), &myErr2{}
+			}
+			return new(int), nil
+		}()
+		if err != nil {
+			// safe since f2() always returns a non-nil value
+			_ = *x
+		}
+
+	case 4:
+		x, err := func() (*int, error) {
+			if dummy2 {
+				return nil, &myErr2{}
+			}
+			return nil, nil
+		}()
+		if err != nil {
+			return
+		}
+		// false negative: unsafe since the anonymous function always returns a nil value
+		_ = *x
+	}
+}
+
+// The below test checks for error returning functions that are type aliases.
+// Note that until we implement complete support for type aliases, we resort to suppressing the errors, which means
+// we don't report false positives, but we also don't report true positives.
+
+type MyErrRetFunc = func() (*int, error)
+
+func callTypeAliasFunc(f MyErrRetFunc) {
+	x, err := f()
+	if err != nil {
+		return
+	}
+	_ = *x
+}
+
+func namedRetPtrAndErr() (*int, error) {
+	if dummy2 {
+		return nil, &myErr2{}
+	}
+	return new(int), nil
+}
+
+func namedRetPtrAndErrAlwaysSafe() (*int, error) {
+	if dummy2 {
+		return new(int), &myErr2{}
+	}
+	return new(int), nil
+}
+
+func namedRetPtrAndErrAlwaysUnsafe() (*int, error) {
+	return nil, nil
+}
+
+func testTypeAliasErrReturningFunc(i int) {
+	switch i {
+	case 1:
+		callTypeAliasFunc(namedRetPtrAndErr)
+
+	case 2:
+		callTypeAliasFunc(namedRetPtrAndErrAlwaysSafe)
+
+	case 3:
+		// TODO: this is a false negative since the function always returns a nil value.
+		callTypeAliasFunc(namedRetPtrAndErrAlwaysUnsafe)
+
+	case 4:
+		callTypeAliasFunc(func() (*int, error) {
+			if dummy2 {
+				return nil, &myErr2{}
+			}
+			return new(int), nil
+		})
+
+	case 5:
+		callTypeAliasFunc(func() (*int, error) {
+			if dummy2 {
+				return new(int), &myErr2{}
+			}
+			return new(int), nil
+		})
+
+	case 6:
+		// TODO: this is a false negative since the function always returns a nil value.
+		callTypeAliasFunc(func() (*int, error) {
+			return nil, nil
+		})
+	}
+}
+
+type A struct {
+	f func() (*int, error)
+}
+
+func newAConditional() *A {
+	return &A{
+		f: func() (*int, error) {
+			if dummy2 {
+				return nil, &myErr2{}
+			}
+			return new(int), nil
+		},
+	}
+}
+
+func newAAlwaysSafe() *A {
+	return &A{
+		f: func() (*int, error) {
+			if dummy2 {
+				return new(int), &myErr2{}
+			}
+			return new(int), nil
+		},
+	}
+}
+
+func newAAlwaysUnsafe() *A {
+	return &A{
+		f: func() (*int, error) {
+			return nil, nil
+		},
+	}
+}
+
+func functionValueAsParam(f func() (*int, error)) {
+	v, err := f()
+	if err != nil {
+		return
+	}
+	_ = *v
+}
+
+func testFunctionValue(i int) {
+	switch i {
+	case 1:
+		a := newAConditional()
+		v, err := a.f()
+		if err != nil {
+			return
+		}
+		_ = *v
+
+	case 2:
+		a := newAAlwaysSafe()
+		v, err := a.f()
+		if err != nil {
+			return
+		}
+		_ = *v
+
+	case 3:
+		a := newAAlwaysUnsafe()
+		v, err := a.f()
+		if err != nil {
+			return
+		}
+		// TODO: this is a false negative since the function always returns a nil value.
+		_ = *v
+
+	case 4:
+		functionValueAsParam(func() (*int, error) {
+			if dummy2 {
+				return nil, &myErr2{}
+			}
+			return new(int), nil
+		})
+
+	case 5:
+		functionValueAsParam(func() (*int, error) {
+			if dummy2 {
+				return new(int), &myErr2{}
+			}
+			return new(int), nil
+		})
+
+	case 6:
+		// TODO: this is a false negative since the function always returns a nil value.
+		functionValueAsParam(func() (*int, error) {
+			return nil, nil
+		})
+	}
+}
+
+// checkError is a function that follows the same pattern as foo.
+func checkError(ptr *int, err error) (*int, error) {
+	if err != nil {
+		return nil, err
+	}
+	return ptr, nil
+}
+
+func TestDirectPassingOfErrorReturningFunc() {
+	ptr, err := checkError(retPtrAndErr2(0))
+	if err != nil {
+		return
+	}
+	print(*ptr) // safe
+}
+
+type Value[T any] struct {
+	value T
+	err   error
+}
+
+func (v Value[T]) Get() (T, error) {
+	return v.value, v.err
+}
+
+type V struct{}
+
+func retV() (V, error) {
+	return V{}, &myErr2{}
+}
+
+func retInt() (int, error) {
+	return 42, &myErr2{}
+}
+
+func TestAssignmentToNonPointerTypes(i int, v Value[V]) {
+	switch i {
+	case 1:
+		var sum *V
+		if a, err := v.Get(); err == nil {
+			sum = &a
+			_ = *sum
+		}
+
+	case 2:
+		var sum *V
+		if a, err := v.Get(); err == nil {
+			_ = &a
+			_ = *sum //want "dereferenced"
+		}
+
+	case 3:
+		var sum1, sum2 *V
+		if a, err := v.Get(); err == nil {
+			sum1 = &a
+			_ = *sum1
+			_ = *sum2 //want "dereferenced"
+		}
+
+	case 4:
+		var sum *V
+		if a, err := retV(); err == nil {
+			sum = &a
+			_ = *sum
+		}
+
+	case 5:
+		var sum *V
+		if a, err := retV(); err == nil {
+			_ = &a
+			_ = *sum //want "dereferenced"
+		}
+
+	case 6:
+		var sum1, sum2 *V
+		if a, err := retV(); err == nil {
+			sum1 = &a
+			_ = *sum1
+			_ = *sum2 //want "dereferenced"
+		}
+
+	case 7:
+		var sum *int
+		if a, err := retInt(); err == nil {
+			sum = &a
+			_ = *sum
+		}
+
+	case 8:
+		var sum *int
+		if a, err := retInt(); err == nil {
+			_ = &a
+			_ = *sum //want "dereferenced"
+		}
+
+	case 9:
+		var sum *V
+		a, _ := retV()
+		sum = &a
+		_ = *sum
+
+	case 10:
+		var sum *V
+		if a, err := retV(); err != nil {
+			sum = &a
+			_ = *sum
+		}
+	}
+}
+
+// Test generic error returning functions
+// TODO: Note that currently we do not support generics in NilAway. Hence, the below cases are expected to not report
+//  errors since we have put a suppresion in place for generic rich-check-effect functions' error reporting.
+
+func GenericFunc[T any]() (*T, error) {
+	var resp T
+	if dummy2 {
+		return nil, &myErr2{}
+	}
+	return &resp, nil
+}
+
+func GenericFuncAlwaysSafe[T any]() (*T, error) {
+	var resp T
+	return &resp, &myErr2{}
+}
+
+func GenericFuncAlwaysUnsafe[T any]() (*T, error) {
+	return nil, nil
+}
+
+func TestGenericFunc(s string) {
+	switch s {
+	case "conditionally safe":
+		v, err := GenericFunc[int]()
+		if err != nil {
+			return
+		}
+		print(*v)
+
+	case "conditionally unsafe":
+		if v, err := GenericFunc[int](); err != nil {
+			// TODO: This is a false negative since we do not support generics yet.
+			print(*v) // "dereferenced"
+		}
+
+	case "always safe":
+		v, err := GenericFuncAlwaysSafe[int]()
+		if err != nil {
+			return
+		}
+		print(*v)
+
+	case "always unsafe":
+		if v, err := GenericFuncAlwaysUnsafe[int](); err == nil {
+			// TODO: This is a false negative since we do not support generics yet.
+			print(*v) // "dereferenced"
+		}
+	}
+}
+
+func retPtrErrForNewInternalErrorLitString() (*int, error) {
+	resp, err := retPtrAndErr3()
+	if err != nil {
+		return nil, NewInternalError("some other error")
+	}
+	return resp, nil
+}
+
+func retPtrErrForNewInternalErrorCallExpr() (*int, error) {
+	resp, err := retPtrAndErr3()
+	if err != nil {
+		return nil, NewInternalError(err.Error())
+	}
+	return resp, nil
+}
+
+func retPtrErrForNewErrorLitString() (*int, error) {
+	resp, err := retPtrAndErr3()
+	if err != nil {
+		return nil, NewError("some other error")
+	}
+	return resp, nil
+}
+
+func retPtrErrWrappedNewErrorUnsafe() (*int, error) {
+	resp, err := retPtrAndErr3()
+	return resp, Wrapf(Wrapf(Wrapf(NewError(err.Error())))) //want "called `Error"
+}
+
+func retPtrErrWrappedNewErrorSafe() (*int, error) {
+	resp, err := retPtrAndErr3()
+	if err != nil {
+		return resp, Wrapf(Wrapf(Wrapf(NewError(err.Error()))))
+	}
+	return resp, nil
+}
+
+func retPtrErrUnwrap() (*int, error) {
+	resp, err := retPtrAndErr3()
+	if err != nil {
+		return resp, NewError(errors.Unwrap(err).Error())
+	}
+	return resp, nil
+}
+
+func TestNewError(s string) {
+	switch s {
+	case "NewInternalError with literal string message":
+		resp, err := retPtrErrForNewInternalErrorLitString()
+		if err != nil {
+			return
+		}
+		_ = *resp
+
+	case "NewInternalError with err.Error()":
+		resp, err := retPtrErrForNewInternalErrorCallExpr()
+		if err != nil {
+			return
+		}
+		_ = *resp
+
+	case "NewError with literal string message":
+		resp, err := retPtrErrForNewErrorLitString()
+		if err != nil {
+			return
+		}
+		_ = *resp
+
+	case "wrapped error with NewError, unsafe":
+		resp, err := retPtrErrWrappedNewErrorUnsafe()
+		if err != nil {
+			return
+		}
+		_ = *resp
+
+	case "wrapped error with NewError, safe":
+		resp, err := retPtrErrWrappedNewErrorSafe()
+		if err != nil {
+			return
+		}
+		_ = *resp
+
+	case "errors.Unwrap with NewError":
+		resp, err := retPtrErrUnwrap()
+		if err != nil {
+			return
+		}
+		_ = *resp
+	}
 }

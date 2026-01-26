@@ -124,3 +124,16 @@ func callGenericSlice() {
 	a := []*int{nil, nil, nil}
 	GenericSlice(a)
 }
+
+func genericFuncWithError[T AB](x T) (*int, error) {
+	i := 0
+	return &i, nil
+}
+
+func useGenericFuncWithEmptyIdent() {
+	a := &A{}
+	_, err := genericFuncWithError[*A](a)
+	if err != nil {
+		return
+	}
+}

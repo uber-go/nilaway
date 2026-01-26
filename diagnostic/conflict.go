@@ -18,11 +18,11 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
-	"path/filepath"
 	"strings"
 
 	"go.uber.org/nilaway/config"
-	"golang.org/x/tools/go/analysis"
+	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/tokenhelper"
 )
 
 type conflict struct {
@@ -62,7 +62,7 @@ func (c *conflict) addSimilarConflict(conflict conflict) {
 }
 
 // groupConflicts groups conflicts with the same nil path together and update conflicts list.
-func groupConflicts(allConflicts []conflict, pass *analysis.Pass, cwd string) []conflict {
+func groupConflicts(allConflicts []conflict, pass *analysishelper.EnhancedPass) []conflict {
 	conflictsMap := make(map[string]int)  // key: nil path string, value: index in `allConflicts`
 	indicesToIgnore := make(map[int]bool) // indices of conflicts to be ignored from `allConflicts`, since they are grouped with other conflicts
 
@@ -95,11 +95,7 @@ func groupConflicts(allConflicts []conflict, pass *analysis.Pass, cwd string) []
 				// from different functions. To handle such cases, we prepend the enclosing function name to the key.
 				conf := pass.ResultOf[config.Analyzer].(*config.Config)
 				for _, file := range pass.Files {
-					// `fileName` stores the complete file path relative to the current working directory
-					fileName := pass.Fset.Position(file.FileStart).Filename
-					if fn, err := filepath.Rel(cwd, fileName); err == nil {
-						fileName = fn
-					}
+					fileName := tokenhelper.RelToCwd(pass.Fset.Position(file.FileStart).Filename)
 					// Check if the file is in scope and the conflict position is in the same file
 					if !conf.IsFileInScope(file) || fileName != c.position.Filename {
 						continue

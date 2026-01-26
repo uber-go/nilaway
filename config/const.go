@@ -38,6 +38,3 @@ const NilAwayPkgPathPrefix = uberPkgPathPrefix + "/nilaway"
 // to the locations that triggered errors - right now it seems as if 1 is sufficient disambiguation,
 // but feel free to increase.
 const DirLevelsToPrintForTriggers = 1
-
-// DefaultNilableNamedTypes is the list of type names that we interpret as default nilable.
-var DefaultNilableNamedTypes = [...]string{}

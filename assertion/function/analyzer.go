@@ -32,8 +32,8 @@ import (
 	"go.uber.org/nilaway/assertion/function/functioncontracts"
 	"go.uber.org/nilaway/assertion/structfield"
 	"go.uber.org/nilaway/config"
-	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/asthelper"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/ctrlflow"
 	"golang.org/x/tools/go/cfg"
@@ -60,10 +60,9 @@ var Analyzer = &analysis.Analyzer{
 }
 
 // This limit is in place to prevent the expensive assertions analyzer from being run on
-// overly-sized functions. A possible alternative to this is capping on size of CFG in nodes
-// instead.
-// TODO: test how often (if ever) this is hit
-const _maxFuncSizeInBytes = 10000
+// overly-sized functions. The limit is based on the number of CFG blocks, which provides
+// a better measure of function complexity than token/byte count.
+const _maxFuncSizeInCFGBlocks = 500
 
 // functionResult is the struct that stores the results for analyzing a function declaration.
 type functionResult struct {
@@ -82,7 +81,9 @@ type functionResult struct {
 	funcDecl *ast.FuncDecl
 }
 
-func run(pass *analysis.Pass) ([]annotation.FullTrigger, error) {
+func run(p *analysis.Pass) ([]annotation.FullTrigger, error) {
+	var err error
+	pass := analysishelper.NewEnhancedPass(p)
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
 	if !conf.IsPkgInScope(pass.Pkg) {
 		return nil, nil
@@ -174,9 +175,12 @@ func run(pass *analysis.Pass) ([]annotation.FullTrigger, error) {
 			if funcDecl.Body == nil {
 				continue
 			}
-			// Skip if the function is too large.
-			funcSizeInBytes := int(funcDecl.Body.Rbrace - funcDecl.Body.Lbrace)
-			if funcSizeInBytes > _maxFuncSizeInBytes {
+			// Skip if the function is too large based on CFG complexity.
+			// Use CFG block count as a more accurate measure of function complexity
+			// than token/byte count, which can be misleading due to comments and formatting.
+			if graph != nil && len(graph.Blocks) > _maxFuncSizeInCFGBlocks {
+				err = errors.Join(err, fmt.Errorf("skipping function `%s()` at %s: function too large (%d CFG blocks, exceeds limit of %d blocks)",
+					funcDecl.Name.Name, pass.Fset.Position(funcDecl.Pos()), len(graph.Blocks), _maxFuncSizeInCFGBlocks))
 				continue
 			}
 
@@ -201,7 +205,6 @@ func run(pass *analysis.Pass) ([]annotation.FullTrigger, error) {
 	// as if the analyses were done serially). So we first store the result triggers in order,
 	// then flatten the slice.
 	// TODO: remove this extra logic once  is done.
-	var err error
 	funcTriggers := make([][]annotation.FullTrigger, funcIndex)
 	triggerCount := 0
 	funcResults := map[*types.Func]*functionResult{}
@@ -244,7 +247,7 @@ func run(pass *analysis.Pass) ([]annotation.FullTrigger, error) {
 // create new full triggers that duplicates the original full triggers of the contracted functions
 // but uses the new producers/consumers instead.
 func duplicateFullTriggersFromContractedFunctionsToCallers(
-	pass *analysis.Pass,
+	pass *analysishelper.EnhancedPass,
 	funcContracts functioncontracts.Map,
 	funcTriggers [][]annotation.FullTrigger,
 	funcResults map[*types.Func]*functionResult,
@@ -327,13 +330,13 @@ func duplicateFullTrigger(
 	trigger annotation.FullTrigger,
 	callee *types.Func,
 	callExpr *ast.CallExpr,
-	pass *analysis.Pass,
+	pass *analysishelper.EnhancedPass,
 	isParamProducer bool,
 	isReturnConsumer bool,
 ) annotation.FullTrigger {
 	// TODO: what if we have more than one parameter, planned in future revisions
 	argExpr := callExpr.Args[0]
-	argLoc := util.PosToLocation(argExpr.Pos(), pass)
+	argLoc := pass.PosToLocation(argExpr.Pos())
 
 	// Create the duplicated full trigger
 	// TODO: we just copy the pointer for producer and consumer because I don't see a problem when
@@ -355,7 +358,7 @@ func duplicateFullTrigger(
 		dupTrigger.Producer = annotation.DuplicateParamProducer(trigger.Producer, argLoc)
 	}
 	if isReturnConsumer {
-		retLoc := util.PosToLocation(callExpr.Pos(), pass)
+		retLoc := pass.PosToLocation(callExpr.Pos())
 		dupTrigger.Consumer = annotation.DuplicateReturnConsumer(trigger.Consumer, retLoc)
 		// Set up the site that controls the controlled full trigger to be created
 		c := annotation.NewCallSiteParamKey(callee, 0, argLoc)
@@ -370,7 +373,7 @@ func duplicateFullTrigger(
 // call it.
 func findCallsToContractedFunctions(
 	funcNode *ast.FuncDecl,
-	pass *analysis.Pass,
+	pass *analysishelper.EnhancedPass,
 	functionContracts functioncontracts.Map,
 ) map[*types.Func][]*ast.CallExpr {
 	calls := map[*types.Func][]*ast.CallExpr{}
@@ -380,7 +383,7 @@ func findCallsToContractedFunctions(
 			return true
 		}
 
-		ident := util.FuncIdentFromCallExpr(callExpr)
+		ident := asthelper.FuncIdentFromCallExpr(callExpr)
 		if ident == nil {
 			return true
 		}
@@ -421,7 +424,7 @@ func hasOnlyNonNilToNonNilContract(funcContracts functioncontracts.Map, funcObj 
 // The actual result will be sent via the channel.
 func analyzeFunc(
 	ctx context.Context,
-	pass *analysis.Pass,
+	pass *analysishelper.EnhancedPass,
 	funcDecl *ast.FuncDecl,
 	funcContext assertiontree.FunctionContext,
 	graph *cfg.CFG,

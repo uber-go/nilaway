@@ -19,8 +19,10 @@ import (
 	"go/types"
 
 	"go.uber.org/nilaway/annotation"
-	"go.uber.org/nilaway/util"
-	"golang.org/x/tools/go/analysis"
+	"go.uber.org/nilaway/guard"
+	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/asthelper"
+	"go.uber.org/nilaway/util/typeshelper"
 )
 
 // analyzeValueSpec returns full triggers corresponding to the declaration
@@ -68,7 +70,7 @@ func getGlobalConsumers(pass *analysis.Pass, valspec *ast.ValueSpec, initFuncDec
 
 	for i, name := range valspec.Names {
 		// Types that are not nilable are eliminated here
-		if !util.TypeBarsNilness(pass.TypesInfo.TypeOf(name)) && !util.IsEmptyExpr(name) && !hasGlobalVarAssignInInitFunc(valspec, initFuncDecls) {
+		if !asthelper.IsEmptyExpr(name) && !typeshelper.TypeBarsNilness(pass.TypesInfo.TypeOf(name)) && !hasGlobalVarAssignInInitFunc(valspec, initFuncDecls) {
 			v := pass.TypesInfo.ObjectOf(name).(*types.Var)
 			consumers[i] = &annotation.ConsumeTrigger{
 				Annotation: &annotation.GlobalVarAssign{
@@ -77,7 +79,7 @@ func getGlobalConsumers(pass *analysis.Pass, valspec *ast.ValueSpec, initFuncDec
 							VarDecl: v,
 						}}},
 				Expr:         name,
-				Guards:       util.NoGuards(),
+				Guards:       guard.NoGuards(),
 				GuardMatched: false,
 			}
 		}
@@ -121,7 +123,7 @@ func hasGlobalVarAssignInInitFunc(spec *ast.ValueSpec, initFuncDecls []*ast.Func
 
 // Returns a producer in the cases: 1) func call 2) literal nil 3) another global var 4) struct field/method.
 // In all other cases, it returns nil.
-func getGlobalProducer(pass *analysis.Pass, valspec *ast.ValueSpec, lid int, rid int) *annotation.ProduceTrigger {
+func getGlobalProducer(pass *analysishelper.EnhancedPass, valspec *ast.ValueSpec, lid int, rid int) *annotation.ProduceTrigger {
 	switch rhs := valspec.Values[rid].(type) {
 	case *ast.CallExpr:
 		if ident, ok := rhs.Fun.(*ast.Ident); ok {
@@ -154,7 +156,7 @@ func getGlobalProducer(pass *analysis.Pass, valspec *ast.ValueSpec, lid int, rid
 	return nil
 }
 
-func getProducerForVar(pass *analysis.Pass, rhs *ast.Ident) *annotation.ProduceTrigger {
+func getProducerForVar(pass *analysishelper.EnhancedPass, rhs *ast.Ident) *annotation.ProduceTrigger {
 	rhsVar, ok := pass.TypesInfo.ObjectOf(rhs).(*types.Var)
 	if !ok || !annotation.VarIsGlobal(rhsVar) {
 		// If rhs is not a global variable (e.g., a constant), we ignore it.
@@ -171,7 +173,7 @@ func getProducerForVar(pass *analysis.Pass, rhs *ast.Ident) *annotation.ProduceT
 	}
 }
 
-func getProducerForField(pass *analysis.Pass, rhs *ast.Ident) *annotation.ProduceTrigger {
+func getProducerForField(pass *analysishelper.EnhancedPass, rhs *ast.Ident) *annotation.ProduceTrigger {
 	rhsVar, ok := pass.TypesInfo.ObjectOf(rhs).(*types.Var)
 	if !ok {
 		// If rhs is not a variable (e.g., a constant from an upstream package), we ignore it.
@@ -187,7 +189,7 @@ func getProducerForField(pass *analysis.Pass, rhs *ast.Ident) *annotation.Produc
 	}
 }
 
-func getProducerForFuncCall(pass *analysis.Pass, methName *ast.Ident, lid int, rid int, rhs ast.Expr) *annotation.ProduceTrigger {
+func getProducerForFuncCall(pass *analysishelper.EnhancedPass, methName *ast.Ident, lid int, rid int, rhs ast.Expr) *annotation.ProduceTrigger {
 	fdecl, ok := pass.TypesInfo.ObjectOf(methName).(*types.Func)
 
 	// We ignore if the method is anonymous
@@ -208,7 +210,7 @@ func getProducerForFuncCall(pass *analysis.Pass, methName *ast.Ident, lid int, r
 	return prod
 }
 
-func getProducerForMethodCall(pass *analysis.Pass, methName *ast.Ident, lid int, rid int, rhs ast.Expr) *annotation.ProduceTrigger {
+func getProducerForMethodCall(pass *analysishelper.EnhancedPass, methName *ast.Ident, lid int, rid int, rhs ast.Expr) *annotation.ProduceTrigger {
 	mdecl, ok := pass.TypesInfo.ObjectOf(methName).(*types.Func)
 
 	// We ignore if the method is anonymous

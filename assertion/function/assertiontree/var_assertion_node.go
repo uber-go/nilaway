@@ -20,7 +20,7 @@ import (
 	"go/types"
 
 	"go.uber.org/nilaway/annotation"
-	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/util/typeshelper"
 )
 
 type varAssertionNode struct {
@@ -64,8 +64,8 @@ func (v *varAssertionNode) DefaultTrigger() annotation.ProducingAnnotationTrigge
 	// want to analyze fields of an unassigned struct pointer, since at this point the pointer itself is nil.
 	// TODO: below logic won't be required once we standardize the expression `var s S` by replacing it with `S{}` in the
 	//  preprocessing phase
-	if !util.TypeIsDeeplyPtr(v.decl.Type()) {
-		if structType := util.TypeAsDeeplyStruct(v.decl.Type()); structType != nil {
+	if !typeshelper.IsDeeplyPtr(v.decl.Type()) {
+		if structType := typeshelper.AsDeeplyStruct(v.decl.Type()); structType != nil {
 			if v.Root().functionContext.functionConfig.EnableStructInitCheck {
 				v.Root().addProductionForVarFieldNode(v, v.BuildExpr(nil))
 			}

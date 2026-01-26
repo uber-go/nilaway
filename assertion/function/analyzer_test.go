@@ -58,7 +58,7 @@ func TestCancelledContext(t *testing.T) {
 
 	// First do an analysis test run just to get the pass variable.
 	r := analysistest.Run(t, testdata, Analyzer, "go.uber.org/pkg")
-	pass := r[0].Pass
+	pass := analysishelper.NewEnhancedPass(r[0].Pass)
 
 	// Select the first function declaration node to run test.
 	var funcDecl *ast.FuncDecl
@@ -94,7 +94,7 @@ func TestCancelledContext(t *testing.T) {
 	wg.Add(1)
 
 	// Give a cancelled context, so back propagation should immediately return with an error.
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	ctrlflowResult := pass.ResultOf[ctrlflow.Analyzer].(*ctrlflow.CFGs)
@@ -116,7 +116,7 @@ func TestCancelledContext(t *testing.T) {
 func TestAnalyzeFuncPanic(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	resultChan := make(chan functionResult)
 	var wg sync.WaitGroup
@@ -125,7 +125,7 @@ func TestAnalyzeFuncPanic(t *testing.T) {
 	// Intentionally give bad input data to cause a panic. We should convert the panic to an error
 	// and send it back to the original channel.
 	go analyzeFunc(ctx,
-		&analysis.Pass{},                /* pass */
+		analysishelper.NewEnhancedPass(&analysis.Pass{}), /* pass */
 		&ast.FuncDecl{},                 /* funcDecl */
 		assertiontree.FunctionContext{}, /* funcContext */
 		&cfg.CFG{},                      /* graph */
@@ -151,7 +151,7 @@ func TestBackpropFixpointConvergence(t *testing.T) {
 
 	// First do an analysis test run just to get the pass variable.
 	r := analysistest.Run(t, testdata, Analyzer, "go.uber.org/backprop")
-	pass := r[0].Pass
+	pass := analysishelper.NewEnhancedPass(r[0].Pass)
 
 	// Gather function declaration nodes from test.
 	var funcs []*ast.FuncDecl
@@ -177,14 +177,14 @@ func TestBackpropFixpointConvergence(t *testing.T) {
 			funcConfig, emptyFuncLitMap, emptyPkgFakeIdentMap, emptyFuncContracts)
 		ctrlflowResult := pass.ResultOf[ctrlflow.Analyzer].(*ctrlflow.CFGs)
 
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 
 		// Run the backpropagation algorithm and collect the results.
 		funcTriggers, roundCount, stableRoundCount, err := assertiontree.BackpropAcrossFunc(ctx, pass, funcDecl, funcContext, ctrlflowResult.FuncDecl(funcDecl))
 		require.NoError(t, err, "Backpropagation algorithm should not return an error")
 
-		expectedValues := nilawaytest.FindExpectedValues(pass, _wantFixpointPrefix)
+		expectedValues := nilawaytest.FindExpectedValues(pass.Pass, _wantFixpointPrefix)
 		expectedVals, ok := expectedValues[funcDecl]
 		if !ok {
 			// No expected values written in the test file, so we skip the comparison.
@@ -197,6 +197,88 @@ func TestBackpropFixpointConvergence(t *testing.T) {
 		actualVals := []string{strconv.Itoa(roundCount), strconv.Itoa(stableRoundCount), strconv.Itoa(len(funcTriggers))}
 		require.EqualValues(t, expectedVals, actualVals, fmt.Sprintf("Fixpoint values mismatch for round count, "+
 			"stable round count, or number of triggers for func `%s`", funcDecl.Name.Name))
+	}
+}
+
+// TestFunctionSizeLimit tests that functions are properly handled based on their CFG block count.
+// Large functions (>500 blocks) should be skipped, while smaller functions should be processed normally.
+func TestFunctionSizeLimit(t *testing.T) {
+	t.Parallel()
+
+	testdata := analysistest.TestData()
+
+	testCases := []struct {
+		name                  string
+		functionName          string
+		expectedCFGBlocks     int
+		shouldBeSkipped       bool
+		expectedErrorContains []string
+	}{
+		{
+			name:              "VeryLargeComplexFunction should be skipped",
+			functionName:      "VeryLargeComplexFunction",
+			expectedCFGBlocks: 700,
+			shouldBeSkipped:   true,
+			expectedErrorContains: []string{
+				"function too large",
+			},
+		},
+		{
+			name:                  "LargeFunction at limit should be processed",
+			functionName:          "LargeFunction",
+			expectedCFGBlocks:     500,
+			shouldBeSkipped:       false,
+			expectedErrorContains: nil,
+		},
+		{
+			name:                  "MediumFunction should be processed",
+			functionName:          "MediumFunction",
+			expectedCFGBlocks:     100,
+			shouldBeSkipped:       false,
+			expectedErrorContains: nil,
+		},
+		{
+			name:                  "SmallFunction should be processed",
+			functionName:          "SmallFunction",
+			expectedCFGBlocks:     25,
+			shouldBeSkipped:       false,
+			expectedErrorContains: nil,
+		},
+	}
+
+	// Run the analyzer on the funcsizelimit package which contains all test functions
+	results := analysistest.Run(t, testdata, Analyzer, "go.uber.org/funcsizelimit")
+	require.Len(t, results, 1, "Expected exactly one analysis result")
+
+	result := results[0]
+	require.NotNil(t, result, "Analysis result should not be nil")
+
+	// Extract the actual result from the enhanced result wrapper
+	enhancedResult, ok := result.Result.(*analysishelper.Result[[]annotation.FullTrigger])
+	require.True(t, ok, "Result should be of type *analysishelper.Result[[]annotation.FullTrigger]")
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if tc.shouldBeSkipped {
+				// Function should be skipped - verify error contains expected messages
+				require.Error(t, enhancedResult.Err, "Should have error about %s being skipped", tc.functionName)
+
+				errorMessage := enhancedResult.Err.Error()
+				for _, expectedText := range tc.expectedErrorContains {
+					require.Contains(t, errorMessage, expectedText,
+						"Error should contain '%s' for function %s", expectedText, tc.functionName)
+				}
+			} else {
+				// Function should be processed - verify no error about this specific function being skipped
+				if enhancedResult.Err != nil {
+					errorMessage := enhancedResult.Err.Error()
+					require.NotContains(t, errorMessage, tc.functionName,
+						"Function %s should not be mentioned in skipped functions error", tc.functionName)
+				}
+			}
+		})
 	}
 }
 

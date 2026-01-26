@@ -1,5 +1,7 @@
 package upstream
 
+var _caseNo int
+
 var NilableValue *int = nil
 
 func NilableFunc() *int { return nil }
@@ -27,4 +29,26 @@ func (s *S) NonnilRecv() {
 func dereference() {
 	var v *int
 	print(*v) //want "unassigned variable `v` dereferenced"
+}
+
+func DerefNoLintLine(v *int) {
+	print(*v) //nolint:nilaway
+	print(*v) // nolint:all
+	print(*v) //     nolint:     nilaway
+	print(*v) ////nolint:nilaway
+	print(*v) //nolint
+}
+
+//nolint:nilaway
+func DerefNoLintFunc(v *int) {
+	print(*v)
+}
+
+func Deref(v *int, ) {
+	switch _caseNo {
+	case 1:
+		print(*v) //want "function parameter `v` dereferenced"
+	case 2:
+		print(*v) //nolint:other_linter //want "function parameter `v` dereferenced"
+	}
 }

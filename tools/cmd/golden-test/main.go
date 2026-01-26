@@ -30,6 +30,7 @@ import (
 	"os/exec"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/fatih/color"
 )
@@ -134,6 +135,7 @@ func Run(writer io.Writer, baseBranch, testBranch string) error {
 
 		// Run the built NilAway binary on the stdlib and parse the diagnostics.
 		var buf bytes.Buffer
+		start := time.Now()
 		cmd := exec.Command("bin/nilaway", "-include-errors-in-files", "/", "-json", "-pretty-print=false", "-group-error-messages=true", "std")
 		cmd.Stdout = &buf
 		// Inherit env vars such that users can control the resource usages via GOMEMLIMIT, GOGC
@@ -142,6 +144,8 @@ func Run(writer io.Writer, baseBranch, testBranch string) error {
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("run NilAway: %w", err)
 		}
+		elapsed := time.Since(start)
+		log.Printf("NilAway execution time for branch \"%s\": %s", branch.Name, elapsed)
 		diagnostics, err := ParseDiagnostics(&buf)
 		if err != nil {
 			return fmt.Errorf("parse diagnostics: %w", err)
@@ -242,7 +246,7 @@ func WriteDiff(writer io.Writer, branches [2]*BranchResult) {
 				lines[i] = prefix + " " + lines[i]
 			}
 			output := strings.Join(lines, "\n") + "\n"
-			MustFprint(color.New(c).Fprintf(writer, output))
+			MustFprint(color.New(c).Fprint(writer, output))
 		}
 	}
 	MustFprint(fmt.Fprintf(writer, "```\n\n"))
