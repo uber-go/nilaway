@@ -287,13 +287,25 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 			}
 
 			// Check if the method is a function value, e.g., `f := func() {}` and then `f()`.
-			// TODO: this is a temporary fix to suppress false positives caused by function values.
-			//  Remove this once we have have implemented the function value support.
+			// Only apply the workaround for non-error-returning and non-ok-returning functions.
+			// Error-returning and ok-returning functions need rich check effect generation.
 			if r.isVariable(fun) {
-				return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: &annotation.ProduceTrigger{
-					Annotation: &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
-					Expr:       expr,
-				}}}
+				funType := r.Pass().TypesInfo.TypeOf(fun)
+				sig := typeshelper.GetFuncSignature(funType)
+				isErrReturning := sig != nil && typeshelper.FuncIsErrReturning(sig)
+				isOkReturning := sig != nil && typeshelper.FuncIsOkReturning(sig)
+
+				if !isErrReturning && !isOkReturning {
+					// Only suppress false positives for non-rich-check-effect functions
+					// TODO: this is a temporary fix to suppress false positives caused by function values.
+					//  Remove this once we have have implemented the function value support.
+					return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: &annotation.ProduceTrigger{
+						Annotation: &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
+						Expr:       expr,
+					}}}
+				}
+				// For error-returning and ok-returning function variables,
+				// fall through to allow rich check effect generation
 			}
 
 			if fun != nil && !r.isFunc(fun) {
@@ -582,7 +594,7 @@ func (r *RootAssertionNode) getFuncReturnProducers(ident *ast.Ident, expr *ast.C
 	return producers
 }
 
-// parseStructCreateExprAsProducer parses composite expressions used to initialize a struct e.g. A{f1: v1, f2: v2}
+// parseStructCreateExprAsProducer parsed composite expressions used to initialize a struct e.g. A{f1: v1, f2: v2}
 func (r *RootAssertionNode) parseStructCreateExprAsProducer(expr ast.Expr, fieldInitializations []ast.Expr) producer.ParsedProducer {
 	exprType := r.Pass().TypesInfo.TypeOf(expr)
 
