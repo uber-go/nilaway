@@ -304,8 +304,12 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 						Expr:       expr,
 					}}}
 				}
+
 				// Generate producers for error-returning and ok-returning function variables
-				// TODO: implement proper rich check effect support for function variables
+				// These producers enable guard effects created by NodeTriggersFuncErrRet
+				// TODO: for a complete fix, function variables should be able to generate FuncReturn
+				//  producers with IsFromRichCheckEffectFunc set, but this requires creating a
+				//  synthetic *types.Func or modifying the annotation key system.
 				numResults := sig.Results().Len()
 				producers := make([]producer.ParsedProducer, numResults)
 
@@ -316,10 +320,10 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 
 					var shallowAnnotation annotation.ProducingAnnotationTrigger
 					if isNonNilType || (!isGuarded) {
-						// Always non-nil
+						// Always non-nil or error/ok return value
 						shallowAnnotation = &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}}
 					} else {
-						// May be nil, needs guard
+						// May be nil, needs guard - use Tautology to allow rich check effects
 						shallowAnnotation = &annotation.TrustedFuncNilable{ProduceTriggerTautology: &annotation.ProduceTriggerTautology{}}
 					}
 
@@ -373,8 +377,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 
 		case *ast.SelectorExpr: // method call
 			// Check if the method is a function value, e.g.,  `s.f()` where `f` is a function type field.
-			// TODO: this is a temporary fix to handle the case of function values.
-			//  Remove this once we have have implemented the function value support.
+			// Error-returning and ok-returning functions need rich check effect generation.
 			if r.isVariable(fun.Sel) {
 				funType := r.Pass().TypesInfo.TypeOf(fun.Sel)
 				sig := typeshelper.GetFuncSignature(funType)
@@ -390,8 +393,12 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 						Expr:       expr,
 					}}}
 				}
+
 				// Generate producers for error-returning and ok-returning function variables
-				// TODO: implement proper rich check effect support for function variables
+				// These producers enable guard effects created by NodeTriggersFuncErrRet
+				// TODO: for a complete fix, function variables should be able to generate FuncReturn
+				//  producers with IsFromRichCheckEffectFunc set, but this requires creating a
+				//  synthetic *types.Func or modifying the annotation key system.
 				numResults := sig.Results().Len()
 				producers := make([]producer.ParsedProducer, numResults)
 
@@ -402,8 +409,10 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 
 					var shallowAnnotation annotation.ProducingAnnotationTrigger
 					if isNonNilType || (!isGuarded) {
+						// Always non-nil or error/ok return value
 						shallowAnnotation = &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}}
 					} else {
+						// May be nil, needs guard - use Tautology to allow rich check effects
 						shallowAnnotation = &annotation.TrustedFuncNilable{ProduceTriggerTautology: &annotation.ProduceTriggerTautology{}}
 					}
 
