@@ -287,52 +287,16 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 			}
 
 			// Check if the method is a function value, e.g., `f := func() {}` and then `f()`.
-			// Only apply the workaround for non-error-returning and non-ok-returning functions.
-			// Error-returning and ok-returning functions need rich check effect generation.
 			if r.isVariable(fun) {
-				funType := r.Pass().TypesInfo.TypeOf(fun)
-				sig := typeshelper.GetFuncSignature(funType)
-				isErrReturning := sig != nil && typeshelper.FuncIsErrReturning(sig)
-				isOkReturning := sig != nil && typeshelper.FuncIsOkReturning(sig)
-
-				if !isErrReturning && !isOkReturning {
-					// Only suppress false positives for non-rich-check-effect functions
-					// TODO: this is a temporary fix to suppress false positives caused by function values.
-					//  Remove this once we have have implemented the function value support.
-					return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: &annotation.ProduceTrigger{
-						Annotation: &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
-						Expr:       expr,
-					}}}
+				if producers := r.getFuncVarReturnProducers(r.Pass().TypesInfo.TypeOf(fun), expr); producers != nil {
+					return nil, producers
 				}
-
-				// Generate producers for error-returning and ok-returning function variables
-				// These producers enable guard effects created by NodeTriggersFuncErrRet
-				// TODO: for a complete fix, function variables should be able to generate FuncReturn
-				//  producers with IsFromRichCheckEffectFunc set, but this requires creating a
-				//  synthetic *types.Func or modifying the annotation key system.
-				numResults := sig.Results().Len()
-				producers := make([]producer.ParsedProducer, numResults)
-
-				for i := 0; i < numResults; i++ {
-					resultType := sig.Results().At(i).Type()
-					isNonNilType := typeshelper.TypeBarsNilness(resultType)
-					isGuarded := (isErrReturning || isOkReturning) && i != numResults-1
-
-					var shallowAnnotation annotation.ProducingAnnotationTrigger
-					if isNonNilType || (!isGuarded) {
-						// Always non-nil or error/ok return value
-						shallowAnnotation = &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}}
-					} else {
-						// May be nil, needs guard - use Tautology to allow rich check effects
-						shallowAnnotation = &annotation.TrustedFuncNilable{ProduceTriggerTautology: &annotation.ProduceTriggerTautology{}}
-					}
-
-					producers[i] = producer.ShallowParsedProducer{Producer: &annotation.ProduceTrigger{
-						Annotation: shallowAnnotation,
-						Expr:       expr,
-					}}
-				}
-				return nil, producers
+				// For non-error/ok-returning function variables, suppress false positives
+				// TODO: this is a temporary fix. Remove once function value support is complete.
+				return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: &annotation.ProduceTrigger{
+					Annotation: &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
+					Expr:       expr,
+				}}}
 			}
 
 			if fun != nil && !r.isFunc(fun) {
@@ -376,52 +340,17 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 			return nil, r.getFuncReturnProducers(fun, expr)
 
 		case *ast.SelectorExpr: // method call
-			// Check if the method is a function value, e.g.,  `s.f()` where `f` is a function type field.
-			// Error-returning and ok-returning functions need rich check effect generation.
+			// Check if the method is a function value, e.g., `s.f()` where `f` is a function type field.
 			if r.isVariable(fun.Sel) {
-				funType := r.Pass().TypesInfo.TypeOf(fun.Sel)
-				sig := typeshelper.GetFuncSignature(funType)
-				isErrReturning := sig != nil && typeshelper.FuncIsErrReturning(sig)
-				isOkReturning := sig != nil && typeshelper.FuncIsOkReturning(sig)
-
-				if !isErrReturning && !isOkReturning {
-					// Only suppress false positives for non-rich-check-effect functions
-					// TODO: this is a temporary fix to suppress false positives caused by function values.
-					//  Remove this once we have have implemented the function value support.
-					return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: &annotation.ProduceTrigger{
-						Annotation: &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
-						Expr:       expr,
-					}}}
+				if producers := r.getFuncVarReturnProducers(r.Pass().TypesInfo.TypeOf(fun.Sel), expr); producers != nil {
+					return nil, producers
 				}
-
-				// Generate producers for error-returning and ok-returning function variables
-				// These producers enable guard effects created by NodeTriggersFuncErrRet
-				// TODO: for a complete fix, function variables should be able to generate FuncReturn
-				//  producers with IsFromRichCheckEffectFunc set, but this requires creating a
-				//  synthetic *types.Func or modifying the annotation key system.
-				numResults := sig.Results().Len()
-				producers := make([]producer.ParsedProducer, numResults)
-
-				for i := 0; i < numResults; i++ {
-					resultType := sig.Results().At(i).Type()
-					isNonNilType := typeshelper.TypeBarsNilness(resultType)
-					isGuarded := (isErrReturning || isOkReturning) && i != numResults-1
-
-					var shallowAnnotation annotation.ProducingAnnotationTrigger
-					if isNonNilType || (!isGuarded) {
-						// Always non-nil or error/ok return value
-						shallowAnnotation = &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}}
-					} else {
-						// May be nil, needs guard - use Tautology to allow rich check effects
-						shallowAnnotation = &annotation.TrustedFuncNilable{ProduceTriggerTautology: &annotation.ProduceTriggerTautology{}}
-					}
-
-					producers[i] = producer.ShallowParsedProducer{Producer: &annotation.ProduceTrigger{
-						Annotation: shallowAnnotation,
-						Expr:       expr,
-					}}
-				}
-				return nil, producers
+				// For non-error/ok-returning function variables, suppress false positives
+				// TODO: this is a temporary fix. Remove once function value support is complete.
+				return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: &annotation.ProduceTrigger{
+					Annotation: &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
+					Expr:       expr,
+				}}}
 			}
 
 			if !r.isFunc(fun.Sel) {
@@ -655,6 +584,51 @@ func (r *RootAssertionNode) getFuncReturnProducers(ident *ast.Ident, expr *ast.C
 			},
 			FieldProducers: fieldProducers,
 		}
+	}
+	return producers
+}
+
+// getFuncVarReturnProducers returns producers for function variable calls (e.g., `f()` where f is a variable).
+// Returns nil if the function should use the default TrustedFuncNonnil workaround.
+func (r *RootAssertionNode) getFuncVarReturnProducers(funType types.Type, expr *ast.CallExpr) []producer.ParsedProducer {
+	sig := typeshelper.GetFuncSignature(funType)
+	if sig == nil {
+		return nil
+	}
+
+	isErrReturning := typeshelper.FuncIsErrReturning(sig)
+	isOkReturning := typeshelper.FuncIsOkReturning(sig)
+
+	// For non-rich-check-effect functions, use default workaround
+	if !isErrReturning && !isOkReturning {
+		return nil
+	}
+
+	// Generate FuncReturn producers that integrate with rich check effects
+	numResults := sig.Results().Len()
+	producers := make([]producer.ParsedProducer, numResults)
+	callLocation := r.Pass().Fset.Position(expr.Pos())
+
+	for i := 0; i < numResults; i++ {
+		resultType := sig.Results().At(i).Type()
+		var shallowAnnotation annotation.ProducingAnnotationTrigger
+
+		if typeshelper.TypeBarsNilness(resultType) {
+			shallowAnnotation = &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}}
+		} else {
+			shallowAnnotation = &annotation.FuncReturn{
+				TriggerIfNilable: &annotation.TriggerIfNilable{
+					Ann:        &annotation.FuncVarRetAnnotationKey{Location: callLocation, RetNum: i},
+					NeedsGuard: (isErrReturning || isOkReturning) && i != numResults-1,
+				},
+				IsFromRichCheckEffectFunc: isErrReturning || isOkReturning,
+			}
+		}
+
+		producers[i] = producer.ShallowParsedProducer{Producer: &annotation.ProduceTrigger{
+			Annotation: shallowAnnotation,
+			Expr:       expr,
+		}}
 	}
 	return producers
 }

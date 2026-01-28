@@ -191,7 +191,22 @@ func (p *primitivizer) fullTrigger(trigger annotation.FullTrigger) primitiveFull
 
 // site returns the primitive version of the annotation site.
 func (p *primitivizer) site(key annotation.Key, isDeep bool) primitiveSite {
-	objPath, err := p.objPathEncoder.For(key.Object())
+	obj := key.Object()
+
+	// Handle keys with nil Object (e.g., FuncVarRetAnnotationKey for function variable returns).
+	// These are local-only annotations that don't participate in cross-package inference.
+	if obj == nil {
+		return primitiveSite{
+			PkgPath:    p.pass.Pkg.Path(),
+			Repr:       key.String(),
+			IsDeep:     isDeep,
+			Exported:   false,
+			ObjectPath: "",
+			Position:   token.Position{},
+		}
+	}
+
+	objPath, err := p.objPathEncoder.For(obj)
 	if err != nil {
 		// An error will occur when trying to get object path for unexported objects, in which case
 		// we simply assign an empty object path.
@@ -199,13 +214,13 @@ func (p *primitivizer) site(key annotation.Key, isDeep bool) primitiveSite {
 	}
 
 	pkgRepr := ""
-	if pkg := key.Object().Pkg(); pkg != nil {
+	if pkg := obj.Pkg(); pkg != nil {
 		pkgRepr = pkg.Path()
 	}
 
 	var position token.Position
 	// For upstream objects, we need to look up the local position cache for correct positions.
-	if key.Object().Pkg() != p.pass.Pkg {
+	if obj.Pkg() != p.pass.Pkg {
 		// Correct upstream information may not always be in the cache: we may not even have it
 		// since we skipped analysis for standard and 3rd party libraries.
 		if p, ok := p.upstreamObjPositions[pkgRepr+"."+string(objPath)]; ok {
@@ -217,14 +232,14 @@ func (p *primitivizer) site(key annotation.Key, isDeep bool) primitiveSite {
 	// their Object.Pos() and retrieve the position information. However, we must trim the possible
 	// build-system sandbox prefix from the filenames for cross-package references.
 	if !position.IsValid() {
-		position = p.toPosition(key.Object().Pos())
+		position = p.toPosition(obj.Pos())
 	}
 
 	return primitiveSite{
 		PkgPath:    pkgRepr,
 		Repr:       key.String(),
 		IsDeep:     isDeep,
-		Exported:   key.Object().Exported(),
+		Exported:   obj.Exported(),
 		ObjectPath: objPath,
 		Position:   position,
 	}

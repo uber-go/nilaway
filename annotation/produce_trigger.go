@@ -775,8 +775,10 @@ func (f *FuncReturn) Prestring() Prestring {
 		return FuncReturnPrestring{key.RetNum, key.FuncDecl.Name(), ""}
 	case *CallSiteRetAnnotationKey:
 		return FuncReturnPrestring{key.RetNum, key.FuncDecl.Name(), key.Location.String()}
+	case *FuncVarRetAnnotationKey:
+		return FuncReturnPrestring{key.RetNum, "func variable", key.Location.String()}
 	default:
-		panic(fmt.Sprintf("Expected RetAnnotationKey or CallSiteRetAnnotationKey but got: %T", key))
+		panic(fmt.Sprintf("Expected RetAnnotationKey, CallSiteRetAnnotationKey, or FuncVarRetAnnotationKey but got: %T", key))
 	}
 }
 

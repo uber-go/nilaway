@@ -36,6 +36,7 @@ var initStructsKey = []any{
 	&EscapeFieldAnnotationKey{},
 	&ParamFieldAnnotationKey{},
 	&LocalVarAnnotationKey{},
+	&FuncVarRetAnnotationKey{},
 }
 
 // TestKeyEqualsSuite runs the test suite for the `equals` method of all the structs that implement
