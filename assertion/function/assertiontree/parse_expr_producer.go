@@ -304,8 +304,31 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 						Expr:       expr,
 					}}}
 				}
-				// For error-returning and ok-returning function variables,
-				// fall through to allow rich check effect generation
+				// Generate producers for error-returning and ok-returning function variables
+				// TODO: implement proper rich check effect support for function variables
+				numResults := sig.Results().Len()
+				producers := make([]producer.ParsedProducer, numResults)
+
+				for i := 0; i < numResults; i++ {
+					resultType := sig.Results().At(i).Type()
+					isNonNilType := typeshelper.TypeBarsNilness(resultType)
+					isGuarded := (isErrReturning || isOkReturning) && i != numResults-1
+
+					var shallowAnnotation annotation.ProducingAnnotationTrigger
+					if isNonNilType || (!isGuarded) {
+						// Always non-nil
+						shallowAnnotation = &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}}
+					} else {
+						// May be nil, needs guard
+						shallowAnnotation = &annotation.TrustedFuncNilable{ProduceTriggerTautology: &annotation.ProduceTriggerTautology{}}
+					}
+
+					producers[i] = producer.ShallowParsedProducer{Producer: &annotation.ProduceTrigger{
+						Annotation: shallowAnnotation,
+						Expr:       expr,
+					}}
+				}
+				return nil, producers
 			}
 
 			if fun != nil && !r.isFunc(fun) {
@@ -349,14 +372,47 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 			return nil, r.getFuncReturnProducers(fun, expr)
 
 		case *ast.SelectorExpr: // method call
-			// Check if the method is a function value, e.g., `f := func() {}` and then `f()`.
+			// Check if the method is a function value, e.g.,  `s.f()` where `f` is a function type field.
 			// TODO: this is a temporary fix to handle the case of function values.
 			//  Remove this once we have have implemented the function value support.
 			if r.isVariable(fun.Sel) {
-				return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: &annotation.ProduceTrigger{
-					Annotation: &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
-					Expr:       expr,
-				}}}
+				funType := r.Pass().TypesInfo.TypeOf(fun.Sel)
+				sig := typeshelper.GetFuncSignature(funType)
+				isErrReturning := sig != nil && typeshelper.FuncIsErrReturning(sig)
+				isOkReturning := sig != nil && typeshelper.FuncIsOkReturning(sig)
+
+				if !isErrReturning && !isOkReturning {
+					// Only suppress false positives for non-rich-check-effect functions
+					// TODO: this is a temporary fix to suppress false positives caused by function values.
+					//  Remove this once we have have implemented the function value support.
+					return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: &annotation.ProduceTrigger{
+						Annotation: &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
+						Expr:       expr,
+					}}}
+				}
+				// Generate producers for error-returning and ok-returning function variables
+				// TODO: implement proper rich check effect support for function variables
+				numResults := sig.Results().Len()
+				producers := make([]producer.ParsedProducer, numResults)
+
+				for i := 0; i < numResults; i++ {
+					resultType := sig.Results().At(i).Type()
+					isNonNilType := typeshelper.TypeBarsNilness(resultType)
+					isGuarded := (isErrReturning || isOkReturning) && i != numResults-1
+
+					var shallowAnnotation annotation.ProducingAnnotationTrigger
+					if isNonNilType || (!isGuarded) {
+						shallowAnnotation = &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}}
+					} else {
+						shallowAnnotation = &annotation.TrustedFuncNilable{ProduceTriggerTautology: &annotation.ProduceTriggerTautology{}}
+					}
+
+					producers[i] = producer.ShallowParsedProducer{Producer: &annotation.ProduceTrigger{
+						Annotation: shallowAnnotation,
+						Expr:       expr,
+					}}
+				}
+				return nil, producers
 			}
 
 			if !r.isFunc(fun.Sel) {
