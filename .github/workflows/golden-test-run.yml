@@ -36,14 +36,7 @@ jobs:
       # Our Golden tests run NilAway on the entire standard library, which is very resource-intensive.
       # GitHub Actions terminates the job if it hits the resource limits (both in CPU and memory).
       # For CPU limit we set GOMAXPROCS to be one less than the number of available CPUs.
-      # For memory limit we create a 16G swap file and set GOMEMLIMIT to 8G.
-      - name: Create swap file in Github Actions to avoid OOM killer
-        run: |
-          sudo fallocate -l 16G /swapfile
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
-
+      # For memory limit we set GOMEMLIMIT to 8G.
       - name: Golden Test
         id: golden_test
         run: |
