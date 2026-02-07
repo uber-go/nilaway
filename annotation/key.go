@@ -710,3 +710,42 @@ func (rk *RecvAnnotationKey) copy() Key {
 func (rk *RecvAnnotationKey) String() string {
 	return fmt.Sprintf("Receiver of Method %s", rk.FuncDecl.Name())
 }
+
+// FuncVarRetAnnotationKey allows the Lookup of a function variable's return in the Annotation Map.
+// This key is used when the function being called is a variable (e.g., `s.f()` where f is a function field)
+// rather than a declared function.
+type FuncVarRetAnnotationKey struct {
+	// Location uniquely identifies the call site
+	Location token.Position
+	// RetNum is the index of the return value
+	RetNum int
+}
+
+// Lookup looks this key up in the passed map, returning a Val.
+// Function variable returns are not annotated, so we return the optimistic default.
+func (fk *FuncVarRetAnnotationKey) Lookup(_ Map) (Val, bool) {
+	// Function variables can't be annotated, so return "might be nil" by default
+	// This allows the guard mechanism to work properly
+	return nonAnnotatedDefault, false
+}
+
+// Object returns nil since function variable returns don't have a types.Object.
+func (fk *FuncVarRetAnnotationKey) Object() types.Object {
+	return nil
+}
+
+func (fk *FuncVarRetAnnotationKey) equals(other Key) bool {
+	if other, ok := other.(*FuncVarRetAnnotationKey); ok {
+		return fk.Location == other.Location && fk.RetNum == other.RetNum
+	}
+	return false
+}
+
+func (fk *FuncVarRetAnnotationKey) copy() Key {
+	copyKey := *fk
+	return &copyKey
+}
+
+func (fk *FuncVarRetAnnotationKey) String() string {
+	return fmt.Sprintf("FuncVar Result %d at %s", fk.RetNum, fk.Location.String())
+}
