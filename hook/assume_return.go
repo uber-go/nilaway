@@ -190,7 +190,7 @@ var _assumeReturns = map[trustedFuncSig]assumeReturnAction{
 	{
 		kind:           _func,
 		enclosingRegex: regexp.MustCompile(`^(stubs/)?(google\.golang\.org/grpc|google\.golang\.org/grpc/status)$`),
-		funcNameRegex:  regexp.MustCompile(`^Error$`),
+		funcNameRegex:  regexp.MustCompile(`^Errorf?$`),
 	}: nonnilProducer,
 }
 
