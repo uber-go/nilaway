@@ -182,6 +182,16 @@ var _assumeReturns = map[trustedFuncSig]assumeReturnAction{
 		enclosingRegex: regexp.MustCompile(`^strings$`),
 		funcNameRegex:  regexp.MustCompile(`^Split(After)?$`),
 	}: nonnilProducer,
+
+	// `google.golang.org/grpc/status.Error`
+	// Returns a non-nil error when the code is non-OK. When the code is OK, it returns nil.
+	// For simplicity and to reduce false positives, we assume it returns non-nil for any code,
+	// since the OK case is rare in practice and out of scope for NilAway.
+	{
+		kind:           _func,
+		enclosingRegex: regexp.MustCompile(`^(stubs/)?(google\.golang\.org/grpc|google\.golang\.org/grpc/status)$`),
+		funcNameRegex:  regexp.MustCompile(`^Errorf?$`),
+	}: nonnilProducer,
 }
 
 var nonnilProducer assumeReturnAction = func(call *ast.CallExpr) *annotation.ProduceTrigger {
