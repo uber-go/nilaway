@@ -231,7 +231,22 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 		return nil, fldReadProduce()
 
 	case *ast.CallExpr:
-		// we delay this check until we're sure we have to make it, as it could be expensive
+		if r.Pass().TypesInfo.Types[expr.Fun].IsType() {
+			if len(expr.Args) == 0 {
+				return nil, nil
+			}
+
+			if r.Pass().ExprBarsNilness(expr.Fun) {
+				return nil, nil
+			}
+
+			return r.ParseExprAsProducer(expr.Args[0], false)
+		}
+
+		if prod := hook.AssumeReturn(r.Pass(), expr); prod != nil {
+			return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: prod}}
+		}
+
 		litArgs := func() bool {
 			for _, expr := range expr.Args {
 				if !r.isStable(expr) {
@@ -239,10 +254,6 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 				}
 			}
 			return true
-		}
-
-		if prod := hook.AssumeReturn(r.Pass(), expr); prod != nil {
-			return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: prod}}
 		}
 
 		// the cases of a function and method call are different enough here that it would be useless
