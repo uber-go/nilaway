@@ -155,6 +155,37 @@ func TestGroupErrorMessages(t *testing.T) { //nolint:paralleltest
 	}()
 }
 
+func TestExcludeTestFiles(t *testing.T) { //nolint:paralleltest
+	// We specifically do not set this test to be parallel such that this test is run separately
+	// from the parallel tests. This makes it possible to test the exclude-test-files flag independently
+	// without affecting the other tests.
+	testdata := analysistest.TestData()
+
+	// Restrict analysis to the test package only, since the _test.go file pulls in the testing
+	// infrastructure and its transitive dependencies, which would otherwise produce unrelated
+	// diagnostics from stdlib.
+	err := config.Analyzer.Flags.Set(config.IncludePkgsFlag, "go.uber.org/excludetestfiles")
+	require.NoError(t, err)
+
+	// First, verify that diagnostics ARE produced for test files when flag is disabled.
+	err = config.Analyzer.Flags.Set(config.ExcludeTestFilesFlag, "false")
+	require.NoError(t, err)
+	analysistest.Run(t, testdata, Analyzer, "go.uber.org/excludetestfilesbaseline")
+
+	// Then verify diagnostics are filtered when flag is enabled.
+	err = config.Analyzer.Flags.Set(config.ExcludeTestFilesFlag, "true")
+	require.NoError(t, err)
+	analysistest.Run(t, testdata, Analyzer, "go.uber.org/excludetestfiles")
+
+	// Reset flags to their default values.
+	defer func() {
+		err := config.Analyzer.Flags.Set(config.ExcludeTestFilesFlag, "false")
+		require.NoError(t, err)
+		err = config.Analyzer.Flags.Set(config.IncludePkgsFlag, "")
+		require.NoError(t, err)
+	}()
+}
+
 func TestPrintFullFilePath(t *testing.T) { //nolint:paralleltest
 	// We specifically do not set this test to be parallel such that this test is run separately
 	// from the parallel tests. This makes it possible to set the print-full-file-path flag to true for
