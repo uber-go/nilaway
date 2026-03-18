@@ -22,8 +22,10 @@ import (
 	"fmt"
 	"go/token"
 	"slices"
+	"strings"
 
 	"go.uber.org/nilaway/annotation"
+	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/inference"
 	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/tokenhelper"
@@ -109,11 +111,16 @@ func (e *Engine) Diagnostics(grouping bool) []analysis.Diagnostic {
 	}
 	nolintRanges := nolintResult.Res
 
+	conf := e.pass.ResultOf[config.Analyzer].(*config.Config)
+
 	diagnostics := make([]analysis.Diagnostic, 0, len(conflicts))
 	for _, c := range conflicts {
 		if slices.ContainsFunc(nolintRanges, func(r Range) bool {
 			return c.position.Filename == r.Filename && c.position.Line >= r.From && c.position.Line <= r.To
 		}) {
+			continue
+		}
+		if conf.ExcludeTestFiles && involvesTestFile(c) {
 			continue
 		}
 		diagnostics = append(diagnostics, analysis.Diagnostic{
@@ -243,4 +250,10 @@ func (e *Engine) toPos(position token.Position) token.Pos {
 
 	// For non-fake files, the position is accurate.
 	return info.file.Pos(position.Offset)
+}
+
+// involvesTestFile returns true if the conflict's report position or any node position in the
+// nil flow originates from a test file (i.e., a file ending with "_test.go").
+func involvesTestFile(c conflict) bool {
+	return strings.HasSuffix(c.position.Filename, "_test.go") || c.flow.involvesTestFile()
 }

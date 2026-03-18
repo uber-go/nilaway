@@ -38,6 +38,8 @@ type Config struct {
 	ExperimentalAnonymousFuncEnable bool
 	// PrintFullFilePath incidates whether to print full filenames in the output.
 	PrintFullFilePath bool
+	// ExcludeTestFiles indicates whether to exclude diagnostics that involve test files.
+	ExcludeTestFiles bool
 
 	// includePkgs is the list of packages to analyze.
 	includePkgs []string
@@ -136,6 +138,8 @@ const (
 	ExperimentalAnonymousFunctionFlag = "experimental-anonymous-function"
 	// PrintFullFilePathFlag is the flag name for printing full filenames in output.
 	PrintFullFilePathFlag = "print-full-file-path"
+	// ExcludeTestFilesFlag is the flag name for excluding diagnostics involving test files.
+	ExcludeTestFilesFlag = "exclude-test-files"
 )
 
 // newFlagSet returns a flag set to be used in the nilaway config analyzer.
@@ -152,6 +156,7 @@ func newFlagSet() flag.FlagSet {
 	_ = fs.Bool(ExperimentalStructInitEnableFlag, false, "Whether to enable experimental struct initialization support")
 	_ = fs.Bool(ExperimentalAnonymousFunctionFlag, false, "Whether to enable experimental anonymous function support")
 	_ = fs.Bool(PrintFullFilePathFlag, false, "Whether to show full filenames in output")
+	_ = fs.Bool(ExcludeTestFilesFlag, false, "Whether to exclude diagnostics involving test files")
 
 	return *fs
 }
@@ -181,6 +186,9 @@ func run(pass *analysis.Pass) (any, error) {
 	}
 	if printFullFilePath, ok := pass.Analyzer.Flags.Lookup(PrintFullFilePathFlag).Value.(flag.Getter).Get().(bool); ok {
 		conf.PrintFullFilePath = printFullFilePath
+	}
+	if excludeTestFiles, ok := pass.Analyzer.Flags.Lookup(ExcludeTestFilesFlag).Value.(flag.Getter).Get().(bool); ok {
+		conf.ExcludeTestFiles = excludeTestFiles
 	}
 	if include, ok := pass.Analyzer.Flags.Lookup(IncludePkgsFlag).Value.(flag.Getter).Get().(string); ok && include != "" {
 		conf.includePkgs = strings.Split(include, ",")
