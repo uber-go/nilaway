@@ -255,8 +255,5 @@ func (e *Engine) toPos(position token.Position) token.Pos {
 // involvesTestFile returns true if the conflict's report position or any node position in the
 // nil flow originates from a test file (i.e., a file ending with "_test.go").
 func involvesTestFile(c conflict) bool {
-	if strings.HasSuffix(c.position.Filename, "_test.go") {
-		return true
-	}
-	return c.flow.involvesTestFile()
+	return strings.HasSuffix(c.position.Filename, "_test.go") || c.flow.involvesTestFile()
 }
