@@ -156,7 +156,7 @@ func newFlagSet() flag.FlagSet {
 	_ = fs.Bool(ExperimentalStructInitEnableFlag, false, "Whether to enable experimental struct initialization support")
 	_ = fs.Bool(ExperimentalAnonymousFunctionFlag, false, "Whether to enable experimental anonymous function support")
 	_ = fs.Bool(PrintFullFilePathFlag, false, "Whether to show full filenames in output")
-	_ = fs.Bool(ExcludeTestFilesFlag, true, "Whether to exclude diagnostics involving test files")
+	_ = fs.Bool(ExcludeTestFilesFlag, false, "Whether to exclude diagnostics involving test files")
 
 	return *fs
 }
