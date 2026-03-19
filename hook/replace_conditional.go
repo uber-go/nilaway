@@ -69,10 +69,42 @@ var _errorAsAction replaceConditionalAction = func(_ *analysishelper.EnhancedPas
 	}
 }
 
+// _jsonUnmarshalAction replaces a call to `json.Unmarshal(data, &v)` or `xml.Unmarshal(data, &v)` with
+// `json.Unmarshal(data, &v) && v != nil`. This handles the contract where these functions allocate
+// maps/slices when they're nil, so when the error is nil, the output parameter is non-nil.
+// This is similar to errors.As in concept - we keep the call expression and add an implicit nil check.
+var _jsonUnmarshalAction replaceConditionalAction = func(_ *analysishelper.EnhancedPass, call *ast.CallExpr) ast.Expr {
+	if len(call.Args) != 2 {
+		return nil
+	}
+
+	unaryExpr, ok := call.Args[1].(*ast.UnaryExpr)
+	if !ok || unaryExpr.Op != token.AND {
+		return nil
+	}
+
+	return &ast.BinaryExpr{
+		X:     call,
+		Op:    token.LAND,
+		OpPos: call.Pos(),
+		Y:     newNilBinaryExpr(unaryExpr.X, token.NEQ),
+	}
+}
+
 var _replaceConditionals = map[trustedFuncSig]replaceConditionalAction{
 	{
 		kind:           _func,
 		enclosingRegex: regexp.MustCompile(`^errors$`),
 		funcNameRegex:  regexp.MustCompile(`^As$`),
 	}: _errorAsAction,
+
+	// `encoding/json.Unmarshal` and `encoding/xml.Unmarshal`
+	// When error is nil, the output parameter (second argument, a pointer to map/slice) is guaranteed to be non-nil
+	// since these functions allocate maps/slices when they're nil.
+	// Similar to errors.As, we keep the original call expression and add an implicit nil check.
+	{
+		kind:           _func,
+		enclosingRegex: regexp.MustCompile(`^(encoding/json|encoding/xml)$`),
+		funcNameRegex:  regexp.MustCompile(`^Unmarshal$`),
+	}: _jsonUnmarshalAction,
 }
