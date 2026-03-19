@@ -16,7 +16,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.25.x
+          go-version: 1.26.x
           cache: false
 
       - name: Read golangci-lint version from .golangci.version
@@ -43,7 +43,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go: [ "1.24.x", "1.25.x" ]
+        go: [ "1.25.x", "1.26.x" ]
     steps:
       - uses: actions/checkout@v5
 
@@ -78,7 +78,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go: [ "1.24.x", "1.25.x" ]
+        go: [ "1.25.x", "1.26.x" ]
     steps:
       - uses: actions/checkout@v5
 
