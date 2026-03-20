@@ -18,6 +18,7 @@ package nilaway
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 
 	"go.uber.org/nilaway/accumulation"
@@ -57,8 +58,14 @@ var codeReferencePattern = regexp.MustCompile("\\`(.*?)\\`")
 var pathPattern = regexp.MustCompile(`"(.*?)"`)
 var nilabilityPattern = regexp.MustCompile(`([\(|^\t](?i)(found\s|must\sbe\s)(nilable|nonnil)[\)]?)`)
 
-// PrettyPrintErrorMessage is used in error reporting to post process and pretty print the output with colors
+// PrettyPrintErrorMessage is used in error reporting to post process and pretty print the output with colors.
+// It respects the TERM environment variable and NO_COLOR convention, skipping ANSI codes when
+// TERM is set to "dumb" or NO_COLOR is set.
 func PrettyPrintErrorMessage(msg string) string {
+	if os.Getenv("TERM") == "dumb" || os.Getenv("NO_COLOR") != "" {
+		return "error: " + msg
+	}
+
 	// TODO: below string parsing should not be required after  is implemented
 	errorStr := fmt.Sprintf("\x1b[%dm%s\x1b[0m", 31, "error: ")      // red
 	codeStr := fmt.Sprintf("\u001B[%dm%s\u001B[0m", 95, "`${1}`")    // magenta
