@@ -157,6 +157,18 @@ var _assumeReturns = map[trustedFuncSig]assumeReturnAction{
 		funcNameRegex:  regexp.MustCompile(`^New$`),
 	}: nonnilProducer,
 
+	// `github.com/cockroachdb/errors`
+	{
+		kind:           _func,
+		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/cockroachdb/errors$`),
+		funcNameRegex:  regexp.MustCompile(`^New$`),
+	}: nonnilProducer,
+	{
+		kind:           _func,
+		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/cockroachdb/errors$`),
+		funcNameRegex:  regexp.MustCompile(`^Newf$`),
+	}: nonnilProducer,
+
 	// `errors.Join`
 	// Note that `errors.Join` can return nil if all arguments are nil [1]. However, in practice this should rarely
 	// happen such that we assume it returns a non-nil error for simplicity. Here we are making a conscious trade-off
@@ -166,6 +178,13 @@ var _assumeReturns = map[trustedFuncSig]assumeReturnAction{
 	{
 		kind:           _func,
 		enclosingRegex: regexp.MustCompile(`^errors$`),
+		funcNameRegex:  regexp.MustCompile(`^Join$`),
+	}: nonnilProducer,
+
+	// `github.com/cockroachdb/errors.Join`
+	{
+		kind:           _func,
+		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/cockroachdb/errors$`),
 		funcNameRegex:  regexp.MustCompile(`^Join$`),
 	}: nonnilProducer,
 
