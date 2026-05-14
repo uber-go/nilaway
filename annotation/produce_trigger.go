@@ -510,9 +510,9 @@ type FuncParamPrestring struct {
 
 func (f FuncParamPrestring) String() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("function parameter `%s`", f.ParamName))
+	fmt.Fprintf(&sb, "function parameter `%s`", f.ParamName)
 	if f.Location != "" {
-		sb.WriteString(fmt.Sprintf(" at %s", f.Location))
+		fmt.Fprintf(&sb, " at %s", f.Location)
 	}
 	return sb.String()
 }
@@ -791,9 +791,9 @@ type FuncReturnPrestring struct {
 
 func (f FuncReturnPrestring) String() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("result %d of `%s()`", f.RetNum, f.FuncName))
+	fmt.Fprintf(&sb, "result %d of `%s()`", f.RetNum, f.FuncName)
 	if f.Location != "" {
-		sb.WriteString(fmt.Sprintf(" at %s", f.Location))
+		fmt.Fprintf(&sb, " at %s", f.Location)
 	}
 	return sb.String()
 }

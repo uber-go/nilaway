@@ -570,9 +570,9 @@ type FldAccessPrestring struct {
 func (f FldAccessPrestring) String() string {
 	var sb strings.Builder
 	if f.MethodName != "" {
-		sb.WriteString(fmt.Sprintf("called `%s()`", f.MethodName))
+		fmt.Fprintf(&sb, "called `%s()`", f.MethodName)
 	} else {
-		sb.WriteString(fmt.Sprintf("accessed field `%s`", f.FieldName))
+		fmt.Fprintf(&sb, "accessed field `%s`", f.FieldName)
 	}
 	sb.WriteString(f.AssignmentStr)
 	return sb.String()
@@ -627,9 +627,9 @@ type UseAsErrorResultPrestring struct {
 func (u UseAsErrorResultPrestring) String() string {
 	var sb strings.Builder
 	if u.IsNamedReturn {
-		sb.WriteString(fmt.Sprintf("returned as named error result `%s` of `%s()`", u.RetName, u.ReturningFuncStr))
+		fmt.Fprintf(&sb, "returned as named error result `%s` of `%s()`", u.RetName, u.ReturningFuncStr)
 	} else {
-		sb.WriteString(fmt.Sprintf("returned as error result %d of `%s()`", u.Pos, u.ReturningFuncStr))
+		fmt.Fprintf(&sb, "returned as error result %d of `%s()`", u.Pos, u.ReturningFuncStr)
 	}
 	sb.WriteString(u.AssignmentStr)
 	return sb.String()
@@ -680,7 +680,7 @@ type FldAssignPrestring struct {
 
 func (f FldAssignPrestring) String() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("assigned into field `%s`", f.FieldName))
+	fmt.Fprintf(&sb, "assigned into field `%s`", f.FieldName)
 	sb.WriteString(f.AssignmentStr)
 	return sb.String()
 }
@@ -743,9 +743,9 @@ func (f ArgFldPassPrestring) String() string {
 	}
 
 	if len(f.RecvName) > 0 {
-		sb.WriteString(fmt.Sprintf("%sfield `%s` of method receiver `%s`", prefix, f.FieldName, f.RecvName))
+		fmt.Fprintf(&sb, "%sfield `%s` of method receiver `%s`", prefix, f.FieldName, f.RecvName)
 	} else {
-		sb.WriteString(fmt.Sprintf("%sfield `%s` of argument %d to `%s()`", prefix, f.FieldName, f.ParamNum, f.FuncName))
+		fmt.Fprintf(&sb, "%sfield `%s` of argument %d to `%s()`", prefix, f.FieldName, f.ParamNum, f.FuncName)
 	}
 
 	sb.WriteString(f.AssignmentStr)
@@ -789,7 +789,7 @@ type GlobalVarAssignPrestring struct {
 
 func (g GlobalVarAssignPrestring) String() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("assigned into global variable `%s`", g.VarName))
+	fmt.Fprintf(&sb, "assigned into global variable `%s`", g.VarName)
 	sb.WriteString(g.AssignmentStr)
 	return sb.String()
 }
@@ -854,9 +854,9 @@ type ArgPassPrestring struct {
 
 func (a ArgPassPrestring) String() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("passed as %s to `%s()`", a.ParamName, a.FuncName))
+	fmt.Fprintf(&sb, "passed as %s to `%s()`", a.ParamName, a.FuncName)
 	if a.Location != "" {
-		sb.WriteString(fmt.Sprintf(" at %s", a.Location))
+		fmt.Fprintf(&sb, " at %s", a.Location)
 	}
 	sb.WriteString(a.AssignmentStr)
 	return sb.String()
@@ -917,9 +917,9 @@ type ArgPassDeepPrestring struct {
 
 func (a ArgPassDeepPrestring) String() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("passed deeply as %s to `%s()`", a.ParamName, a.FuncName))
+	fmt.Fprintf(&sb, "passed deeply as %s to `%s()`", a.ParamName, a.FuncName)
 	if a.Location != "" {
-		sb.WriteString(fmt.Sprintf(" at %s", a.Location))
+		fmt.Fprintf(&sb, " at %s", a.Location)
 	}
 	sb.WriteString(a.AssignmentStr)
 	return sb.String()
@@ -963,7 +963,7 @@ type RecvPassPrestring struct {
 
 func (a RecvPassPrestring) String() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("used as receiver to call `%s()`", a.FuncName))
+	fmt.Fprintf(&sb, "used as receiver to call `%s()`", a.FuncName)
 	sb.WriteString(a.AssignmentStr)
 	return sb.String()
 }
@@ -1012,8 +1012,8 @@ type InterfaceResultFromImplementationPrestring struct {
 
 func (i InterfaceResultFromImplementationPrestring) String() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("returned as result %d from interface method `%s()` (implemented by `%s()`)",
-		i.RetNum, i.IntName, i.ImplName))
+	fmt.Fprintf(&sb, "returned as result %d from interface method `%s()` (implemented by `%s()`)",
+		i.RetNum, i.IntName, i.ImplName)
 	sb.WriteString(i.AssignmentStr)
 	return sb.String()
 }
@@ -1062,8 +1062,8 @@ type MethodParamFromInterfacePrestring struct {
 
 func (m MethodParamFromInterfacePrestring) String() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("passed as parameter `%s` to `%s()` (implementing `%s()`)",
-		m.ParamName, m.ImplName, m.IntName))
+	fmt.Fprintf(&sb, "passed as parameter `%s` to `%s()` (implementing `%s()`)",
+		m.ParamName, m.ImplName, m.IntName)
 	sb.WriteString(m.AssignmentStr)
 	return sb.String()
 }
@@ -1157,14 +1157,14 @@ type UseAsReturnPrestring struct {
 
 func (u UseAsReturnPrestring) String() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("returned from `%s()`", u.FuncName))
+	fmt.Fprintf(&sb, "returned from `%s()`", u.FuncName)
 	if u.IsNamedReturn {
-		sb.WriteString(fmt.Sprintf(" via named return `%s`", u.RetName))
+		fmt.Fprintf(&sb, " via named return `%s`", u.RetName)
 	} else {
-		sb.WriteString(fmt.Sprintf(" in position %d", u.RetNum))
+		fmt.Fprintf(&sb, " in position %d", u.RetNum)
 	}
 	if u.Location != "" {
-		sb.WriteString(fmt.Sprintf(" at %s", u.Location))
+		fmt.Fprintf(&sb, " at %s", u.Location)
 	}
 	sb.WriteString(u.AssignmentStr)
 	return sb.String()
@@ -1227,7 +1227,7 @@ func (u UseAsReturnDeepPrestring) String() string {
 	if u.RetName != "" && u.RetName != "_" {
 		via = fmt.Sprintf(" via named return `%s`", u.RetName)
 	}
-	sb.WriteString(fmt.Sprintf("returned deeply from `%s()`%s in position %d", u.FuncName, via, u.RetNum))
+	fmt.Fprintf(&sb, "returned deeply from `%s()`%s in position %d", u.FuncName, via, u.RetNum)
 	sb.WriteString(u.AssignmentStr)
 	return sb.String()
 }
@@ -1282,7 +1282,7 @@ type UseAsFldOfReturnPrestring struct {
 
 func (u UseAsFldOfReturnPrestring) String() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("field `%s` returned by result %d of `%s()`", u.FieldName, u.RetNum, u.FuncName))
+	fmt.Fprintf(&sb, "field `%s` returned by result %d of `%s()`", u.FieldName, u.RetNum, u.FuncName)
 	sb.WriteString(u.AssignmentStr)
 	return sb.String()
 }
@@ -1360,7 +1360,7 @@ type SliceAssignPrestring struct {
 
 func (f SliceAssignPrestring) String() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("assigned into a slice of deeply nonnil type `%s`", f.TypeName))
+	fmt.Fprintf(&sb, "assigned into a slice of deeply nonnil type `%s`", f.TypeName)
 	sb.WriteString(f.AssignmentStr)
 	return sb.String()
 }
@@ -1402,7 +1402,7 @@ type ArrayAssignPrestring struct {
 
 func (a ArrayAssignPrestring) String() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("assigned into an array of deeply nonnil type `%s`", a.TypeName))
+	fmt.Fprintf(&sb, "assigned into an array of deeply nonnil type `%s`", a.TypeName)
 	sb.WriteString(a.AssignmentStr)
 	return sb.String()
 }
@@ -1444,7 +1444,7 @@ type PtrAssignPrestring struct {
 
 func (f PtrAssignPrestring) String() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("assigned into a pointer of deeply nonnil type `%s`", f.TypeName))
+	fmt.Fprintf(&sb, "assigned into a pointer of deeply nonnil type `%s`", f.TypeName)
 	sb.WriteString(f.AssignmentStr)
 	return sb.String()
 }
@@ -1486,7 +1486,7 @@ type MapAssignPrestring struct {
 
 func (f MapAssignPrestring) String() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("assigned into a map of deeply nonnil type `%s`", f.TypeName))
+	fmt.Fprintf(&sb, "assigned into a map of deeply nonnil type `%s`", f.TypeName)
 	sb.WriteString(f.AssignmentStr)
 	return sb.String()
 }
@@ -1567,7 +1567,7 @@ type ParamAssignDeepPrestring struct {
 
 func (p ParamAssignDeepPrestring) String() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("assigned deeply into parameter %s", p.ParamName))
+	fmt.Fprintf(&sb, "assigned deeply into parameter %s", p.ParamName)
 	sb.WriteString(p.AssignmentStr)
 	return sb.String()
 }
@@ -1611,7 +1611,7 @@ type FuncRetAssignDeepPrestring struct {
 
 func (f FuncRetAssignDeepPrestring) String() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("assigned deeply into the result %d of `%s()`", f.RetNum, f.FuncName))
+	fmt.Fprintf(&sb, "assigned deeply into the result %d of `%s()`", f.RetNum, f.FuncName)
 	sb.WriteString(f.AssignmentStr)
 	return sb.String()
 }
@@ -1654,7 +1654,7 @@ type VariadicParamAssignDeepPrestring struct {
 
 func (v VariadicParamAssignDeepPrestring) String() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("assigned deeply into variadic parameter `%s`", v.ParamName))
+	fmt.Fprintf(&sb, "assigned deeply into variadic parameter `%s`", v.ParamName)
 	sb.WriteString(v.AssignmentStr)
 	return sb.String()
 }
@@ -1696,7 +1696,7 @@ type FieldAssignDeepPrestring struct {
 
 func (f FieldAssignDeepPrestring) String() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("assigned deeply into field `%s`", f.FldName))
+	fmt.Fprintf(&sb, "assigned deeply into field `%s`", f.FldName)
 	sb.WriteString(f.AssignmentStr)
 	return sb.String()
 }
@@ -1738,7 +1738,7 @@ type GlobalVarAssignDeepPrestring struct {
 
 func (g GlobalVarAssignDeepPrestring) String() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("assigned deeply into global variable `%s`", g.VarName))
+	fmt.Fprintf(&sb, "assigned deeply into global variable `%s`", g.VarName)
 	sb.WriteString(g.AssignmentStr)
 	return sb.String()
 }
@@ -1779,7 +1779,7 @@ type LocalVarAssignDeepPrestring struct {
 
 func (l LocalVarAssignDeepPrestring) String() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("assigned deeply into local variable `%s`", l.VarName))
+	fmt.Fprintf(&sb, "assigned deeply into local variable `%s`", l.VarName)
 	sb.WriteString(l.AssignmentStr)
 	return sb.String()
 }
@@ -1821,7 +1821,7 @@ type ChanSendPrestring struct {
 
 func (c ChanSendPrestring) String() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("sent to channel of deeply nonnil type `%s`", c.TypeName))
+	fmt.Fprintf(&sb, "sent to channel of deeply nonnil type `%s`", c.TypeName)
 	sb.WriteString(c.AssignmentStr)
 	return sb.String()
 }
@@ -1870,7 +1870,7 @@ type FldEscapePrestring struct {
 
 func (f FldEscapePrestring) String() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("field `%s` escaped out of our analysis scope (presumed nilable)", f.FieldName))
+	fmt.Fprintf(&sb, "field `%s` escaped out of our analysis scope (presumed nilable)", f.FieldName)
 	sb.WriteString(f.AssignmentStr)
 	return sb.String()
 }
@@ -1930,8 +1930,8 @@ func (u UseAsNonErrorRetDependentOnErrorRetNilabilityPrestring) String() string 
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("returned from `%s()`%s in position %d when the error return in position %d is not guaranteed to be non-nil through all paths",
-		u.FuncName, via, u.RetNum, u.ErrRetNum))
+	fmt.Fprintf(&sb, "returned from `%s()`%s in position %d when the error return in position %d is not guaranteed to be non-nil through all paths",
+		u.FuncName, via, u.RetNum, u.ErrRetNum)
 	sb.WriteString(u.AssignmentStr)
 	return sb.String()
 }
@@ -1993,9 +1993,9 @@ type UseAsErrorRetWithNilabilityUnknownPrestring struct {
 func (u UseAsErrorRetWithNilabilityUnknownPrestring) String() string {
 	var sb strings.Builder
 	if u.IsNamedReturn {
-		sb.WriteString(fmt.Sprintf("found in at least one path of `%s()` for named return `%s` in position %d", u.FuncName, u.RetName, u.RetNum))
+		fmt.Fprintf(&sb, "found in at least one path of `%s()` for named return `%s` in position %d", u.FuncName, u.RetName, u.RetNum)
 	} else {
-		sb.WriteString(fmt.Sprintf("found in at least one path of `%s()` for return in position %d", u.FuncName, u.RetNum))
+		fmt.Fprintf(&sb, "found in at least one path of `%s()` for return in position %d", u.FuncName, u.RetNum)
 	}
 	sb.WriteString(u.AssignmentStr)
 	return sb.String()
