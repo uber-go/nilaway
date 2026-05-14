@@ -18,8 +18,9 @@ package errors
 // nilable(err, target)
 func As(err error, target any) bool { return false }
 
-// nilable(result 0)
 func New(text string) error { return nil }
 
-// nilable(errs[], result 0)
+func Newf(format string, args ...interface{}) error { return nil }
+
+// nilable(errs[])
 func Join(errs ...error) error { return nil }

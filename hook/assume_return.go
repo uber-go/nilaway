@@ -161,12 +161,7 @@ var _assumeReturns = map[trustedFuncSig]assumeReturnAction{
 	{
 		kind:           _func,
 		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/cockroachdb/errors$`),
-		funcNameRegex:  regexp.MustCompile(`^New$`),
-	}: nonnilProducer,
-	{
-		kind:           _func,
-		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/cockroachdb/errors$`),
-		funcNameRegex:  regexp.MustCompile(`^Newf$`),
+		funcNameRegex:  regexp.MustCompile(`^New(f)?$`),
 	}: nonnilProducer,
 
 	// `errors.Join`

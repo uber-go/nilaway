@@ -9,6 +9,13 @@ func cockroachdbErrorsNewIsNonNil() {
 	print(err.Error())
 }
 
+// cockroachdbErrorsNewfIsNonNil checks that `cockroachdb/errors.Newf` is
+// modeled as returning a non-nil error.
+func cockroachdbErrorsNewfIsNonNil() {
+	err := cockroachdbErrors.Newf("some error %s", "some arg")
+	print(err.Error())
+}
+
 // cockroachdbErrorsJoinIsNonNil checks that `cockroachdb/errors.Join` is
 // modeled as returning a non-nil error.
 // `Join` can return nil if all arguments are nil, but we model it as non-nil
