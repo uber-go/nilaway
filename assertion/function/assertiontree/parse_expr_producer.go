@@ -287,9 +287,12 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 			}
 
 			// Check if the method is a function value, e.g., `f := func() {}` and then `f()`.
-			// TODO: this is a temporary fix to suppress false positives caused by function values.
-			//  Remove this once we have have implemented the function value support.
 			if r.isVariable(fun) {
+				if producers := r.getFuncVarReturnProducers(r.Pass().TypesInfo.TypeOf(fun), expr); producers != nil {
+					return nil, producers
+				}
+				// For non-error/ok-returning function variables, suppress false positives
+				// TODO: this is a temporary fix. Remove once function value support is complete.
 				return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: &annotation.ProduceTrigger{
 					Annotation: &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
 					Expr:       expr,
@@ -337,10 +340,13 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 			return nil, r.getFuncReturnProducers(fun, expr)
 
 		case *ast.SelectorExpr: // method call
-			// Check if the method is a function value, e.g., `f := func() {}` and then `f()`.
-			// TODO: this is a temporary fix to handle the case of function values.
-			//  Remove this once we have have implemented the function value support.
+			// Check if the method is a function value, e.g., `s.f()` where `f` is a function type field.
 			if r.isVariable(fun.Sel) {
+				if producers := r.getFuncVarReturnProducers(r.Pass().TypesInfo.TypeOf(fun.Sel), expr); producers != nil {
+					return nil, producers
+				}
+				// For non-error/ok-returning function variables, suppress false positives
+				// TODO: this is a temporary fix. Remove once function value support is complete.
 				return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: &annotation.ProduceTrigger{
 					Annotation: &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
 					Expr:       expr,
@@ -582,7 +588,52 @@ func (r *RootAssertionNode) getFuncReturnProducers(ident *ast.Ident, expr *ast.C
 	return producers
 }
 
-// parseStructCreateExprAsProducer parses composite expressions used to initialize a struct e.g. A{f1: v1, f2: v2}
+// getFuncVarReturnProducers returns producers for function variable calls (e.g., `f()` where f is a variable).
+// Returns nil if the function should use the default TrustedFuncNonnil workaround.
+func (r *RootAssertionNode) getFuncVarReturnProducers(funType types.Type, expr *ast.CallExpr) []producer.ParsedProducer {
+	sig := typeshelper.GetFuncSignature(funType)
+	if sig == nil {
+		return nil
+	}
+
+	isErrReturning := typeshelper.FuncIsErrReturning(sig)
+	isOkReturning := typeshelper.FuncIsOkReturning(sig)
+
+	// For non-rich-check-effect functions, use default workaround
+	if !isErrReturning && !isOkReturning {
+		return nil
+	}
+
+	// Generate FuncReturn producers that integrate with rich check effects
+	numResults := sig.Results().Len()
+	producers := make([]producer.ParsedProducer, numResults)
+	callLocation := r.Pass().Fset.Position(expr.Pos())
+
+	for i := 0; i < numResults; i++ {
+		resultType := sig.Results().At(i).Type()
+		var shallowAnnotation annotation.ProducingAnnotationTrigger
+
+		if typeshelper.TypeBarsNilness(resultType) {
+			shallowAnnotation = &annotation.TrustedFuncNonnil{ProduceTriggerNever: &annotation.ProduceTriggerNever{}}
+		} else {
+			shallowAnnotation = &annotation.FuncReturn{
+				TriggerIfNilable: &annotation.TriggerIfNilable{
+					Ann:        &annotation.FuncVarRetAnnotationKey{Location: callLocation, RetNum: i},
+					NeedsGuard: (isErrReturning || isOkReturning) && i != numResults-1,
+				},
+				IsFromRichCheckEffectFunc: isErrReturning || isOkReturning,
+			}
+		}
+
+		producers[i] = producer.ShallowParsedProducer{Producer: &annotation.ProduceTrigger{
+			Annotation: shallowAnnotation,
+			Expr:       expr,
+		}}
+	}
+	return producers
+}
+
+// parseStructCreateExprAsProducer parsed composite expressions used to initialize a struct e.g. A{f1: v1, f2: v2}
 func (r *RootAssertionNode) parseStructCreateExprAsProducer(expr ast.Expr, fieldInitializations []ast.Expr) producer.ParsedProducer {
 	exprType := r.Pass().TypesInfo.TypeOf(expr)
 
