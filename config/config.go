@@ -19,12 +19,26 @@ import (
 	"flag"
 	"go/ast"
 	"go/types"
+	"os"
 	"reflect"
 	"strings"
 
 	"go.uber.org/nilaway/util/asthelper"
 	"golang.org/x/tools/go/analysis"
 )
+
+// defaultPrettyPrint returns the default for the PrettyPrint config option.
+// It respects the NO_COLOR and TERM=dumb conventions when no -pretty-print flag is provided.
+// https://no-color.org/ and POSIX terminal-capability conventions.
+func defaultPrettyPrint() bool {
+	if os.Getenv("NO_COLOR") != "" {
+		return false
+	}
+	if os.Getenv("TERM") == "dumb" {
+		return false
+	}
+	return true
+}
 
 // Config is the struct that stores the user-configurable options for NilAway.
 type Config struct {
@@ -148,7 +162,7 @@ func newFlagSet() flag.FlagSet {
 
 	// We do not keep the returned pointer to the flags because we will not use them directly here.
 	// Instead, we will use the flags through the analyzer's Flags field later.
-	_ = fs.Bool(PrettyPrintFlag, true, "Pretty print the error messages")
+	_ = fs.Bool(PrettyPrintFlag, defaultPrettyPrint(), "Pretty print the error messages")
 	_ = fs.Bool(GroupErrorMessagesFlag, true, "Group similar error messages")
 	_ = fs.String(IncludePkgsFlag, "", "Comma-separated list of packages to analyze")
 	_ = fs.String(ExcludePkgsFlag, "", "Comma-separated list of packages to exclude from analysis")
@@ -164,7 +178,7 @@ func newFlagSet() flag.FlagSet {
 func run(pass *analysis.Pass) (any, error) {
 	// Set up default values for the config.
 	conf := &Config{
-		PrettyPrint:        true,
+		PrettyPrint:        defaultPrettyPrint(),
 		GroupErrorMessages: true,
 		// If the user does not provide an include list, we give an empty package prefix to catch
 		// all packages.
