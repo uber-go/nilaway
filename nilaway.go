@@ -57,7 +57,7 @@ var codeReferencePattern = regexp.MustCompile("\\`(.*?)\\`")
 var pathPattern = regexp.MustCompile(`"(.*?)"`)
 var nilabilityPattern = regexp.MustCompile(`([\(|^\t](?i)(found\s|must\sbe\s)(nilable|nonnil)[\)]?)`)
 
-// PrettyPrintErrorMessage is used in error reporting to post process and pretty print the output with colors
+// PrettyPrintErrorMessage is used in error reporting to post process and pretty print the output with colors.
 func PrettyPrintErrorMessage(msg string) string {
 	// TODO: below string parsing should not be required after  is implemented
 	errorStr := fmt.Sprintf("\x1b[%dm%s\x1b[0m", 31, "error: ")      // red
