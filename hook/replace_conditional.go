@@ -75,4 +75,9 @@ var _replaceConditionals = map[trustedFuncSig]replaceConditionalAction{
 		enclosingRegex: regexp.MustCompile(`^errors$`),
 		funcNameRegex:  regexp.MustCompile(`^As$`),
 	}: _errorAsAction,
+	{
+		kind:           _func,
+		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/cockroachdb/errors$`),
+		funcNameRegex:  regexp.MustCompile(`^As$`),
+	}: _errorAsAction,
 }
