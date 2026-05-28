@@ -19,13 +19,26 @@ import (
 	"flag"
 	"go/ast"
 	"go/types"
+	"os"
 	"reflect"
 	"strings"
 
-	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/asthelper"
 	"golang.org/x/tools/go/analysis"
 )
+
+// defaultPrettyPrint returns the default for the PrettyPrint config option.
+// It respects the NO_COLOR and TERM=dumb conventions when no -pretty-print flag is provided.
+// https://no-color.org/ and POSIX terminal-capability conventions.
+func defaultPrettyPrint() bool {
+	if os.Getenv("NO_COLOR") != "" {
+		return false
+	}
+	if os.Getenv("TERM") == "dumb" {
+		return false
+	}
+	return true
+}
 
 // Config is the struct that stores the user-configurable options for NilAway.
 type Config struct {
@@ -37,6 +50,10 @@ type Config struct {
 	ExperimentalStructInitEnable bool
 	// ExperimentalAnonymousFuncEnable indicates whether experimental anonymous function support is enabled.
 	ExperimentalAnonymousFuncEnable bool
+	// PrintFullFilePath incidates whether to print full filenames in the output.
+	PrintFullFilePath bool
+	// ExcludeTestFiles indicates whether to exclude diagnostics that involve test files.
+	ExcludeTestFiles bool
 
 	// includePkgs is the list of packages to analyze.
 	includePkgs []string
@@ -133,6 +150,10 @@ const (
 	ExperimentalStructInitEnableFlag = "experimental-struct-init"
 	// ExperimentalAnonymousFunctionFlag is the flag name for the experimental anonymous function support.
 	ExperimentalAnonymousFunctionFlag = "experimental-anonymous-function"
+	// PrintFullFilePathFlag is the flag name for printing full filenames in output.
+	PrintFullFilePathFlag = "print-full-file-path"
+	// ExcludeTestFilesFlag is the flag name for excluding diagnostics involving test files.
+	ExcludeTestFilesFlag = "exclude-test-files"
 )
 
 // newFlagSet returns a flag set to be used in the nilaway config analyzer.
@@ -141,22 +162,23 @@ func newFlagSet() flag.FlagSet {
 
 	// We do not keep the returned pointer to the flags because we will not use them directly here.
 	// Instead, we will use the flags through the analyzer's Flags field later.
-	_ = fs.Bool(PrettyPrintFlag, true, "Pretty print the error messages")
+	_ = fs.Bool(PrettyPrintFlag, defaultPrettyPrint(), "Pretty print the error messages")
 	_ = fs.Bool(GroupErrorMessagesFlag, true, "Group similar error messages")
 	_ = fs.String(IncludePkgsFlag, "", "Comma-separated list of packages to analyze")
 	_ = fs.String(ExcludePkgsFlag, "", "Comma-separated list of packages to exclude from analysis")
 	_ = fs.String(ExcludeFileDocStringsFlag, "", "Comma-separated list of docstrings to exclude from analysis")
 	_ = fs.Bool(ExperimentalStructInitEnableFlag, false, "Whether to enable experimental struct initialization support")
 	_ = fs.Bool(ExperimentalAnonymousFunctionFlag, false, "Whether to enable experimental anonymous function support")
+	_ = fs.Bool(PrintFullFilePathFlag, false, "Whether to show full filenames in output")
+	_ = fs.Bool(ExcludeTestFilesFlag, false, "Whether to exclude diagnostics involving test files")
 
 	return *fs
 }
 
-func run(p *analysis.Pass) (any, error) {
-	pass := analysishelper.NewEnhancedPass(p)
+func run(pass *analysis.Pass) (any, error) {
 	// Set up default values for the config.
 	conf := &Config{
-		PrettyPrint:        true,
+		PrettyPrint:        defaultPrettyPrint(),
 		GroupErrorMessages: true,
 		// If the user does not provide an include list, we give an empty package prefix to catch
 		// all packages.
@@ -175,6 +197,12 @@ func run(p *analysis.Pass) (any, error) {
 	}
 	if enableAnonymousFunc, ok := pass.Analyzer.Flags.Lookup(ExperimentalAnonymousFunctionFlag).Value.(flag.Getter).Get().(bool); ok {
 		conf.ExperimentalAnonymousFuncEnable = enableAnonymousFunc
+	}
+	if printFullFilePath, ok := pass.Analyzer.Flags.Lookup(PrintFullFilePathFlag).Value.(flag.Getter).Get().(bool); ok {
+		conf.PrintFullFilePath = printFullFilePath
+	}
+	if excludeTestFiles, ok := pass.Analyzer.Flags.Lookup(ExcludeTestFilesFlag).Value.(flag.Getter).Get().(bool); ok {
+		conf.ExcludeTestFiles = excludeTestFiles
 	}
 	if include, ok := pass.Analyzer.Flags.Lookup(IncludePkgsFlag).Value.(flag.Getter).Get().(string); ok && include != "" {
 		conf.includePkgs = strings.Split(include, ",")

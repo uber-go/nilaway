@@ -20,7 +20,7 @@ import (
 	"go/types"
 
 	"go.uber.org/nilaway/annotation"
-	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/util/typeshelper"
 )
 
 type funcAssertionNode struct {
@@ -37,7 +37,7 @@ func (f *funcAssertionNode) MinimalString() string {
 
 // DefaultTrigger for a function node is that function's return annotation
 func (f *funcAssertionNode) DefaultTrigger() annotation.ProducingAnnotationTrigger {
-	if util.FuncNumResults(f.decl) != 1 {
+	if typeshelper.FuncNumResults(f.decl) != 1 {
 		panic("only functions with singular result should be entered into the assertion tree")
 	}
 

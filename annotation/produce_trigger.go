@@ -21,7 +21,7 @@ import (
 	"go/types"
 	"strings"
 
-	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/util/typeshelper"
 )
 
 // A ProducingAnnotationTrigger is a possible reason that a nil value might be produced
@@ -510,9 +510,9 @@ type FuncParamPrestring struct {
 
 func (f FuncParamPrestring) String() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("function parameter `%s`", f.ParamName))
+	fmt.Fprintf(&sb, "function parameter `%s`", f.ParamName)
 	if f.Location != "" {
-		sb.WriteString(fmt.Sprintf(" at %s", f.Location))
+		fmt.Fprintf(&sb, " at %s", f.Location)
 	}
 	return sb.String()
 }
@@ -791,9 +791,9 @@ type FuncReturnPrestring struct {
 
 func (f FuncReturnPrestring) String() string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("result %d of `%s()`", f.RetNum, f.FuncName))
+	fmt.Fprintf(&sb, "result %d of `%s()`", f.RetNum, f.FuncName)
 	if f.Location != "" {
-		sb.WriteString(fmt.Sprintf(" at %s", f.Location))
+		fmt.Fprintf(&sb, " at %s", f.Location)
 	}
 	return sb.String()
 }
@@ -848,8 +848,8 @@ func (m *MethodResultReachesInterface) Prestring() Prestring {
 	retAnn := m.Ann.(*RetAnnotationKey)
 	return MethodResultReachesInterfacePrestring{
 		retAnn.RetNum,
-		util.PartiallyQualifiedFuncName(retAnn.FuncDecl),
-		util.PartiallyQualifiedFuncName(m.InterfaceMethod),
+		typeshelper.PartiallyQualifiedFuncName(retAnn.FuncDecl),
+		typeshelper.PartiallyQualifiedFuncName(m.InterfaceMethod),
 	}
 }
 
@@ -885,8 +885,8 @@ func (i *InterfaceParamReachesImplementation) Prestring() Prestring {
 	paramAnn := i.Ann.(*ParamAnnotationKey)
 	return InterfaceParamReachesImplementationPrestring{
 		paramAnn.ParamNameString(),
-		util.PartiallyQualifiedFuncName(paramAnn.FuncDecl),
-		util.PartiallyQualifiedFuncName(i.ImplementingMethod),
+		typeshelper.PartiallyQualifiedFuncName(paramAnn.FuncDecl),
+		typeshelper.PartiallyQualifiedFuncName(i.ImplementingMethod),
 	}
 }
 

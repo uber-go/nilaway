@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"go/token"
 
-	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/guard"
 	"go.uber.org/nilaway/util/analysishelper"
 )
 
@@ -60,7 +60,7 @@ func (t *FullTrigger) Check(annMap Map) bool {
 }
 
 func (t *FullTrigger) truncatedConsumerPos(pass *analysishelper.EnhancedPass) token.Position {
-	return util.PosToLocation(t.Consumer.Pos(), pass)
+	return pass.PosToLocation(t.Consumer.Pos())
 }
 
 func (t *FullTrigger) truncatedProducerPos(pass *analysishelper.EnhancedPass) token.Position {
@@ -73,7 +73,7 @@ func (t *FullTrigger) truncatedProducerPos(pass *analysishelper.EnhancedPass) to
 	if t.Producer.Expr == nil {
 		panic(fmt.Sprintf("nil Expr for producer %q", t.Producer))
 	}
-	return util.PosToLocation(t.Producer.Expr.Pos(), pass)
+	return pass.PosToLocation(t.Producer.Expr.Pos())
 }
 
 // equals returns true if the two passed FullTriggers are equal, and false otherwise.
@@ -114,7 +114,7 @@ func (l LocatedPrestring) String() string {
 // expressions.
 func (t *FullTrigger) Prestrings(pass *analysishelper.EnhancedPass) (Prestring, Prestring) {
 	producerPrestring := t.Producer.Annotation.Prestring()
-	if util.ExprIsAuthentic(pass, t.Producer.Expr) {
+	if pass.ExprIsAuthentic(t.Producer.Expr) {
 		producerPrestring = LocatedPrestring{
 			Contained: producerPrestring,
 			Location:  t.truncatedProducerPos(pass),
@@ -192,7 +192,7 @@ func MergeFullTriggers(left []FullTrigger, right ...FullTrigger) []FullTrigger {
 
 	for i, l := range left {
 		if updateLeftGuard[i] {
-			l.Consumer.Guards = util.NoGuards()
+			l.Consumer.Guards = guard.NoGuards()
 			l.Consumer.GuardMatched = false
 		}
 		out = append(out, l)

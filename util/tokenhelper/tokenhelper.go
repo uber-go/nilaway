@@ -21,6 +21,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 var _cwd, _cwdErr = os.Getwd()
@@ -77,4 +78,22 @@ func Inverse(t token.Token) token.Token {
 	default:
 		panic(fmt.Sprintf("unrecognized token %q has no known inverse", t.String()))
 	}
+}
+
+// PortionAfterSep returns the suffix of the passed string `input` containing at most `occ` occurrences
+// of the separator `sep`
+func PortionAfterSep(input, sep string, occ int) string {
+	splits := strings.Split(input, sep)
+	n := len(splits)
+	if n <= occ+1 {
+		return input // input contains at most `occ` occurrences of `sep`
+	}
+	out := ""
+	for i := n - (1 + occ); i < n; i++ {
+		if len(out) > 0 {
+			out += sep
+		}
+		out += splits[i]
+	}
+	return out
 }

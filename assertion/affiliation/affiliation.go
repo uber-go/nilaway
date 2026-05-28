@@ -23,9 +23,10 @@ import (
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/config"
-	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/asthelper"
 	"go.uber.org/nilaway/util/orderedmap"
+	"go.uber.org/nilaway/util/typeshelper"
 )
 
 // Affiliation is used to track the association between an interface and its concrete implementations in the form of a map,
@@ -130,7 +131,7 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysishelper.Enhanc
 					}
 				case *ast.CallExpr:
 					// e.g., func foo(i I), foo(&S{})
-					if ident := util.FuncIdentFromCallExpr(node); ident != nil {
+					if ident := asthelper.FuncIdentFromCallExpr(node); ident != nil {
 						if declObj := pass.TypesInfo.Uses[ident]; declObj != nil {
 							if fdecl, ok := declObj.(*types.Func); ok {
 								fsig := fdecl.Type().(*types.Signature)
@@ -144,7 +145,7 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysishelper.Enhanc
 					}
 
 					// slice is declared to be of interface type, and append function is used to add struct
-					if sliceType, ok := util.IsSliceAppendCall(node, pass); ok {
+					if sliceType, ok := pass.IsSliceAppendCall(node); ok {
 						for i := 1; i < len(node.Args); i++ {
 							lhsType := sliceType.Elem()
 							rhsType := pass.TypesInfo.TypeOf(node.Args[i])
@@ -208,7 +209,7 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysishelper.Enhanc
 								rhsType = pass.TypesInfo.TypeOf(kv.Value)
 							} else {
 								// In this case the initialization is serial. E.g. s = &S{&T{}}
-								if sObj := util.TypeAsDeeplyStruct(pass.TypesInfo.TypeOf(node)); sObj != nil {
+								if sObj := typeshelper.AsDeeplyStruct(pass.TypesInfo.TypeOf(node)); sObj != nil {
 									lhsType = sObj.Field(i).Type()
 									rhsType = pass.TypesInfo.TypeOf(elt)
 								}
@@ -240,7 +241,7 @@ func (a *Affiliation) computeTriggersForTypes(lhsType types.Type, rhsType types.
 	if !ok {
 		return nil
 	}
-	rhsObj, ok := util.UnwrapPtr(rhsType).(*types.Named)
+	rhsObj, ok := typeshelper.UnwrapPtr(rhsType).(*types.Named)
 	if !ok {
 		return nil
 	}

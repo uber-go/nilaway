@@ -20,8 +20,8 @@ import (
 	"regexp"
 
 	"go.uber.org/nilaway/annotation"
-	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/asthelper"
 	"go.uber.org/nilaway/util/typeshelper"
 )
 
@@ -62,7 +62,7 @@ var _newErrorFuncNameRegex = regexp.MustCompile(`(?i)new[^ ]*error[^ ]*`)
 // - the function must have at least one argument of error-implementing type, and
 // - the function must return an error-implementing type as its last return value.
 func isErrorWrapperFunc(pass *analysishelper.EnhancedPass, call *ast.CallExpr) bool {
-	funcIdent := util.FuncIdentFromCallExpr(call)
+	funcIdent := asthelper.FuncIdentFromCallExpr(call)
 	if funcIdent == nil {
 		return false
 	}
@@ -71,7 +71,7 @@ func isErrorWrapperFunc(pass *analysishelper.EnhancedPass, call *ast.CallExpr) b
 	var funcObj *types.Func
 	if obj := pass.TypesInfo.ObjectOf(funcIdent); obj != nil {
 		if fObj, ok := obj.(*types.Func); ok {
-			if util.FuncIsErrReturning(typeshelper.GetFuncSignature(fObj.Signature())) {
+			if typeshelper.FuncIsErrReturning(typeshelper.GetFuncSignature(fObj.Signature())) {
 				funcObj = fObj
 			}
 		}
@@ -94,7 +94,7 @@ func isErrorWrapperFunc(pass *analysishelper.EnhancedPass, call *ast.CallExpr) b
 			// We want to extract the raw error argument `err` in this case.
 			if s, ok := callExpr.Fun.(*ast.SelectorExpr); ok {
 				t := pass.TypesInfo.TypeOf(s.X)
-				if t != nil && util.ImplementsError(t) {
+				if t != nil && typeshelper.ImplementsError(t) {
 					return true
 				}
 			}
@@ -107,7 +107,7 @@ func isErrorWrapperFunc(pass *analysishelper.EnhancedPass, call *ast.CallExpr) b
 		}
 
 		argType := pass.TypesInfo.TypeOf(arg)
-		if argType != nil && util.ImplementsError(argType) {
+		if argType != nil && typeshelper.ImplementsError(argType) {
 			// Return the raw error argument expression
 			return true
 		}
@@ -157,6 +157,13 @@ var _assumeReturns = map[trustedFuncSig]assumeReturnAction{
 		funcNameRegex:  regexp.MustCompile(`^New$`),
 	}: nonnilProducer,
 
+	// `github.com/cockroachdb/errors`
+	{
+		kind:           _func,
+		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/cockroachdb/errors$`),
+		funcNameRegex:  regexp.MustCompile(`^New(f)?$`),
+	}: nonnilProducer,
+
 	// `errors.Join`
 	// Note that `errors.Join` can return nil if all arguments are nil [1]. However, in practice this should rarely
 	// happen such that we assume it returns a non-nil error for simplicity. Here we are making a conscious trade-off
@@ -166,6 +173,13 @@ var _assumeReturns = map[trustedFuncSig]assumeReturnAction{
 	{
 		kind:           _func,
 		enclosingRegex: regexp.MustCompile(`^errors$`),
+		funcNameRegex:  regexp.MustCompile(`^Join$`),
+	}: nonnilProducer,
+
+	// `github.com/cockroachdb/errors.Join`
+	{
+		kind:           _func,
+		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/cockroachdb/errors$`),
 		funcNameRegex:  regexp.MustCompile(`^Join$`),
 	}: nonnilProducer,
 
@@ -181,6 +195,16 @@ var _assumeReturns = map[trustedFuncSig]assumeReturnAction{
 		kind:           _func,
 		enclosingRegex: regexp.MustCompile(`^strings$`),
 		funcNameRegex:  regexp.MustCompile(`^Split(After)?$`),
+	}: nonnilProducer,
+
+	// `google.golang.org/grpc/status.Error`
+	// Returns a non-nil error when the code is non-OK. When the code is OK, it returns nil.
+	// For simplicity and to reduce false positives, we assume it returns non-nil for any code,
+	// since the OK case is rare in practice and out of scope for NilAway.
+	{
+		kind:           _func,
+		enclosingRegex: regexp.MustCompile(`^(stubs/)?(google\.golang\.org/grpc|google\.golang\.org/grpc/status)$`),
+		funcNameRegex:  regexp.MustCompile(`^Errorf?$`),
 	}: nonnilProducer,
 }
 

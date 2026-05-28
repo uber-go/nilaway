@@ -20,8 +20,10 @@ import (
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/assertion/structfield"
-	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/guard"
 	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/asthelper"
+	"go.uber.org/nilaway/util/typeshelper"
 )
 
 // addProductionsForAssignmentFields adds production for each produce trigger in fieldProducers.
@@ -32,7 +34,7 @@ import (
 func (r *RootAssertionNode) addProductionsForAssignmentFields(fieldProducers []*annotation.ProduceTrigger, lhsVal ast.Expr) {
 	structType := r.Pass().TypesInfo.TypeOf(lhsVal)
 
-	if structType := util.TypeAsDeeplyStruct(structType); structType != nil {
+	if structType := typeshelper.AsDeeplyStruct(structType); structType != nil {
 		for i, fieldProducer := range fieldProducers {
 			if fieldProducer == nil {
 				continue
@@ -63,15 +65,15 @@ func (r *RootAssertionNode) addConsumptionsForFieldsOfReturns(retExpr ast.Expr, 
 	// fdecl Type() is always a *Signature
 	res := fdecl.Type().(*types.Signature).Results().At(retNum)
 
-	if resType := util.TypeAsDeeplyStruct(res.Type()); resType != nil {
+	if resType := typeshelper.AsDeeplyStruct(res.Type()); resType != nil {
 		numFields := resType.NumFields()
 
 		// For field selection chains we add the consumptions for fields by creating artificial selector expression
-		if util.IsFieldSelectorChain(retExpr) {
+		if asthelper.IsFieldSelectorChain(retExpr) {
 			for fieldID := 0; fieldID < numFields; fieldID++ {
 				fieldDecl := resType.Field(fieldID)
 
-				if util.TypeBarsNilness(fieldDecl.Type()) {
+				if typeshelper.TypeBarsNilness(fieldDecl.Type()) {
 					// We do not create field triggers for types that are not nilable
 					continue
 				}
@@ -127,14 +129,14 @@ func (r *RootAssertionNode) getFieldProducersForFuncReturns(calledFuncDecl *type
 	// calledFuncDecl Type() is always *Signature
 	result := calledFuncDecl.Type().(*types.Signature).Results().At(retNum)
 
-	if resType := util.TypeAsDeeplyStruct(result.Type()); resType != nil {
+	if resType := typeshelper.AsDeeplyStruct(result.Type()); resType != nil {
 		numFields := resType.NumFields()
 		producers := make([]*annotation.ProduceTrigger, numFields)
 
 		for fieldID := 0; fieldID < numFields; fieldID++ {
 			fieldDecl := resType.Field(fieldID)
 
-			if util.TypeBarsNilness(fieldDecl.Type()) {
+			if typeshelper.TypeBarsNilness(fieldDecl.Type()) {
 				// We do not create field triggers for types that are not nilable
 				return nil
 			}
@@ -167,7 +169,7 @@ func (r *RootAssertionNode) addProductionsForParamFields(node AssertionNode, bui
 
 	for _, node := range nodes {
 		if fldNode, ok := node.(*fldAssertionNode); ok {
-			if util.TypeBarsNilness(fldNode.decl.Type()) {
+			if typeshelper.TypeBarsNilness(fldNode.decl.Type()) {
 				// We do not add production for types that are not nilable
 				continue
 			}
@@ -182,7 +184,7 @@ func (r *RootAssertionNode) addProductionsForParamFields(node AssertionNode, bui
 func (r *RootAssertionNode) addProductionForVarFieldNode(varNode *varAssertionNode, varAstExpr ast.Expr) {
 	for _, child := range varNode.Children() {
 		if fldNode, ok := child.(*fldAssertionNode); ok {
-			if util.TypeBarsNilness(fldNode.decl.Type()) {
+			if typeshelper.TypeBarsNilness(fldNode.decl.Type()) {
 				continue
 			}
 			selExpr := r.getSelectorExpr(fldNode.decl, varAstExpr)
@@ -280,18 +282,18 @@ func (r *RootAssertionNode) addConsumptionsForArgFieldsAtIndex(arg ast.Expr, fun
 	if argIdx == annotation.ReceiverParamIndex {
 		param = funcObj.Type().(*types.Signature).Recv()
 	} else {
-		param = util.GetParamObjFromIndex(funcObj, argIdx)
+		param = typeshelper.GetParamObjFromIndex(funcObj, argIdx)
 	}
 
-	if paramType := util.TypeAsDeeplyStruct(param.Type()); paramType != nil {
+	if paramType := typeshelper.AsDeeplyStruct(param.Type()); paramType != nil {
 		numFields := paramType.NumFields()
 
 		// For field selection chains we add the consumptions for fields by creating artificial selector expression
-		if util.IsFieldSelectorChain(arg) {
+		if asthelper.IsFieldSelectorChain(arg) {
 			for fieldIdx := 0; fieldIdx < numFields; fieldIdx++ {
 				fieldDecl := paramType.Field(fieldIdx)
 
-				if util.TypeBarsNilness(fieldDecl.Type()) {
+				if typeshelper.TypeBarsNilness(fieldDecl.Type()) {
 					continue
 				}
 
@@ -307,7 +309,7 @@ func (r *RootAssertionNode) addConsumptionsForArgFieldsAtIndex(arg ast.Expr, fun
 									Ann: paramFieldKey,
 								},
 							},
-							Guards: util.NoGuards(),
+							Guards: guard.NoGuards(),
 							Expr:   selExpr})
 				}
 
@@ -395,10 +397,10 @@ func (r *RootAssertionNode) addProductionForFuncCallArgFieldsAtIndex(arg ast.Exp
 	if argIdx == annotation.ReceiverParamIndex {
 		param = methodType.Type().(*types.Signature).Recv()
 	} else {
-		param = util.GetParamObjFromIndex(methodType, argIdx)
+		param = typeshelper.GetParamObjFromIndex(methodType, argIdx)
 	}
 
-	if structType := util.TypeAsDeeplyStruct(param.Type()); structType != nil {
+	if structType := typeshelper.AsDeeplyStruct(param.Type()); structType != nil {
 		numFields := structType.NumFields()
 
 		for fieldID := 0; fieldID < numFields; fieldID++ {
@@ -432,7 +434,7 @@ func (r *RootAssertionNode) addConsumptionsForFieldsOfParams() {
 	for i := 0; i < funcSig.Params().Len(); i++ {
 		param := funcSig.Params().At(i)
 
-		paramNode := util.GetFunctionParamNode(r.FuncDecl(), param)
+		paramNode := asthelper.GetFunctionParamNode(r.FuncDecl(), param)
 		if paramNode != nil {
 			r.addConsumptionsForFieldsOfParam(param, paramNode, i, result.Res)
 		}
@@ -450,7 +452,7 @@ func (r *RootAssertionNode) addConsumptionsForFieldsOfParams() {
 
 		// The length of receivers can only be 0 (unnamed receiver) or 1 (named receiver).
 		// We only need to handle the named case if it is not an empty (`_`) receiver.
-		if len(receivers) != 0 && !util.IsEmptyExpr(receivers[0]) {
+		if len(receivers) != 0 && !asthelper.IsEmptyExpr(receivers[0]) {
 			r.addConsumptionsForFieldsOfParam(funcSig.Recv(), receivers[0], annotation.ReceiverParamIndex, result.Res)
 		}
 	}
@@ -458,7 +460,7 @@ func (r *RootAssertionNode) addConsumptionsForFieldsOfParams() {
 
 // addConsumptionsForFieldsOfParam is called by addConsumptionsForFieldsOfParams for parameter at index paramIdx
 func (r *RootAssertionNode) addConsumptionsForFieldsOfParam(param *types.Var, paramNode ast.Expr, paramIdx int, fieldContext *structfield.FieldContext) {
-	if resType := util.TypeAsDeeplyStruct(param.Type()); resType != nil {
+	if resType := typeshelper.AsDeeplyStruct(param.Type()); resType != nil {
 		numFields := resType.NumFields()
 		for fieldIdx := 0; fieldIdx < numFields; fieldIdx++ {
 			fieldDecl := resType.Field(fieldIdx)
@@ -476,7 +478,7 @@ func (r *RootAssertionNode) addConsumptionsForFieldsOfParam(param *types.Var, pa
 						IsPassed: true,
 					},
 					Expr:   selExpr,
-					Guards: util.NoGuards(),
+					Guards: guard.NoGuards(),
 				})
 			}
 		}
@@ -487,7 +489,7 @@ func (r *RootAssertionNode) addConsumptionsForFieldsOfParam(param *types.Var, pa
 func (r *RootAssertionNode) getParamFieldKey(arg ast.Expr, methodType *types.Func, argIdx int, structType *types.Struct, fieldID int) (annotation.Key, *ast.SelectorExpr) {
 	fieldDecl := structType.Field(fieldID)
 
-	if util.TypeBarsNilness(fieldDecl.Type()) {
+	if typeshelper.TypeBarsNilness(fieldDecl.Type()) {
 		return nil, nil
 	}
 	selExpr := r.getSelectorExpr(fieldDecl, arg)

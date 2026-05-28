@@ -32,8 +32,8 @@ import (
 	"go.uber.org/nilaway/assertion/function/functioncontracts"
 	"go.uber.org/nilaway/assertion/structfield"
 	"go.uber.org/nilaway/config"
-	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/asthelper"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/ctrlflow"
 	"golang.org/x/tools/go/cfg"
@@ -90,7 +90,10 @@ func run(p *analysis.Pass) ([]annotation.FullTrigger, error) {
 	}
 
 	// Construct experimental features. By default, enable all features on NilAway itself.
-	functionConfig := assertiontree.FunctionConfig{}
+	functionConfig := assertiontree.FunctionConfig{
+		EnableStructInitCheck: conf.ExperimentalStructInitEnable,
+		EnableAnonymousFunc:   conf.ExperimentalAnonymousFuncEnable,
+	}
 	if strings.HasPrefix(pass.Pkg.Path(), config.NilAwayPkgPathPrefix) { //nolint:revive
 		// TODO: enable struct initialization flag (tracked in Issue #23).
 		// TODO: enable anonymous function flag.
@@ -185,10 +188,10 @@ func run(p *analysis.Pass) ([]annotation.FullTrigger, error) {
 			}
 
 			// Now, analyze the function declarations concurrently.
-			wg.Add(1)
 			funcContext := assertiontree.NewFunctionContext(
 				pass, funcDecl, funcLit, functionConfig, funcLitMap, pkgFakeIdentMap, funcContracts)
-			go analyzeFunc(ctx, pass, funcDecl, funcContext, graph, funcIndex, funcChan, &wg)
+			idx := funcIndex
+			wg.Go(func() { analyzeFunc(ctx, pass, funcDecl, funcContext, graph, idx, funcChan) })
 			funcIndex++
 		}
 	}
@@ -336,7 +339,7 @@ func duplicateFullTrigger(
 ) annotation.FullTrigger {
 	// TODO: what if we have more than one parameter, planned in future revisions
 	argExpr := callExpr.Args[0]
-	argLoc := util.PosToLocation(argExpr.Pos(), pass)
+	argLoc := pass.PosToLocation(argExpr.Pos())
 
 	// Create the duplicated full trigger
 	// TODO: we just copy the pointer for producer and consumer because I don't see a problem when
@@ -358,7 +361,7 @@ func duplicateFullTrigger(
 		dupTrigger.Producer = annotation.DuplicateParamProducer(trigger.Producer, argLoc)
 	}
 	if isReturnConsumer {
-		retLoc := util.PosToLocation(callExpr.Pos(), pass)
+		retLoc := pass.PosToLocation(callExpr.Pos())
 		dupTrigger.Consumer = annotation.DuplicateReturnConsumer(trigger.Consumer, retLoc)
 		// Set up the site that controls the controlled full trigger to be created
 		c := annotation.NewCallSiteParamKey(callee, 0, argLoc)
@@ -383,7 +386,7 @@ func findCallsToContractedFunctions(
 			return true
 		}
 
-		ident := util.FuncIdentFromCallExpr(callExpr)
+		ident := asthelper.FuncIdentFromCallExpr(callExpr)
 		if ident == nil {
 			return true
 		}
@@ -430,15 +433,7 @@ func analyzeFunc(
 	graph *cfg.CFG,
 	index int,
 	funcChan chan functionResult,
-	wg *sync.WaitGroup,
 ) {
-	// Deferred statements are pushed to a stack, which are executed in LIFO order. Calling
-	// wg.Done() would signal the main process that this goroutine is done, and the main process
-	// will close the result channel. However, our panic recovery handler still needs access to
-	// the result channel to send the error back. Therefore, we _must_ call `wg.Done()` after the
-	// panic recovery handler (meaning we defer it first).
-	defer wg.Done()
-
 	// As a last resort, convert the panics into errors and return.
 	defer func() {
 		if r := recover(); r != nil {

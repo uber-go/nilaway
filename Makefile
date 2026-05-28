@@ -104,7 +104,8 @@ tidy-lint:
 
 .PHONY: nilaway-lint
 nilaway-lint: build
+	# Enable -experimental-struct-init for linting nilaway (tracked in #23).
 	@$(foreach mod,$(MODULE_DIRS), \
 		(cd $(mod) && \
 		echo "[lint] nilaway linting itself: $(mod)" && \
-		$(GOBIN)/nilaway -include-pkgs="go.uber.org/nilaway" ./...) &&) true
+		$(GOBIN)/nilaway -include-pkgs="go.uber.org/nilaway" -experimental-anonymous-function ./...) &&) true

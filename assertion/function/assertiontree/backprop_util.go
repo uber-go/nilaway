@@ -23,10 +23,11 @@ import (
 	"go/types"
 
 	"go.uber.org/nilaway/annotation"
+	"go.uber.org/nilaway/guard"
 	"go.uber.org/nilaway/hook"
-	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/asthelper"
+	"go.uber.org/nilaway/util/typeshelper"
 	"golang.org/x/tools/go/cfg"
 )
 
@@ -99,7 +100,7 @@ func exprCallsKnownNilableErrFunc(expr ast.Expr) bool {
 		return false
 	}
 
-	ident := util.FuncIdentFromCallExpr(callExpr)
+	ident := asthelper.FuncIdentFromCallExpr(callExpr)
 
 	if ident == nil {
 		// no ident - anonymous function
@@ -151,7 +152,7 @@ func computeAndConsumeResults(rootNode *RootAssertionNode, node *ast.ReturnStmt)
 				retKey := annotation.RetKeyFromRetNum(rootNode.ObjectOf(rootNode.FuncNameIdent()).(*types.Func), i)
 
 				// default handling if retVariable is not a blank identifier (e.g., i *int)
-				if !util.IsEmptyExpr(retVariable) {
+				if !asthelper.IsEmptyExpr(retVariable) {
 					addReturnConsumers(rootNode, node, retVariable, retKey, true /* isNamedReturn */)
 
 					if rootNode.functionContext.functionConfig.EnableStructInitCheck {
@@ -159,7 +160,7 @@ func computeAndConsumeResults(rootNode *RootAssertionNode, node *ast.ReturnStmt)
 					}
 				} else {
 					// special handling if retVariable is a blank identifier (e.g., _ *int)
-					if !util.ExprBarsNilness(rootNode.Pass(), retVariable) {
+					if !rootNode.Pass().ExprBarsNilness(retVariable) {
 						producer := &annotation.ProduceTrigger{
 							Annotation: &annotation.BlankVarReturn{ProduceTriggerTautology: &annotation.ProduceTriggerTautology{}},
 							Expr:       retVariable,
@@ -174,7 +175,7 @@ func computeAndConsumeResults(rootNode *RootAssertionNode, node *ast.ReturnStmt)
 									RetStmt:       node,
 								},
 								Expr:   retVariable,
-								Guards: util.NoGuards(),
+								Guards: guard.NoGuards(),
 							},
 						}
 						rootNode.AddNewTriggers(fullTrigger)
@@ -194,7 +195,7 @@ func computeAndConsumeResults(rootNode *RootAssertionNode, node *ast.ReturnStmt)
 		}
 	}
 
-	n := util.FuncNumResults(rootNode.FuncObj())
+	n := typeshelper.FuncNumResults(rootNode.FuncObj())
 	if len(node.Results) != n {
 		return fmt.Errorf(
 			"ERROR: function %s returns %d results where signature indicates it should return %d",
@@ -230,7 +231,7 @@ func isErrorReturnNil(rootNode *RootAssertionNode, errRet ast.Expr) bool {
 	}
 
 	// check for false cases where error return value may be nil
-	if util.IsEmptyExpr(errRet) {
+	if asthelper.IsEmptyExpr(errRet) {
 		// error result is a blank named return ("_ error"), so it's always nil
 		return true
 	}
@@ -244,7 +245,7 @@ func isErrorReturnNil(rootNode *RootAssertionNode, errRet ast.Expr) bool {
 
 // isErrorReturnNonnil returns true if the error return is guaranteed to be nonnil, false otherwise
 func isErrorReturnNonnil(rootNode *RootAssertionNode, errRet ast.Expr) bool {
-	if t := rootNode.Pass().TypesInfo.TypeOf(errRet); util.TypeAsDeeplyStruct(t) != nil {
+	if t := rootNode.Pass().TypesInfo.TypeOf(errRet); typeshelper.AsDeeplyStruct(t) != nil {
 		return true
 	}
 	if callExpr, ok := errRet.(*ast.CallExpr); ok {
@@ -264,7 +265,7 @@ func isErrorReturnNonnil(rootNode *RootAssertionNode, errRet ast.Expr) bool {
 //
 // Note that `results` should be explicitly passed since `retStmt` of a named return will contain no results
 func handleErrorReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, results []ast.Expr, isNamedReturn bool) bool {
-	if !util.FuncIsErrReturning(rootNode.FuncObj().Signature()) {
+	if !typeshelper.FuncIsErrReturning(rootNode.FuncObj().Signature()) {
 		return false
 	}
 
@@ -318,7 +319,7 @@ func handleErrorReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, re
 func handleBooleanReturns(rootNode *RootAssertionNode, retStmt *ast.ReturnStmt, results []ast.Expr, isNamedReturn bool) bool {
 	// FuncIsOkReturning checks that the length of the results defined for the current function is at least 2, and that
 	// the last return type is a boolean, the value of which can be determined at compile time (e.g., return true)
-	if !util.FuncIsOkReturning(rootNode.FuncObj().Signature()) {
+	if !typeshelper.FuncIsOkReturning(rootNode.FuncObj().Signature()) {
 		return false
 	}
 
@@ -358,7 +359,7 @@ func createConsumerForErrorReturn(rootNode *RootAssertionNode, errRetExpr ast.Ex
 			RetStmt:       retStmt,
 		},
 		Expr:   errRetExpr,
-		Guards: util.NoGuards(),
+		Guards: guard.NoGuards(),
 	})
 }
 
@@ -366,7 +367,7 @@ func createConsumerForErrorReturn(rootNode *RootAssertionNode, errRetExpr ast.Ex
 func createGeneralReturnConsumers(rootNode *RootAssertionNode, results []ast.Expr, retStmt *ast.ReturnStmt, isNamedReturn bool) {
 	for i := range results {
 		// don't do anything if the expression is a blank identifier ("_")
-		if util.IsEmptyExpr(results[i]) {
+		if asthelper.IsEmptyExpr(results[i]) {
 			continue
 		}
 		rootNode.AddConsumption(&annotation.ConsumeTrigger{
@@ -376,7 +377,7 @@ func createGeneralReturnConsumers(rootNode *RootAssertionNode, results []ast.Exp
 				IsNamedReturn: isNamedReturn,
 				RetStmt:       retStmt},
 			Expr:   results[i],
-			Guards: util.NoGuards(),
+			Guards: guard.NoGuards(),
 		})
 	}
 }
@@ -386,7 +387,7 @@ func createGeneralReturnConsumers(rootNode *RootAssertionNode, results []ast.Exp
 func createReturnConsumersForAlwaysSafe(rootNode *RootAssertionNode, nonErrResults []ast.Expr, retStmt *ast.ReturnStmt, isNamedReturn bool) {
 	for i := range nonErrResults {
 		// don't do anything if the expression is a blank identifier ("_")
-		if util.IsEmptyExpr(nonErrResults[i]) {
+		if asthelper.IsEmptyExpr(nonErrResults[i]) {
 			continue
 		}
 
@@ -402,7 +403,7 @@ func createReturnConsumersForAlwaysSafe(rootNode *RootAssertionNode, nonErrResul
 				IsTrackingAlwaysSafe: true,
 				RetStmt:              retStmt},
 			Expr:   nonErrResults[i],
-			Guards: util.NoGuards(),
+			Guards: guard.NoGuards(),
 		})
 	}
 }
@@ -411,7 +412,7 @@ func createReturnConsumersForAlwaysSafe(rootNode *RootAssertionNode, nonErrResul
 func createSpecialConsumersForAllReturns(rootNode *RootAssertionNode, nonErrRetExpr []ast.Expr, errRetExpr ast.Expr, errRetIndex int, retStmt *ast.ReturnStmt, isNamedReturn bool) {
 	for i := range nonErrRetExpr {
 		// don't do anything if the expression is a blank identifier ("_")
-		if util.IsEmptyExpr(nonErrRetExpr[i]) {
+		if asthelper.IsEmptyExpr(nonErrRetExpr[i]) {
 			continue
 		}
 		consumer := &annotation.ConsumeTrigger{
@@ -421,7 +422,7 @@ func createSpecialConsumersForAllReturns(rootNode *RootAssertionNode, nonErrRetE
 				IsNamedReturn:   isNamedReturn,
 			},
 			Expr:   nonErrRetExpr[i],
-			Guards: util.NoGuards(),
+			Guards: guard.NoGuards(),
 		}
 		rootNode.AddConsumption(consumer)
 	}
@@ -433,7 +434,7 @@ func createSpecialConsumersForAllReturns(rootNode *RootAssertionNode, nonErrRetE
 			IsNamedReturn:   isNamedReturn,
 		},
 		Expr:   errRetExpr,
-		Guards: util.NoGuards(),
+		Guards: guard.NoGuards(),
 	})
 }
 
@@ -452,11 +453,11 @@ func typeIsString(t types.Type) bool {
 func exprAsConsumedByAssignment(rootNode *RootAssertionNode, expr ast.Node) *annotation.ConsumeTrigger {
 	if exprType, ok := expr.(*ast.IndexExpr); ok {
 		t := rootNode.Pass().TypesInfo.TypeOf(exprType.X)
-		if util.TypeIsDeeplyMap(t) {
+		if typeshelper.IsDeeplyMap(t) {
 			return &annotation.ConsumeTrigger{
 				Annotation: &annotation.MapWrittenTo{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
 				Expr:       exprType.X,
-				Guards:     util.NoGuards(),
+				Guards:     guard.NoGuards(),
 			}
 		}
 	}
@@ -473,7 +474,7 @@ func exprAsConsumedByAssignment(rootNode *RootAssertionNode, expr ast.Node) *ann
 // not `ast.Expr`, and various "deep" assignments such as to an index of an object
 // nilable(result 0)
 func exprAsAssignmentConsumer(rootNode *RootAssertionNode, expr ast.Node, exprRHS ast.Node) (annotation.ConsumingAnnotationTrigger, error) {
-	if expr, ok := expr.(ast.Expr); ok && util.IsEmptyExpr(expr) {
+	if expr, ok := expr.(ast.Expr); ok && asthelper.IsEmptyExpr(expr) {
 		return nil, nil
 	}
 
@@ -494,7 +495,7 @@ func exprAsAssignmentConsumer(rootNode *RootAssertionNode, expr ast.Node, exprRH
 		func(ident *ast.Ident) annotation.ConsumingAnnotationTrigger {
 			funcObj := rootNode.FuncObj()
 			varObj := rootNode.ObjectOf(ident).(*types.Var)
-			if util.TypeIsDeep(varObj.Type()) {
+			if typeshelper.IsDeep(varObj.Type()) {
 				if annotation.VarIsParam(funcObj, varObj) {
 					// we've found an assignment to a parameter with deep type - have to check its deep annotation!
 					paramKey := annotation.ParamKeyFromName(funcObj, varObj)
@@ -541,7 +542,7 @@ func exprAsAssignmentConsumer(rootNode *RootAssertionNode, expr ast.Node, exprRH
 
 				// this is an assignment to an index of a field
 				fldObj := rootNode.ObjectOf(expr.Sel).(*types.Var)
-				if fldObj.IsField() && util.TypeIsDeep(fldObj.Type()) {
+				if fldObj.IsField() && typeshelper.IsDeep(fldObj.Type()) {
 					return &annotation.FieldAssignDeep{
 						TriggerIfDeepNonNil: &annotation.TriggerIfDeepNonNil{
 							Ann: &annotation.FieldAnnotationKey{FieldDecl: fldObj},
@@ -550,7 +551,7 @@ func exprAsAssignmentConsumer(rootNode *RootAssertionNode, expr ast.Node, exprRH
 				}
 			case *ast.CallExpr:
 				// check if this is a call to a function by name
-				if ident := util.FuncIdentFromCallExpr(expr); ident != nil {
+				if ident := asthelper.FuncIdentFromCallExpr(expr); ident != nil {
 					obj := rootNode.ObjectOf(ident).(*types.Func)
 					if obj.Type().(*types.Signature).Results().Len() != 1 {
 						return nil, errors.New("multiply returning function treated as assignment consumer")
@@ -613,8 +614,8 @@ func exprAsAssignmentConsumer(rootNode *RootAssertionNode, expr ast.Node, exprRH
 	case *ast.Ident:
 		// This block checks if the rhs of the assignment is the builtin append function for slices.
 		varObj := rootNode.ObjectOf(expr).(*types.Var)
-		if call, ok := exprRHS.(*ast.CallExpr); ok && util.TypeIsSlice(varObj.Type()) {
-			if fun, ok := call.Fun.(*ast.Ident); ok && rootNode.ObjectOf(fun) == util.BuiltinAppend {
+		if call, ok := exprRHS.(*ast.CallExpr); ok && typeshelper.IsSlice(varObj.Type()) {
+			if fun, ok := call.Fun.(*ast.Ident); ok && rootNode.ObjectOf(fun) == typeshelper.BuiltinAppend {
 				if annotation.VarIsParam(rootNode.FuncObj(), varObj) {
 					// If there is a deep assignment to a slice using append method
 					return handleDeepAssignmentToExpr(expr)
@@ -633,7 +634,7 @@ func exprAsAssignmentConsumer(rootNode *RootAssertionNode, expr ast.Node, exprRH
 		}
 
 		if rootNode.functionContext.functionConfig.EnableStructInitCheck {
-			if head := util.GetSelectorExprHeadIdent(expr); head != nil {
+			if head := asthelper.GetSelectorExprHeadIdent(expr); head != nil {
 				if obj, ok := rootNode.ObjectOf(head).(*types.Var); ok {
 					if !annotation.VarIsGlobal(obj) {
 						// If field access for a variable that is not a global var we rely on default field nilability based on
@@ -836,7 +837,7 @@ func addAssignmentToConsumer(lhs, rhs ast.Expr, pass *analysishelper.EnhancedPas
 	consumer.AddAssignment(annotation.Assignment{
 		LHSExprStr: lhsExprStr,
 		RHSExprStr: rhsExprStr,
-		Position:   util.TruncatePosition(util.PosToLocation(lhs.Pos(), pass)),
+		Position:   pass.PosToLocation(lhs.Pos()),
 	})
 
 	return nil
@@ -851,7 +852,7 @@ func addReturnConsumers(rootNode *RootAssertionNode, node *ast.ReturnStmt, expr 
 			IsNamedReturn: isNamedReturn,
 			RetStmt:       node},
 		Expr:   expr,
-		Guards: util.NoGuards(),
+		Guards: guard.NoGuards(),
 	})
 
 	// If expr is a deep type, then we track its deep nilability as well.
@@ -861,7 +862,7 @@ func addReturnConsumers(rootNode *RootAssertionNode, node *ast.ReturnStmt, expr 
 	//   return s  // <-- track shallow and deep nilability of `s` here
 	// }
 	// ```
-	if util.TypeIsDeep(rootNode.Pass().TypesInfo.TypeOf(expr)) {
+	if typeshelper.IsDeep(rootNode.Pass().TypesInfo.TypeOf(expr)) {
 		producer := &annotation.ProduceTrigger{
 			Annotation: exprAsDeepProducer(rootNode, expr),
 			Expr:       expr,
@@ -873,7 +874,7 @@ func addReturnConsumers(rootNode *RootAssertionNode, node *ast.ReturnStmt, expr 
 				IsNamedReturn: isNamedReturn,
 				RetStmt:       node},
 			Expr:   expr,
-			Guards: util.NoGuards(),
+			Guards: guard.NoGuards(),
 		}
 		// since this is an implicit tracking of the deep nilability of expr, we don't need to
 		// check for its guarding.

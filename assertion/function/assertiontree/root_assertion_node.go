@@ -22,8 +22,10 @@ import (
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/config"
-	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/guard"
 	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/asthelper"
+	"go.uber.org/nilaway/util/typeshelper"
 )
 
 // RootAssertionNode is the object that will be directly handled by the propagation algorithm,
@@ -41,7 +43,7 @@ type RootAssertionNode struct {
 	funcObj *types.Func
 
 	// exprNonceMap maps expressions to nonces created to track their contracts
-	exprNonceMap util.ExprNonceMap
+	exprNonceMap guard.ExprNonceMap
 
 	// functionContext holds the context of the function during backpropagation. The state includes
 	// map objects that are created at initialization, and configurations that are passed through function analyzer.
@@ -50,7 +52,7 @@ type RootAssertionNode struct {
 
 // LocationOf returns the location of the given expression.
 func (r *RootAssertionNode) LocationOf(expr ast.Expr) token.Position {
-	return util.PosToLocation(expr.Pos(), r.Pass())
+	return r.Pass().PosToLocation(expr.Pos())
 }
 
 // HasContract returns if the given function has any contracts.
@@ -118,7 +120,7 @@ func (r *RootAssertionNode) FuncObj() *types.Func {
 
 // GetNonce returns the nonce associated with the passed expression, if one exists. the boolean
 // return indicates whether a nonce was found
-func (r *RootAssertionNode) GetNonce(expr ast.Expr) (util.GuardNonce, bool) {
+func (r *RootAssertionNode) GetNonce(expr ast.Expr) (guard.Nonce, bool) {
 	guard, ok := r.exprNonceMap[expr]
 	return guard, ok
 }
@@ -229,7 +231,7 @@ func (r *RootAssertionNode) IsStrictPrefix(a, b TrackableExpr) bool {
 	return len(b) > len(a) && r.IsPrefix(a, b)
 }
 
-func newRootAssertionNode(exprNonceMap util.ExprNonceMap, functionContext FunctionContext) *RootAssertionNode {
+func newRootAssertionNode(exprNonceMap guard.ExprNonceMap, functionContext FunctionContext) *RootAssertionNode {
 	return &RootAssertionNode{
 		exprNonceMap:    exprNonceMap,
 		functionContext: functionContext,
@@ -240,7 +242,7 @@ func newRootAssertionNode(exprNonceMap util.ExprNonceMap, functionContext Functi
 // at a new root. Except for that new root, all nodes are preserved so they can still be accessed as before
 // the call. The new root is returned
 func (r *RootAssertionNode) linkPath(path TrackableExpr) *RootAssertionNode {
-	root := newRootAssertionNode(make(util.ExprNonceMap), r.functionContext)
+	root := newRootAssertionNode(make(guard.ExprNonceMap), r.functionContext)
 	var currNode AssertionNode = root // use this currNode to build a linear tree to merge into r
 	for _, node := range path {
 		currNode.SetChildren([]AssertionNode{node})
@@ -255,7 +257,7 @@ func (r *RootAssertionNode) linkPath(path TrackableExpr) *RootAssertionNode {
 func (r *RootAssertionNode) AddConsumption(consumer *annotation.ConsumeTrigger) {
 
 	// we check if the type of the expression `expr` prevents it from ever being nil in the first place
-	if util.ExprBarsNilness(r.Pass(), consumer.Expr) {
+	if r.Pass().ExprBarsNilness(consumer.Expr) {
 		return // expr cannot be nil, so do nothing
 	}
 
@@ -529,11 +531,11 @@ func (r *RootAssertionNode) AddGuardMatch(expr ast.Expr, behavior GuardMatchBeha
 
 func (r *RootAssertionNode) consumeIndexExpr(expr ast.Expr) {
 	t := r.Pass().TypesInfo.Types[expr].Type
-	if util.TypeIsDeeplySlice(t) {
+	if typeshelper.IsDeeplySlice(t) {
 		r.AddConsumption(&annotation.ConsumeTrigger{
 			Annotation: &annotation.SliceAccess{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
 			Expr:       expr,
-			Guards:     util.NoGuards(),
+			Guards:     guard.NoGuards(),
 		})
 	}
 }
@@ -612,12 +614,12 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 							funcObj := r.ObjectOf(argFuncIdent).(*types.Func)
 
 							// Check if it is a rich check effect function call. If yes, this needs special handling.
-							if util.FuncIsErrReturning(funcObj.Signature()) || util.FuncIsOkReturning(funcObj.Signature()) {
+							if typeshelper.FuncIsErrReturning(funcObj.Signature()) || typeshelper.FuncIsOkReturning(funcObj.Signature()) {
 								// TODO: this is a temporary suppression which will be removed once we add support for
 								//  handling such cases precisely.
 								return true
 							}
-							if n := util.FuncNumResults(funcObj); n > 1 {
+							if n := typeshelper.FuncNumResults(funcObj); n > 1 {
 								// is a pass of a multiply returning function to another function
 								_, producers := r.ParseExprAsProducer(argFunc, true)
 								if len(producers) != n {
@@ -635,7 +637,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 													Ann: annotation.ParamKeyFromArgNum(fdecl, i),
 												}},
 											Expr:   argFunc,
-											Guards: util.NoGuards(),
+											Guards: guard.NoGuards(),
 										},
 									})
 								}
@@ -680,7 +682,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 									Ann: annotation.ParamKeyFromArgNum(fdecl, i),
 								}},
 							Expr:   arg,
-							Guards: util.NoGuards(),
+							Guards: guard.NoGuards(),
 						},
 					})
 				} else {
@@ -699,7 +701,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 								Ann: paramKey,
 							}},
 						Expr:   arg,
-						Guards: util.NoGuards(),
+						Guards: guard.NoGuards(),
 					}
 					r.AddConsumption(&consumer)
 
@@ -709,7 +711,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 					//   foo(s) // <-- track shallow and deep nilability of `s` here
 					// }
 					// ```
-					if util.TypeIsDeep(r.Pass().TypesInfo.TypeOf(arg)) {
+					if typeshelper.IsDeep(r.Pass().TypesInfo.TypeOf(arg)) {
 						deepProducer := &annotation.ProduceTrigger{
 							Annotation: exprAsDeepProducer(r, arg),
 							Expr:       arg,
@@ -720,7 +722,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 									Ann: paramKey,
 								}},
 							Expr:   arg,
-							Guards: util.NoGuards(),
+							Guards: guard.NoGuards(),
 						}
 						// since this is an implicit tracking of the deep nilability of arg, we don't need to
 						// check for its guarding
@@ -805,11 +807,11 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 		allowNilable := false
 		if funcObj, ok := r.ObjectOf(expr.Sel).(*types.Func); ok { // Check 1:  selector expression is a method invocation
 			recv := funcObj.Type().(*types.Signature).Recv()
-			if util.TypeIsPointer(recv.Type()) { // Check 2: receiver is an explicit or implicit pointer receiver
+			if typeshelper.IsPointer(recv.Type()) { // Check 2: receiver is an explicit or implicit pointer receiver
 				conf := r.Pass().ResultOf[config.Analyzer].(*config.Config)
 				if conf.IsPkgInScope(funcObj.Pkg()) { // Check 3: invoked method is in scope
 					// Here, `t` can only be of type interface, struct, or named, of which we only support for struct and named types.
-					if !util.TypeIsDeeplyInterface(r.Pass().TypesInfo.TypeOf(expr.X)) { // Check 4: invoking expression (caller) is of a non-interface type (e.g., struct or named)
+					if !typeshelper.IsDeeplyInterface(r.Pass().TypesInfo.TypeOf(expr.X)) { // Check 4: invoking expression (caller) is of a non-interface type (e.g., struct or named)
 						allowNilable = true
 						// We are in the special case of supporting nilable receivers! Can be nilable depending on declaration annotation/inferred nilability.
 						r.AddConsumption(&annotation.ConsumeTrigger{
@@ -820,7 +822,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 									},
 								}},
 							Expr:   expr.X,
-							Guards: util.NoGuards(),
+							Guards: guard.NoGuards(),
 						})
 					}
 				} else { // Check 5: invoked method is out of scope
@@ -836,7 +838,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 			r.AddConsumption(&annotation.ConsumeTrigger{
 				Annotation: &annotation.FldAccess{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}, Sel: r.ObjectOf(expr.Sel)},
 				Expr:       expr.X,
-				Guards:     util.NoGuards(),
+				Guards:     guard.NoGuards(),
 			})
 		}
 
@@ -852,7 +854,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 			r.AddConsumption(&annotation.ConsumeTrigger{
 				Annotation: &annotation.SliceAccess{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
 				Expr:       expr.X,
-				Guards:     util.NoGuards(),
+				Guards:     guard.NoGuards(),
 			})
 		}
 
@@ -865,7 +867,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 		r.AddConsumption(&annotation.ConsumeTrigger{
 			Annotation: &annotation.PtrLoad{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
 			Expr:       expr.X,
-			Guards:     util.NoGuards(),
+			Guards:     guard.NoGuards(),
 		})
 		r.AddComputation(expr.X)
 	case *ast.TypeAssertExpr:
@@ -893,7 +895,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 // is an anonymous function, it will return the fake function declaration created in the
 // function analyzer
 func getFuncIdent(expr *ast.CallExpr, fc *FunctionContext) *ast.Ident {
-	ident := util.FuncIdentFromCallExpr(expr)
+	ident := asthelper.FuncIdentFromCallExpr(expr)
 
 	var funcLit *ast.FuncLit
 	// if ident is nil, check if the expr represents a FuncLit node
@@ -1024,7 +1026,7 @@ func (r *RootAssertionNode) ProcessEntry() {
 	}
 
 	// filter triggers for error return handling -- intra-procedural
-	if util.FuncIsErrReturning(r.FuncObj().Signature()) {
+	if typeshelper.FuncIsErrReturning(r.FuncObj().Signature()) {
 		r.triggers, _ = FilterTriggersForErrorReturn(
 			r.triggers,
 			func(p *annotation.ProduceTrigger) ProducerNilability {
@@ -1146,7 +1148,7 @@ func (r *RootAssertionNode) isBuiltIn(ident *ast.Ident) bool {
 // builtInConversionFuncBasicType checks if it is a built-in conversion function call, such as `string(x)`.
 // If yes returns the basic type object, otherwise nil.
 func (r *RootAssertionNode) builtInConversionFuncBasicType(call *ast.CallExpr) (b *types.Basic) {
-	if ident := util.FuncIdentFromCallExpr(call); ident != nil {
+	if ident := asthelper.FuncIdentFromCallExpr(call); ident != nil {
 		if obj := r.ObjectOf(ident); obj != nil {
 			if tname, ok := obj.(*types.TypeName); ok {
 				b, _ = tname.Type().(*types.Basic)

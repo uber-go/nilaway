@@ -23,8 +23,9 @@ import (
 	"strings"
 
 	"go.uber.org/nilaway/config"
-	"go.uber.org/nilaway/util"
 	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/asthelper"
+	"go.uber.org/nilaway/util/typeshelper"
 )
 
 // Map is an abstraction that concrete annotation maps must implement to be checked against.
@@ -355,7 +356,7 @@ func TypeIsDefaultNilable(t types.Type) bool {
 	}
 
 	// Builtin error type should be nilable by default.
-	if types.Identical(t, util.ErrorType) {
+	if types.Identical(t, typeshelper.ErrorType) {
 		return true
 	}
 
@@ -382,7 +383,7 @@ func TypeIsDeepDefaultNilable(t types.Type) bool {
 			return TypeIsDeepDefaultNilable(e)
 		}
 		// assign deep nilability based on the element type
-		return !util.TypeBarsNilness(t.Elem())
+		return !typeshelper.TypeBarsNilness(t.Elem())
 	case *types.Slice:
 		return TypeIsDefaultNilable(t.Elem())
 	case *types.Map:
@@ -648,7 +649,7 @@ func newObservedMap(pass *analysishelper.EnhancedPass, files []*ast.File) *Obser
 				return true
 			}
 
-			ident := util.FuncIdentFromCallExpr(expr)
+			ident := asthelper.FuncIdentFromCallExpr(expr)
 			// if ident is nil, keep searching for nested CallExpr nodes.
 			if ident == nil {
 				return true
@@ -670,9 +671,9 @@ func newObservedMap(pass *analysishelper.EnhancedPass, files []*ast.File) *Obser
 					"have parsed annotations once for every function declaration and the " +
 					"mappings should have been set up.")
 			}
-			callSite := CallSite{Fun: funcObj, Location: util.PosToLocation(expr.Pos(), pass)}
+			callSite := CallSite{Fun: funcObj, Location: pass.PosToLocation(expr.Pos())}
 			for i, val := range accFromFieldList(set, funcDecl.Type.Params, true, true) {
-				argLoc := util.PosToLocation(expr.Args[i].Pos(), pass)
+				argLoc := pass.PosToLocation(expr.Args[i].Pos())
 				funcCallSiteParamAnnMap[callSite] = append(funcCallSiteParamAnnMap[callSite],
 					ArgLocAndVal{Location: argLoc, Val: val})
 			}

@@ -19,6 +19,7 @@ import (
 	"go/ast"
 	"go/printer"
 	"go/token"
+	"go/types"
 	"io"
 	"strings"
 )
@@ -142,4 +143,102 @@ func IsLiteral(expr ast.Expr, literals ...string) bool {
 		}
 	}
 	return false
+}
+
+// CallExprFromExpr returns the call expression from the given expression. It recursively
+// traverses the expression tree to find the call expression. If the expression is not a
+// call expression, it returns nil.
+func CallExprFromExpr(expr ast.Expr) *ast.CallExpr {
+	switch e := expr.(type) {
+	case *ast.CallExpr:
+		return e
+	case *ast.ParenExpr:
+		return CallExprFromExpr(e.X)
+	case *ast.UnaryExpr:
+		return CallExprFromExpr(e.X)
+	case *ast.SelectorExpr:
+		return CallExprFromExpr(e.X)
+	}
+	return nil
+}
+
+// GetSelectorExprHeadIdent gets the head of the chained selector expression if it is an ident. Returns nil otherwise
+func GetSelectorExprHeadIdent(selExpr *ast.SelectorExpr) *ast.Ident {
+	if ident, ok := selExpr.X.(*ast.Ident); ok {
+		return ident
+	}
+	if x, ok := selExpr.X.(*ast.SelectorExpr); ok {
+		return GetSelectorExprHeadIdent(x)
+	}
+	return nil
+}
+
+// IsFieldSelectorChain returns true if the expr is chain of idents. e.g, x.y.z
+// It returns for false for expressions such as x.y().z
+func IsFieldSelectorChain(expr ast.Expr) bool {
+	switch expr := expr.(type) {
+	case *ast.Ident:
+		return true
+	case *ast.SelectorExpr:
+		return IsFieldSelectorChain(expr.X)
+	default:
+		return false
+	}
+}
+
+// IsEmptyExpr checks if an expression is the empty identifier
+func IsEmptyExpr(expr ast.Expr) bool {
+	if id, ok := expr.(*ast.Ident); ok {
+		if id.Name == "_" {
+			return true
+		}
+	}
+	return false
+}
+
+// GetFieldVal returns the assigned value for the field at index. compElts holds the  elements of the composite literal expression
+// for struct initialization
+func GetFieldVal(compElts []ast.Expr, fieldName string, numFields int, index int) ast.Expr {
+	for _, elt := range compElts {
+		if kv, ok := elt.(*ast.KeyValueExpr); ok {
+			if key, ok := kv.Key.(*ast.Ident); ok {
+				if key.Name == fieldName {
+					return kv.Value
+				}
+			}
+		}
+	}
+
+	// In this case the initialization is serial e.g. a = &A{p, q}
+	if numFields == len(compElts) {
+		return compElts[index]
+	}
+	return nil
+}
+
+// FuncIdentFromCallExpr return a function identified from a call expression, nil otherwise
+// nilable(result 0)
+func FuncIdentFromCallExpr(expr *ast.CallExpr) *ast.Ident {
+	switch fun := expr.Fun.(type) {
+	case *ast.Ident:
+		return fun
+	case *ast.SelectorExpr:
+		return fun.Sel
+	default:
+		// case of anonymous function
+		return nil
+	}
+}
+
+// GetFunctionParamNode returns the ast param node matching the variable searchParam
+func GetFunctionParamNode(funcDecl *ast.FuncDecl, searchParam *types.Var) ast.Expr {
+	for _, params := range funcDecl.Type.Params.List {
+		for _, param := range params.Names {
+			if searchParam.Name() == param.Name && param.Name != "" && param.Name != "_" {
+				return param
+			}
+		}
+	}
+
+	return nil
 }

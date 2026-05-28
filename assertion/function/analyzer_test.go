@@ -90,15 +90,16 @@ func TestCancelledContext(t *testing.T) {
 		funcConfig, emptyFuncLitMap, emptyPkgFakeIdentMap, emptyFuncContracts)
 	// (3) Set up synchronization and communication for the goroutine we are going to spawn.
 	resultChan := make(chan functionResult)
-	wg := new(sync.WaitGroup)
-	wg.Add(1)
+	var wg sync.WaitGroup
 
 	// Give a cancelled context, so back propagation should immediately return with an error.
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	ctrlflowResult := pass.ResultOf[ctrlflow.Analyzer].(*ctrlflow.CFGs)
-	go analyzeFunc(ctx, pass, funcDecl, funcContext, ctrlflowResult.FuncDecl(funcDecl), 0, resultChan, wg)
+	wg.Go(func() {
+		analyzeFunc(ctx, pass, funcDecl, funcContext, ctrlflowResult.FuncDecl(funcDecl), 0, resultChan)
+	})
 
 	// Spawn a goroutine to wait and close the result channel when the work is done.
 	go func() {
@@ -120,19 +121,19 @@ func TestAnalyzeFuncPanic(t *testing.T) {
 
 	resultChan := make(chan functionResult)
 	var wg sync.WaitGroup
-	wg.Add(1)
 
 	// Intentionally give bad input data to cause a panic. We should convert the panic to an error
 	// and send it back to the original channel.
-	go analyzeFunc(ctx,
-		analysishelper.NewEnhancedPass(&analysis.Pass{}), /* pass */
-		&ast.FuncDecl{},                 /* funcDecl */
-		assertiontree.FunctionContext{}, /* funcContext */
-		&cfg.CFG{},                      /* graph */
-		0,                               /* index */
-		resultChan,
-		&wg,
-	)
+	wg.Go(func() {
+		analyzeFunc(ctx,
+			analysishelper.NewEnhancedPass(&analysis.Pass{}), /* pass */
+			&ast.FuncDecl{},                 /* funcDecl */
+			assertiontree.FunctionContext{}, /* funcContext */
+			&cfg.CFG{},                      /* graph */
+			0,                               /* index */
+			resultChan,
+		)
+	})
 	// Fire up another goroutine that waits for the work to be done and closes the result channel.
 	go func() {
 		wg.Wait()

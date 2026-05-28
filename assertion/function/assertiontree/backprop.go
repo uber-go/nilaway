@@ -28,8 +28,9 @@ import (
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/assertion/function/preprocess"
 	"go.uber.org/nilaway/config"
-	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/guard"
 	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/asthelper"
 	"go.uber.org/nilaway/util/typeshelper"
 	"golang.org/x/tools/go/cfg"
 )
@@ -134,7 +135,7 @@ func backpropAcrossSend(rootNode *RootAssertionNode, node *ast.SendStmt) error {
 		rootNode.AddConsumption(&annotation.ConsumeTrigger{
 			Annotation: consumer,
 			Expr:       node.Value,
-			Guards:     util.NoGuards(),
+			Guards:     guard.NoGuards(),
 		})
 	}
 
@@ -191,7 +192,7 @@ func backpropAcrossReturn(rootNode *RootAssertionNode, node *ast.ReturnStmt) err
 				return errors.New("fident variable is nil")
 			}
 			funcObj := rootNode.ObjectOf(fident).(*types.Func)
-			if util.FuncNumResults(funcObj) > 1 {
+			if typeshelper.FuncNumResults(funcObj) > 1 {
 				// this is the case we were looking for!
 				// we've identified that a multiply-returning function is being returned
 
@@ -203,9 +204,9 @@ func backpropAcrossReturn(rootNode *RootAssertionNode, node *ast.ReturnStmt) err
 					}
 					// since we don't individually track the returns of a multiply returning function,
 					// we form full triggers for each return whose type doesn't bar nilness
-					if !util.TypeBarsNilness(funcObj.Type().(*types.Signature).Results().At(i).Type()) {
-						isErrReturning := util.FuncIsErrReturning(funcObj.Signature())
-						isOkReturning := util.FuncIsOkReturning(funcObj.Signature())
+					if !typeshelper.TypeBarsNilness(funcObj.Type().(*types.Signature).Results().At(i).Type()) {
+						isErrReturning := typeshelper.FuncIsErrReturning(funcObj.Signature())
+						isOkReturning := typeshelper.FuncIsOkReturning(funcObj.Signature())
 
 						trigger := annotation.FullTrigger{
 							Producer: &annotation.ProduceTrigger{
@@ -224,7 +225,7 @@ func backpropAcrossReturn(rootNode *RootAssertionNode, node *ast.ReturnStmt) err
 									RetStmt: node,
 								},
 								Expr:   call,
-								Guards: util.NoGuards(),
+								Guards: guard.NoGuards(),
 								// if an error returning function returns directly as the result of
 								// another error returning function, then its results can safely be
 								// interpreted as guarded
@@ -322,8 +323,8 @@ func backpropAcrossAssignment(rootNode *RootAssertionNode, lhs, rhs []ast.Expr) 
 					// This is the case of creating a pointer and assigning it to a variable, e.g., `x := &y`,
 					// where y is a non-pointer type (e.g., y := S{}).
 					// Here, the pointer is always nonnil, so we can just add a ProduceTriggerNever.
-					if util.ExprBarsNilness(rootNode.Pass(), r.X) {
-						if len(lhs) == 1 && !util.IsEmptyExpr(lhs[0]) {
+					if rootNode.Pass().ExprBarsNilness(r.X) {
+						if len(lhs) == 1 && !asthelper.IsEmptyExpr(lhs[0]) {
 							rootNode.AddProduction(&annotation.ProduceTrigger{
 								Annotation: &annotation.ProduceTriggerNever{},
 								Expr:       lhs[0],
@@ -362,7 +363,7 @@ func backpropAcrossAssignment(rootNode *RootAssertionNode, lhs, rhs []ast.Expr) 
 				rootNode.AddGuardMatch(r.X, ProduceAsNonnil)
 				// Add produce trigger for channel receive on the expression `v` here itself,
 				// since we want to set guarding = true.
-				if !util.IsEmptyExpr(lhs[0]) {
+				if !asthelper.IsEmptyExpr(lhs[0]) {
 					producer := exprAsDeepProducer(rootNode, r.X)
 					producer.SetNeedsGuard(true)
 
@@ -387,12 +388,14 @@ func backpropAcrossAssignment(rootNode *RootAssertionNode, lhs, rhs []ast.Expr) 
 			// TODO: currently we do not handle generic rich-check-effect function calls, so as a temporary solution,
 			//  we suppress reporting of errors. Note that this helps suppress false positives, but it also means that
 			//  we don't report true positives either. We should fix this in the future when we add support for generics.
-			if c := util.CallExprFromExpr(rhsNode); c != nil {
+			if c := asthelper.CallExprFromExpr(rhsNode); c != nil {
 				if _, ok := c.Fun.(*ast.IndexExpr); ok {
-					rootNode.AddProduction(&annotation.ProduceTrigger{
-						Annotation: &annotation.ProduceTriggerNever{},
-						Expr:       lhs[0],
-					})
+					if !asthelper.IsEmptyExpr(lhs[0]) {
+						rootNode.AddProduction(&annotation.ProduceTrigger{
+							Annotation: &annotation.ProduceTriggerNever{},
+							Expr:       lhs[0],
+						})
+					}
 				}
 			}
 		}
@@ -413,7 +416,7 @@ func backpropAcrossRange(rootNode *RootAssertionNode, lhs []ast.Expr, rhs ast.Ex
 	// because it necessarily has basic type (int or char)
 	produceAsIndex := func(i int) {
 		// if nonempty, produce the index as definitely non-nil
-		if !util.IsEmptyExpr(lhs[i]) {
+		if !asthelper.IsEmptyExpr(lhs[i]) {
 			rootNode.AddProduction(&annotation.ProduceTrigger{
 				Annotation: &annotation.RangeIndexAssignment{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
 				Expr:       lhs[i],
@@ -427,7 +430,7 @@ func backpropAcrossRange(rootNode *RootAssertionNode, lhs []ast.Expr, rhs ast.Ex
 		// we can't track the rhs of ranges since we would need to discover non-nil assignments
 		// to an unbounded number of indices to conclude anything other than the annotation-based
 		// deep nilability of rhs
-		if !util.IsEmptyExpr(lhs[i]) {
+		if !asthelper.IsEmptyExpr(lhs[i]) {
 			producer := exprAsDeepProducer(rootNode, rhs)
 			producer.SetNeedsGuard(false)
 
@@ -442,7 +445,7 @@ func backpropAcrossRange(rootNode *RootAssertionNode, lhs []ast.Expr, rhs ast.Ex
 
 	// produceNonNil marks the ith lhs expression as nonnil due to limitations of NilAway.
 	produceNonNil := func(i int) {
-		if !util.IsEmptyExpr(lhs[i]) {
+		if !asthelper.IsEmptyExpr(lhs[i]) {
 			rootNode.AddProduction(&annotation.ProduceTrigger{
 				Annotation: &annotation.ProduceTriggerNever{},
 				Expr:       lhs[i],
@@ -488,13 +491,13 @@ func backpropAcrossRange(rootNode *RootAssertionNode, lhs []ast.Expr, rhs ast.Ex
 	case 1:
 		// If we are ranging over a map slice or string with only a single lhs operand, then that
 		// operand will be int-valued.
-		if util.TypeIsDeeplyMap(rhsType) || util.TypeIsDeeplySlice(rhsType) || util.TypeIsDeeplyArray(rhsType) || typeIsString(rhsType) {
+		if typeshelper.IsDeeplyMap(rhsType) || typeshelper.IsDeeplySlice(rhsType) || typeshelper.IsDeeplyArray(rhsType) || typeIsString(rhsType) {
 			produceAsIndex(0)
 			return nil
 		}
 		// Iterating over a channel with only a single lhs operand will still result in deeply
 		// produced lhs values.
-		if util.TypeIsDeeplyChan(rhsType) {
+		if typeshelper.IsDeeplyChan(rhsType) {
 			produceAsDeepRHS(0)
 			return nil
 		}
@@ -593,7 +596,7 @@ func backpropAcrossOneToOneAssignment(rootNode *RootAssertionNode, lhs, rhs []as
 	parsedLHS := make([][]AssertionNode, n)
 	for i := range lhs {
 		var seq []AssertionNode
-		if !util.IsEmptyExpr(lhs[i]) {
+		if !asthelper.IsEmptyExpr(lhs[i]) {
 			seq, _ = rootNode.ParseExprAsProducer(lhs[i], false)
 		}
 		parsedLHS[i] = seq
@@ -760,7 +763,7 @@ buildShadowMask:
 			rootNode.AddConsumption(&annotation.ConsumeTrigger{
 				Annotation: consumeTrigger,
 				Expr:       rhsVal,
-				Guards:     util.NoGuards(),
+				Guards:     guard.NoGuards(),
 			})
 		}
 		if consumer := exprAsConsumedByAssignment(rootNode, lhsVal); consumer != nil {
@@ -794,7 +797,7 @@ func backpropAcrossManyToOneAssignment(rootNode *RootAssertionNode, lhs, rhs []a
 		lhsVal := lhs[i]
 
 		// Eliminates checking of the `_` instances in the lhs of a multiple assignment
-		if util.IsEmptyExpr(lhsVal) {
+		if asthelper.IsEmptyExpr(lhsVal) {
 			continue
 		}
 
@@ -837,7 +840,7 @@ func backpropAcrossManyToOneAssignment(rootNode *RootAssertionNode, lhs, rhs []a
 			// lhsVal is a field read, so this is a field assignment
 			// since multiple return functions aren't trackable, this is a completed trigger
 			// as long as the type of the expression being assigned doesn't bar nilness
-			if !util.ExprBarsNilness(rootNode.Pass(), lhsVal) {
+			if !rootNode.Pass().ExprBarsNilness(lhsVal) {
 				rootNode.AddNewTriggers(annotation.FullTrigger{
 					Producer: &annotation.ProduceTrigger{
 						// We are assigning directly into the field, so we only care about shallow,
@@ -848,7 +851,7 @@ func backpropAcrossManyToOneAssignment(rootNode *RootAssertionNode, lhs, rhs []a
 					Consumer: &annotation.ConsumeTrigger{
 						Annotation: consumeTrigger,
 						Expr:       rhsVal,
-						Guards:     util.NoGuards(),
+						Guards:     guard.NoGuards(),
 					},
 				})
 			}

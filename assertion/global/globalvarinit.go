@@ -19,8 +19,10 @@ import (
 	"go/types"
 
 	"go.uber.org/nilaway/annotation"
-	"go.uber.org/nilaway/util"
+	"go.uber.org/nilaway/guard"
 	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/asthelper"
+	"go.uber.org/nilaway/util/typeshelper"
 )
 
 // analyzeValueSpec returns full triggers corresponding to the declaration
@@ -68,7 +70,7 @@ func getGlobalConsumers(pass *analysishelper.EnhancedPass, valspec *ast.ValueSpe
 
 	for i, name := range valspec.Names {
 		// Types that are not nilable are eliminated here
-		if !util.TypeBarsNilness(pass.TypesInfo.TypeOf(name)) && !util.IsEmptyExpr(name) {
+		if !asthelper.IsEmptyExpr(name) && !typeshelper.TypeBarsNilness(pass.TypesInfo.TypeOf(name)) {
 			v := pass.TypesInfo.ObjectOf(name).(*types.Var)
 			consumers[i] = &annotation.ConsumeTrigger{
 				Annotation: &annotation.GlobalVarAssign{
@@ -77,7 +79,7 @@ func getGlobalConsumers(pass *analysishelper.EnhancedPass, valspec *ast.ValueSpe
 							VarDecl: v,
 						}}},
 				Expr:         name,
-				Guards:       util.NoGuards(),
+				Guards:       guard.NoGuards(),
 				GuardMatched: false,
 			}
 		}
