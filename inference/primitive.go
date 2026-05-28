@@ -17,6 +17,7 @@ package inference
 import (
 	"fmt"
 	"go/token"
+	"go/types"
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/util/analysishelper"
@@ -124,6 +125,9 @@ type primitivizer struct {
 	// objPathEncoder is used to encode object paths, which amortizes the cost of encoding the
 	// paths of multiple objects.
 	objPathEncoder *objectpath.Encoder
+	// objPathCache caches the results of objectPath() to avoid redundant expensive lookups
+	// for the same types.Object.
+	objPathCache map[types.Object]objectpath.Path
 }
 
 // newPrimitivizer returns a new and properly-initialized primitivizer.
@@ -170,6 +174,7 @@ func newPrimitivizer(pass *analysishelper.EnhancedPass) *primitivizer {
 		pass:                 pass,
 		upstreamObjPositions: upstreamObjPositions,
 		objPathEncoder:       &objectpath.Encoder{},
+		objPathCache:         make(map[types.Object]objectpath.Path),
 	}
 }
 
@@ -191,12 +196,8 @@ func (p *primitivizer) fullTrigger(trigger annotation.FullTrigger) primitiveFull
 
 // site returns the primitive version of the annotation site.
 func (p *primitivizer) site(key annotation.Key, isDeep bool) primitiveSite {
-	objPath, err := p.objPathEncoder.For(key.Object())
-	if err != nil {
-		// An error will occur when trying to get object path for unexported objects, in which case
-		// we simply assign an empty object path.
-		objPath = ""
-	}
+	obj := key.Object()
+	objPath := p.objectPath(obj)
 
 	pkgRepr := ""
 	if pkg := key.Object().Pkg(); pkg != nil {
@@ -228,6 +229,42 @@ func (p *primitivizer) site(key annotation.Key, isDeep bool) primitiveSite {
 		ObjectPath: objPath,
 		Position:   position,
 	}
+}
+
+// objectPath returns the objectpath.Path for the given object, using fast paths where possible
+// to avoid the expensive traversal in objectpath.Encoder.For().
+func (p *primitivizer) objectPath(obj types.Object) objectpath.Path {
+	// Check cache first
+	if path, ok := p.objPathCache[obj]; ok {
+		return path
+	}
+
+	var path objectpath.Path
+
+	// Fast path: unexported non-types never have a valid object path
+	_, isTypeName := obj.(*types.TypeName)
+	if !obj.Exported() && !isTypeName {
+		p.objPathCache[obj] = ""
+		return ""
+	}
+
+	// Fast path: package-level objects have a simple path (just the name)
+	if pkg := obj.Pkg(); pkg != nil {
+		if pkg.Scope().Lookup(obj.Name()) == obj {
+			path = objectpath.Path(obj.Name())
+			p.objPathCache[obj] = path
+			return path
+		}
+	}
+
+	// Slow path: use the full objectpath encoder
+	var err error
+	path, err = p.objPathEncoder.For(obj)
+	if err != nil {
+		path = ""
+	}
+	p.objPathCache[obj] = path
+	return path
 }
 
 // toPosition returns the correct position information for the given pos, removing sandbox prefix
