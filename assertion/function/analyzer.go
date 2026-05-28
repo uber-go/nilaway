@@ -178,10 +178,18 @@ func run(p *analysis.Pass) ([]annotation.FullTrigger, error) {
 			if funcDecl.Body == nil {
 				continue
 			}
+			// Skip if ctrlflow did not produce a CFG. This happens for functions
+			// in ctrlflow's hard-coded knownIntrinsic list (e.g. runtime.Goexit,
+			// (*zap.Logger).Fatal), where buildDecl short-circuits CFG construction
+			// even though the body is non-nil — CFGs.FuncDecl then returns nil and
+			// downstream CFG processing would panic on the nil graph.
+			if graph == nil {
+				continue
+			}
 			// Skip if the function is too large based on CFG complexity.
 			// Use CFG block count as a more accurate measure of function complexity
 			// than token/byte count, which can be misleading due to comments and formatting.
-			if graph != nil && len(graph.Blocks) > _maxFuncSizeInCFGBlocks {
+			if len(graph.Blocks) > _maxFuncSizeInCFGBlocks {
 				err = errors.Join(err, fmt.Errorf("skipping function `%s()` at %s: function too large (%d CFG blocks, exceeds limit of %d blocks)",
 					funcDecl.Name.Name, pass.Fset.Position(funcDecl.Pos()), len(graph.Blocks), _maxFuncSizeInCFGBlocks))
 				continue
