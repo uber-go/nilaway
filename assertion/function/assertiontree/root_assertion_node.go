@@ -1229,16 +1229,16 @@ func (r *RootAssertionNode) isSafeSlicing(expr *ast.SliceExpr) bool {
 // isSafeSliceIndex returns true if `index` is safe to use as a slicing index for the potentially
 // nil slice `slice`, meaning it provably evaluates to zero when `slice` is nil. An absent index
 // (nil) and a compile-time zero are always safe, as is an index that is provably bounded by the
-// length of `slice` (see isLengthBounded).
+// length of `slice` (see isLengthBoundedSliceIndex).
 func (r *RootAssertionNode) isSafeSliceIndex(index, slice ast.Expr) bool {
-	return index == nil || r.Pass().IsZero(index) || r.isLengthBounded(index, slice)
+	return index == nil || r.Pass().IsZero(index) || r.isLengthBoundedSliceIndex(index, slice)
 }
 
-// isLengthBounded returns true if `index` is provably bounded by the length of `slice`, i.e.,
-// `index <= len(slice)`. Since a nil slice has len == 0, such an index evaluates to zero when the
-// slice is nil, making the slicing safe. The recognized patterns are `len(slice)`, `min(...)` where
-// at least one argument is length-bounded, and `max(...)` where every argument is length-bounded.
-func (r *RootAssertionNode) isLengthBounded(index, slice ast.Expr) bool {
+// isLengthBoundedSliceIndex returns true if `index` is provably bounded by the length of `slice`,
+// i.e., `index <= len(slice)`. Since a nil slice has len == 0, such an index evaluates to zero when
+// the slice is nil, making the slicing safe. The recognized patterns are `len(slice)`, `min(...)`
+// where at least one argument is length-bounded, and `max(...)` where every argument is length-bounded.
+func (r *RootAssertionNode) isLengthBoundedSliceIndex(index, slice ast.Expr) bool {
 	call, ok := ast.Unparen(index).(*ast.CallExpr)
 	if !ok {
 		return false
@@ -1255,14 +1255,14 @@ func (r *RootAssertionNode) isLengthBounded(index, slice ast.Expr) bool {
 	case typeshelper.BuiltinMin:
 		// `min(...)` is length-bounded if at least one of its arguments is.
 		for _, arg := range call.Args {
-			if r.isLengthBounded(arg, slice) {
+			if r.isLengthBoundedSliceIndex(arg, slice) {
 				return true
 			}
 		}
 	case typeshelper.BuiltinMax:
 		// `max(...)` is length-bounded only if all of its arguments are.
 		for _, arg := range call.Args {
-			if !r.isLengthBounded(arg, slice) {
+			if !r.isLengthBoundedSliceIndex(arg, slice) {
 				return false
 			}
 		}
