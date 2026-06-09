@@ -50,6 +50,10 @@ type Config struct {
 	ExperimentalStructInitEnable bool
 	// ExperimentalAnonymousFuncEnable indicates whether experimental anonymous function support is enabled.
 	ExperimentalAnonymousFuncEnable bool
+	// ExperimentalLenBoundSliceEnable indicates whether experimental tracking of length-bounded slice
+	// indices is enabled (e.g., treating `x[:len(x)]` and `x[:min(len(x), 100)]` as safe even when
+	// `x` is nil).
+	ExperimentalLenBoundSliceEnable bool
 	// PrintFullFilePath incidates whether to print full filenames in the output.
 	PrintFullFilePath bool
 	// ExcludeTestFiles indicates whether to exclude diagnostics that involve test files.
@@ -150,6 +154,8 @@ const (
 	ExperimentalStructInitEnableFlag = "experimental-struct-init"
 	// ExperimentalAnonymousFunctionFlag is the flag name for the experimental anonymous function support.
 	ExperimentalAnonymousFunctionFlag = "experimental-anonymous-function"
+	// ExperimentalLenBoundSliceFlag is the flag name for the experimental length-bounded slice index support.
+	ExperimentalLenBoundSliceFlag = "len-bound-slice"
 	// PrintFullFilePathFlag is the flag name for printing full filenames in output.
 	PrintFullFilePathFlag = "print-full-file-path"
 	// ExcludeTestFilesFlag is the flag name for excluding diagnostics involving test files.
@@ -169,6 +175,7 @@ func newFlagSet() flag.FlagSet {
 	_ = fs.String(ExcludeFileDocStringsFlag, "", "Comma-separated list of docstrings to exclude from analysis")
 	_ = fs.Bool(ExperimentalStructInitEnableFlag, false, "Whether to enable experimental struct initialization support")
 	_ = fs.Bool(ExperimentalAnonymousFunctionFlag, false, "Whether to enable experimental anonymous function support")
+	_ = fs.Bool(ExperimentalLenBoundSliceFlag, false, "Whether to enable experimental tracking of length-bounded slice indices (e.g., x[:len(x)], x[:min(len(x), 100)])")
 	_ = fs.Bool(PrintFullFilePathFlag, false, "Whether to show full filenames in output")
 	_ = fs.Bool(ExcludeTestFilesFlag, false, "Whether to exclude diagnostics involving test files")
 
@@ -197,6 +204,9 @@ func run(pass *analysis.Pass) (any, error) {
 	}
 	if enableAnonymousFunc, ok := pass.Analyzer.Flags.Lookup(ExperimentalAnonymousFunctionFlag).Value.(flag.Getter).Get().(bool); ok {
 		conf.ExperimentalAnonymousFuncEnable = enableAnonymousFunc
+	}
+	if enableLenBoundSlice, ok := pass.Analyzer.Flags.Lookup(ExperimentalLenBoundSliceFlag).Value.(flag.Getter).Get().(bool); ok {
+		conf.ExperimentalLenBoundSliceEnable = enableLenBoundSlice
 	}
 	if printFullFilePath, ok := pass.Analyzer.Flags.Lookup(PrintFullFilePathFlag).Value.(flag.Getter).Get().(bool); ok {
 		conf.PrintFullFilePath = printFullFilePath

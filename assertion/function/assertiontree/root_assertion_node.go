@@ -1215,12 +1215,58 @@ func (r *RootAssertionNode) isType(expr ast.Expr) bool {
 }
 
 // isZeroSlicing returns if the given slice expression is a special case that will not cause panic
-// even when the slice itself is nil, i.e, one of [:0] [0:0] [0:] [:] [:0:0] [0:0:0]
+// even when the slice itself is nil. This holds when each of the present low, high, and max indices
+// provably evaluates to zero for a nil slice. Besides compile-time zero indices (e.g., [:0], [:0:0],
+// [0:0:0]), this also covers indices tied to the length or capacity of the slice (e.g., `x[:len(x)]`,
+// `x[:cap(x)]`, or `x[:min(len(x), 100)]`), since len(x) == cap(x) == 0 for a nil slice forces such
+// indices to zero.
 func (r *RootAssertionNode) isZeroSlicing(expr *ast.SliceExpr) bool {
-	l, h, m := expr.Low, expr.High, expr.Max
-	return ((l == nil || r.Pass().IsZero(l)) && r.Pass().IsZero(h) && m == nil) || // [:0] [0:0]
-		((l == nil || r.Pass().IsZero(l)) && h == nil && m == nil) || // [0:] [:]
-		((l == nil || r.Pass().IsZero(l)) && r.Pass().IsZero(h) && r.Pass().IsZero(m)) // [:0:0] [0:0:0]
+	return r.isNilSafeSliceIndex(expr.Low, expr.X) &&
+		r.isNilSafeSliceIndex(expr.High, expr.X) &&
+		r.isNilSafeSliceIndex(expr.Max, expr.X)
+}
+
+// isNilSafeSliceIndex returns true if `index` is safe to use as a slicing index for the potentially
+// nil slice `slice`, meaning it provably evaluates to zero when `slice` is nil. An absent index
+// (nil) and a compile-time zero are always safe, as is an index that provably evaluates to zero when
+// `slice` is nil (see isZeroOnNilIndex).
+func (r *RootAssertionNode) isNilSafeSliceIndex(index, slice ast.Expr) bool {
+	return index == nil || r.Pass().IsZero(index) || r.isZeroOnNilIndex(index, slice)
+}
+
+// isZeroOnNilIndex returns true if `index` provably evaluates to zero when `slice` is nil. Since a
+// nil slice has len == cap == 0, the recognized patterns are `len(slice)` and `cap(slice)`, and
+// `min(..., x, ...)` where any argument `x` is zero on nil.
+//
+// This tracking is experimental and gated behind the `len-bound-slice` flag.
+func (r *RootAssertionNode) isZeroOnNilIndex(index, slice ast.Expr) bool {
+	conf := r.Pass().ResultOf[config.Analyzer].(*config.Config)
+	if !conf.ExperimentalLenBoundSliceEnable {
+		return false
+	}
+
+	call, ok := ast.Unparen(index).(*ast.CallExpr)
+	if !ok {
+		return false
+	}
+	fun, ok := ast.Unparen(call.Fun).(*ast.Ident)
+	if !ok || !r.isBuiltIn(fun) {
+		return false
+	}
+	switch fun.Name {
+	case "len", "cap":
+		// `len(slice)`/`cap(slice)`, where the argument is the same slice expression being sliced.
+		// Both are zero for a nil slice.
+		return len(call.Args) == 1 && r.eqStable(call.Args[0], slice)
+	case "min":
+		// `min(...)` is zero on nil if at least one of its arguments is.
+		for _, arg := range call.Args {
+			if r.isZeroOnNilIndex(arg, slice) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // This function defines whether an expression is `stable` - i.e. whether we assume it constant
