@@ -509,19 +509,25 @@ func testLengthBoundedSlicingDoesNotCreateConsumersForNilableSlice() []int {
 		b = nilA[:min(len(nilA), 100):min(len(nilA), 100)]
 	case 6:
 		// [:max(...)] -- max(...) is length-bounded only if every argument is.
-		b = nilA[:max(len(nilA), len(nilA))]
-		b = nilA[:max(min(len(nilA), 5), len(nilA))]
+		b = nilA[:max(len(nilA))]                            // single argument
+		b = nilA[:max(len(nilA), len(nilA))]                 // all len(x)
+		b = nilA[:max(len(nilA), len(nilA), len(nilA))]      // three len(x) args
+		b = nilA[:max(min(len(nilA), 5), len(nilA))]         // max with min arg
+		b = nilA[:max(len(nilA), min(len(nilA), 100))]       // max with min arg (other order)
+		b = nilA[:max(max(len(nilA), len(nilA)), len(nilA))] // nested max
+		b = nilA[:max(len(nilA), len(nilA)):max(len(nilA), len(nilA))]
 	}
 	return b
 }
 
 // testLengthBoundedSlicingCreatesConsumer tests that indices not bounded by the sliced slice's
 // length still create a consumer trigger. This includes len/cap of a *different* slice (not tied to
-// the sliced slice's nilness), cap of the sliced slice (cap is no longer treated as length-bounded),
-// and max(...) where some argument is not length-bounded.
+// the sliced slice's nilness), cap of the sliced slice (cap is not treated as length-bounded), and
+// max(...) where some argument is not length-bounded.
 func testLengthBoundedSlicingCreatesConsumer() []int {
 	var nilA, b []int
 	other := []int{1, 2, 3}
+	n := 1
 	switch 0 {
 	case 1:
 		b = nilA[:len(other)] //want "sliced into"
@@ -532,13 +538,64 @@ func testLengthBoundedSlicingCreatesConsumer() []int {
 	case 4:
 		// max(...) requires every argument to be length-bounded; n and a literal 0 are not, so even
 		// though max(len(x), 0) is genuinely zero on nil, we conservatively create a consumer.
-		b = nilA[:max(len(nilA), 100)] //want "sliced into"
-		b = nilA[:max(len(nilA), 0)]   //want "sliced into"
+		b = nilA[:max(len(nilA), 100)]                //want "sliced into"
+		b = nilA[:max(len(nilA), 0)]                  //want "sliced into"
+		b = nilA[:max(100, len(nilA))]                //want "sliced into"
+		b = nilA[:max(n, len(nilA))]                  //want "sliced into"
+		b = nilA[:max(len(nilA), len(other))]         //want "sliced into"
+		b = nilA[:max(len(nilA), min(n, 100))]        //want "sliced into"
+		b = nilA[:max(min(len(other), 5), len(nilA))] //want "sliced into"
 	case 5:
-		// cap(x) is no longer treated as length-bounded.
+		// cap(x) is not treated as length-bounded.
 		b = nilA[:cap(nilA)]           //want "sliced into"
 		b = nilA[cap(nilA):]           //want "sliced into"
 		b = nilA[:min(cap(nilA), 100)] //want "sliced into"
+	}
+	return b
+}
+
+// testLengthBoundedSlicingWithParensDoesNotCreateConsumers tests that parenthesized forms of the
+// length-bounded slicing patterns are still recognized as safe, since the analysis strips
+// parentheses around the index expression, the called builtin, the builtin's argument, and the
+// sliced expression itself.
+func testLengthBoundedSlicingWithParensDoesNotCreateConsumers() []int {
+	var nilA, b []int
+	switch 0 {
+	case 1:
+		// Parentheses around the whole index expression.
+		b = nilA[:(len(nilA))]
+	case 2:
+		// Parentheses around the builtin's argument.
+		b = nilA[:len((nilA))]
+	case 3:
+		// Parentheses around the called builtin itself.
+		b = nilA[:(len)(nilA)]
+	case 4:
+		// Parentheses around the sliced expression.
+		b = (nilA)[:len(nilA)]
+		b = (nilA)[:len((nilA))]
+	case 5:
+		// Parentheses interleaved within min/max arguments, which are unparened recursively.
+		b = nilA[:min((len(nilA)), 100)]
+		b = nilA[:min(100, (len(nilA)))]
+		b = nilA[:max((len(nilA)), (len(nilA)))]
+	}
+	return b
+}
+
+// testLengthBoundedSlicingWithParensCreatesConsumer tests that stripping parentheses does not make
+// an otherwise-unsafe index appear length-bounded: len of a different slice, or a non-len builtin,
+// still create a consumer trigger even when wrapped in parentheses.
+func testLengthBoundedSlicingWithParensCreatesConsumer() []int {
+	var nilA, b []int
+	other := []int{1, 2, 3}
+	switch 0 {
+	case 1:
+		b = nilA[:(len(other))] //want "sliced into"
+	case 2:
+		b = nilA[:len((other))] //want "sliced into"
+	case 3:
+		b = nilA[:(cap(nilA))] //want "sliced into"
 	}
 	return b
 }
