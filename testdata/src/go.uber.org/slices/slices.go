@@ -481,6 +481,64 @@ func testSlicingDoesNotCreateConsumersForNilableSlice() []int {
 	return b
 }
 
+// testLenCapBoundedSlicingDoesNotCreateConsumersForNilableSlice tests that slicing a nilable slice
+// with an index that provably evaluates to zero when the slice is nil does not create a consumer
+// trigger, since len(x) == cap(x) == 0 for a nil slice. See issue #268.
+func testLenCapBoundedSlicingDoesNotCreateConsumersForNilableSlice() []int {
+	var nilA, b []int
+	const hundred = 100
+	switch 0 {
+	case 1:
+		// [:len(x)]
+		b = nilA[:len(nilA)]
+	case 2:
+		// [len(x):]
+		b = nilA[len(nilA):]
+	case 3:
+		// [len(x):len(x)]
+		b = nilA[len(nilA):len(nilA)]
+	case 4:
+		// [:min(len(x), n)] -- the original false positive from issue #268.
+		b = nilA[:min(len(nilA), 100)]
+		b = nilA[:min(len(nilA), hundred)]
+		b = nilA[:min(100, len(nilA))]
+		b = nilA[:min(5, len(nilA), 100)]
+	case 5:
+		// [:min(len(x), n):min(len(x), n)]
+		b = nilA[:min(len(nilA), 100):min(len(nilA), 100)]
+	case 6:
+		// [:cap(x)] -- the common "re-extend buffer to full capacity" idiom.
+		b = nilA[:cap(nilA)]
+	case 7:
+		// [cap(x):]
+		b = nilA[cap(nilA):]
+	case 8:
+		// [:min(cap(x), n)] and [:min(len(x), cap(x))]
+		b = nilA[:min(cap(nilA), 100)]
+		b = nilA[:min(len(nilA), cap(nilA))]
+	}
+	return b
+}
+
+// testLenCapBoundedSlicingForOtherSliceCreatesConsumer tests that len/cap of a *different* slice is
+// not tied to the sliced slice's nilness, so a consumer trigger is still created.
+func testLenCapBoundedSlicingForOtherSliceCreatesConsumer() []int {
+	var nilA, b []int
+	other := []int{1, 2, 3}
+	switch 0 {
+	case 1:
+		b = nilA[:len(other)] //want "sliced into"
+	case 2:
+		b = nilA[:min(len(other), 100)] //want "sliced into"
+	case 3:
+		b = nilA[:cap(other)] //want "sliced into"
+	case 4:
+		// max(len(x), n) is not zero on nil.
+		b = nilA[:max(len(nilA), 100)] //want "sliced into"
+	}
+	return b
+}
+
 func testOtherSlicingCreatesConsumerForNilableSlice() []int {
 	var nilA, b []int
 	l, m, n := 1, 1, 1
