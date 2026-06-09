@@ -34,6 +34,12 @@ var BoolType = types.Universe.Lookup("bool").Type()
 // BuiltinLen is the builtin "len" function object.
 var BuiltinLen = types.Universe.Lookup("len")
 
+// BuiltinMin is the builtin "min" function object.
+var BuiltinMin = types.Universe.Lookup("min")
+
+// BuiltinMax is the builtin "max" function object.
+var BuiltinMax = types.Universe.Lookup("max")
+
 // BuiltinAppend is the builtin "append" function object.
 var BuiltinAppend = types.Universe.Lookup("append")
 
