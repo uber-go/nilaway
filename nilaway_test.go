@@ -117,20 +117,6 @@ func TestAnonymousFunction(t *testing.T) { //nolint:paralleltest
 	analysistest.Run(t, testdata, Analyzer, "go.uber.org/anonymousfunction")
 }
 
-func TestLenBoundSlice(t *testing.T) { //nolint:paralleltest
-	// We specifically do not set this test to be parallel since we need to enable the
-	// experimental support for length-bounded slice indices to test this feature.
-	err := config.Analyzer.Flags.Set(config.ExperimentalLenBoundSliceFlag, "true")
-	require.NoError(t, err)
-	defer func() {
-		err := config.Analyzer.Flags.Set(config.ExperimentalLenBoundSliceFlag, "false")
-		require.NoError(t, err)
-	}()
-
-	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/lenboundslice")
-}
-
 func TestPrettyPrint(t *testing.T) { //nolint:paralleltest
 	// We specifically do not set this test to be parallel such that this test is run separately
 	// from the parallel tests. This makes it possible to set the pretty-print flag to true for

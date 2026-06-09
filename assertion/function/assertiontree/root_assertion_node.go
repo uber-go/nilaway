@@ -1237,14 +1237,7 @@ func (r *RootAssertionNode) isNilSafeSliceIndex(index, slice ast.Expr) bool {
 // isZeroOnNilIndex returns true if `index` provably evaluates to zero when `slice` is nil. Since a
 // nil slice has len == cap == 0, the recognized patterns are `len(slice)` and `cap(slice)`, and
 // `min(..., x, ...)` where any argument `x` is zero on nil.
-//
-// This tracking is experimental and gated behind the `len-bound-slice` flag.
 func (r *RootAssertionNode) isZeroOnNilIndex(index, slice ast.Expr) bool {
-	conf := r.Pass().ResultOf[config.Analyzer].(*config.Config)
-	if !conf.ExperimentalLenBoundSliceEnable {
-		return false
-	}
-
 	call, ok := ast.Unparen(index).(*ast.CallExpr)
 	if !ok {
 		return false
