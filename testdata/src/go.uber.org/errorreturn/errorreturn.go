@@ -838,3 +838,53 @@ func Wrapf(e error) error {
 	}
 	return fmt.Errorf("wrapped: %w", e)
 }
+
+// ***** the below test cases check that an error value whose type cannot be inhabited by nil (e.g.,
+// a named basic type such as `type Error string`) is correctly treated as a non-nil error. This
+// addresses the false positive reported in https://github.com/uber-go/nilaway/issues/108 *****
+
+type typedConstErr string
+
+func (e typedConstErr) Error() string { return string(e) }
+
+const anError typedConstErr = "this is an error"
+
+// retTypedConstErr returns a typed-constant error in the non-nil error position. Since
+// `typedConstErr` is a named basic type that nil cannot inhabit, `anError` is a valid non-nil error
+// that suppresses consumption of the (nil) non-error result, so no error is expected here.
+func retTypedConstErr(x bool) (*int, error) {
+	if x {
+		return nil, anError
+	}
+	i := 0
+	return &i, nil
+}
+
+// callRetTypedConstErr exercises the exact pattern from issue #108: the result is dereferenced only
+// on the non-error path, which must not be flagged as a potential nil panic.
+func callRetTypedConstErr() error {
+	ptr, err := retTypedConstErr(true)
+	if err != nil {
+		return err
+	}
+	print(*ptr)
+	return nil
+}
+
+// retTypedErrVar checks the same behavior when the error flows through a variable of the named basic
+// type rather than being returned directly.
+func retTypedErrVar(x bool) (*int, error) {
+	var e typedConstErr = "boom"
+	if x {
+		return nil, e
+	}
+	i := 0
+	return &i, nil
+}
+
+func callRetTypedErrVar() {
+	ptr, err := retTypedErrVar(true)
+	if err == nil {
+		print(*ptr)
+	}
+}
