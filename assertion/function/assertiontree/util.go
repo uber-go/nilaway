@@ -279,6 +279,24 @@ func AddNilCheck(pass *analysishelper.EnhancedPass, expr ast.Expr) (trueCheck, f
 				return noop, noop, true
 			},
 		},
+		{
+			// `len(a) - 1 >= 0`
+			// Unlike the looser `len(a) ... >= [positive-int]` heuristic above, this is sound:
+			// `len(a) - 1 >= 0` implies `len(a) >= 1`, so `a` is non-nil. We require the exact
+			// `len(a) - 1` structure (rather than the loose `extractLenArgs` matching) so that we
+			// do not unsoundly conclude anything from, e.g., `len(a) - 1 + b >= 0`.
+			// Automatic cases:
+			//   - `0 <= len(a) - 1`
+			//   - `len(a) - 1 < 0`
+			//   - `0 > len(a) - 1`
+			op: token.GEQ,
+			matcher: func(x, y ast.Expr) (RootFunc, RootFunc, bool) {
+				if arg, ok := lenMinusOneArg(pass, x); ok && pass.IsZero(y) {
+					return produceNegativeNilChecks(arg), noop, false
+				}
+				return noop, noop, true
+			},
+		},
 	}
 
 	// Apply the checkers.
@@ -324,6 +342,23 @@ func extractLenArgs(expr ast.Expr, allowNested bool) []ast.Expr {
 		return allowNested
 	})
 	return args
+}
+
+// lenMinusOneArg returns the argument `a` and true if `expr` has the exact form `len(a) - 1`.
+// Otherwise, it returns nil and false. This structural check (rather than the looser
+// `extractLenArgs`) lets us soundly conclude `len(a) >= 1` from `len(a) - 1 >= 0`.
+func lenMinusOneArg(pass *analysishelper.EnhancedPass, expr ast.Expr) (ast.Expr, bool) {
+	bin, ok := ast.Unparen(expr).(*ast.BinaryExpr)
+	if !ok || bin.Op != token.SUB {
+		return nil, false
+	}
+	if v, ok := pass.ConstInt(bin.Y); !ok || v != 1 {
+		return nil, false
+	}
+	if lenArgs := extractLenArgs(bin.X, false /* allowNested */); len(lenArgs) == 1 {
+		return lenArgs[0], true
+	}
+	return nil, false
 }
 
 // likelyPositiveInt return true if the given expression is likely a positive integer. We

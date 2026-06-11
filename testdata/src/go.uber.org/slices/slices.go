@@ -267,6 +267,26 @@ func lengthCheckAsNilCheckTest(a []int) int {
 		for i := 0; i <= len(a) + 2 + b; i ++ {
 			_ = a[i]
 		}
+
+	// `len(a) - 1 >= 0` implies `len(a) >= 1`, so `a` is non-nil.
+	case 35:
+		if len(a) - 1 >= 0 {
+			return a[0]
+		}
+	case 36:
+		if 0 <= len(a) - 1 {
+			return a[0]
+		}
+	case 37:
+		if len(a) - 1 < 0 {
+			return 0
+		}
+		return a[0]
+	case 38:
+		if 0 > len(a) - 1 {
+			return 0
+		}
+		return a[0]
 	}
 	return 0
 }
