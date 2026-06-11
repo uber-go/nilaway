@@ -187,6 +187,10 @@ func testSlicingArrayProducesNonnilSlice() {
 	_ = p[:0][0]
 	_ = p[:][0]
 
+	// Named array types (e.g., `blocks` is `[42]int`) behave the same.
+	var n blocks
+	_ = n[:0][0]
+
 	// Arrays produced by `new` are covered too: `new([N]T)` returns a nonnil `*[N]T`, so both the
 	// explicit-deref form `(*new([N]T))[:0]` (operand type `[N]T`) and the implicit-deref form
 	// `new([N]T)[:0]` (operand type `*[N]T`, auto-dereferenced) slice an array.
