@@ -95,6 +95,22 @@ func testRequire(t *testing.T, x *int, z *int, m map[any]*int) interface{} {
 		y, err := errs()
 		require.Errorf(t, err, "mymsg: %s", "arg")
 		return *y //want "result 0 of `errs.*` lacking guarding"
+	case 4.4:
+		y, err := errs()
+		require.ErrorContains(t, err, "oops")
+		return *y //want "result 0 of `errs.*` lacking guarding"
+	case 4.5:
+		y, err := errs()
+		require.ErrorContainsf(t, err, "oops", "mymsg: %s", "arg")
+		return *y //want "result 0 of `errs.*` lacking guarding"
+	case 4.6:
+		y, err := errs()
+		require.EqualError(t, err, "oops")
+		return *y //want "result 0 of `errs.*` lacking guarding"
+	case 4.7:
+		y, err := errs()
+		require.EqualErrorf(t, err, "oops", "mymsg: %s", "arg")
+		return *y //want "result 0 of `errs.*` lacking guarding"
 	case 5:
 		require.True(t, x != nil)
 		return *x
@@ -288,6 +304,31 @@ func testBackToBack(t *testing.T) {
 	x, err2 = errs()
 	require.NoErrorf(t, err2, "mymsg: %s", "arg")
 	print(*x)
+}
+
+// testErrorNonnilNarrowing tests that assertions which can only pass with a non-nil error (e.g.,
+// `ErrorContains`, `EqualError`) narrow in the nonnil direction: the non-error result stays
+// unguarded afterwards. The `require` function forms are covered in `testRequire` above; this
+// covers the `assert` package and the method forms.
+func testErrorNonnilNarrowing(t *testing.T, r *require.Assertions, a *assert.Assertions) {
+	switch 0 {
+	case 1:
+		y, err := errs()
+		assert.ErrorContains(t, err, "oops")
+		print(*y) //want "lacking guarding"
+	case 2:
+		y, err := errs()
+		assert.EqualError(t, err, "oops")
+		print(*y) //want "lacking guarding"
+	case 3:
+		y, err := errs()
+		r.ErrorContainsf(err, "oops", "mymsg: %s", "arg")
+		print(*y) //want "lacking guarding"
+	case 4:
+		y, err := errs()
+		a.EqualErrorf(err, "oops", "mymsg: %s", "arg")
+		print(*y) //want "lacking guarding"
+	}
 }
 
 // test for embedded testify package `suite` at depth 1

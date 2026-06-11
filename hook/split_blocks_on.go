@@ -81,6 +81,93 @@ var negatedSelfExpr splitBlockOnAction = func(_ *analysishelper.EnhancedPass, ca
 	}
 }
 
+// boolOrErrorExpr handles assertion arguments declared as `interface{}`, e.g., gotest.tools'
+// `assert.Assert(t, comparison BoolOrComparison)`, whose argument may be:
+//   - a boolean expression, e.g., `assert.Assert(t, x != nil)`: behaves like selfExpr;
+//   - an error value, e.g., `assert.Assert(t, err)`: behaves like nilBinaryExpr, since a nil error
+//     means success while a non-nil error fails the assertion. Only interface types (`error`
+//     itself or interfaces embedding it) qualify: a nil value of such a type stays nil when passed
+//     as `interface{}`, whereas a concrete error type would be wrapped in a non-nil interface and
+//     always fail the assertion (even a typed-nil pointer);
+//   - anything else (e.g., a `cmp.Comparison` closure): no narrowing is applied.
+var boolOrErrorExpr splitBlockOnAction = func(pass *analysishelper.EnhancedPass, call *ast.CallExpr, argIndex int) ast.Expr {
+	if argIndex < 0 || argIndex >= len(call.Args) {
+		return nil
+	}
+	if isBoolExpr(pass, call.Args[argIndex]) {
+		return selfExpr(pass, call, argIndex)
+	}
+	t := pass.TypesInfo.TypeOf(call.Args[argIndex])
+	if t == nil {
+		return nil
+	}
+	if _, ok := t.Underlying().(*types.Interface); ok && typeshelper.ImplementsError(t) {
+		return nilBinaryExpr(pass, call, argIndex)
+	}
+	return nil
+}
+
+// _goconveyAssertions matches the package paths where goconvey's `Should*` assertions are
+// defined: the `convey` package itself (which re-exports them as package-level variables, e.g.,
+// `var ShouldBeNil = assertions.ShouldBeNil`) and the underlying assertions package (both its
+// current `smarty` and historical `smartystreets` homes, for users importing it directly).
+var _goconveyAssertions = regexp.MustCompile(`^(stubs/)?(github\.com/smartystreets/goconvey/convey|github\.com/smarty(streets)?/assertions)$`)
+
+// goconveySoExpr handles goconvey's `So(actual, assertion, expected...)`, where the narrowing fact is
+// determined by the assertion argument rather than the called function: e.g.,
+// `So(err, ShouldBeNil)` implies `err == nil` afterwards. The assertion argument is resolved to
+// its package-level object (a var re-exported by `convey`, or a function of the assertions
+// package), and only the nilability-relevant assertions are modeled; any other assertion (or a
+// locally-defined custom one) yields no narrowing.
+var goconveySoExpr splitBlockOnAction = func(pass *analysishelper.EnhancedPass, call *ast.CallExpr, argIndex int) ast.Expr {
+	// The assertion argument sits right after the actual expression.
+	if argIndex+1 >= len(call.Args) {
+		return nil
+	}
+	var ident *ast.Ident
+	switch assert := call.Args[argIndex+1].(type) {
+	case *ast.Ident:
+		ident = assert
+	case *ast.SelectorExpr:
+		ident = assert.Sel
+	default:
+		return nil
+	}
+	obj := pass.TypesInfo.ObjectOf(ident)
+	if obj == nil || obj.Pkg() == nil || !_goconveyAssertions.MatchString(obj.Pkg().Path()) {
+		return nil
+	}
+
+	// For the boolean assertions, the actual argument is declared `interface{}`; only narrow
+	// when it is statically a boolean expression (anything else fails the assertion at runtime
+	// anyway).
+	switch obj.Name() {
+	case "ShouldBeNil":
+		return nilBinaryExpr(pass, call, argIndex)
+	case "ShouldNotBeNil", "ShouldBeError":
+		return nonnilBinaryExpr(pass, call, argIndex)
+	case "ShouldBeTrue":
+		if isBoolExpr(pass, call.Args[argIndex]) {
+			return selfExpr(pass, call, argIndex)
+		}
+	case "ShouldBeFalse":
+		if isBoolExpr(pass, call.Args[argIndex]) {
+			return negatedSelfExpr(pass, call, argIndex)
+		}
+	}
+	return nil
+}
+
+// isBoolExpr reports whether the expression is statically of boolean type.
+func isBoolExpr(pass *analysishelper.EnhancedPass, expr ast.Expr) bool {
+	t := pass.TypesInfo.TypeOf(expr)
+	if t == nil {
+		return false
+	}
+	basic, ok := t.Underlying().(*types.Basic)
+	return ok && basic.Kind() == types.Bool
+}
+
 // The constant (enum) values below represent the possible values of an expected expression in a comparison
 // E.g., `Equal(1, len(s))`, where `1` is the expected expression and is assigned the value `_greaterThanZero`.
 // E.g., `Equal(nil, err)`, where `nil` is the expected expression and is assigned the value `_nil`.
@@ -300,7 +387,7 @@ var _splitBlockOn = map[trustedSig]struct {
 	{
 		kind:           _method,
 		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/stretchr/testify/(suite\.Suite|assert\.Assertions|require\.Assertions)$`),
-		nameRegex:      regexp.MustCompile(`^(NotNil(f)?|Error(f)?)$`),
+		nameRegex:      regexp.MustCompile(`^(NotNil(f)?|Error(f)?|ErrorContains(f)?|EqualError(f)?)$`),
 	}: {action: nonnilBinaryExpr, argIndex: 0},
 	{
 		kind:           _method,
@@ -332,7 +419,7 @@ var _splitBlockOn = map[trustedSig]struct {
 	{
 		kind:           _func,
 		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/stretchr/testify/(assert|require)$`),
-		nameRegex:      regexp.MustCompile(`^(NotNil(f)?|Error(f)?)$`),
+		nameRegex:      regexp.MustCompile(`^(NotNil(f)?|Error(f)?|ErrorContains(f)?|EqualError(f)?)$`),
 	}: {action: nonnilBinaryExpr, argIndex: 1},
 	{
 		kind:           _func,
@@ -364,4 +451,33 @@ var _splitBlockOn = map[trustedSig]struct {
 		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/stretchr/testify/(suite\.Suite|assert\.Assertions|require\.Assertions)$`),
 		nameRegex:      regexp.MustCompile(`^(Empty(f)?|NotEmpty(f)?)$`),
 	}: {action: requireZeroComparators, argIndex: 0},
+
+	// `gotest.tools/v3/assert`, as well as its legacy v1/v2 form `gotest.tools/assert` with
+	// identical semantics. Note that `ErrorIs` is deliberately NOT modeled with nonnil narrowing:
+	// `errors.Is(nil, nil)` is true, so `assert.ErrorIs(t, err, nil)` can pass with a nil error.
+	{
+		kind:           _func,
+		enclosingRegex: regexp.MustCompile(`^(stubs/)?gotest\.tools(/v3)?/assert$`),
+		nameRegex:      regexp.MustCompile(`^NilError$`),
+	}: {action: nilBinaryExpr, argIndex: 1},
+	{
+		kind:           _func,
+		enclosingRegex: regexp.MustCompile(`^(stubs/)?gotest\.tools(/v3)?/assert$`),
+		nameRegex:      regexp.MustCompile(`^(Error|ErrorContains)$`),
+	}: {action: nonnilBinaryExpr, argIndex: 1},
+	{
+		kind:           _func,
+		enclosingRegex: regexp.MustCompile(`^(stubs/)?gotest\.tools(/v3)?/assert$`),
+		nameRegex:      regexp.MustCompile(`^Assert$`),
+	}: {action: boolOrErrorExpr, argIndex: 1},
+
+	// `github.com/smartystreets/goconvey/convey`, which is typically dot-imported. Under the
+	// default `FailureHalts` mode, a failed `So` panics and is recovered by the `Convey` runner,
+	// halting the enclosing scope; the opt-in `FailureContinues` mode is over-approximated the
+	// same way as testify's non-fatal `assert` (see the comment on this table).
+	{
+		kind:           _func,
+		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/smartystreets/goconvey/convey$`),
+		nameRegex:      regexp.MustCompile(`^So$`),
+	}: {action: goconveySoExpr, argIndex: 0},
 }
