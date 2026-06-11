@@ -94,6 +94,22 @@ func testRequire(t *testing.T, x any, z any, m map[any]any) interface{} {
 		y, err := errs()
 		require.Errorf(t, err, "mymsg: %s", "arg")
 		return y //want "returned"
+	case 4.4:
+		y, err := errs()
+		require.ErrorContains(t, err, "oops")
+		return y //want "returned"
+	case 4.5:
+		y, err := errs()
+		require.ErrorContainsf(t, err, "oops", "mymsg: %s", "arg")
+		return y //want "returned"
+	case 4.6:
+		y, err := errs()
+		require.EqualError(t, err, "oops")
+		return y //want "returned"
+	case 4.7:
+		y, err := errs()
+		require.EqualErrorf(t, err, "oops", "mymsg: %s", "arg")
+		return y //want "returned"
 	case 5:
 		require.True(t, x != nil)
 		return x
@@ -289,6 +305,36 @@ func testBackToBack(t *testing.T) {
 	x, err2 = errs()
 	require.NoErrorf(t, err2, "mymsg: %s", "arg")
 	takesNonnil(x)
+}
+
+// testErrorNonnilNarrowing tests that assertions which can only pass with a non-nil error (e.g.,
+// `ErrorContains`, `EqualError`) narrow the error argument itself to be nonnil afterwards.
+func testErrorNonnilNarrowing(t *testing.T, r *require.Assertions, a *assert.Assertions) {
+	switch 0 {
+	case 1:
+		_, err := errs()
+		takesNonnil(err) //want "passed"
+	case 2:
+		_, err := errs()
+		require.ErrorContains(t, err, "oops")
+		takesNonnil(err)
+	case 3:
+		_, err := errs()
+		require.EqualError(t, err, "oops")
+		takesNonnil(err)
+	case 4:
+		_, err := errs()
+		assert.ErrorContains(t, err, "oops")
+		takesNonnil(err)
+	case 5:
+		_, err := errs()
+		r.ErrorContainsf(err, "oops", "mymsg: %s", "arg")
+		takesNonnil(err)
+	case 6:
+		_, err := errs()
+		a.EqualErrorf(err, "oops", "mymsg: %s", "arg")
+		takesNonnil(err)
+	}
 }
 
 // test for embedded testify package `suite` at depth 1
