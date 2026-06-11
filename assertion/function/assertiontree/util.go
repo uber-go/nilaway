@@ -282,10 +282,11 @@ func AddNilCheck(pass *analysishelper.EnhancedPass, expr ast.Expr) (trueCheck, f
 		{
 			// `len(a) - c >= 0` (positive `c`) or `len(a) + c >= 0` (negative `c`) both imply
 			// `len(a) >= 1`, so `a` is non-nil. We match this exact structure so the check is
-			// sound. The automatic cases below are shown for `len(a) - 1`:
-			//   - `0 <= len(a) - 1`
-			//   - `len(a) - 1 < 0`
-			//   - `0 > len(a) - 1`
+			// sound. The converse/inverse/contrapositive are derived automatically, e.g. for
+			// `len(a) - c`:
+			//   - `0 <= len(a) - c`
+			//   - `len(a) - c < 0`
+			//   - `0 > len(a) - c`
 			op: token.GEQ,
 			matcher: func(x, y ast.Expr) (RootFunc, RootFunc, bool) {
 				if arg, ok := lenMinusPositiveArg(pass, x); ok && pass.IsZero(y) {
