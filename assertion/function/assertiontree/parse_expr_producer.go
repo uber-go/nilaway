@@ -188,6 +188,13 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 	case *ast.Ident:
 		return parseIdent(expr)
 	case *ast.SelectorExpr:
+		// Some well-known stdlib package-level variables (e.g., os.Stdout/Stderr/Stdin, os.Args) are
+		// documented to be non-nil, but NilAway would otherwise infer them as nilable. Short-circuit
+		// to a nonnil producer for those reads.
+		if prod := hook.AssumeGlobalVarNonnil(r.Pass(), expr); prod != nil {
+			return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: prod}}
+		}
+
 		if r.isPkgName(expr.X) {
 			// if we've reduced to a package-qualified identifier like pkg.A, just interpret it
 			// as a bare identifier

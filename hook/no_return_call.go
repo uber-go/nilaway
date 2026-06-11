@@ -31,21 +31,21 @@ import (
 //
 // `testing.TB.Fatal`-related: they are interface methods without implementations.
 func IsNoReturnCall(pass *analysishelper.EnhancedPass, call *ast.CallExpr) bool {
-	return slices.ContainsFunc(_terminatingCalls, func(sig trustedFuncSig) bool { return sig.match(pass, call) })
+	return slices.ContainsFunc(_terminatingCalls, func(sig trustedSig) bool { return sig.matchCall(pass, call) })
 }
 
-var _terminatingCalls = []trustedFuncSig{
+var _terminatingCalls = []trustedSig{
 	// `zap.Logger.Fatal`
 	{
 		kind:           _method,
 		enclosingRegex: regexp.MustCompile(`^(stubs/)?go\.uber\.org/zap.Logger$`),
-		funcNameRegex:  regexp.MustCompile(`^Fatal$`),
+		nameRegex:      regexp.MustCompile(`^Fatal$`),
 	},
 	// `zap.SugaredLogger.Fatal` / `zap.SugaredLogger.Fatalf` / `zap.SugaredLogger.Fatalln` / `zap.SugaredLogger.Fatalw`
 	{
 		kind:           _method,
 		enclosingRegex: regexp.MustCompile(`^(stubs/)?go\.uber\.org/zap.SugaredLogger$`),
-		funcNameRegex:  regexp.MustCompile(`^Fatal(f|ln|w)?$`),
+		nameRegex:      regexp.MustCompile(`^Fatal(f|ln|w)?$`),
 	},
 	// `testing.TB.Fatal` / `testing.TB.Fatalf` / `testing.TB.SkipNow` / `testing.TB.Skip` / `testing.TB.Skipf`
 	// since it is an interface rather than a concrete implementation, the control flow analyzer
@@ -53,6 +53,6 @@ var _terminatingCalls = []trustedFuncSig{
 	{
 		kind:           _method,
 		enclosingRegex: regexp.MustCompile(`^testing.TB$`),
-		funcNameRegex:  regexp.MustCompile(`^(Fatal|Fatalf|SkipNow|Skip|Skipf)$`),
+		nameRegex:      regexp.MustCompile(`^(Fatal|Fatalf|SkipNow|Skip|Skipf)$`),
 	},
 }
