@@ -139,13 +139,13 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 	// this function is only to be used in cases when we have determined that the parsed
 	// expression is not trackable.
 	parseDeepRead := func(
-		recv TrackableExpr, // the already parsed prefix to `expr` - all we care about is whether nil
-		deepExpr ast.Expr, // the expression we identified is being deeply read for this parse
-		expr ast.Expr, // the overall expression being parsed - used to construct `annotation.ProduceTrigger`s
+		recv TrackableExpr,                   // the already parsed prefix to `expr` - all we care about is whether nil
+		deepExpr ast.Expr,                    // the expression we identified is being deeply read for this parse
+		expr ast.Expr,                        // the overall expression being parsed - used to construct `annotation.ProduceTrigger`s
 		rproducers []producer.ParsedProducer, // the, possibly already set, parse of `deepExpr`
-		// in general - our goal is to obtain the parse of `deepExpr` - then lift its deep producer to
-		// the shallow producer of a new `ParsedProducer`, and populate the new deep producer by a default
-		// based on type name if applicable
+	// in general - our goal is to obtain the parse of `deepExpr` - then lift its deep producer to
+	// the shallow producer of a new `ParsedProducer`, and populate the new deep producer by a default
+	// based on type name if applicable
 	) []producer.ParsedProducer {
 
 		if recv != nil {
@@ -471,9 +471,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 		// are value types and can never be nil; the resulting slice is backed by the array's
 		// storage. For example, `var a [4]int; _ = a[:0]` is a nonnil (empty) slice. This holds
 		// regardless of the indices, so we must check it before the `b[_:0:_]` case below (which
-		// would otherwise wrongly treat `a[:0]` as a nilable empty slice). IsDeeplyArray unwraps a
-		// pointer (so `*[N]T` is covered) and named types before checking. See
-		// https://github.com/uber-go/nilaway/issues/104.
+		// would otherwise wrongly treat `a[:0]` as a nilable empty slice).
 		if typeshelper.IsDeeplyArray(r.Pass().TypesInfo.Types[expr.X].Type) {
 			// Returning nil to indicate the slice expression results in a nonnil slice.
 			return nil, nil
@@ -638,4 +636,3 @@ func (r *RootAssertionNode) parseStructCreateExprAsProducer(expr ast.Expr, field
 
 	return nil
 }
-
