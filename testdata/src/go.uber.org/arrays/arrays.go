@@ -163,10 +163,10 @@ func testArrayAliasPtr(aPtr *blocks, a blocks, bPtr *blockSlice, b blockSlice) {
 	}
 }
 
-// testSlicingArrayProducesNonnilSlice verifies that slicing an array (or a pointer to an array)
-// always yields a nonnil slice, since arrays are value types that can never be nil; the resulting
-// slice is backed by the array's storage. Indexing or re-slicing the result must therefore not be
-// flagged as a potential nil panic, regardless of the slicing indices. See issue #104.
+// testSlicingArrayProducesNonnilSlice verifies that slicing an array always yields a nonnil slice,
+// since arrays are value types that can never be nil; the resulting slice is backed by the array's
+// storage. Indexing or re-slicing the result must therefore not be flagged as a potential nil
+// panic, regardless of the slicing indices or how the array is obtained. See issue #104.
 func testSlicingArrayProducesNonnilSlice() {
 	var a [4]int
 
@@ -187,9 +187,15 @@ func testSlicingArrayProducesNonnilSlice() {
 	_ = p[:0][0]
 	_ = p[:][0]
 
-	// Named array types (e.g., `blocks` is `[42]int`) behave the same.
-	var n blocks
-	_ = n[:0][0]
+	// Arrays produced by `new` are covered too: `new([N]T)` returns a nonnil `*[N]T`, so both the
+	// explicit-deref form `(*new([N]T))[:0]` (operand type `[N]T`) and the implicit-deref form
+	// `new([N]T)[:0]` (operand type `*[N]T`, auto-dereferenced) slice an array.
+	_ = (*new([64]byte))[:0][0]
+	_ = new([64]byte)[:0][0]
+
+	// Contrast: `make([]T, 0, N)` is nonnil as well, but for the unrelated reason that `make` never
+	// returns nil (not because of array slicing).
+	_ = make([]byte, 0, 64)[0]
 }
 
 // testSlicingArrayIssue104 reproduces the original false positive from
