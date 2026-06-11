@@ -474,6 +474,15 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 		// reciever is non-trackable, just return nilable for index without check
 		return nil, parseDeepRead(recv, expr.X, expr, rproducers)
 	case *ast.SliceExpr:
+		// Slicing an array (or a pointer to an array) always yields a nonnil slice, since arrays
+		// are value types and can never be nil; the resulting slice is backed by the array's
+		// storage. For example, `var a [4]int; _ = a[:0]` is a nonnil (empty) slice. This holds
+		// regardless of the indices, so we must check it before the `b[_:0:_]` case below (which
+		// would otherwise wrongly treat `a[:0]` as a nilable empty slice).
+		if typeshelper.IsDeeplyArray(r.Pass().TypesInfo.Types[expr.X].Type) {
+			// Returning nil to indicate the slice expression results in a nonnil slice.
+			return nil, nil
+		}
 		switch {
 		// For slice expressions `b[_:0:_]`, the result is always an empty (nilable in
 		// NilAway's eyes) slice. (`_` can be anything including empty.)
