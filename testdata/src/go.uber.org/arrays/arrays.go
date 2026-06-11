@@ -162,3 +162,51 @@ func testArrayAliasPtr(aPtr *blocks, a blocks, bPtr *blockSlice, b blockSlice) {
 	for range b {
 	}
 }
+
+// testSlicingArrayProducesNonnilSlice verifies that slicing an array (or a pointer to an array)
+// always yields a nonnil slice, since arrays are value types that can never be nil; the resulting
+// slice is backed by the array's storage. Indexing or re-slicing the result must therefore not be
+// flagged as a potential nil panic, regardless of the slicing indices. See issue #104.
+func testSlicingArrayProducesNonnilSlice() {
+	var a [4]int
+
+	// `a[:0]` is an empty but nonnil slice (backed by the array), so consuming it is safe.
+	b := a[:0]
+	_ = b[0]
+	_ = b[1:2]
+
+	// Every other slicing form of the array is nonnil too, including those (like `[1:2]`) that for
+	// a regular slice would require the operand to be nonnil.
+	_ = a[:][0]
+	_ = a[0:][0]
+	_ = a[1:2][0]
+	_ = a[:0:0][0]
+
+	// Slicing a pointer to an array is nonnil as well.
+	p := &a
+	_ = p[:0][0]
+	_ = p[:][0]
+
+	// Named array types (e.g., `blocks` is `[42]int`) behave the same.
+	var n blocks
+	_ = n[:0][0]
+}
+
+// testSlicingArrayIssue104 reproduces the original false positive from
+// https://github.com/uber-go/nilaway/issues/104, where slicing a stack-allocated array (`buf[:0]`)
+// was wrongly treated as nilable, causing spurious nil-panic reports on the later index operations.
+func testSlicingArrayIssue104(maxlen int) []byte {
+	var buf [64]byte
+	answer := buf[:0]
+
+	for i := 0; i < maxlen; i++ {
+		answer = append(answer, byte(i))
+	}
+
+	alen := len(answer)
+	for i := 0; i < alen/2; i++ {
+		answer[i], answer[alen-1-i] = answer[alen-1-i], answer[i]
+	}
+
+	return answer
+}
