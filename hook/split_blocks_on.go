@@ -22,6 +22,7 @@ import (
 	"regexp"
 
 	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/asthelper"
 	"go.uber.org/nilaway/util/typeshelper"
 )
 
@@ -196,11 +197,11 @@ var requireZeroComparators splitBlockOnAction = func(pass *analysishelper.Enhanc
 
 // generateComparators generates comparators based on the semantics of the function.
 func generateComparators(call *ast.CallExpr, actualExpr ast.Expr, actualExprIndex int, expectedVal expectedValue) ast.Expr {
-	sel, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok {
+	ident := asthelper.FuncIdentFromCallExpr(call)
+	if ident == nil {
 		return nil
 	}
-	funcName := sel.Sel.Name
+	funcName := ident.Name
 
 	// Now, based on the semantics of the function, we can create artificial nonnil checks for
 	// the following cases.
