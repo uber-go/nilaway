@@ -280,15 +280,15 @@ func AddNilCheck(pass *analysishelper.EnhancedPass, expr ast.Expr) (trueCheck, f
 			},
 		},
 		{
-			// `len(a) - 1 >= 0` implies `len(a) >= 1`, so `a` is non-nil. We match the exact
-			// `len(a) - 1` structure so that this check is sound.
-			// Automatic cases:
+			// `len(a) - c >= 0` (positive `c`) or `len(a) + c >= 0` (negative `c`) both imply
+			// `len(a) >= 1`, so `a` is non-nil. We match this exact structure so the check is
+			// sound. The automatic cases below are shown for `len(a) - 1`:
 			//   - `0 <= len(a) - 1`
 			//   - `len(a) - 1 < 0`
 			//   - `0 > len(a) - 1`
 			op: token.GEQ,
 			matcher: func(x, y ast.Expr) (RootFunc, RootFunc, bool) {
-				if arg, ok := lenMinusOneArg(pass, x); ok && pass.IsZero(y) {
+				if arg, ok := lenMinusPositiveArg(pass, x); ok && pass.IsZero(y) {
 					return produceNegativeNilChecks(arg), noop, false
 				}
 				return noop, noop, true
@@ -341,14 +341,32 @@ func extractLenArgs(expr ast.Expr, allowNested bool) []ast.Expr {
 	return args
 }
 
-// lenMinusOneArg returns the argument `a` and true if `expr` has the exact form `len(a) - 1`.
-// Otherwise, it returns nil and false.
-func lenMinusOneArg(pass *analysishelper.EnhancedPass, expr ast.Expr) (ast.Expr, bool) {
+// lenMinusPositiveArg returns the argument `a` and true if `expr` has the form `len(a) - c` with
+// a positive constant `c`, or `len(a) + c` with a negative constant `c`. In both cases `expr`
+// equals `len(a) - k` for some integer `k >= 1`, so combined with `>= 0` it soundly implies
+// `len(a) >= 1`, i.e., `a` is non-nil. We require the `len(a)` term on the left and a constant
+// offset (rather than the looser `extractLenArgs` matching) so that we do not unsoundly conclude
+// anything from, e.g., `len(a) - 1 + b >= 0` or `c - len(a) >= 0`.
+func lenMinusPositiveArg(pass *analysishelper.EnhancedPass, expr ast.Expr) (ast.Expr, bool) {
 	bin, ok := ast.Unparen(expr).(*ast.BinaryExpr)
-	if !ok || bin.Op != token.SUB {
+	if !ok {
 		return nil, false
 	}
-	if v, ok := pass.ConstInt(bin.Y); !ok || v != 1 {
+	c, ok := pass.ConstInt(bin.Y)
+	if !ok {
+		return nil, false
+	}
+	// Compute `k` such that `bin` equals `len(a) - k`, then require `k >= 1`.
+	var k int64
+	switch bin.Op {
+	case token.SUB: // `len(a) - c`, sound when `c` is positive.
+		k = c
+	case token.ADD: // `len(a) + c`, sound when `c` is negative.
+		k = -c
+	default:
+		return nil, false
+	}
+	if k < 1 {
 		return nil, false
 	}
 	if lenArgs := extractLenArgs(bin.X, false /* allowNested */); len(lenArgs) == 1 {
