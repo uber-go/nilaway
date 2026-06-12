@@ -69,6 +69,28 @@ var _errorAsAction replaceConditionalAction = func(_ *analysishelper.EnhancedPas
 	}
 }
 
+// _assertConditionalAction replaces bool-returning testify assertions used as conditionals, e.g.,
+// `if assert.NoError(t, err) {...}`, with `<call> && <implied expr>` (here:
+// `assert.NoError(t, err) && err == nil`). The implied expression is the same one `_splitBlockOn`
+// derives for the call in statement position, so the per-assertion semantics (including the
+// asserted argument's position) are defined only there. The assertion returns true iff it passed,
+// so the implied expression holds in the then-branch; the else-branch gains no information from
+// the conjunction, which is conservative. Note that, unlike the statement-position modeling in
+// `_splitBlockOn`, no assumption about test termination is involved, so this is sound for the
+// non-fatal `assert` package as well.
+var _assertConditionalAction replaceConditionalAction = func(pass *analysishelper.EnhancedPass, call *ast.CallExpr) ast.Expr {
+	implied := SplitBlockOn(pass, call)
+	if implied == nil {
+		return nil
+	}
+	return &ast.BinaryExpr{
+		X:     call,
+		Op:    token.LAND,
+		OpPos: call.Pos(),
+		Y:     implied,
+	}
+}
+
 var _replaceConditionals = map[trustedSig]replaceConditionalAction{
 	{
 		kind:           _func,
@@ -80,4 +102,17 @@ var _replaceConditionals = map[trustedSig]replaceConditionalAction{
 		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/cockroachdb/errors$`),
 		nameRegex:      regexp.MustCompile(`^As$`),
 	}: _errorAsAction,
+
+	// Bool-returning testify assertions used as conditionals. `require` is absent since its
+	// functions do not return values and hence cannot appear in a conditional.
+	{
+		kind:           _func,
+		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/stretchr/testify/assert$`),
+		nameRegex:      regexp.MustCompile(`^(Nil(f)?|NotNil(f)?|NoError(f)?|Error(f)?|ErrorContains(f)?|EqualError(f)?|True(f)?|False(f)?)$`),
+	}: _assertConditionalAction,
+	{
+		kind:           _method,
+		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/stretchr/testify/(suite\.Suite|assert\.Assertions)$`),
+		nameRegex:      regexp.MustCompile(`^(Nil(f)?|NotNil(f)?|NoError(f)?|Error(f)?|ErrorContains(f)?|EqualError(f)?|True(f)?|False(f)?)$`),
+	}: _assertConditionalAction,
 }

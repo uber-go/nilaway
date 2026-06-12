@@ -49,6 +49,11 @@ func Error(t TestingT, object interface{}, msgAndArgs ...interface{}) bool { ret
 // nilable(object)
 func Errorf(t TestingT, object interface{}, msg string, args ...interface{}) bool { return true }
 
+// nilable(theError)
+func ErrorContains(t TestingT, theError error, contains string, msgAndArgs ...interface{}) bool {
+	return true
+}
+
 func True(t TestingT, value bool, msgAndArgs ...interface{}) bool { return true }
 
 func Truef(t TestingT, value bool, msg string, args ...interface{}) bool { return true }
@@ -135,6 +140,11 @@ func (*Assertions) Error(object interface{}, msgAndArgs ...interface{}) bool { r
 
 // nilable(object)
 func (*Assertions) Errorf(object interface{}, msg string, args ...interface{}) bool { return true }
+
+// nilable(theError)
+func (*Assertions) EqualErrorf(theError error, errString string, msg string, args ...interface{}) bool {
+	return true
+}
 
 func (*Assertions) True(value bool, msgAndArgs ...interface{}) bool { return true }
 
