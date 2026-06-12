@@ -267,6 +267,58 @@ func lengthCheckAsNilCheckTest(a []int) int {
 		for i := 0; i <= len(a) + 2 + b; i ++ {
 			_ = a[i]
 		}
+
+	// `len(a) - 1 >= 0` implies `len(a) >= 1`, so `a` is non-nil. The same holds for any
+	// `len(a) - positive >= 0` or `len(a) + negative >= 0`.
+	case 35:
+		if len(a) - 1 >= 0 {
+			return a[0]
+		}
+	case 36:
+		if 0 <= len(a) - 1 {
+			return a[0]
+		}
+	case 37:
+		if len(a) - 1 < 0 {
+			return 0
+		}
+		return a[0]
+	case 38:
+		if 0 > len(a) - 1 {
+			return 0
+		}
+		return a[0]
+	case 39:
+		if len(a) - 5 >= 0 {
+			return a[0]
+		}
+	case 40:
+		if len(a) + (-1) >= 0 {
+			return a[0]
+		}
+	case 41:
+		if len(a) + (-3) >= 0 {
+			return a[0]
+		}
+	case 42:
+		if 0 <= len(a) + (-2) {
+			return a[0]
+		}
+	case 43:
+		// `len(a) - 0 >= 0` is always true, so it tells us nothing: `a` may be nil.
+		if len(a) - 0 >= 0 {
+			return a[0] //want "sliced into"
+		}
+	case 44:
+		// `len(a) + 1 >= 0` is always true, so it tells us nothing: `a` may be nil.
+		if len(a) + 1 >= 0 {
+			return a[0] //want "sliced into"
+		}
+	case 45:
+		// `5 - len(a) >= 0` means `len(a) <= 5`, which tells us nothing: `a` may be nil.
+		if 5 - len(a) >= 0 {
+			return a[0] //want "sliced into"
+		}
 	}
 	return 0
 }
