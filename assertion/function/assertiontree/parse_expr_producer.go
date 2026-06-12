@@ -479,7 +479,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 		// storage. For example, `var a [4]int; _ = a[:0]` is a nonnil (empty) slice. This holds
 		// regardless of the indices, so we must check it before the `b[_:0:_]` case below (which
 		// would otherwise wrongly treat `a[:0]` as a nilable empty slice).
-		if typeshelper.IsDeeplyArray(r.Pass().TypesInfo.Types[expr.X].Type) {
+		if typeshelper.IsDeeplyArrayOrArrayPtr(r.Pass().TypesInfo.TypeOf(expr.X)) {
 			// Returning nil to indicate the slice expression results in a nonnil slice.
 			return nil, nil
 		}

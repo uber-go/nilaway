@@ -75,99 +75,137 @@ func IsSlice(t types.Type) bool {
 	}
 }
 
-// IsDeeplyArray returns true if `t` is of array type, including
-// transitively through Named types
+// IsDeeplyArray returns true if `t` is of array type, including transitively through named
+// types and aliases, as well as type parameters whose type sets contain only array types.
 func IsDeeplyArray(t types.Type) bool {
-	switch tt := UnwrapPtr(t).(type) {
-	case *types.Array:
-		return true
-	case *types.Named:
-		return IsDeeplyArray(tt.Underlying())
-	}
-	return false
+	return underlyingIs[*types.Array](t)
 }
 
-// IsDeeplySlice returns true if `t` is of slice type, including
-// transitively through Named types
-func IsDeeplySlice(t types.Type) bool {
-	if IsSlice(t) {
-		return true
-	}
-	if t, ok := t.(*types.Named); ok {
-		return IsDeeplySlice(t.Underlying())
-	}
-	return false
+// IsDeeplyArrayOrArrayPtr is like IsDeeplyArray, but additionally accepts pointers to arrays
+// (again resolving named types, aliases, and type parameters). Slice expressions and range
+// statements auto-dereference pointers to arrays, so for them an operand of either type
+// behaves like an array.
+func IsDeeplyArrayOrArrayPtr(t types.Type) bool {
+	return underlyingAlwaysSatisfies(t, func(u types.Type) bool {
+		if ptr, ok := u.(*types.Pointer); ok {
+			u = ptr.Elem().Underlying()
+		}
+		_, ok := u.(*types.Array)
+		return ok
+	})
 }
 
-// IsDeeplyMap returns true if `t` is of map type, including
-// transitively through Named types
-func IsDeeplyMap(t types.Type) bool {
-	if _, ok := t.(*types.Map); ok {
-		return true
-	}
-	if t, ok := t.(*types.Named); ok {
-		return IsDeeplyMap(t.Underlying())
-	}
-	return false
+// underlyingIs reports whether the underlying type of `t` (resolved as described in
+// underlyingAlwaysSatisfies) is a T.
+func underlyingIs[T types.Type](t types.Type) bool {
+	return underlyingAlwaysSatisfies(t, func(u types.Type) bool {
+		_, ok := u.(T)
+		return ok
+	})
 }
 
-// IsDeeplyPtr returns true if `t` is of pointer type, including
-// transitively through Named types
-func IsDeeplyPtr(t types.Type) bool {
-	if _, ok := t.(*types.Pointer); ok {
+// underlyingAlwaysSatisfies reports whether the underlying type of `t` satisfies pred. Named
+// types and aliases are resolved via Underlying(). For type parameters, the underlying type of
+// every term in the constraint's type set must satisfy pred. Since the elements of a constraint
+// interface intersect, this is conservative: the actual type set can only be smaller than the
+// enumerated terms, and type sets we cannot enumerate (such as method-only constraints) yield
+// false.
+func underlyingAlwaysSatisfies(t types.Type, pred func(types.Type) bool) bool {
+	if t == nil {
+		return false
+	}
+	if tp, ok := types.Unalias(t).(*types.TypeParam); ok {
+		iface, isIface := tp.Constraint().Underlying().(*types.Interface)
+		if !isIface {
+			return false
+		}
+		terms := constraintTerms(iface)
+		if len(terms) == 0 {
+			return false
+		}
+		for _, term := range terms {
+			if !pred(term.Underlying()) {
+				return false
+			}
+		}
 		return true
 	}
-	if t, ok := t.(*types.Named); ok {
-		return IsDeeplyPtr(t.Underlying())
-	}
-	return false
+	return pred(t.Underlying())
 }
 
-// IsDeeplyChan returns true if `t` is of channel type, including
-// transitively through Named types
-func IsDeeplyChan(t types.Type) bool {
-	if _, ok := t.(*types.Chan); ok {
-		return true
-	}
-	if t, ok := t.(*types.Named); ok {
-		return IsDeeplyChan(t.Underlying())
-	}
-	return false
-}
-
-// AsDeeplyStruct returns underlying struct type if the type is struct type or a pointer to a struct type
-// returns nil otherwise
-func AsDeeplyStruct(typ types.Type) *types.Struct {
-	if typ, ok := typ.(*types.Struct); ok {
-		return typ
-	}
-
-	if typ, ok := typ.(*types.Named); ok {
-		if resType, ok := typ.Underlying().(*types.Struct); ok {
-			return resType
+// constraintTerms returns the types of all type terms of the constraint interface `iface`,
+// recursing into embedded interfaces, both standalone (`interface{ Elem }`) and as union terms
+// (`interface{ Elem | ~[8]int }` -- go/types does not flatten interface-typed union terms, and
+// such terms are necessarily method-less per the spec). Method-only elements contribute no terms.
+func constraintTerms(iface *types.Interface) []types.Type {
+	var terms []types.Type
+	for i := 0; i < iface.NumEmbeddeds(); i++ {
+		switch e := types.Unalias(iface.EmbeddedType(i)).(type) {
+		case *types.Union:
+			for j := 0; j < e.Len(); j++ {
+				if emb, isIface := e.Term(j).Type().Underlying().(*types.Interface); isIface {
+					terms = append(terms, constraintTerms(emb)...)
+				} else {
+					terms = append(terms, e.Term(j).Type())
+				}
+			}
+		default:
+			if emb, isIface := e.Underlying().(*types.Interface); isIface {
+				terms = append(terms, constraintTerms(emb)...)
+			} else {
+				terms = append(terms, e)
+			}
 		}
 	}
+	return terms
+}
 
-	if ptType, ok := typ.(*types.Pointer); ok {
-		if namedType, ok := types.Unalias(ptType.Elem()).(*types.Named); ok {
-			if resType, ok := namedType.Underlying().(*types.Struct); ok {
-				return resType
+// IsDeeplySlice returns true if `t` is of slice type, including transitively through named
+// types and aliases, as well as type parameters whose type sets contain only slice types.
+func IsDeeplySlice(t types.Type) bool {
+	return underlyingIs[*types.Slice](t)
+}
+
+// IsDeeplyMap returns true if `t` is of map type, including transitively through named types
+// and aliases, as well as type parameters whose type sets contain only map types.
+func IsDeeplyMap(t types.Type) bool {
+	return underlyingIs[*types.Map](t)
+}
+
+// IsDeeplyPtr returns true if `t` is of pointer type, including transitively through named
+// types and aliases, as well as type parameters whose type sets contain only pointer types.
+func IsDeeplyPtr(t types.Type) bool {
+	return underlyingIs[*types.Pointer](t)
+}
+
+// IsDeeplyChan returns true if `t` is of channel type, including transitively through named
+// types and aliases, as well as type parameters whose type sets contain only channel types.
+func IsDeeplyChan(t types.Type) bool {
+	return underlyingIs[*types.Chan](t)
+}
+
+// AsDeeplyStruct returns the underlying struct type if `typ` is a struct or a pointer to a
+// named struct (resolving named types and aliases). Returns nil otherwise.
+// Note: pointer-to-anonymous-struct is intentionally excluded — the struct-init analyzer does
+// not yet handle anonymous struct initialization.
+func AsDeeplyStruct(typ types.Type) *types.Struct {
+	if s, ok := typ.Underlying().(*types.Struct); ok {
+		return s
+	}
+	if ptr, ok := types.Unalias(typ).(*types.Pointer); ok {
+		if named, ok := types.Unalias(ptr.Elem()).(*types.Named); ok {
+			if s, ok := named.Underlying().(*types.Struct); ok {
+				return s
 			}
 		}
 	}
 	return nil
 }
 
-// IsDeeplyInterface returns true if `t` is of struct type, including
-// transitively through Named types
+// IsDeeplyInterface returns true if `t` is of interface type, including transitively through
+// named types and aliases, as well as type parameters whose type sets contain only interface types.
 func IsDeeplyInterface(t types.Type) bool {
-	if _, ok := t.(*types.Interface); ok {
-		return true
-	}
-	if t, ok := t.(*types.Named); ok {
-		return IsDeeplyInterface(t.Underlying())
-	}
-	return false
+	return underlyingIs[*types.Interface](t)
 }
 
 // IsPointer checks whether the type `t` is an explicit or implicit pointer type, which could also be of deep type.

@@ -491,7 +491,7 @@ func backpropAcrossRange(rootNode *RootAssertionNode, lhs []ast.Expr, rhs ast.Ex
 	case 1:
 		// If we are ranging over a map slice or string with only a single lhs operand, then that
 		// operand will be int-valued.
-		if typeshelper.IsDeeplyMap(rhsType) || typeshelper.IsDeeplySlice(rhsType) || typeshelper.IsDeeplyArray(rhsType) || typeIsString(rhsType) {
+		if typeshelper.IsDeeplyMap(rhsType) || typeshelper.IsDeeplySlice(rhsType) || typeshelper.IsDeeplyArrayOrArrayPtr(rhsType) || typeIsString(rhsType) {
 			produceAsIndex(0)
 			return nil
 		}

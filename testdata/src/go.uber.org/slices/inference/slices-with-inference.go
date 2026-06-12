@@ -96,3 +96,26 @@ func helperReturnNonZeroSlicingNonNilProducerForNilableParam(b []int) []int {
 func helperReturnNonZeroSlicingNonNilProducerForNonNilParam(b []int) []int {
 	return b[1:3]
 }
+
+// Aliases of slice types must behave like the aliased slice type itself: indexing a nilable
+// alias-of-slice value gets the same slice-access check (aliases are materialized as
+// *types.Alias since Go 1.23, so they must be explicitly resolved when classifying the operand).
+type sliceAlias = []int
+
+var sliceAliasDummy bool
+
+func mkSliceAlias() sliceAlias {
+	if sliceAliasDummy {
+		return nil
+	}
+	return []int{1}
+}
+
+func testSliceAliasIndex() int {
+	s := mkSliceAlias()
+	if s != nil {
+		return s[0]
+	}
+	t := mkSliceAlias()
+	return t[0] //want "sliced into"
+}
