@@ -26,10 +26,10 @@ import (
 )
 
 // analyzeValueSpec returns full triggers corresponding to the declaration
-func analyzeValueSpec(pass *analysishelper.EnhancedPass, spec *ast.ValueSpec) []annotation.FullTrigger {
+func analyzeValueSpec(pass *analysishelper.EnhancedPass, spec *ast.ValueSpec, initFuncDecls []*ast.FuncDecl) []annotation.FullTrigger {
 	var fullTriggers []annotation.FullTrigger
 
-	consumers := getGlobalConsumers(pass, spec)
+	consumers := getGlobalConsumers(pass, spec, initFuncDecls)
 
 	for i, ident := range spec.Names {
 		if consumers[i] == nil {
@@ -65,12 +65,12 @@ func analyzeValueSpec(pass *analysishelper.EnhancedPass, spec *ast.ValueSpec) []
 }
 
 // Returns a list of consumers corresponding to a global level variable declaration
-func getGlobalConsumers(pass *analysishelper.EnhancedPass, valspec *ast.ValueSpec) []*annotation.ConsumeTrigger {
+func getGlobalConsumers(pass *analysishelper.EnhancedPass, valspec *ast.ValueSpec, initFuncDecls []*ast.FuncDecl) []*annotation.ConsumeTrigger {
 	consumers := make([]*annotation.ConsumeTrigger, len(valspec.Names))
 
 	for i, name := range valspec.Names {
 		// Types that are not nilable are eliminated here
-		if !asthelper.IsEmptyExpr(name) && !typeshelper.TypeBarsNilness(pass.TypesInfo.TypeOf(name)) {
+		if !asthelper.IsEmptyExpr(name) && !typeshelper.TypeBarsNilness(pass.TypesInfo.TypeOf(name)) && !hasGlobalVarAssignInInitFunc(valspec, initFuncDecls) {
 			v := pass.TypesInfo.ObjectOf(name).(*types.Var)
 			consumers[i] = &annotation.ConsumeTrigger{
 				Annotation: &annotation.GlobalVarAssign{
@@ -85,6 +85,40 @@ func getGlobalConsumers(pass *analysishelper.EnhancedPass, valspec *ast.ValueSpe
 		}
 	}
 	return consumers
+}
+
+// Checks if all the global variables represented by spec are assigned values within the init function.
+// It returns true if all variables are assigned, false otherwise.
+// If initFuncDecl is nil, it returns false.
+func hasGlobalVarAssignInInitFunc(spec *ast.ValueSpec, initFuncDecls []*ast.FuncDecl) bool {
+	if len(initFuncDecls) == 0 {
+		return false
+	}
+	assignedVars := make(map[string]bool)
+	for _, name := range spec.Names {
+		assignedVars[name.Name] = false
+	}
+	for _, initFuncDecl := range initFuncDecls {
+		ast.Inspect(initFuncDecl.Body, func(node ast.Node) bool {
+			if assign, ok := node.(*ast.AssignStmt); ok {
+				for _, lhs := range assign.Lhs {
+					if ident, ok := lhs.(*ast.Ident); ok {
+						if _, exists := assignedVars[ident.Name]; exists {
+							assignedVars[ident.Name] = true
+						}
+					}
+				}
+			}
+			return true
+		})
+	}
+
+	for _, assigned := range assignedVars {
+		if !assigned {
+			return false
+		}
+	}
+	return true
 }
 
 // Returns a producer in the cases: 1) func call 2) literal nil 3) another global var 4) struct field/method.

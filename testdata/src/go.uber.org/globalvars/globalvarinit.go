@@ -25,6 +25,35 @@ var x = 3
 
 // This should throw an error since it is not initialized
 var noInit *int //want "assigned into global variable"
+var _init *int
+var _initMult1, _initMult2 *int
+
+func init() {
+	_init = new(int)
+	_initMult1 = new(int)
+	_initMult2 = new(int)
+}
+
+var _init2 *int
+
+func init() {
+	_init2 = new(int)
+}
+
+var _init3, _init4 *int
+
+func init() {
+	init_next()
+}
+
+func init_next() {
+	_init3 = new(int)
+	init_next_next()
+}
+
+func init_next_next() {
+	_init4 = new(int)
+}
 
 // nilable(nilableVar)
 var nilableVar *int
