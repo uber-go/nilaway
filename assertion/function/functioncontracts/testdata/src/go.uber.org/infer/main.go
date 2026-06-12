@@ -325,3 +325,22 @@ func twoCondsMerge(x *STR) *STR {
 func unknownToUnknownButSameValue(x *int) *int {
 	return x
 }
+
+type SI2 struct{}
+
+// contract(nonnil -> nonnil) does not hold: the contract is about the declared parameter x, not
+// the receiver, and this fluent method returns its receiver, which is unrelated to x. (In SSA the
+// receiver is fn.Params[0]; if we did not skip it, the receiver-valued return would incorrectly
+// match the param == ret rule and produce a contract about x.)
+func (s *SI2) fluent(x *SI2) *SI2 {
+	_ = x
+	return s
+}
+
+// contract(nonnil -> nonnil) holds for the declared parameter of a method.
+func (s *SI2) cloneLike(x *SI2) *SI2 {
+	if x == nil {
+		return nil
+	}
+	return new(SI2)
+}
