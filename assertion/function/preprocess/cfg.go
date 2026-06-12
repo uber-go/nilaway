@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"go/types"
 
 	"go.uber.org/nilaway/hook"
 	"go.uber.org/nilaway/util/asthelper"
@@ -87,13 +88,15 @@ func (p *Preprocessor) CFG(graph *cfg.CFG, funcDecl *ast.FuncDecl) *cfg.CFG {
 		}
 	}
 
-	// Next, we need to re-insert information that is lost during CFG build for *ast.RangeStmt
-	// and *ast.SwitchStmt by iterating through all blocks. This requires knowing the links between
-	// the nodes contained within a block to their parents (*ast.RangeStmt or *ast.SwitchStmt nodes).
+	// Next, we need to re-insert information that is lost during CFG build for *ast.RangeStmt,
+	// *ast.SwitchStmt, and *ast.TypeSwitchStmt by iterating through all blocks. This requires
+	// knowing the links between the nodes contained within a block to their parents
+	// (*ast.RangeStmt, *ast.SwitchStmt, or *ast.TypeSwitchStmt nodes).
 	// So, here establish the link and then do the work.
-	rangeChildren, switchChildren := collectChildren(funcDecl)
+	rangeChildren, switchChildren, typeSwitchChildren := collectChildren(funcDecl)
 	markRangeStatements(graph, rangeChildren)
 	markSwitchStatements(graph, switchChildren)
+	p.markTypeSwitchStatements(graph, typeSwitchChildren)
 
 	// Please check the docstring of the following call to see why this is needed.
 	// TODO: remove this once anonymous function support handles it naturally.
@@ -414,12 +417,13 @@ func (p *Preprocessor) canonicalizeConditional(graph *cfg.CFG, thisBlock *cfg.Bl
 	}
 }
 
-// collectChildren establishes the links between the range / switch statement nodes and their child
-// nodes. This is specifically designed for our preprocess function: when we rewrite the CFG to
-// re-insert the lost information, we need to know if a block in CFG belongs to a certain range
-// statement or switch statement AST node for retrieving lost information.
-func collectChildren(funcDecl *ast.FuncDecl) (map[ast.Node]*ast.RangeStmt, map[ast.Node]*ast.SwitchStmt) {
+// collectChildren establishes the links between the range / switch / type switch statement nodes
+// and their child nodes. This is specifically designed for our preprocess function: when we
+// rewrite the CFG to re-insert the lost information, we need to know if a block in CFG belongs to
+// a certain range statement or (type) switch statement AST node for retrieving lost information.
+func collectChildren(funcDecl *ast.FuncDecl) (map[ast.Node]*ast.RangeStmt, map[ast.Node]*ast.SwitchStmt, map[ast.Node]*ast.TypeSwitchStmt) {
 	rangeChildren, switchChildren := make(map[ast.Node]*ast.RangeStmt), make(map[ast.Node]*ast.SwitchStmt)
+	typeSwitchChildren := make(map[ast.Node]*ast.TypeSwitchStmt)
 
 	ast.Inspect(funcDecl, func(node ast.Node) bool {
 		switch n := node.(type) {
@@ -440,11 +444,16 @@ func collectChildren(funcDecl *ast.FuncDecl) (map[ast.Node]*ast.RangeStmt, map[a
 				switchChildren[n.Tag] = n
 			}
 			switchChildren[n.Body] = n
+		case *ast.TypeSwitchStmt:
+			// The Assign field (either `x := v.(type)` or `v.(type)`) is the node that the CFG
+			// builder places in the branching block of the type switch, so it is the key we use to
+			// rediscover type switches in the CFG.
+			typeSwitchChildren[n.Assign] = n
 		}
 		return true
 	})
 
-	return rangeChildren, switchChildren
+	return rangeChildren, switchChildren, typeSwitchChildren
 }
 
 // markRangeStatements rewrites a cfg to reflect ranging loops - the assignments in a `for... range y {}`
@@ -596,4 +605,170 @@ func markSwitchStatements(graph *cfg.CFG, switchChildren map[ast.Node]*ast.Switc
 			}
 		}
 	}
+}
+
+// markTypeSwitchStatements rewrites a CFG to re-insert the branch conditions of type switches.
+//
+// The CFG builder (golang.org/x/tools/go/cfg) represents a type switch
+//
+//	switch x := v.(type) {
+//	case nil: ...
+//	case T1, T2: ...
+//	default: ...
+//	}
+//
+// as a chain of two-successor branching blocks -- one per case *type* -- where the first
+// branching block ends with the Assign node (`x := v.(type)` or `v.(type)`) and the subsequent
+// ones are empty, since the builder has no expression to represent the implicit type assertion
+// performed by each case. This loses the nilability information carried by the case conditions.
+// We re-insert that information by appending a synthesized condition to each branching block:
+//
+//   - `case nil` arms get `v == nil`: a nil interface matches exactly this arm, and, conversely,
+//     any value reaching the false branch is non-nil.
+//   - case arms listing an *interface* type (excluding type parameters, see typeSwitchCaseCond)
+//     get `v != nil`: a nil interface value has no dynamic type, so it can match only `case nil`
+//     (or `default`); matching an interface type therefore guarantees the operand is non-nil.
+//     The false branch carries no information. Note that this would NOT be sound for the *bound
+//     variable* of concrete-typed arms (e.g., `case *int`), where the dynamic value can still be
+//     a typed nil pointer; since assertions on the bound variable are transferred to the operand
+//     `v` (see `backpropAcrossTypeSwitch`), we synthesize no condition for non-interface arms.
+//
+// Additionally, for type switches with a binding (`x := v.(type)`), the Assign node is
+// replicated at the top of every case body. The CFG builder only places it once, *before* the
+// branching: during backpropagation, assertions on the bound variable `x` would then only be
+// transferred to the operand `v` (see `backpropAcrossTypeSwitch`) after the case branches have
+// already merged, which is too late for the synthesized branch conditions above to act on them.
+// Replicating the assignment into each case body mirrors the actual semantics -- each body
+// begins with an implicit `x := v.(T)` -- and ensures the transfer happens while the per-branch
+// knowledge is still available (this relies on `backpropAcrossTypeSwitch` being idempotent; see
+// the note there).
+//
+// This allows the existing conditional-processing logic (`AddNilCheck` and the rich check
+// effects, e.g., for `ptr, err := f(); switch err.(type) { case nil: ... }`) to handle type
+// switches just like their `if err == nil` equivalents.
+func (p *Preprocessor) markTypeSwitchStatements(graph *cfg.CFG, typeSwitchChildren map[ast.Node]*ast.TypeSwitchStmt) {
+	if len(typeSwitchChildren) == 0 {
+		return
+	}
+	for _, block := range graph.Blocks {
+		n := len(block.Nodes)
+		if n < 1 || len(block.Succs) != 2 {
+			continue
+		}
+		if stmt := typeSwitchChildren[block.Nodes[n-1]]; stmt != nil {
+			p.markTypeSwitch(block, stmt)
+		}
+	}
+}
+
+// markTypeSwitch re-inserts the synthesized conditions (and replicated binding assignments) for
+// a single type switch whose first branching block is `block`. See markTypeSwitchStatements for
+// the semantics.
+func (p *Preprocessor) markTypeSwitch(block *cfg.Block, stmt *ast.TypeSwitchStmt) {
+	operand := typeSwitchOperand(stmt)
+	if operand == nil {
+		return
+	}
+	// Only type switches with a binding need the Assign replicated into the case bodies.
+	bindingAssign, _ := stmt.Assign.(*ast.AssignStmt)
+
+	// Walk the chain of branching blocks -- one per case type, in source order (mirroring the
+	// CFG builder) -- and append the synthesized conditions.
+	hasDefault := false
+	caseBlock := block
+	for _, clause := range stmt.Body.List {
+		cc := clause.(*ast.CaseClause)
+		if cc.List == nil {
+			// `default` clauses do not get their own branching block.
+			hasDefault = true
+			continue
+		}
+		for i, caseType := range cc.List {
+			if caseBlock != block && (len(caseBlock.Nodes) != 0 || len(caseBlock.Succs) != 2) {
+				// The CFG does not have the shape we expect (e.g., due to dead code
+				// elimination). Conservatively stop processing this type switch: this loses
+				// precision but never soundness.
+				return
+			}
+			if cond := p.typeSwitchCaseCond(operand, caseType); cond != nil {
+				caseBlock.Nodes = append(caseBlock.Nodes, cond)
+			}
+			// The true branch is the case body, which is shared by all case types of this
+			// clause (and only by them), so the binding only needs to be replicated once.
+			if bindingAssign != nil && i == 0 {
+				body := caseBlock.Succs[0]
+				body.Nodes = append([]ast.Node{bindingAssign}, body.Nodes...)
+			}
+			caseBlock = caseBlock.Succs[1]
+		}
+	}
+	// The false branch of the last case type is the default body, if one exists (the CFG
+	// builder always emits the default body there, regardless of its position in the source).
+	if bindingAssign != nil && hasDefault {
+		caseBlock.Nodes = append([]ast.Node{bindingAssign}, caseBlock.Nodes...)
+	}
+}
+
+// typeSwitchOperand extracts the switched-on expression `v` from the Assign node of a type
+// switch (`x := v.(type)` or a bare `v.(type)`), returning nil if the shape is unexpected.
+func typeSwitchOperand(stmt *ast.TypeSwitchStmt) ast.Expr {
+	var expr ast.Expr
+	switch assign := stmt.Assign.(type) {
+	case *ast.AssignStmt:
+		if len(assign.Rhs) != 1 {
+			return nil
+		}
+		expr = assign.Rhs[0]
+	case *ast.ExprStmt:
+		expr = assign.X
+	default:
+		return nil
+	}
+	if typeAssert, ok := ast.Unparen(expr).(*ast.TypeAssertExpr); ok && typeAssert.Type == nil {
+		return typeAssert.X
+	}
+	return nil
+}
+
+// typeSwitchCaseCond synthesizes the branch condition for a single case type of a type switch
+// (see markTypeSwitchStatements for the semantics), or nil if the case type carries no nilability
+// information about the operand.
+//
+// Note that the `operand != nil` conditions deliberately keep the non-canonical NEQ form, even
+// though the preprocessor otherwise canonicalizes conditions to `x == nil` with swapped
+// successors (see canonicalizeConditional): consumers of positive nil checks (e.g., the rich
+// check effects via exprIsPositiveNilCheck) attach "operand is provably nil" semantics to the
+// true branch of an `x == nil` condition, which would be unsound here -- *failing* to match an
+// interface case does not imply the operand is nil. AddNilCheck handles the NEQ form directly,
+// with a no-op false branch.
+func (p *Preprocessor) typeSwitchCaseCond(operand, caseType ast.Expr) *ast.BinaryExpr {
+	// Note that pass.IsNil identifies `case nil` arms via the type checker, so a parenthesized
+	// `case (nil)` is handled, and a user-shadowed type named "nil" is correctly classified as a
+	// concrete arm instead.
+	if p.pass.IsNil(caseType) {
+		// We synthesize a bare `nil` identifier (rather than reusing caseType, which may be
+		// parenthesized) so that downstream consumers matching the canonical `x == nil` form
+		// recognize the condition.
+		return &ast.BinaryExpr{
+			X:     operand,
+			OpPos: caseType.Pos(),
+			Op:    token.EQL,
+			Y:     &ast.Ident{NamePos: caseType.Pos(), Name: "nil"},
+		}
+	}
+	if t := p.pass.TypesInfo.TypeOf(caseType); t != nil && types.IsInterface(t) {
+		// A type parameter is an interface to the type system, but a value matching it can
+		// still be a typed nil pointer (e.g., T instantiated with *int) -- the same hazard as
+		// concrete-typed arms -- so it must not produce a non-nil condition.
+		if _, ok := types.Unalias(t).(*types.TypeParam); ok {
+			return nil
+		}
+		return &ast.BinaryExpr{
+			X:     operand,
+			OpPos: caseType.Pos(),
+			Op:    token.NEQ,
+			Y:     &ast.Ident{NamePos: caseType.Pos(), Name: "nil"},
+		}
+	}
+	return nil
 }

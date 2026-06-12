@@ -461,17 +461,10 @@ func nodeAssignsOneWithoutOther(rootNode *RootAssertionNode, node ast.Node, one,
 // variable `checksVar`. Note that because of preprocessing done in `restructureBlock` from
 // `preprocess_blocks.go`, this suffices to handle cases such as `nil != checksVar` as well.
 func exprIsPositiveNilCheck(rootNode *RootAssertionNode, expr ast.Expr, checksExpr TrackableExpr) bool {
-	if binExpr, ok := expr.(*ast.BinaryExpr); ok && binExpr.Op == token.EQL && asthelper.IsLiteral(binExpr.Y, "nil") {
-		// Standard case: X == nil
-		if exprMatchesTrackableExpr(rootNode, binExpr.X, checksExpr) {
-			return true
-		}
-		// Special case: type-switch guard rewritten as "(x.(type)) == nil".
-		// In such cases, the BinaryExpr.X will be a *ast.TypeAssertExpr whose Type is nil,
-		// and we should treat it as if we are checking "x == nil".
-		if ta, ok := binExpr.X.(*ast.TypeAssertExpr); ok && ta.Type == nil {
-			return exprMatchesTrackableExpr(rootNode, ta.X, checksExpr)
-		}
+	if binExpr, ok := expr.(*ast.BinaryExpr); ok && binExpr.Op == token.EQL && rootNode.Pass().IsNil(binExpr.Y) {
+		// Note that this also covers `case nil` arms of type switches: the preprocessor
+		// synthesizes a canonical `x == nil` condition for them (see markTypeSwitchStatements).
+		return exprMatchesTrackableExpr(rootNode, binExpr.X, checksExpr)
 	}
 	return false
 }
