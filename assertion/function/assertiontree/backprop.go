@@ -486,6 +486,18 @@ func backpropAcrossRange(rootNode *RootAssertionNode, lhs []ast.Expr, rhs ast.Ex
 		if typeIsString(rhsType) { // This checks if we are ranging over a string
 			produceAsIndex(1) // If we are ranging over a string, then the second lhs operand is also non-nil
 		} else {
+			// Ranging over a pointer to an array with a non-blank second iteration variable
+			// implicitly dereferences the pointer to read the elements, so it must be non-nil.
+			// All other range forms over a pointer to an array are nil-safe: with at most one
+			// (possibly blank) iteration variable the range expression is not even evaluated,
+			// since its length is a constant.
+			if typeshelper.IsDeeplyType[*types.Pointer](rhsType) && !asthelper.IsEmptyExpr(lhs[1]) {
+				rootNode.AddConsumption(&annotation.ConsumeTrigger{
+					Annotation: &annotation.PtrLoad{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
+					Expr:       rhs,
+					Guards:     guard.NoGuards(),
+				})
+			}
 			produceAsDeepRHS(1) // If we are not ranging over a string, then we cannot assume basic type
 		}
 	case 1:
