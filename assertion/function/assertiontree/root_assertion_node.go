@@ -531,9 +531,18 @@ func (r *RootAssertionNode) AddGuardMatch(expr ast.Expr, behavior GuardMatchBeha
 
 func (r *RootAssertionNode) consumeIndexExpr(expr ast.Expr) {
 	t := r.Pass().TypesInfo.Types[expr].Type
-	if typeshelper.IsDeeplyType[*types.Slice](t) {
+	switch {
+	case typeshelper.IsDeeplyType[*types.Slice](t):
 		r.AddConsumption(&annotation.ConsumeTrigger{
 			Annotation: &annotation.SliceAccess{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
+			Expr:       expr,
+			Guards:     guard.NoGuards(),
+		})
+	case typeshelper.IsDeeplyType[*types.Pointer](t):
+		// The only pointer type that can be indexed is a pointer to an array, which implicitly
+		// dereferences the pointer: p[i] is shorthand for (*p)[i].
+		r.AddConsumption(&annotation.ConsumeTrigger{
+			Annotation: &annotation.PtrLoad{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
 			Expr:       expr,
 			Guards:     guard.NoGuards(),
 		})
@@ -846,12 +855,20 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 	case *ast.SliceExpr:
 		// similar to index case
 
-		// safe slicing contains b[:0] b[0:0] b[0:] b[:] b[:0:0] b[0:0:0] and length-bounded forms such
-		// as b[:len(b)], which are safe even when b is nil, so we do not create consumer triggers for
-		// those slicing.
-		if !r.isSafeSlicing(expr) {
-			// For all the other slicing, the slice must be nonnil, so we create a consumer
-			// trigger.
+		if typeshelper.IsDeeplyType[*types.Pointer](r.Pass().TypesInfo.TypeOf(expr.X)) {
+			// Slicing a pointer to an array implicitly dereferences the pointer (p[low:high] is
+			// shorthand for (*p)[low:high]), so the pointer must be non-nil regardless of the
+			// indices -- even for forms like p[:0] that are safe on a nil slice.
+			r.AddConsumption(&annotation.ConsumeTrigger{
+				Annotation: &annotation.PtrLoad{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
+				Expr:       expr.X,
+				Guards:     guard.NoGuards(),
+			})
+		} else if !r.isSafeSlicing(expr) {
+			// safe slicing contains b[:0] b[0:0] b[0:] b[:] b[:0:0] b[0:0:0] and length-bounded
+			// forms such as b[:len(b)], which are safe even when b is nil, so we do not create
+			// consumer triggers for those slicing. For all the other slicing, the slice must be
+			// nonnil, so we create a consumer trigger.
 			r.AddConsumption(&annotation.ConsumeTrigger{
 				Annotation: &annotation.SliceAccess{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
 				Expr:       expr.X,
