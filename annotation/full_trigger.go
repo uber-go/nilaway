@@ -169,15 +169,9 @@ func FullTriggerSlicesEq(left, right []FullTrigger) bool {
 // checking fixed point in propagation, the function FullTriggersEq
 // that does observe GuardMatched should be used instead of this function.
 func MergeFullTriggers(left []FullTrigger, right ...FullTrigger) []FullTrigger {
-	// We append non-duplicate right triggers in place into `left` rather than allocating a fresh
-	// slice and copying all of `left` on every call. Callers always reassign the result
-	// (`x = MergeFullTriggers(x, ...)`) and don't alias `left`, so mutating it is safe. This turns
-	// one-at-a-time accumulation (the AddNewTriggers backprop hot path) from O(K^2) into amortized
-	// O(1) per add.
-	//
+	// We append non-duplicate right triggers in place into `left` slice.
 	// `left` is dedup-maintained by construction, so we compare each right trigger only against the
-	// original `left` prefix (origLen) and stop at the first match. Right triggers are not deduped
-	// against each other, matching the prior behavior.
+	// original `left` prefix (origLen) and stop at the first match.
 	origLen := len(left)
 	for _, r := range right {
 		matched := false
