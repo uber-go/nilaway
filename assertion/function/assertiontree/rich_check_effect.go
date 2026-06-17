@@ -483,11 +483,7 @@ func NodeTriggersFuncErrRet(rootNode *RootAssertionNode, nonceGenerator *guard.N
 	}
 
 	// Besides the return values handled above, certain trusted functions also guarantee that one of
-	// their (pointer) arguments is non-nil once the error return is checked to be nil. For example,
-	// `json.Unmarshal(data, &v)` populates `v`, so `v != nil` holds when `err == nil`. Unlike a
-	// return value (which is produced by the call with a guarded producer), the pointee here is a
-	// pre-existing expression, so we model the effect by producing a non-nil value for it in the
-	// error-is-nil branch (see FuncErrRetNonnilArg).
+	// their (pointer) arguments is non-nil once the error return is checked to be nil.
 	if argExpr := hook.ErrorReturnNonnilArg(rootNode.Pass(), callExpr); argExpr != nil {
 		if argExprParsed := parseExpr(rootNode, argExpr); argExprParsed != nil {
 			effects, someEffect = append(effects, &FuncErrRetNonnilArg{
