@@ -122,6 +122,9 @@ func TestInfer(t *testing.T) {
 		getFuncObj(pass, "unknownToUnknownButSameValue"): {
 			Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		},
+		getFuncObj(pass, "SI2.cloneLike"): {
+			Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+		},
 		// other functions should not exist in the map as the contract nonnil->nonnil does not hold
 		// for them.
 
@@ -185,6 +188,23 @@ func getFuncObj(pass *analysis.Pass, name string) *types.Func {
 	}
 	if len(parts) > 2 {
 		panic(fmt.Sprintf("invalid function name to look up, expected name or pkg.name, got %q", name))
+	}
+	// A "Type.Method" reference to a method of a named type in the current package.
+	if obj := pass.Pkg.Scope().Lookup(parts[0]); obj != nil {
+		typeName, ok := obj.(*types.TypeName)
+		if !ok {
+			panic(fmt.Sprintf("expected %q to be a type name in the current package, got %v", parts[0], obj))
+		}
+		named, ok := typeName.Type().(*types.Named)
+		if !ok {
+			panic(fmt.Sprintf("expected %q to be a named type, got %v", parts[0], typeName.Type()))
+		}
+		for i := 0; i < named.NumMethods(); i++ {
+			if m := named.Method(i); m.Name() == parts[1] {
+				return m
+			}
+		}
+		panic(fmt.Sprintf("cannot find method %q", name))
 	}
 	for _, imported := range pass.Pkg.Imports() {
 		if imported.Name() == parts[0] {
