@@ -168,8 +168,8 @@ func FullTriggerSlicesEq(left, right []FullTrigger) bool {
 // Consumer.GuardMatched into a single trigger with Consume.GuardMatched = false. In all other cases - such as
 // checking fixed point in propagation, the function FullTriggersEq
 // that does observe GuardMatched should be used instead of this function.
+// This function modifies the `left` slice, by appending the non-duplicate right triggers into it.
 func MergeFullTriggers(left []FullTrigger, right ...FullTrigger) []FullTrigger {
-	// We append non-duplicate right triggers in place into `left` slice.
 	// `left` is dedup-maintained by construction, so we compare each right trigger only against the
 	// original `left` prefix (origLen) and stop at the first match.
 	origLen := len(left)
