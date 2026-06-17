@@ -86,4 +86,14 @@ var _errorReturnNonnilArgs = map[trustedSig]struct {
 		enclosingRegex: regexp.MustCompile(`^encoding/(json|xml)$`),
 		nameRegex:      regexp.MustCompile(`^Unmarshal$`),
 	}: {action: pointeeOfArg, argIndex: 1},
+
+	// `(cadence).Future.Get(ctx, &v)` blocks until the future is ready and, on success (a nil error
+	// return), populates the value pointed to by `&v`, so a nil error return implies `v != nil`. The
+	// `Future` interface lives in `go.uber.org/cadence/internal` and is re-exported (via a type alias)
+	// as `go.uber.org/cadence/workflow.Future`, so the method's declaring package is the internal one.
+	{
+		kind:           _method,
+		enclosingRegex: regexp.MustCompile(`^(stubs/)?go\.uber\.org/cadence/internal\.Future$`),
+		nameRegex:      regexp.MustCompile(`^Get$`),
+	}: {action: pointeeOfArg, argIndex: 1},
 }
