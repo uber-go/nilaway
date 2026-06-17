@@ -72,18 +72,18 @@ var _errorReturnNonnilArgs = map[trustedSig]struct {
 	action   errorReturnNonnilArgsAction
 	argIndex int
 }{
-	// `encoding/json.Unmarshal(data, &v)` populates `v`, so a nil error return implies `v != nil`.
+	// `encoding/json.Unmarshal(data, &v)` and `encoding/xml.Unmarshal(data, &v)` populate `v`, so a
+	// nil error return implies `v != nil`.
 	//
 	// Note that this is technically unsound in a rare edge case: unmarshaling the JSON literal
 	// `null` into a pointer leaves it nil while still returning a nil error [1]. In practice this is
 	// rare enough that the convention is to treat the destination as populated after a successful
-	// unmarshal, so we make the same conscious soundness/practicality trade-off here that we make
-	// for `errors.As` (see _errorAsAction in replace_conditional.go) and `errors.Join`.
+	// unmarshal.
 	//
 	// [1] https://pkg.go.dev/encoding/json#Unmarshal
 	{
 		kind:           _func,
-		enclosingRegex: regexp.MustCompile(`^encoding/json$`),
+		enclosingRegex: regexp.MustCompile(`^encoding/(json|xml)$`),
 		nameRegex:      regexp.MustCompile(`^Unmarshal$`),
 	}: {action: pointeeOfArg, argIndex: 1},
 }
