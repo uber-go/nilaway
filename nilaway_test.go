@@ -103,6 +103,32 @@ func TestStructInit(t *testing.T) { //nolint:paralleltest
 	analysistest.Run(t, testdata, Analyzer, "go.uber.org/structinit/funcreturnfields", "go.uber.org/structinit/local", "go.uber.org/structinit/global", "go.uber.org/structinit/paramfield", "go.uber.org/structinit/paramsideeffect", "go.uber.org/structinit/defaultfield")
 }
 
+func TestStructInitV2(t *testing.T) { //nolint:paralleltest
+	//	err := config.Analyzer.Flags.Set(config.StructInitV2EnableFlag, "true")
+	//	require.NoError(t, err)
+	//	defer func() {
+	//		err := config.Analyzer.Flags.Set(config.StructInitV2EnableFlag, "false")
+	//		require.NoError(t, err)
+	//	}()
+	//
+	//	testdata := analysistest.TestData()
+	//	analysistest.Run(t, testdata, Analyzer,
+	//		"go.uber.org/structinitv2/local",
+	//		"go.uber.org/structinitv2/global",
+	//		"go.uber.org/structinitv2/defaultfield",
+	//		"go.uber.org/structinitv2/deep",
+	//		"go.uber.org/structinitv2/paramfield",
+	//		"go.uber.org/structinitv2/paramsideeffect",
+	//		"go.uber.org/structinitv2/funcreturnfields",
+	//		"go.uber.org/structinitv2/returnshape/app",
+	//		"go.uber.org/structinitv2/crosspkg/app",
+	//		"go.uber.org/structinitv2/crosspkgside/app",
+	//		"go.uber.org/structinitv2/limitations",
+	//	)
+	//
+	t.Skip("struct-init-v2 testdata is not wired")
+}
+
 func TestAnonymousFunction(t *testing.T) { //nolint:paralleltest
 	// We specifically do not set this test to be parallel since we need to enable the
 	// experimental support for anonymous function to test this feature.
