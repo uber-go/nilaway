@@ -12,33 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package assertiontree
+package structfieldeffects
 
 import (
 	"go/ast"
 	"go/types"
-	"reflect"
 	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/nilawaytest"
 	"go.uber.org/nilaway/util/analysishelper"
-	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
 )
-
-// paramFieldEffectsAnalyzer is a thin harness that runs ComputeParamFieldEffects on the loaded
-// fixture package so the test can assert the resulting boundary summary directly.
-var paramFieldEffectsAnalyzer = &analysis.Analyzer{
-	Name: "paramfieldeffectstest",
-	Doc:  "runs ComputeParamFieldEffects for testing",
-	Run: func(pass *analysis.Pass) (any, error) {
-		return ComputeParamFieldEffects(analysishelper.NewEnhancedPass(pass)), nil
-	},
-	ResultType: reflect.TypeOf(&ParamFieldEffects{}),
-}
 
 // _expectReadsPrefix precedes a fixture function's expected boundary reads. Each trailing token is
 // "<kind>:<idx>:<path>": kind is "param_reads" (ParamReads) or "return_reads" (ReturnReads), idx is
@@ -48,12 +36,20 @@ const _expectReadsPrefix = "expect_reads:"
 
 func TestComputeParamFieldEffects(t *testing.T) {
 	t.Parallel()
+	err := config.Analyzer.Flags.Set(config.ExperimentalStructInitV2EnableFlag, "true")
+	require.NoError(t, err)
+	defer func() {
+		err := config.Analyzer.Flags.Set(config.ExperimentalStructInitV2EnableFlag, "false")
+		require.NoError(t, err)
+	}()
 
 	testdata := analysistest.TestData()
-	r := analysistest.Run(t, testdata, paramFieldEffectsAnalyzer, "go.uber.org/paramfieldeffects")
+	r := analysistest.Run(t, testdata, Analyzer, "go.uber.org/paramfieldeffects")
 	require.Len(t, r, 1)
 	pass := r[0].Pass
-	effects := r[0].Result.(*ParamFieldEffects)
+	result := r[0].Result.(*analysishelper.Result[*ParamFieldEffects])
+	require.NoError(t, result.Err)
+	effects := result.Res
 
 	// Read the expected boundary reads straight from the fixture comments, splitting them into the
 	// param and return effect sets keyed by the annotated function.
