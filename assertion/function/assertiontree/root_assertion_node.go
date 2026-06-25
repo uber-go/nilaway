@@ -132,7 +132,16 @@ func (r *RootAssertionNode) GetTriggers() []annotation.FullTrigger {
 
 // GetDeclaringIdent finds the identifier that serves as the declaration of the passed object
 func (r *RootAssertionNode) GetDeclaringIdent(obj types.Object) *ast.Ident {
+	if ident, ok := r.functionContext.declaringIdentCache[obj]; ok {
+		return ident
+	}
 
+	ident := r.computeDeclaringIdent(obj)
+	r.functionContext.declaringIdentCache[obj] = ident
+	return ident
+}
+
+func (r *RootAssertionNode) computeDeclaringIdent(obj types.Object) *ast.Ident {
 	if path, ok := GetDeclaringPath(r.Pass(), obj.Pos(), obj.Pos()); ok && len(path) > 0 {
 		if ident, ok := path[0].(*ast.Ident); ok && ident.Name == obj.Name() {
 			return ident

@@ -70,6 +70,9 @@ type FunctionContext struct {
 	// field binding consults the read-path accessors to bind only the field paths a boundary actually
 	// dereferences rather than the full type.
 	paramFieldEffects *structfieldeffects.ParamFieldEffects
+
+	// declaringIdentCache stores declaring identifiers by object.
+	declaringIdentCache map[types.Object]*ast.Ident
 }
 
 // FunctionConfig is meant to hold all the user set configuration for analyzing a function
@@ -109,6 +112,7 @@ func NewFunctionContext(
 		pkgFakeIdentMap:         pkgFakeIdentMap,
 		funcContracts:           funcContracts,
 		paramFieldEffects:       effects,
+		declaringIdentCache:     make(map[types.Object]*ast.Ident),
 	}
 }
 
