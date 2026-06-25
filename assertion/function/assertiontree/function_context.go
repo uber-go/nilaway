@@ -69,6 +69,8 @@ type FunctionContext struct {
 type FunctionConfig struct {
 	// EnableStructInitCheck is a flag to enable tracking struct initializations.
 	EnableStructInitCheck bool
+	// EnableStructInitV2 enables the allocation-site-sensitive struct init analysis (v2).
+	EnableStructInitV2 bool
 	// EnableAnonymousFunc is a flag to enable checking anonymous functions.
 	EnableAnonymousFunc bool
 }
