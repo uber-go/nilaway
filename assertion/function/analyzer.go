@@ -92,6 +92,7 @@ func run(p *analysis.Pass) ([]annotation.FullTrigger, error) {
 	// Construct experimental features. By default, enable all features on NilAway itself.
 	functionConfig := assertiontree.FunctionConfig{
 		EnableStructInitCheck: conf.ExperimentalStructInitEnable,
+		EnableStructInitV2:    conf.StructInitV2Enable,
 		EnableAnonymousFunc:   conf.ExperimentalAnonymousFuncEnable,
 	}
 	if strings.HasPrefix(pass.Pkg.Path(), config.NilAwayPkgPathPrefix) { //nolint:revive
@@ -99,6 +100,7 @@ func run(p *analysis.Pass) ([]annotation.FullTrigger, error) {
 		// TODO: enable anonymous function flag.
 	} else {
 		functionConfig.EnableStructInitCheck = conf.ExperimentalStructInitEnable
+		functionConfig.EnableStructInitV2 = conf.StructInitV2Enable
 		functionConfig.EnableAnonymousFunc = conf.ExperimentalAnonymousFuncEnable
 	}
 
@@ -115,6 +117,12 @@ func run(p *analysis.Pass) ([]annotation.FullTrigger, error) {
 	pkgFakeIdentMap := make(map[*ast.Ident]types.Object)
 	for _, info := range funcLitMap {
 		pkgFakeIdentMap[info.FakeFuncDecl.Name] = info.FakeFuncObj
+	}
+
+	// Precompute field paths needed for struct-init-v2 boundary bindings.
+	var paramFieldEffects *assertiontree.V2ParamFieldEffects
+	if functionConfig.EnableStructInitV2 {
+		paramFieldEffects = assertiontree.ComputeParamFieldEffects(pass)
 	}
 
 	// Set up variables for synchronization and communication.
@@ -197,7 +205,7 @@ func run(p *analysis.Pass) ([]annotation.FullTrigger, error) {
 
 			// Now, analyze the function declarations concurrently.
 			funcContext := assertiontree.NewFunctionContext(
-				pass, funcDecl, funcLit, functionConfig, funcLitMap, pkgFakeIdentMap, funcContracts)
+				pass, funcDecl, funcLit, functionConfig, funcLitMap, pkgFakeIdentMap, funcContracts, paramFieldEffects)
 			idx := funcIndex
 			wg.Go(func() { analyzeFunc(ctx, pass, funcDecl, funcContext, graph, idx, funcChan) })
 			funcIndex++

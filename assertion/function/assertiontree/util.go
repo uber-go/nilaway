@@ -395,8 +395,10 @@ func CopyNode(node AssertionNode) AssertionNode {
 	var fresh AssertionNode
 	switch node := node.(type) {
 	case *RootAssertionNode:
+		triggers := make([]annotation.FullTrigger, len(node.triggers))
+		copy(triggers, node.triggers)
 		fresh = &RootAssertionNode{
-			triggers:        append(make([]annotation.FullTrigger, 0), node.triggers...),
+			triggers:        triggers,
 			exprNonceMap:    node.exprNonceMap,
 			functionContext: node.functionContext,
 		}

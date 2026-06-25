@@ -91,3 +91,83 @@ func takesDeepOk(c *A) {
 func callDeepOk() {
 	takesDeepOk(&A{aptr: &A2{aptr: &A3{}}})
 }
+
+// Return summaries are forwarded through simple return chains.
+func giveTopNil() *A { return &A{} }
+
+func forwardTopNil() *A { return giveTopNil() }
+
+func useForwardedTopReturnNil() {
+	b := forwardTopNil()
+	print(b.aptr.ptr) //want "field `aptr` of result 0 of `giveTopNil`"
+}
+
+// Return-read demand also applies to var declarations.
+func useReturnVarDeclNil() {
+	var b = giveNil()
+	print(b.aptr.aptr.ptr) //want "uninitialized field `aptr`"
+}
+
+// Multi-return assignments bind the struct result by result index.
+func giveNilWithFlag() (*A, bool) { return &A{aptr: &A2{}}, false }
+
+func useMultiReturnNil() {
+	b, _ := giveNilWithFlag()
+	print(b.aptr.aptr.ptr) //want "uninitialized field `aptr`"
+}
+
+// Returns with a nonnil error do not bind struct fields.
+type deepErr struct{}
+
+func (deepErr) Error() string { return "deep" }
+
+func giveErrorPathNil() (*A, error) {
+	return &A{}, deepErr{}
+}
+
+func useErrorPathNil() {
+	b, err := giveErrorPathNil()
+	if err != nil {
+		return
+	}
+	print(b.aptr.ptr)
+}
+
+// Returned locals bind their field shape to the return context.
+func giveLocalNil() *A {
+	b := &A{}
+	return b
+}
+
+func useLocalReturnNil() {
+	b := giveLocalNil()
+	print(b.aptr.ptr) //want "uninitialized field `aptr`"
+}
+
+// Blank-assigned struct results are skipped.
+func dropStructResult() {
+	_, _ = giveNilWithFlag()
+}
+
+// Parameters with no field reads do not bind argument fields.
+func takesNoRead(c *A) {
+	_ = c
+}
+
+func callNilStructArg() {
+	takesNoRead(nil)
+}
+
+// Forwarded returns skip nonnil fields in their site-to-site links.
+type valueReturn struct {
+	n   int
+	ptr *int
+}
+
+func giveValueReturn() *valueReturn {
+	return &valueReturn{}
+}
+
+func forwardValueReturn() *valueReturn {
+	return giveValueReturn()
+}
