@@ -136,3 +136,48 @@ func m13() {
 	// This should actually give an error
 	print(b.aptr.ptr)
 }
+
+// Explicit nil field initializers are treated as nil producers.
+func m17() {
+	b := &A{aptr: nil}
+	print(b.aptr.ptr) //want "accessed field `ptr`"
+}
+
+// Parenthesized allocations are still recognized as struct allocations.
+func m18() {
+	b := (&A{})
+	print(b.aptr.ptr) //want "uninitialized field `aptr`"
+}
+
+// Non-struct parameters are ignored by the v2 field binding.
+func m19(n int) {
+	print(n)
+}
+
+// Explicit field reassignment to nil overrides the allocation shape.
+func m22() {
+	b := &A{aptr: &leaf{}}
+	b.aptr = nil
+	print(b.aptr.ptr) //want "accessed field `ptr`"
+}
+
+// Non-struct pointer parameters do not trigger v2 field binding.
+func m23(p *int) {
+	print(*p)
+}
+
+// Selector-returning calls are treated like function calls.
+type localFactory struct{}
+
+func (localFactory) newA() *A { return &A{} }
+
+func m24() {
+	b := localFactory{}.newA()
+	print(b.aptr.ptr) //want "uninitialized field `aptr`"
+}
+
+// Field initializers from parameters use the parameter's nilability.
+func m25(l *leaf) {
+	b := &A{aptr: l}
+	print(b.aptr.ptr)
+}

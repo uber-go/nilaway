@@ -30,6 +30,7 @@ import (
 	"go.uber.org/nilaway/assertion/anonymousfunc"
 	"go.uber.org/nilaway/assertion/function/assertiontree"
 	"go.uber.org/nilaway/assertion/function/functioncontracts"
+	"go.uber.org/nilaway/assertion/function/structfieldeffects"
 	"go.uber.org/nilaway/assertion/structfield"
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util/analysishelper"
@@ -56,6 +57,7 @@ var Analyzer = &analysis.Analyzer{
 		structfield.Analyzer,
 		anonymousfunc.Analyzer,
 		functioncontracts.Analyzer,
+		structfieldeffects.Analyzer,
 	},
 }
 
@@ -107,7 +109,8 @@ func run(p *analysis.Pass) ([]annotation.FullTrigger, error) {
 	ctrlflowResult := pass.ResultOf[ctrlflow.Analyzer].(*ctrlflow.CFGs)
 	anonymousFuncResult := pass.ResultOf[anonymousfunc.Analyzer].(*analysishelper.Result[map[*ast.FuncLit]*anonymousfunc.FuncLitInfo])
 	contractsResult := pass.ResultOf[functioncontracts.Analyzer].(*analysishelper.Result[functioncontracts.Map])
-	if err := errors.Join(anonymousFuncResult.Err, contractsResult.Err); err != nil {
+	structFieldEffectsResult := pass.ResultOf[structfieldeffects.Analyzer].(*analysishelper.Result[*structfieldeffects.ParamFieldEffects])
+	if err := errors.Join(anonymousFuncResult.Err, contractsResult.Err, structFieldEffectsResult.Err); err != nil {
 		return nil, err
 	}
 
@@ -118,6 +121,10 @@ func run(p *analysis.Pass) ([]annotation.FullTrigger, error) {
 	for _, info := range funcLitMap {
 		pkgFakeIdentMap[info.FakeFuncDecl.Name] = info.FakeFuncObj
 	}
+
+	// Field paths needed for the boundary bindings, precomputed by the struct field effects
+	// analyzer (empty when the analysis is disabled).
+	paramFieldEffects := structFieldEffectsResult.Res
 
 	// Set up variables for synchronization and communication.
 	ctx, cancel := context.WithCancel(context.Background())
@@ -199,7 +206,7 @@ func run(p *analysis.Pass) ([]annotation.FullTrigger, error) {
 
 			// Now, analyze the function declarations concurrently.
 			funcContext := assertiontree.NewFunctionContext(
-				pass, funcDecl, funcLit, functionConfig, funcLitMap, pkgFakeIdentMap, funcContracts)
+				pass, funcDecl, funcLit, functionConfig, funcLitMap, pkgFakeIdentMap, funcContracts, paramFieldEffects)
 			idx := funcIndex
 			wg.Go(func() { analyzeFunc(ctx, pass, funcDecl, funcContext, graph, idx, funcChan) })
 			funcIndex++

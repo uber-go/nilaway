@@ -172,6 +172,29 @@ func tForwardViaFuncValue() *int {
 	return b.child.ptr
 }
 
+// False negative: parameter field writes are not supported, so a nil field written by a callee is
+// not re-produced at the call site.
+func clobberParamField(c *Node) { c.child = nil }
+
+func tParamFieldWriteNotMerged() *int {
+	b := &Node{child: &Leaf{}}
+	clobberParamField(b)
+	return b.child.ptr
+}
+
+// False negative: a struct-returning call forwarded through a return (`return f()`) is unsupported.
+// The callee's per-field return summary is not composed across the forward, so the nil child from
+// makeNilNode is not tracked at the caller. Supporting it would need the return-read demand closed
+// over forwarding edges (as closeParamFieldSets does for params), which is not computed for returns.
+func makeNilNode() *Node { return &Node{} }
+
+func forwardNilNode() *Node { return makeNilNode() }
+
+func tForwardedReturnNotComposed() *int {
+	b := forwardNilNode()
+	return b.child.ptr
+}
+
 // ---------------------------------------------------------------------------------------------
 // FALSE POSITIVES (over-reports — //want required)
 // ---------------------------------------------------------------------------------------------
