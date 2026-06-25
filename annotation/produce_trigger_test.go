@@ -76,6 +76,8 @@ func (s *ProducingAnnotationTriggerTestSuite) SetupTest() {
 		&LocalVarReadDeep{TriggerIfDeepNilable: &TriggerIfDeepNilable{Ann: mockedKey}},
 		&GlobalVarReadDeep{TriggerIfDeepNilable: &TriggerIfDeepNilable{Ann: mockedKey}},
 		&GuardMissing{ProduceTriggerTautology: &ProduceTriggerTautology{}, OldAnnotation: mockedProducingAnnotationTrigger},
+		&StructFieldNil{ProduceTriggerTautology: &ProduceTriggerTautology{}},
+		&StructFieldFromContext{TriggerIfNilable: &TriggerIfNilable{Ann: mockedKey}},
 	}
 }
 
