@@ -984,6 +984,12 @@ func errorsAs(err error, num string, dummy bool) {
 		if errors.As(err, &exitErr) && dummy {
 			print(*exitErr)
 		}
+	case "method call on target in short-circuit AND (right operand)":
+		var exitErr *exec.ExitError
+		_ = errors.As(err, &exitErr) && exitErr.Exited()
+	case "field access on target in short-circuit AND (right operand)":
+		var myErr *exec.Error
+		_ = errors.As(err, &myErr) && myErr.Name == ""
 	case "errors.As with other conditionals connected by OR":
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) || dummy {
