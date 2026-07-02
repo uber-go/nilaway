@@ -66,16 +66,6 @@ func IsDeep(t types.Type) bool {
 	return false
 }
 
-// IsSlice returns true if `t` is of slice type
-func IsSlice(t types.Type) bool {
-	switch t.(type) {
-	case *types.Slice:
-		return true
-	default:
-		return false
-	}
-}
-
 // IsDeeplyType returns true if the underlying type of `t` is a T (e.g., *types.Array), resolving
 // named types and aliases, as well as type parameters whose type sets contain only such types
 // (see underlyingAlwaysSatisfies for the exact type parameter handling).
