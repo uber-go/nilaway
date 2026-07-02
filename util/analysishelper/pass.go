@@ -67,17 +67,16 @@ func (p *EnhancedPass) ConstInt(expr ast.Expr) (int64, bool) {
 	return intValue, true
 }
 
-// IsNil checks if the given expression evaluates to untyped nil at compile time. It also treats
-// the identifier `nil` as nil too to support cases where we have inserted a fake identifier.
+// IsNil checks if the given expression evaluates to untyped nil at compile time. The type
+// checker is consulted first, so that expressions involving a user-shadowed `nil` (e.g., a type
+// or variable named "nil") or extra parentheses are classified correctly; identifiers named
+// `nil` that are absent from the type information (the fake identifiers we synthesize during
+// preprocessing) are treated as nil as well.
 func (p *EnhancedPass) IsNil(expr ast.Expr) bool {
-	if asthelper.IsLiteral(expr, "nil") {
-		return true
+	if tv, ok := p.TypesInfo.Types[expr]; ok {
+		return tv.IsNil()
 	}
-	tv, ok := p.TypesInfo.Types[expr]
-	if !ok {
-		return false
-	}
-	return tv.IsNil()
+	return asthelper.IsLiteral(expr, "nil")
 }
 
 // HumanReadablePosition modifies the Position's filename to be more human-friendly (truncated or relative to cwd).
