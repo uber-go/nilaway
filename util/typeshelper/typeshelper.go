@@ -47,23 +47,31 @@ var BuiltinAppend = types.Universe.Lookup("append")
 // BuiltinNew is the builtin "new" function object.
 var BuiltinNew = types.Universe.Lookup("new")
 
-// IsDeep checks if a type is an expression that admits deep nilability, such as maps, slices, arrays, etc.
-// Only consider pointers to deep types (e.g., `var x *[]int`) as deep type,
-// not pointers to basic types (e.g., `var x *int`) or struct types (e.g., `var x *S`)
+// IsDeep checks if a type admits deep nilability — i.e., it has contents whose nilability is
+// trackable — such as maps, slices, arrays, channels, and structs, resolving named types and
+// aliases, as well as type parameters whose type sets contain only such types. Pointers to deep
+// or pointer types (e.g., `var x *[]int`) are also deep, but pointers to basic or struct types
+// (e.g., `var x *int`, `var x *S`) are not: their pointees are tracked directly (structs field
+// by field) rather than as deep contents.
+//
+// Note that this is a purely type-level property: whether the deep nilability of an expression
+// is tracked at the expression's location or at a named type's own annotation site is decided
+// by annotation.DeepNilabilityIsLocal.
 func IsDeep(t types.Type) bool {
-	switch UnwrapPtr(t).(type) {
-	case *types.Slice, *types.Array, *types.Map, *types.Chan, *types.Struct:
-		return true
-	case *types.Basic:
-		return false
-	}
-	if t, ok := t.(*types.Pointer); ok {
-		if AsDeeplyStruct(t.Underlying()) == nil {
+	return underlyingAlwaysSatisfies(t, func(u types.Type) bool {
+		if ptr, ok := u.(*types.Pointer); ok {
+			switch ptr.Elem().Underlying().(type) {
+			case *types.Basic, *types.Struct:
+				return false
+			}
 			return true
 		}
-	}
-
-	return false
+		switch u.(type) {
+		case *types.Slice, *types.Array, *types.Map, *types.Chan, *types.Struct:
+			return true
+		}
+		return false
+	})
 }
 
 // IsDeeplyType returns true if the underlying type of `t` is a T (e.g., *types.Array), resolving
