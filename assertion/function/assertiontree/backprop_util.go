@@ -504,7 +504,7 @@ func exprAsAssignmentConsumer(rootNode *RootAssertionNode, expr ast.Node, exprRH
 		func(ident *ast.Ident) annotation.ConsumingAnnotationTrigger {
 			funcObj := rootNode.FuncObj()
 			varObj := rootNode.ObjectOf(ident).(*types.Var)
-			if typeshelper.IsDeep(varObj.Type()) {
+			if annotation.DeepNilabilityIsLocal(varObj.Type()) {
 				if annotation.VarIsParam(funcObj, varObj) {
 					// we've found an assignment to a parameter with deep type - have to check its deep annotation!
 					paramKey := annotation.ParamKeyFromName(funcObj, varObj)
@@ -551,7 +551,7 @@ func exprAsAssignmentConsumer(rootNode *RootAssertionNode, expr ast.Node, exprRH
 
 				// this is an assignment to an index of a field
 				fldObj := rootNode.ObjectOf(expr.Sel).(*types.Var)
-				if fldObj.IsField() && typeshelper.IsDeep(fldObj.Type()) {
+				if fldObj.IsField() && annotation.DeepNilabilityIsLocal(fldObj.Type()) {
 					return &annotation.FieldAssignDeep{
 						TriggerIfDeepNonNil: &annotation.TriggerIfDeepNonNil{
 							Ann: &annotation.FieldAnnotationKey{FieldDecl: fldObj},
@@ -623,7 +623,7 @@ func exprAsAssignmentConsumer(rootNode *RootAssertionNode, expr ast.Node, exprRH
 	case *ast.Ident:
 		// This block checks if the rhs of the assignment is the builtin append function for slices.
 		varObj := rootNode.ObjectOf(expr).(*types.Var)
-		if call, ok := exprRHS.(*ast.CallExpr); ok && typeshelper.IsSlice(varObj.Type()) {
+		if call, ok := exprRHS.(*ast.CallExpr); ok && typeshelper.IsDeeplyType[*types.Slice](varObj.Type()) {
 			if fun, ok := call.Fun.(*ast.Ident); ok && rootNode.ObjectOf(fun) == typeshelper.BuiltinAppend {
 				if annotation.VarIsParam(rootNode.FuncObj(), varObj) {
 					// If there is a deep assignment to a slice using append method
@@ -871,7 +871,7 @@ func addReturnConsumers(rootNode *RootAssertionNode, node *ast.ReturnStmt, expr 
 	//   return s  // <-- track shallow and deep nilability of `s` here
 	// }
 	// ```
-	if typeshelper.IsDeep(rootNode.Pass().TypesInfo.TypeOf(expr)) {
+	if annotation.DeepNilabilityIsLocal(rootNode.Pass().TypesInfo.TypeOf(expr)) {
 		producer := &annotation.ProduceTrigger{
 			Annotation: exprAsDeepProducer(rootNode, expr),
 			Expr:       expr,

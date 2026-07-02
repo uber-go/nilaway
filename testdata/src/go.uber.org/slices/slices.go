@@ -984,6 +984,14 @@ func testAppendNil(a []*int) {
 	a = append(a, nil) //want "assigned deeply into parameter arg `a`"
 }
 
+type namedPtrSlice []*int
+
+// Named slice types (and aliases) must get the same append handling as plain slices.
+// nonnil(a, a[])
+func testAppendNilNamedSlice(a namedPtrSlice) {
+	a = append(a, nil) //want "assigned into a slice of deeply nonnil type `namedPtrSlice`"
+}
+
 // nonnil(a, a[], b)
 // nilable(c, result 0)
 func testAppend(a []*int, b, c *int) {
