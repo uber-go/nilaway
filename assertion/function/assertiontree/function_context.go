@@ -63,12 +63,28 @@ type FunctionContext struct {
 
 	// funcContracts stores the function contracts of all the functions.
 	funcContracts functioncontracts.Map
+
+	// v2ParamWrites records, for the struct-init-v2 analysis, which (param index, field path)
+	// pairs the current function assigns to in its body, keyed by indexedFieldPathKey. It lives here
+	// (rather than on RootAssertionNode) so it is shared across the per-CFG-block roots created
+	// during backpropagation: writes captured in any block must be visible during backprop. It is
+	// used by captureParamFieldWrite for last-write-wins deduplication.
+	v2ParamWrites map[string]bool
+
+	// v2ParamFieldEffects is the package-level struct-init-v2 boundary summary (param writes, param
+	// reads, and return reads) computed once by ComputeParamFieldEffects. Read-only here and always
+	// non-nil (empty when v2 is disabled): the param-out machinery consults Writes, and the boundary
+	// field binding consults ParamReads/ReturnReads to bind only the field paths a boundary actually
+	// dereferences rather than the full type.
+	v2ParamFieldEffects *V2ParamFieldEffects
 }
 
 // FunctionConfig is meant to hold all the user set configuration for analyzing a function
 type FunctionConfig struct {
 	// EnableStructInitCheck is a flag to enable tracking struct initializations.
 	EnableStructInitCheck bool
+	// EnableStructInitV2 enables the allocation-site-sensitive struct init analysis (v2).
+	EnableStructInitV2 bool
 	// EnableAnonymousFunc is a flag to enable checking anonymous functions.
 	EnableAnonymousFunc bool
 }
@@ -82,7 +98,13 @@ func NewFunctionContext(
 	funcLitMap map[*ast.FuncLit]*anonymousfunc.FuncLitInfo,
 	pkgFakeIdentMap map[*ast.Ident]types.Object,
 	funcContracts functioncontracts.Map,
+	effects *V2ParamFieldEffects,
 ) FunctionContext {
+	// Keep effects non-nil so the v2 boundary lookups never need a nil guard; an empty summary
+	// (nil inner maps) reads back as "no effects", which is correct when v2 is disabled.
+	if effects == nil {
+		effects = &V2ParamFieldEffects{}
+	}
 	return FunctionContext{
 		pass:                    pass,
 		funcDecl:                decl,
@@ -93,6 +115,8 @@ func NewFunctionContext(
 		funcLitMap:              funcLitMap,
 		pkgFakeIdentMap:         pkgFakeIdentMap,
 		funcContracts:           funcContracts,
+		v2ParamWrites:           make(map[string]bool),
+		v2ParamFieldEffects:     effects,
 	}
 }
 

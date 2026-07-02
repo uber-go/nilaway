@@ -155,6 +155,10 @@ func backpropAcrossReturn(rootNode *RootAssertionNode, node *ast.ReturnStmt) err
 		rootNode.addConsumptionsForFieldsOfParams()
 	}
 
+	if rootNode.functionContext.functionConfig.EnableStructInitV2 {
+		rootNode.emitReturnFieldContext(node)
+	}
+
 	if len(node.Results) == 1 {
 		if call, ok := node.Results[0].(*ast.CallExpr); ok {
 			var fident *ast.Ident
@@ -319,10 +323,16 @@ func backpropAcrossAssignment(rootNode *RootAssertionNode, lhs, rhs []ast.Expr) 
 				// handle but does involve distinct semantics.
 				return backpropAcrossRange(rootNode, lhs, r.X)
 			case token.AND:
-				if !rootNode.functionContext.functionConfig.EnableStructInitCheck {
+				if !rootNode.functionContext.functionConfig.EnableStructInitCheck &&
+					!rootNode.functionContext.functionConfig.EnableStructInitV2 {
 					// This is the case of creating a pointer and assigning it to a variable, e.g., `x := &y`,
 					// where y is a non-pointer type (e.g., y := S{}).
 					// Here, the pointer is always nonnil, so we can just add a ProduceTriggerNever.
+					//
+					// When struct-init tracking is enabled, we must NOT short-circuit here:
+					// doing so produces (and detaches) the LHS subtree before the field-level shape of
+					// the `&S{...}` allocation can be attached. The normal one-to-one assignment path
+					// handles both the pointer's nonnilness and its fields' nilability.
 					if rootNode.Pass().ExprBarsNilness(r.X) {
 						if len(lhs) == 1 && !asthelper.IsEmptyExpr(lhs[0]) {
 							rootNode.AddProduction(&annotation.ProduceTrigger{
@@ -649,6 +659,16 @@ buildShadowMask:
 		}
 	}
 
+	// Attach field producers before generic assignment handling detaches LHS subtrees.
+	if rootNode.functionContext.functionConfig.EnableStructInitV2 {
+		for i := range lhs {
+			if !shadowMask[i] && !asthelper.IsEmptyExpr(lhs[i]) {
+				rootNode.emitAllocationShape(lhs[i], rhs[i])
+				rootNode.captureParamFieldWrite(lhs[i], rhs[i])
+			}
+		}
+	}
+
 	// This struct is declared to assist with deferring the second phase of the assignments
 	type deferredLanding struct {
 		lhsNode AssertionNode
@@ -799,6 +819,18 @@ func backpropAcrossManyToOneAssignment(rootNode *RootAssertionNode, lhs, rhs []a
 		// Eliminates checking of the `_` instances in the lhs of a multiple assignment
 		if asthelper.IsEmptyExpr(lhsVal) {
 			continue
+		}
+
+		// Bind return fields before LHS production detaches its subtree.
+		if rootNode.functionContext.functionConfig.EnableStructInitV2 {
+			if funcObj := staticCalledFunc(rootNode.Pass(), rhsVal); funcObj != nil {
+				sig := funcObj.Type().(*types.Signature)
+				if i < sig.Results().Len() {
+					if st := typeshelper.AsDeeplyStruct(sig.Results().At(i).Type()); st != nil {
+						rootNode.emitContextFieldProducers(st, lhsVal, funcObj, annotation.StructFieldReturnContext, i)
+					}
+				}
+			}
 		}
 
 		// Phase 1

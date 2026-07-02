@@ -749,6 +749,14 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 				// Add Consumptions for struct field params
 				r.addConsumptionsForArgAndReceiverFields(expr, fun)
 			}
+
+			if r.functionContext.functionConfig.EnableStructInitV2 {
+				// Param-out productions must run before param-in consumers because productions detach
+				// matched field subtrees.
+				r.emitCallParamOutProductions(expr, fun)
+				r.emitForwardedParamOut(expr, fun)
+				r.emitCallArgBindings(expr, fun)
+			}
 		} else {
 			// here we have found either a builtin function like make or new,
 			// or a typecast like int(x) - in either case (at least for now), do nothing to try
@@ -1018,6 +1026,10 @@ func (r *RootAssertionNode) ProcessEntry() {
 		if r.functionContext.functionConfig.EnableStructInitCheck {
 			// process field Assertion nodes of function parameters
 			r.addProductionsForParamFields(child, builtExpr)
+		}
+
+		if r.functionContext.functionConfig.EnableStructInitV2 {
+			r.emitParamFieldProducers(builtExpr)
 		}
 
 		r.AddProduction(&annotation.ProduceTrigger{

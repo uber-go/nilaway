@@ -69,6 +69,9 @@ func (v *varAssertionNode) DefaultTrigger() annotation.ProducingAnnotationTrigge
 			if v.Root().functionContext.functionConfig.EnableStructInitCheck {
 				v.Root().addProductionForVarFieldNode(v, v.BuildExpr(nil))
 			}
+			if v.Root().functionContext.functionConfig.EnableStructInitV2 {
+				v.Root().emitZeroValueShape(v, v.BuildExpr(nil))
+			}
 			return &annotation.ProduceTriggerNever{} // indicating that the struct object itself is not nil
 		}
 	}
