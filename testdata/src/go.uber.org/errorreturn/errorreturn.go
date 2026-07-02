@@ -888,3 +888,22 @@ func callRetTypedErrVar() {
 		print(*ptr)
 	}
 }
+
+// errRetFunc is a named error-returning function type. Conversions to such a type (e.g.,
+// `f := errRetFunc(g)`) must not be treated as calls of the function type's signature
+// (previously this caused an internal panic), while calls of values of such a type must get the
+// usual error-return handling.
+type errRetFunc func() (*int, error)
+
+func retPtrAndErrNamedFn() (*int, error) {
+	i := 0
+	return &i, nil
+}
+
+func testNamedFuncTypeConversionAndCall() {
+	f := errRetFunc(retPtrAndErrNamedFn)
+	ptr, err := f()
+	if err == nil {
+		print(*ptr)
+	}
+}
