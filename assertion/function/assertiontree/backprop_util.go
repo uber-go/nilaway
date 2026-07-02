@@ -623,7 +623,7 @@ func exprAsAssignmentConsumer(rootNode *RootAssertionNode, expr ast.Node, exprRH
 	case *ast.Ident:
 		// This block checks if the rhs of the assignment is the builtin append function for slices.
 		varObj := rootNode.ObjectOf(expr).(*types.Var)
-		if call, ok := exprRHS.(*ast.CallExpr); ok && typeshelper.IsSlice(varObj.Type()) {
+		if call, ok := exprRHS.(*ast.CallExpr); ok && typeshelper.IsDeeplyType[*types.Slice](varObj.Type()) {
 			if fun, ok := call.Fun.(*ast.Ident); ok && rootNode.ObjectOf(fun) == typeshelper.BuiltinAppend {
 				if annotation.VarIsParam(rootNode.FuncObj(), varObj) {
 					// If there is a deep assignment to a slice using append method
