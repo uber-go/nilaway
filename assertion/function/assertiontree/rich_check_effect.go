@@ -310,7 +310,7 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *guard.Nonce
 		}
 
 		rhsXType := rootNode.Pass().TypesInfo.Types[rhs.X].Type
-		if typeshelper.IsDeeplyMap(rhsXType) {
+		if typeshelper.IsDeeplyType[*types.Map](rhsXType) {
 			// Create a rich check effect for `v` part of the map read in `v, ok := mp[k]`
 			if lhsValueParsed := parseExpr(rootNode, lhs[0]); lhsValueParsed != nil {
 				// Here, the lhs `value` operand is trackable
@@ -360,7 +360,7 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *guard.Nonce
 		}
 
 		rhsXType := rootNode.Pass().TypesInfo.Types[rhs.X].Type
-		if rhs.Op == token.ARROW && typeshelper.IsDeeplyChan(rhsXType) {
+		if rhs.Op == token.ARROW && typeshelper.IsDeeplyType[*types.Chan](rhsXType) {
 			lhsValueParsed := parseExpr(rootNode, lhs[0])
 			if lhsValueParsed != nil {
 				// here, the lhs `value` operand is trackable
