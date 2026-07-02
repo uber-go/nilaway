@@ -147,17 +147,22 @@ func AsDeeplyStruct(typ types.Type) *types.Struct {
 // Examples of explicit pointer types are `*int`, `*S`, etc.
 // Examples of implicit pointer types are `[]int`, `map[string]*S`, `chan int`, etc.
 func IsPointer(t types.Type) bool {
-	return IsDeeplyType[*types.Pointer](t) ||
-		IsDeeplyType[*types.Slice](t) ||
-		IsDeeplyType[*types.Map](t) ||
-		IsDeeplyType[*types.Array](t) ||
-		IsDeeplyType[*types.Chan](t)
+	return underlyingAlwaysSatisfies(t, func(u types.Type) bool {
+		switch u.(type) {
+		case *types.Pointer, *types.Slice, *types.Map, *types.Array, *types.Chan:
+			return true
+		}
+		return false
+	})
 }
 
-// UnwrapPtr unwraps a pointer type and returns the element type. For all other types it returns
-// the type unmodified.
+// UnwrapPtr unwraps a pointer type (resolving named types and aliases) and returns the element
+// type. For all other types it returns the type unmodified.
 func UnwrapPtr(t types.Type) types.Type {
-	if ptr, ok := t.(*types.Pointer); ok {
+	if t == nil {
+		return nil
+	}
+	if ptr, ok := t.Underlying().(*types.Pointer); ok {
 		return ptr.Elem()
 	}
 	return t
@@ -287,25 +292,19 @@ func IsIterType(t types.Type) bool {
 	return ok && basic.Kind() == types.Bool
 }
 
-// GetFuncSignature returns the signature of a function or an anonymous function.
+// GetFuncSignature returns the signature underlying `t` (resolving named types and aliases,
+// e.g. `type MyFunc func() (*int, error)`), or nil if `t` is not a function type.
 func GetFuncSignature(t types.Type) *types.Signature {
-	var sig *types.Signature
-	switch t2 := t.(type) {
-	case *types.Signature:
-		sig = t2
-	case *types.Alias:
-		// If the alias is a named function pointer, we extract its signature.
-		// Example: `type MyFunc func() (*int, error)`
-		if s, ok := t2.Underlying().(*types.Signature); ok {
-			sig = s
-		}
+	if t == nil {
+		return nil
 	}
+	sig, _ := t.Underlying().(*types.Signature)
 	return sig
 }
 
 // TypeBarsNilness returns false iff the type `t` is inhabited by nil.
 func TypeBarsNilness(t types.Type) bool {
-	switch t := t.(type) {
+	switch t := types.Unalias(t).(type) {
 	case *types.Array:
 		return true
 	case *types.Slice:
@@ -315,18 +314,34 @@ func TypeBarsNilness(t types.Type) bool {
 	case *types.Tuple:
 		return false
 	case *types.Signature:
-		return true // function-types are not inhabited by nil
+		// Function values are technically inhabited by nil, but NilAway deliberately does not
+		// track function nilness, so they are treated as barring nil.
+		return true
 	case *types.Map:
 		return false
 	case *types.Chan:
 		return false
-	case *types.Alias, *types.Named:
+	case *types.Named:
 		return TypeBarsNilness(t.Underlying())
 	case *types.Interface:
 		return false
 	case *types.Basic:
 		// all basic types except UntypedNil are not inhabited by nil
 		return t.Kind() != types.UntypedNil
+	case *types.TypeParam:
+		// nil is assignable to a type parameter only if every type in its type set admits nil,
+		// so the type parameter bars nilness if any term does. Type parameters with an unknown,
+		// unconstrained, or empty type set cannot be assigned nil either, so they bar nilness.
+		terms, err := typeparams.NormalTerms(t)
+		if err != nil || len(terms) == 0 {
+			return true
+		}
+		for _, term := range terms {
+			if TypeBarsNilness(term.Type()) {
+				return true
+			}
+		}
+		return false
 	default:
 		return true
 	}
