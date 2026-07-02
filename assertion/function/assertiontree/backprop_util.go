@@ -462,7 +462,7 @@ func typeIsString(t types.Type) bool {
 func exprAsConsumedByAssignment(rootNode *RootAssertionNode, expr ast.Node) *annotation.ConsumeTrigger {
 	if exprType, ok := expr.(*ast.IndexExpr); ok {
 		t := rootNode.Pass().TypesInfo.TypeOf(exprType.X)
-		if typeshelper.IsDeeplyMap(t) {
+		if typeshelper.IsDeeplyType[*types.Map](t) {
 			return &annotation.ConsumeTrigger{
 				Annotation: &annotation.MapWrittenTo{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
 				Expr:       exprType.X,

@@ -8,6 +8,7 @@ require (
 	github.com/klauspost/compress v1.18.6
 	github.com/stretchr/testify v1.10.0
 	go.uber.org/goleak v1.3.0
+	golang.org/x/exp/typeparams v0.0.0-20260611194520-c48552f49976
 	golang.org/x/tools v0.45.0
 )
 

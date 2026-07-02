@@ -20,6 +20,7 @@ import (
 	"go/types"
 
 	"go.uber.org/nilaway/util/tokenhelper"
+	"golang.org/x/exp/typeparams"
 )
 
 // ErrorType is the type of the builtin "error" interface.
@@ -75,13 +76,17 @@ func IsSlice(t types.Type) bool {
 	}
 }
 
-// IsDeeplyArray returns true if `t` is of array type, including transitively through named
-// types and aliases, as well as type parameters whose type sets contain only array types.
-func IsDeeplyArray(t types.Type) bool {
-	return underlyingIs[*types.Array](t)
+// IsDeeplyType returns true if the underlying type of `t` is a T (e.g., *types.Array), resolving
+// named types and aliases, as well as type parameters whose type sets contain only such types
+// (see underlyingAlwaysSatisfies for the exact type parameter handling).
+func IsDeeplyType[T types.Type](t types.Type) bool {
+	return underlyingAlwaysSatisfies(t, func(u types.Type) bool {
+		_, ok := u.(T)
+		return ok
+	})
 }
 
-// IsDeeplyArrayOrArrayPtr is like IsDeeplyArray, but additionally accepts pointers to arrays
+// IsDeeplyArrayOrArrayPtr is like IsDeeplyType[*types.Array], but additionally accepts pointers to arrays
 // (again resolving named types, aliases, and type parameters). Slice expressions and range
 // statements auto-dereference pointers to arrays, so for them an operand of either type
 // behaves like an array.
@@ -95,93 +100,31 @@ func IsDeeplyArrayOrArrayPtr(t types.Type) bool {
 	})
 }
 
-// underlyingIs reports whether the underlying type of `t` (resolved as described in
-// underlyingAlwaysSatisfies) is a T.
-func underlyingIs[T types.Type](t types.Type) bool {
-	return underlyingAlwaysSatisfies(t, func(u types.Type) bool {
-		_, ok := u.(T)
-		return ok
-	})
-}
-
 // underlyingAlwaysSatisfies reports whether the underlying type of `t` satisfies pred. Named
 // types and aliases are resolved via Underlying(). For type parameters, the underlying type of
-// every term in the constraint's type set must satisfy pred. Since the elements of a constraint
-// interface intersect, this is conservative: the actual type set can only be smaller than the
-// enumerated terms, and type sets we cannot enumerate (such as method-only constraints) yield
-// false.
+// every term in the constraint's normalized type set must satisfy pred. This is conservative:
+// type parameters with no structural restriction (e.g. `any`, or method-only constraints), an
+// empty type set, or a type set too complex to normalize all yield false.
 func underlyingAlwaysSatisfies(t types.Type, pred func(types.Type) bool) bool {
 	if t == nil {
 		return false
 	}
 	if tp, ok := types.Unalias(t).(*types.TypeParam); ok {
-		iface, isIface := tp.Constraint().Underlying().(*types.Interface)
-		if !isIface {
-			return false
-		}
-		terms := constraintTerms(iface)
-		if len(terms) == 0 {
+		// NormalTerms returns nil (no error) for an unconstrained type set, ErrEmptyTypeSet for
+		// an empty one, and an error for constraints that are invalid or exceed complexity
+		// bounds; in every such case we conservatively return false.
+		terms, err := typeparams.NormalTerms(tp)
+		if err != nil || len(terms) == 0 {
 			return false
 		}
 		for _, term := range terms {
-			if !pred(term.Underlying()) {
+			if !pred(term.Type().Underlying()) {
 				return false
 			}
 		}
 		return true
 	}
 	return pred(t.Underlying())
-}
-
-// constraintTerms returns the types of all type terms of the constraint interface `iface`,
-// recursing into embedded interfaces, both standalone (`interface{ Elem }`) and as union terms
-// (`interface{ Elem | ~[8]int }` -- go/types does not flatten interface-typed union terms, and
-// such terms are necessarily method-less per the spec). Method-only elements contribute no terms.
-func constraintTerms(iface *types.Interface) []types.Type {
-	var terms []types.Type
-	for i := 0; i < iface.NumEmbeddeds(); i++ {
-		switch e := types.Unalias(iface.EmbeddedType(i)).(type) {
-		case *types.Union:
-			for j := 0; j < e.Len(); j++ {
-				if emb, isIface := e.Term(j).Type().Underlying().(*types.Interface); isIface {
-					terms = append(terms, constraintTerms(emb)...)
-				} else {
-					terms = append(terms, e.Term(j).Type())
-				}
-			}
-		default:
-			if emb, isIface := e.Underlying().(*types.Interface); isIface {
-				terms = append(terms, constraintTerms(emb)...)
-			} else {
-				terms = append(terms, e)
-			}
-		}
-	}
-	return terms
-}
-
-// IsDeeplySlice returns true if `t` is of slice type, including transitively through named
-// types and aliases, as well as type parameters whose type sets contain only slice types.
-func IsDeeplySlice(t types.Type) bool {
-	return underlyingIs[*types.Slice](t)
-}
-
-// IsDeeplyMap returns true if `t` is of map type, including transitively through named types
-// and aliases, as well as type parameters whose type sets contain only map types.
-func IsDeeplyMap(t types.Type) bool {
-	return underlyingIs[*types.Map](t)
-}
-
-// IsDeeplyPtr returns true if `t` is of pointer type, including transitively through named
-// types and aliases, as well as type parameters whose type sets contain only pointer types.
-func IsDeeplyPtr(t types.Type) bool {
-	return underlyingIs[*types.Pointer](t)
-}
-
-// IsDeeplyChan returns true if `t` is of channel type, including transitively through named
-// types and aliases, as well as type parameters whose type sets contain only channel types.
-func IsDeeplyChan(t types.Type) bool {
-	return underlyingIs[*types.Chan](t)
 }
 
 // AsDeeplyStruct returns the underlying struct type if `typ` is a struct or a pointer to a
@@ -202,21 +145,15 @@ func AsDeeplyStruct(typ types.Type) *types.Struct {
 	return nil
 }
 
-// IsDeeplyInterface returns true if `t` is of interface type, including transitively through
-// named types and aliases, as well as type parameters whose type sets contain only interface types.
-func IsDeeplyInterface(t types.Type) bool {
-	return underlyingIs[*types.Interface](t)
-}
-
 // IsPointer checks whether the type `t` is an explicit or implicit pointer type, which could also be of deep type.
 // Examples of explicit pointer types are `*int`, `*S`, etc.
 // Examples of implicit pointer types are `[]int`, `map[string]*S`, `chan int`, etc.
 func IsPointer(t types.Type) bool {
-	return IsDeeplyPtr(t) ||
-		IsDeeplySlice(t) ||
-		IsDeeplyMap(t) ||
-		IsDeeplyArray(t) ||
-		IsDeeplyChan(t)
+	return IsDeeplyType[*types.Pointer](t) ||
+		IsDeeplyType[*types.Slice](t) ||
+		IsDeeplyType[*types.Map](t) ||
+		IsDeeplyType[*types.Array](t) ||
+		IsDeeplyType[*types.Chan](t)
 }
 
 // UnwrapPtr unwraps a pointer type and returns the element type. For all other types it returns

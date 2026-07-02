@@ -96,7 +96,7 @@ func Generic[A ~[8]int, E ArrayConstraint, U ~[8]int | ~[16]int, X ~[8]int | ~[]
 		{"TypeParamSlice", typeParamOf("s"), false, false},
 		{"TypeParamAny", typeParamOf("m"), false, false},
 		// Unions whose terms are themselves (method-less) interfaces are not flattened by
-		// go/types, so constraintTerms must recurse into them.
+		// go/types, so normalization must recurse into them.
 		{"TypeParamInterfaceUnionArrays", typeParamOf("iu"), true, true},
 		{"TypeParamInterfaceUnionMixed", typeParamOf("ix"), false, false},
 		{"TypeParamPtrToArray", typeParamOf("p"), false, true},
@@ -105,7 +105,7 @@ func Generic[A ~[8]int, E ArrayConstraint, U ~[8]int | ~[16]int, X ~[8]int | ~[]
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tt.wantArray, IsDeeplyArray(tt.typ), "IsDeeplyArray(%v)", tt.typ)
+			require.Equal(t, tt.wantArray, IsDeeplyType[*types.Array](tt.typ), "IsDeeplyType[*types.Array](%v)", tt.typ)
 			require.Equal(t, tt.wantOrArrayPtr, IsDeeplyArrayOrArrayPtr(tt.typ), "IsDeeplyArrayOrArrayPtr(%v)", tt.typ)
 		})
 	}

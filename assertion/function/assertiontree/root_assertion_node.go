@@ -531,7 +531,7 @@ func (r *RootAssertionNode) AddGuardMatch(expr ast.Expr, behavior GuardMatchBeha
 
 func (r *RootAssertionNode) consumeIndexExpr(expr ast.Expr) {
 	t := r.Pass().TypesInfo.Types[expr].Type
-	if typeshelper.IsDeeplySlice(t) {
+	if typeshelper.IsDeeplyType[*types.Slice](t) {
 		r.AddConsumption(&annotation.ConsumeTrigger{
 			Annotation: &annotation.SliceAccess{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
 			Expr:       expr,
@@ -811,7 +811,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 				conf := r.Pass().ResultOf[config.Analyzer].(*config.Config)
 				if conf.IsPkgInScope(funcObj.Pkg()) { // Check 3: invoked method is in scope
 					// Here, `t` can only be of type interface, struct, or named, of which we only support for struct and named types.
-					if !typeshelper.IsDeeplyInterface(r.Pass().TypesInfo.TypeOf(expr.X)) { // Check 4: invoking expression (caller) is of a non-interface type (e.g., struct or named)
+					if !typeshelper.IsDeeplyType[*types.Interface](r.Pass().TypesInfo.TypeOf(expr.X)) { // Check 4: invoking expression (caller) is of a non-interface type (e.g., struct or named)
 						allowNilable = true
 						// We are in the special case of supporting nilable receivers! Can be nilable depending on declaration annotation/inferred nilability.
 						r.AddConsumption(&annotation.ConsumeTrigger{

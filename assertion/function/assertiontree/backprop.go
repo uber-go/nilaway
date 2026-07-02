@@ -491,13 +491,13 @@ func backpropAcrossRange(rootNode *RootAssertionNode, lhs []ast.Expr, rhs ast.Ex
 	case 1:
 		// If we are ranging over a map slice or string with only a single lhs operand, then that
 		// operand will be int-valued.
-		if typeshelper.IsDeeplyMap(rhsType) || typeshelper.IsDeeplySlice(rhsType) || typeshelper.IsDeeplyArrayOrArrayPtr(rhsType) || typeIsString(rhsType) {
+		if typeshelper.IsDeeplyType[*types.Map](rhsType) || typeshelper.IsDeeplyType[*types.Slice](rhsType) || typeshelper.IsDeeplyArrayOrArrayPtr(rhsType) || typeIsString(rhsType) {
 			produceAsIndex(0)
 			return nil
 		}
 		// Iterating over a channel with only a single lhs operand will still result in deeply
 		// produced lhs values.
-		if typeshelper.IsDeeplyChan(rhsType) {
+		if typeshelper.IsDeeplyType[*types.Chan](rhsType) {
 			produceAsDeepRHS(0)
 			return nil
 		}
