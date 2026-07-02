@@ -22,6 +22,7 @@ import (
 	"slices"
 
 	"go.uber.org/nilaway/annotation"
+	"go.uber.org/nilaway/hook"
 	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/tokenhelper"
 	"go.uber.org/nilaway/util/typeshelper"
@@ -158,6 +159,18 @@ func AddNilCheck(pass *analysishelper.EnhancedPass, expr ast.Expr) (trueCheck, f
 		trueNilCheck, falseNilCheck, isNoop := AddNilCheck(pass, e.X)
 		return falseNilCheck, trueNilCheck, isNoop
 	}
+
+	if callExpr, ok := expr.(*ast.CallExpr); ok {
+		replaced := hook.ReplaceConditional(pass, callExpr)
+		if replaced == nil {
+			return noop, noop, true
+		}
+		if replacedBin, ok := replaced.(*ast.BinaryExpr); ok && replacedBin.Op == token.LAND {
+			return AddNilCheck(pass, replacedBin.Y)
+		}
+		return noop, noop, true
+	}
+
 	binExpr, ok := expr.(*ast.BinaryExpr)
 	if !ok {
 		// `expr` is not a direct or indirect binary expression - do no work
