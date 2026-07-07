@@ -186,6 +186,32 @@ func IsFieldSelectorChain(expr ast.Expr) bool {
 	}
 }
 
+// SplitFieldChain decomposes a field-chain expression into its base identifier and the dotted
+// field prefix from that base: `x` -> (x, ""), `x.a` -> (x, "a"), `x.a.b` -> (x, "a.b"). It
+// returns (nil, "") for anything whose innermost base is not a bare identifier, such as `(*x).a`
+// or `f().a`.
+func SplitFieldChain(expr ast.Expr) (*ast.Ident, string) {
+	expr = ast.Unparen(expr)
+	var parts []string
+	for {
+		switch e := expr.(type) {
+		case *ast.Ident:
+			if len(parts) == 0 {
+				return e, ""
+			}
+			for i, j := 0, len(parts)-1; i < j; i, j = i+1, j-1 {
+				parts[i], parts[j] = parts[j], parts[i]
+			}
+			return e, strings.Join(parts, ".")
+		case *ast.SelectorExpr:
+			parts = append(parts, e.Sel.Name)
+			expr = ast.Unparen(e.X)
+		default:
+			return nil, ""
+		}
+	}
+}
+
 // IsEmptyExpr checks if an expression is the empty identifier
 func IsEmptyExpr(expr ast.Expr) bool {
 	if id, ok := expr.(*ast.Ident); ok {

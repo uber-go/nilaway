@@ -48,6 +48,9 @@ type Config struct {
 	GroupErrorMessages bool
 	// ExperimentalStructInitEnable indicates whether experimental struct initialization is enabled.
 	ExperimentalStructInitEnable bool
+	// ExperimentalStructInitV2Enable indicates whether the allocation-site-sensitive struct
+	// initialization analysis (v2) is enabled.
+	ExperimentalStructInitV2Enable bool
 	// ExperimentalAnonymousFuncEnable indicates whether experimental anonymous function support is enabled.
 	ExperimentalAnonymousFuncEnable bool
 	// PrintFullFilePath incidates whether to print full filenames in the output.
@@ -148,6 +151,8 @@ const (
 	ExcludeFileDocStringsFlag = "exclude-file-docstrings"
 	// ExperimentalStructInitEnableFlag is the flag name for the experimental struct init support.
 	ExperimentalStructInitEnableFlag = "experimental-struct-init"
+	// ExperimentalStructInitV2EnableFlag is the flag name for the allocation-site-sensitive struct init support (v2).
+	ExperimentalStructInitV2EnableFlag = "experimental-struct-init-v2"
 	// ExperimentalAnonymousFunctionFlag is the flag name for the experimental anonymous function support.
 	ExperimentalAnonymousFunctionFlag = "experimental-anonymous-function"
 	// PrintFullFilePathFlag is the flag name for printing full filenames in output.
@@ -168,6 +173,7 @@ func newFlagSet() flag.FlagSet {
 	_ = fs.String(ExcludePkgsFlag, "", "Comma-separated list of packages to exclude from analysis")
 	_ = fs.String(ExcludeFileDocStringsFlag, "", "Comma-separated list of docstrings to exclude from analysis")
 	_ = fs.Bool(ExperimentalStructInitEnableFlag, false, "Whether to enable experimental struct initialization support")
+	_ = fs.Bool(ExperimentalStructInitV2EnableFlag, false, "Whether to enable allocation-site-sensitive struct initialization support (v2)")
 	_ = fs.Bool(ExperimentalAnonymousFunctionFlag, false, "Whether to enable experimental anonymous function support")
 	_ = fs.Bool(PrintFullFilePathFlag, false, "Whether to show full filenames in output")
 	_ = fs.Bool(ExcludeTestFilesFlag, false, "Whether to exclude diagnostics involving test files")
@@ -194,6 +200,9 @@ func run(pass *analysis.Pass) (any, error) {
 	}
 	if enableStructInit, ok := pass.Analyzer.Flags.Lookup(ExperimentalStructInitEnableFlag).Value.(flag.Getter).Get().(bool); ok {
 		conf.ExperimentalStructInitEnable = enableStructInit
+	}
+	if enableExperimentalStructInitV2, ok := pass.Analyzer.Flags.Lookup(ExperimentalStructInitV2EnableFlag).Value.(flag.Getter).Get().(bool); ok {
+		conf.ExperimentalStructInitV2Enable = enableExperimentalStructInitV2
 	}
 	if enableAnonymousFunc, ok := pass.Analyzer.Flags.Lookup(ExperimentalAnonymousFunctionFlag).Value.(flag.Getter).Get().(bool); ok {
 		conf.ExperimentalAnonymousFuncEnable = enableAnonymousFunc
