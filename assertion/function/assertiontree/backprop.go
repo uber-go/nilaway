@@ -532,6 +532,11 @@ func backpropAcrossRange(rootNode *RootAssertionNode, lhs []ast.Expr, rhs ast.Ex
 // TypesInfo. Uses will give a fresh `types.Var` at every usage site. This is why we have to
 // inspect the assertion tree for any variables that match the symbolic type switch variable
 // without being able to compare the identity of `types.Var` instances as we usually do.
+//
+// NOTE: the preprocessor replicates the type-switch Assign node into every case body (see
+// preprocess.markTypeSwitchStatements), so this function can process the same assignment
+// multiple times along a single path. That replication relies on this function being
+// idempotent: occurrences that find no assertions on the bound variable must remain no-ops.
 // nonnil(lhs, rhs)
 func backpropAcrossTypeSwitch(rootNode *RootAssertionNode, lhs *ast.Ident, rhs ast.Expr) error {
 	// First, make a copy of the children array to iterate over, as we will mutate it.
