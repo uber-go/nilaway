@@ -267,6 +267,58 @@ func lengthCheckAsNilCheckTest(a []int) int {
 		for i := 0; i <= len(a) + 2 + b; i ++ {
 			_ = a[i]
 		}
+
+	// `len(a) - 1 >= 0` implies `len(a) >= 1`, so `a` is non-nil. The same holds for any
+	// `len(a) - positive >= 0` or `len(a) + negative >= 0`.
+	case 35:
+		if len(a) - 1 >= 0 {
+			return a[0]
+		}
+	case 36:
+		if 0 <= len(a) - 1 {
+			return a[0]
+		}
+	case 37:
+		if len(a) - 1 < 0 {
+			return 0
+		}
+		return a[0]
+	case 38:
+		if 0 > len(a) - 1 {
+			return 0
+		}
+		return a[0]
+	case 39:
+		if len(a) - 5 >= 0 {
+			return a[0]
+		}
+	case 40:
+		if len(a) + (-1) >= 0 {
+			return a[0]
+		}
+	case 41:
+		if len(a) + (-3) >= 0 {
+			return a[0]
+		}
+	case 42:
+		if 0 <= len(a) + (-2) {
+			return a[0]
+		}
+	case 43:
+		// `len(a) - 0 >= 0` is always true, so it tells us nothing: `a` may be nil.
+		if len(a) - 0 >= 0 {
+			return a[0] //want "sliced into"
+		}
+	case 44:
+		// `len(a) + 1 >= 0` is always true, so it tells us nothing: `a` may be nil.
+		if len(a) + 1 >= 0 {
+			return a[0] //want "sliced into"
+		}
+	case 45:
+		// `5 - len(a) >= 0` means `len(a) <= 5`, which tells us nothing: `a` may be nil.
+		if 5 - len(a) >= 0 {
+			return a[0] //want "sliced into"
+		}
 	}
 	return 0
 }
@@ -477,6 +529,125 @@ func testSlicingDoesNotCreateConsumersForNilableSlice() []int {
 		b = nilA[: 1-1 : 0-0]
 		b = nilA[:zero:zero]
 		b = nilA[: zero+1-1 : zero+1-1]
+	}
+	return b
+}
+
+// testLengthBoundedSlicingDoesNotCreateConsumersForNilableSlice tests that slicing a nilable slice
+// with an index that is provably bounded by the slice's length does not create a consumer trigger,
+// since len(x) == 0 for a nil slice forces such an index to zero. See issue #268.
+func testLengthBoundedSlicingDoesNotCreateConsumersForNilableSlice() []int {
+	var nilA, b []int
+	const hundred = 100
+	switch 0 {
+	case 1:
+		// [:len(x)]
+		b = nilA[:len(nilA)]
+	case 2:
+		// [len(x):]
+		b = nilA[len(nilA):]
+	case 3:
+		// [len(x):len(x)]
+		b = nilA[len(nilA):len(nilA)]
+	case 4:
+		// [:min(len(x), n)] -- the original false positive from issue #268. min(...) is
+		// length-bounded if any argument is.
+		b = nilA[:min(len(nilA), 100)]
+		b = nilA[:min(len(nilA), hundred)]
+		b = nilA[:min(100, len(nilA))]
+		b = nilA[:min(5, len(nilA), 100)]
+	case 5:
+		// [:min(len(x), n):min(len(x), n)]
+		b = nilA[:min(len(nilA), 100):min(len(nilA), 100)]
+	case 6:
+		// [:max(...)] -- max(...) is length-bounded only if every argument is.
+		b = nilA[:max(len(nilA))]                            // single argument
+		b = nilA[:max(len(nilA), len(nilA))]                 // all len(x)
+		b = nilA[:max(len(nilA), len(nilA), len(nilA))]      // three len(x) args
+		b = nilA[:max(min(len(nilA), 5), len(nilA))]         // max with min arg
+		b = nilA[:max(len(nilA), min(len(nilA), 100))]       // max with min arg (other order)
+		b = nilA[:max(max(len(nilA), len(nilA)), len(nilA))] // nested max
+		b = nilA[:max(len(nilA), len(nilA)):max(len(nilA), len(nilA))]
+	}
+	return b
+}
+
+// testLengthBoundedSlicingCreatesConsumer tests that indices not bounded by the sliced slice's
+// length still create a consumer trigger. This includes len/cap of a *different* slice (not tied to
+// the sliced slice's nilness), cap of the sliced slice (cap is not treated as length-bounded), and
+// max(...) where some argument is not length-bounded.
+func testLengthBoundedSlicingCreatesConsumer() []int {
+	var nilA, b []int
+	other := []int{1, 2, 3}
+	n := 1
+	switch 0 {
+	case 1:
+		b = nilA[:len(other)] //want "sliced into"
+	case 2:
+		b = nilA[:min(len(other), 100)] //want "sliced into"
+	case 3:
+		b = nilA[:cap(other)] //want "sliced into"
+	case 4:
+		// max(...) requires every argument to be length-bounded; n and a literal 0 are not, so even
+		// though max(len(x), 0) is genuinely zero on nil, we conservatively create a consumer.
+		b = nilA[:max(len(nilA), 100)]                //want "sliced into"
+		b = nilA[:max(len(nilA), 0)]                  //want "sliced into"
+		b = nilA[:max(100, len(nilA))]                //want "sliced into"
+		b = nilA[:max(n, len(nilA))]                  //want "sliced into"
+		b = nilA[:max(len(nilA), len(other))]         //want "sliced into"
+		b = nilA[:max(len(nilA), min(n, 100))]        //want "sliced into"
+		b = nilA[:max(min(len(other), 5), len(nilA))] //want "sliced into"
+	case 5:
+		// cap(x) is not treated as length-bounded.
+		b = nilA[:cap(nilA)]           //want "sliced into"
+		b = nilA[cap(nilA):]           //want "sliced into"
+		b = nilA[:min(cap(nilA), 100)] //want "sliced into"
+	}
+	return b
+}
+
+// testLengthBoundedSlicingWithParensDoesNotCreateConsumers tests that parenthesized forms of the
+// length-bounded slicing patterns are still recognized as safe, since the analysis strips
+// parentheses around the index expression, the called builtin, the builtin's argument, and the
+// sliced expression itself.
+func testLengthBoundedSlicingWithParensDoesNotCreateConsumers() []int {
+	var nilA, b []int
+	switch 0 {
+	case 1:
+		// Parentheses around the whole index expression.
+		b = nilA[:(len(nilA))]
+	case 2:
+		// Parentheses around the builtin's argument.
+		b = nilA[:len((nilA))]
+	case 3:
+		// Parentheses around the called builtin itself.
+		b = nilA[:(len)(nilA)]
+	case 4:
+		// Parentheses around the sliced expression.
+		b = (nilA)[:len(nilA)]
+		b = (nilA)[:len((nilA))]
+	case 5:
+		// Parentheses interleaved within min/max arguments, which are unparened recursively.
+		b = nilA[:min((len(nilA)), 100)]
+		b = nilA[:min(100, (len(nilA)))]
+		b = nilA[:max((len(nilA)), (len(nilA)))]
+	}
+	return b
+}
+
+// testLengthBoundedSlicingWithParensCreatesConsumer tests that stripping parentheses does not make
+// an otherwise-unsafe index appear length-bounded: len of a different slice, or a non-len builtin,
+// still create a consumer trigger even when wrapped in parentheses.
+func testLengthBoundedSlicingWithParensCreatesConsumer() []int {
+	var nilA, b []int
+	other := []int{1, 2, 3}
+	switch 0 {
+	case 1:
+		b = nilA[:(len(other))] //want "sliced into"
+	case 2:
+		b = nilA[:len((other))] //want "sliced into"
+	case 3:
+		b = nilA[:(cap(nilA))] //want "sliced into"
 	}
 	return b
 }

@@ -208,7 +208,13 @@ func deriveContracts(
 ) Contracts {
 	// TODO: verify other or multiple param/return contracts in the future; for now we consider
 	//  contract(nonnil->nonnil) only.
-	param := fn.Params[0]
+	//
+	// For methods, fn.Params[0] is the receiver, while the contract (and its application at call
+	// sites, which uses the declared argument and parameter annotation sites) is about the
+	// declared parameter, so we skip the receiver here. Otherwise, fluent methods that return
+	// their receiver (e.g., `func (z *Int) Neg(x *Int) *Int { ...; return z }`) would incorrectly
+	// match the `param == ret` rule below via the receiver and be given a contract about `x`.
+	param := fn.Params[len(fn.Params)-fn.Signature.Params().Len()]
 	nonnilOrUnknownParamChoices := 0
 	nilParamChoices := 0
 	nonnilRetChoices := 0

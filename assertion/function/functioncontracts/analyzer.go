@@ -200,10 +200,7 @@ func collectFunctionContracts(pass *analysishelper.EnhancedPass) (Map, error) {
 			}
 
 			// Infer contracts for a function that does not have any contracts specified.
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-
+			wg.Go(func() {
 				// As a last resort, convert the panics into errors and return.
 				defer func() {
 					if r := recover(); r != nil {
@@ -218,7 +215,7 @@ func collectFunctionContracts(pass *analysishelper.EnhancedPass) (Map, error) {
 						contracts: contracts,
 					}
 				}
-			}()
+			})
 		}
 	}
 

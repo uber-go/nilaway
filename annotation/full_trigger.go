@@ -168,41 +168,31 @@ func FullTriggerSlicesEq(left, right []FullTrigger) bool {
 // Consumer.GuardMatched into a single trigger with Consume.GuardMatched = false. In all other cases - such as
 // checking fixed point in propagation, the function FullTriggersEq
 // that does observe GuardMatched should be used instead of this function.
+// This function modifies the `left` slice, by appending the non-duplicate right triggers into it.
 func MergeFullTriggers(left []FullTrigger, right ...FullTrigger) []FullTrigger {
-	var out []FullTrigger
-	updateLeftGuard := make(map[int]bool)
-	skipRight := make(map[int]bool)
-
-	for i, l := range left {
-		for j, r := range right {
-			if !l.equalsModuloGuardMatched(r) {
+	// `left` is dedup-maintained by construction, so we compare each right trigger only against the
+	// original `left` prefix (origLen) and stop at the first match.
+	origLen := len(left)
+	for _, r := range right {
+		matched := false
+		for i := range origLen {
+			if !left[i].equalsModuloGuardMatched(r) {
 				continue
 			}
-
-			// Now we know that the two triggers are equal modulo GuardMatched. We should skip adding the right trigger
-			// to `out`. In case of a mismatch in GuardMatched, we update the left trigger to set GuardMatched = false,
-			// because right now, there is no use for guards in FullTriggers. If this changes, then make sure the merged
-			// trigger gets the intersection of the prior guard sets
-			if l.Consumer.GuardMatched && !r.Consumer.GuardMatched {
-				updateLeftGuard[i] = true
+			// Equal modulo GuardMatched, so drop the right trigger. On a GuardMatched mismatch we
+			// clear the left trigger's guard (guards are currently unused in FullTriggers; if that
+			// changes, use the intersection of the prior guard sets instead).
+			if left[i].Consumer.GuardMatched && !r.Consumer.GuardMatched {
+				left[i].Consumer.Guards = guard.NoGuards()
+				left[i].Consumer.GuardMatched = false
 			}
-			skipRight[j] = true
+			matched = true
+			break
+		}
+		if !matched {
+			left = append(left, r)
 		}
 	}
 
-	for i, l := range left {
-		if updateLeftGuard[i] {
-			l.Consumer.Guards = guard.NoGuards()
-			l.Consumer.GuardMatched = false
-		}
-		out = append(out, l)
-	}
-
-	for j, r := range right {
-		if !skipRight[j] {
-			out = append(out, r)
-		}
-	}
-
-	return out
+	return left
 }

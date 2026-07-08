@@ -93,10 +93,10 @@ func (d *GolangCILintDriver) Run(dir string) (diagnostics map[Position]string, e
 	if err != nil {
 		return nil, fmt.Errorf("failed to read diagnostics file: %w", err)
 	}
-	return parseGolangCILintOutput(data)
+	return parseGolangCILintOutput(data, dir)
 }
 
-func parseGolangCILintOutput(output []byte) (map[Position]string, error) {
+func parseGolangCILintOutput(output []byte, dir string) (map[Position]string, error) {
 	if len(output) == 0 {
 		return map[Position]string{}, nil
 	}
@@ -113,9 +113,16 @@ func parseGolangCILintOutput(output []byte) (map[Position]string, error) {
 		return nil, fmt.Errorf("failed to parse golangci-lint output: %w", err)
 	}
 
+	// Only include diagnostics in files under the test directory; golangci-lint surfaces
+	// diagnostics from dependencies (e.g. stdlib, modules in the cache) that the standalone
+	// driver does not, but those are not part of the test contract.
+	dirPrefix := dir + string(filepath.Separator)
 	diagnostics := make(map[Position]string)
 	for _, issue := range result.Issues {
 		if issue.FromLinter != "nilaway" {
+			continue
+		}
+		if !strings.HasPrefix(issue.Pos.Filename, dirPrefix) {
 			continue
 		}
 		diagnostics[issue.Pos] = issue.Text

@@ -22,6 +22,7 @@ import (
 	"slices"
 
 	"go.uber.org/nilaway/annotation"
+	"go.uber.org/nilaway/hook"
 	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/tokenhelper"
 	"go.uber.org/nilaway/util/typeshelper"
@@ -158,6 +159,18 @@ func AddNilCheck(pass *analysishelper.EnhancedPass, expr ast.Expr) (trueCheck, f
 		trueNilCheck, falseNilCheck, isNoop := AddNilCheck(pass, e.X)
 		return falseNilCheck, trueNilCheck, isNoop
 	}
+
+	if callExpr, ok := expr.(*ast.CallExpr); ok {
+		replaced := hook.ReplaceConditional(pass, callExpr)
+		if replaced == nil {
+			return noop, noop, true
+		}
+		if replacedBin, ok := replaced.(*ast.BinaryExpr); ok && replacedBin.Op == token.LAND {
+			return AddNilCheck(pass, replacedBin.Y)
+		}
+		return noop, noop, true
+	}
+
 	binExpr, ok := expr.(*ast.BinaryExpr)
 	if !ok {
 		// `expr` is not a direct or indirect binary expression - do no work
@@ -279,6 +292,22 @@ func AddNilCheck(pass *analysishelper.EnhancedPass, expr ast.Expr) (trueCheck, f
 				return noop, noop, true
 			},
 		},
+		{
+			// `len(a) - c >= 0` (positive `c`) or `len(a) + c >= 0` (negative `c`) both imply
+			// `len(a) >= 1`, so `a` is non-nil. We match this exact structure so the check is
+			// sound. The converse/inverse/contrapositive are derived automatically, e.g. for
+			// `len(a) - c`:
+			//   - `0 <= len(a) - c`
+			//   - `len(a) - c < 0`
+			//   - `0 > len(a) - c`
+			op: token.GEQ,
+			matcher: func(x, y ast.Expr) (RootFunc, RootFunc, bool) {
+				if arg, ok := lenMinusPositiveArg(pass, x); ok && pass.IsZero(y) {
+					return produceNegativeNilChecks(arg), noop, false
+				}
+				return noop, noop, true
+			},
+		},
 	}
 
 	// Apply the checkers.
@@ -324,6 +353,40 @@ func extractLenArgs(expr ast.Expr, allowNested bool) []ast.Expr {
 		return allowNested
 	})
 	return args
+}
+
+// lenMinusPositiveArg returns the argument `a` and true if `expr` has the form `len(a) - c` with
+// a positive constant `c`, or `len(a) + c` with a negative constant `c`. In both cases `expr`
+// equals `len(a) - k` for some integer `k >= 1`, so combined with `>= 0` it soundly implies
+// `len(a) >= 1`, i.e., `a` is non-nil. We require the `len(a)` term on the left and a constant
+// offset (rather than the looser `extractLenArgs` matching) so that we do not unsoundly conclude
+// anything from, e.g., `len(a) - 1 + b >= 0` or `c - len(a) >= 0`.
+func lenMinusPositiveArg(pass *analysishelper.EnhancedPass, expr ast.Expr) (ast.Expr, bool) {
+	bin, ok := ast.Unparen(expr).(*ast.BinaryExpr)
+	if !ok {
+		return nil, false
+	}
+	c, ok := pass.ConstInt(bin.Y)
+	if !ok {
+		return nil, false
+	}
+	// Compute `k` such that `bin` equals `len(a) - k`, then require `k >= 1`.
+	var k int64
+	switch bin.Op {
+	case token.SUB: // `len(a) - c`, sound when `c` is positive.
+		k = c
+	case token.ADD: // `len(a) + c`, sound when `c` is negative.
+		k = -c
+	default:
+		return nil, false
+	}
+	if k < 1 {
+		return nil, false
+	}
+	if lenArgs := extractLenArgs(bin.X, false /* allowNested */); len(lenArgs) == 1 {
+		return lenArgs[0], true
+	}
+	return nil, false
 }
 
 // likelyPositiveInt return true if the given expression is likely a positive integer. We

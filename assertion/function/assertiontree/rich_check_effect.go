@@ -22,6 +22,7 @@ import (
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/guard"
+	"go.uber.org/nilaway/hook"
 	"go.uber.org/nilaway/util/asthelper"
 	"go.uber.org/nilaway/util/typeshelper"
 	"golang.org/x/tools/go/cfg"
@@ -99,6 +100,53 @@ func (f *FuncErrRet) equals(effect RichCheckEffect) bool {
 	return f.root.Equal(f.err, otherFuncErrRet.err) &&
 		f.root.Equal(f.ret, otherFuncErrRet.ret) &&
 		f.guard == otherFuncErrRet.guard
+}
+
+// A FuncErrRetNonnilArg is a RichCheckEffect for a trusted function call `f(..., &v, ...)` whose
+// final result is of type `error` and which, on success (`err == nil`), guarantees that the pointee
+// `v` of a by-address argument is non-nil. The canonical example is `json.Unmarshal(data, &v)`: once
+// the returned error is checked to be nil, `v` is populated and hence non-nil.
+//
+// This differs from FuncErrRet, which guards a value *produced* by the call (a return value): there,
+// the producer is itself guarded so that guarding the consumer suffices. Here the pointee is a
+// pre-existing expression with its own (e.g., unassigned/nilable) producer, so on the error-is-nil
+// branch we must actively *produce* a non-nil value for it, exactly as a `v != nil` check would.
+type FuncErrRetNonnilArg struct {
+	root    *RootAssertionNode // an associated root node
+	err     TrackableExpr      // the `error`-typed return of the function
+	arg     TrackableExpr      // the trackable pointee argument guaranteed non-nil on success
+	argExpr ast.Expr           // the raw pointee expression, for producing a non-nil value
+}
+
+func (f *FuncErrRetNonnilArg) isTriggeredBy(expr ast.Expr) bool {
+	return exprIsPositiveNilCheck(f.root, expr, f.err)
+}
+
+func (f *FuncErrRetNonnilArg) isInvalidatedBy(node ast.Node) bool {
+	// Reassigning either the checked error or the pointee breaks the correspondence established at
+	// the call site, so either invalidates the effect.
+	return nodeAssignsAny(f.root, node, f.err, f.arg)
+}
+
+func (f *FuncErrRetNonnilArg) effectIfTrue(node *RootAssertionNode) {
+	node.AddProduction(&annotation.ProduceTrigger{
+		Annotation: &annotation.NegativeNilCheck{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
+		Expr:       f.argExpr,
+	})
+}
+
+func (f *FuncErrRetNonnilArg) effectIfFalse(*RootAssertionNode) {
+	// no-op
+}
+
+func (f *FuncErrRetNonnilArg) isNoop() bool { return false }
+
+func (f *FuncErrRetNonnilArg) equals(effect RichCheckEffect) bool {
+	other, ok := effect.(*FuncErrRetNonnilArg)
+	if !ok {
+		return false
+	}
+	return f.root.Equal(f.err, other.err) && f.root.Equal(f.arg, other.arg)
 }
 
 // okRead provides a general implementation for the special return form: `v1, v2, ..., ok := expr`.
@@ -262,7 +310,7 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *guard.Nonce
 		}
 
 		rhsXType := rootNode.Pass().TypesInfo.Types[rhs.X].Type
-		if typeshelper.IsDeeplyMap(rhsXType) {
+		if typeshelper.IsDeeplyType[*types.Map](rhsXType) {
 			// Create a rich check effect for `v` part of the map read in `v, ok := mp[k]`
 			if lhsValueParsed := parseExpr(rootNode, lhs[0]); lhsValueParsed != nil {
 				// Here, the lhs `value` operand is trackable
@@ -312,7 +360,7 @@ func NodeTriggersOkRead(rootNode *RootAssertionNode, nonceGenerator *guard.Nonce
 		}
 
 		rhsXType := rootNode.Pass().TypesInfo.Types[rhs.X].Type
-		if rhs.Op == token.ARROW && typeshelper.IsDeeplyChan(rhsXType) {
+		if rhs.Op == token.ARROW && typeshelper.IsDeeplyType[*types.Chan](rhsXType) {
 			lhsValueParsed := parseExpr(rootNode, lhs[0])
 			if lhsValueParsed != nil {
 				// here, the lhs `value` operand is trackable
@@ -434,6 +482,19 @@ func NodeTriggersFuncErrRet(rootNode *RootAssertionNode, nonceGenerator *guard.N
 		}), true
 	}
 
+	// Besides the return values handled above, certain trusted functions also guarantee that one of
+	// their (pointer) arguments is non-nil once the error return is checked to be nil.
+	if argExpr := hook.ErrorReturnNonnilArg(rootNode.Pass(), callExpr); argExpr != nil {
+		if argExprParsed := parseExpr(rootNode, argExpr); argExprParsed != nil {
+			effects, someEffect = append(effects, &FuncErrRetNonnilArg{
+				root:    rootNode,
+				err:     errExprParsed,
+				arg:     argExprParsed,
+				argExpr: argExpr,
+			}), true
+		}
+	}
+
 	return effects, someEffect
 }
 
@@ -457,21 +518,34 @@ func nodeAssignsOneWithoutOther(rootNode *RootAssertionNode, node ast.Node, one,
 	return assignsOne && !assignsOther
 }
 
+// nodeAssignsAny returns true if `node` is an assignment to any of the variables in `exprs`.
+func nodeAssignsAny(rootNode *RootAssertionNode, node ast.Node, exprs ...TrackableExpr) bool {
+	assignStmt, ok := node.(*ast.AssignStmt)
+	if !ok {
+		return false
+	}
+	for _, assignedVal := range assignStmt.Lhs {
+		parsedLHSExpr := parseExpr(rootNode, assignedVal)
+		if parsedLHSExpr == nil {
+			continue
+		}
+		for _, expr := range exprs {
+			if rootNode.Equal(parsedLHSExpr, expr) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // exprIsPositiveNilCheck checks if an expression `expr` is of the form `checksVar == nil` for some
 // variable `checksVar`. Note that because of preprocessing done in `restructureBlock` from
 // `preprocess_blocks.go`, this suffices to handle cases such as `nil != checksVar` as well.
 func exprIsPositiveNilCheck(rootNode *RootAssertionNode, expr ast.Expr, checksExpr TrackableExpr) bool {
-	if binExpr, ok := expr.(*ast.BinaryExpr); ok && binExpr.Op == token.EQL && asthelper.IsLiteral(binExpr.Y, "nil") {
-		// Standard case: X == nil
-		if exprMatchesTrackableExpr(rootNode, binExpr.X, checksExpr) {
-			return true
-		}
-		// Special case: type-switch guard rewritten as "(x.(type)) == nil".
-		// In such cases, the BinaryExpr.X will be a *ast.TypeAssertExpr whose Type is nil,
-		// and we should treat it as if we are checking "x == nil".
-		if ta, ok := binExpr.X.(*ast.TypeAssertExpr); ok && ta.Type == nil {
-			return exprMatchesTrackableExpr(rootNode, ta.X, checksExpr)
-		}
+	if binExpr, ok := expr.(*ast.BinaryExpr); ok && binExpr.Op == token.EQL && rootNode.Pass().IsNil(binExpr.Y) {
+		// Note that this also covers `case nil` arms of type switches: the preprocessor
+		// synthesizes a canonical `x == nil` condition for them (see markTypeSwitchStatements).
+		return exprMatchesTrackableExpr(rootNode, binExpr.X, checksExpr)
 	}
 	return false
 }

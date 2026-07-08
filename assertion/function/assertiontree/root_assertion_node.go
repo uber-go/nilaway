@@ -531,7 +531,7 @@ func (r *RootAssertionNode) AddGuardMatch(expr ast.Expr, behavior GuardMatchBeha
 
 func (r *RootAssertionNode) consumeIndexExpr(expr ast.Expr) {
 	t := r.Pass().TypesInfo.Types[expr].Type
-	if typeshelper.IsDeeplySlice(t) {
+	if typeshelper.IsDeeplyType[*types.Slice](t) {
 		r.AddConsumption(&annotation.ConsumeTrigger{
 			Annotation: &annotation.SliceAccess{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
 			Expr:       expr,
@@ -811,7 +811,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 				conf := r.Pass().ResultOf[config.Analyzer].(*config.Config)
 				if conf.IsPkgInScope(funcObj.Pkg()) { // Check 3: invoked method is in scope
 					// Here, `t` can only be of type interface, struct, or named, of which we only support for struct and named types.
-					if !typeshelper.IsDeeplyInterface(r.Pass().TypesInfo.TypeOf(expr.X)) { // Check 4: invoking expression (caller) is of a non-interface type (e.g., struct or named)
+					if !typeshelper.IsDeeplyType[*types.Interface](r.Pass().TypesInfo.TypeOf(expr.X)) { // Check 4: invoking expression (caller) is of a non-interface type (e.g., struct or named)
 						allowNilable = true
 						// We are in the special case of supporting nilable receivers! Can be nilable depending on declaration annotation/inferred nilability.
 						r.AddConsumption(&annotation.ConsumeTrigger{
@@ -846,9 +846,10 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 	case *ast.SliceExpr:
 		// similar to index case
 
-		// zero slicing contains b[:0] b[0:0] b[0:] b[:] b[:0:0] b[0:0:0], which are safe even when b is
-		// nil, so we do not create consumer triggers for those slicing.
-		if !r.isZeroSlicing(expr) {
+		// safe slicing contains b[:0] b[0:0] b[0:] b[:] b[:0:0] b[0:0:0] and length-bounded forms such
+		// as b[:len(b)], which are safe even when b is nil, so we do not create consumer triggers for
+		// those slicing.
+		if !r.isSafeSlicing(expr) {
 			// For all the other slicing, the slice must be nonnil, so we create a consumer
 			// trigger.
 			r.AddConsumption(&annotation.ConsumeTrigger{
@@ -1214,13 +1215,60 @@ func (r *RootAssertionNode) isType(expr ast.Expr) bool {
 	return r.Pass().TypesInfo.Types[expr].IsType()
 }
 
-// isZeroSlicing returns if the given slice expression is a special case that will not cause panic
-// even when the slice itself is nil, i.e, one of [:0] [0:0] [0:] [:] [:0:0] [0:0:0]
-func (r *RootAssertionNode) isZeroSlicing(expr *ast.SliceExpr) bool {
-	l, h, m := expr.Low, expr.High, expr.Max
-	return ((l == nil || r.Pass().IsZero(l)) && r.Pass().IsZero(h) && m == nil) || // [:0] [0:0]
-		((l == nil || r.Pass().IsZero(l)) && h == nil && m == nil) || // [0:] [:]
-		((l == nil || r.Pass().IsZero(l)) && r.Pass().IsZero(h) && r.Pass().IsZero(m)) // [:0:0] [0:0:0]
+// isSafeSlicing returns if the given slice expression is a special case that will not cause panic
+// even when the slice itself is nil. This holds when each of the present low, high, and max indices
+// provably evaluates to zero for a nil slice. Besides compile-time zero indices (e.g., [:0], [:0:0],
+// [0:0:0]), this also covers indices bounded by the length of the slice (e.g., `x[:len(x)]` or
+// `x[:min(len(x), 100)]`), since len(x) == 0 for a nil slice forces such indices to zero.
+func (r *RootAssertionNode) isSafeSlicing(expr *ast.SliceExpr) bool {
+	return r.isSafeSliceIndex(expr.Low, expr.X) &&
+		r.isSafeSliceIndex(expr.High, expr.X) &&
+		r.isSafeSliceIndex(expr.Max, expr.X)
+}
+
+// isSafeSliceIndex returns true if `index` is safe to use as a slicing index for the potentially
+// nil slice `slice`, meaning it provably evaluates to zero when `slice` is nil. An absent index
+// (nil) and a compile-time zero are always safe, as is an index that is provably bounded by the
+// length of `slice` (see isLengthBoundedSliceIndex).
+func (r *RootAssertionNode) isSafeSliceIndex(index, slice ast.Expr) bool {
+	return index == nil || r.Pass().IsZero(index) || r.isLengthBoundedSliceIndex(index, slice)
+}
+
+// isLengthBoundedSliceIndex returns true if `index` is provably bounded by the length of `slice`,
+// i.e., `index <= len(slice)`. Since a nil slice has len == 0, such an index evaluates to zero when
+// the slice is nil, making the slicing safe. The recognized patterns are `len(slice)`, `min(...)`
+// where at least one argument is length-bounded, and `max(...)` where every argument is length-bounded.
+func (r *RootAssertionNode) isLengthBoundedSliceIndex(index, slice ast.Expr) bool {
+	call, ok := ast.Unparen(index).(*ast.CallExpr)
+	if !ok {
+		return false
+	}
+	fun, ok := ast.Unparen(call.Fun).(*ast.Ident)
+	if !ok {
+		return false
+	}
+	switch r.ObjectOf(fun) {
+	case typeshelper.BuiltinLen:
+		// `len(slice)`, where the argument is the same slice expression being sliced, is zero for a
+		// nil slice.
+		return len(call.Args) == 1 && r.eqStable(call.Args[0], slice)
+	case typeshelper.BuiltinMin:
+		// `min(...)` is length-bounded if at least one of its arguments is.
+		for _, arg := range call.Args {
+			if r.isLengthBoundedSliceIndex(arg, slice) {
+				return true
+			}
+		}
+	case typeshelper.BuiltinMax:
+		// `max(...)` is length-bounded only if all of its arguments are.
+		for _, arg := range call.Args {
+			if !r.isLengthBoundedSliceIndex(arg, slice) {
+				return false
+			}
+		}
+		return len(call.Args) > 0
+	}
+	return false
 }
 
 // This function defines whether an expression is `stable` - i.e. whether we assume it constant

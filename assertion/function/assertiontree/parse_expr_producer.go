@@ -188,6 +188,13 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 	case *ast.Ident:
 		return parseIdent(expr)
 	case *ast.SelectorExpr:
+		// Some well-known stdlib package-level variables (e.g., os.Stdout/Stderr/Stdin, os.Args) are
+		// documented to be non-nil, but NilAway would otherwise infer them as nilable. Short-circuit
+		// to a nonnil producer for those reads.
+		if prod := hook.AssumeGlobalVarNonnil(r.Pass(), expr); prod != nil {
+			return nil, []producer.ParsedProducer{producer.ShallowParsedProducer{Producer: prod}}
+		}
+
 		if r.isPkgName(expr.X) {
 			// if we've reduced to a package-qualified identifier like pkg.A, just interpret it
 			// as a bare identifier
@@ -467,6 +474,15 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 		// reciever is non-trackable, just return nilable for index without check
 		return nil, parseDeepRead(recv, expr.X, expr, rproducers)
 	case *ast.SliceExpr:
+		// Slicing an array (or a pointer to an array) always yields a nonnil slice, since arrays
+		// are value types and can never be nil; the resulting slice is backed by the array's
+		// storage. For example, `var a [4]int; _ = a[:0]` is a nonnil (empty) slice. This holds
+		// regardless of the indices, so we must check it before the `b[_:0:_]` case below (which
+		// would otherwise wrongly treat `a[:0]` as a nilable empty slice).
+		if typeshelper.IsDeeplyArrayOrArrayPtr(r.Pass().TypesInfo.TypeOf(expr.X)) {
+			// Returning nil to indicate the slice expression results in a nonnil slice.
+			return nil, nil
+		}
 		switch {
 		// For slice expressions `b[_:0:_]`, the result is always an empty (nilable in
 		// NilAway's eyes) slice. (`_` can be anything including empty.)

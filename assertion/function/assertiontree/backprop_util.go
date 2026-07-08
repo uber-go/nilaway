@@ -245,9 +245,18 @@ func isErrorReturnNil(rootNode *RootAssertionNode, errRet ast.Expr) bool {
 
 // isErrorReturnNonnil returns true if the error return is guaranteed to be nonnil, false otherwise
 func isErrorReturnNonnil(rootNode *RootAssertionNode, errRet ast.Expr) bool {
+	// The error value's type is not inhabited by nil (e.g., a named basic type such as
+	// `type Error string`), so it can never be nil.
+	if rootNode.Pass().ExprBarsNilness(errRet) {
+		return true
+	}
+	// The error value is a custom error type (struct or pointer-to-struct), e.g. a returned
+	// `&MyErr{}` or `MyErr{}`. Such values are assumed non-nil: a concrete value boxed into the
+	// error interface yields a non-nil interface.
 	if t := rootNode.Pass().TypesInfo.TypeOf(errRet); typeshelper.AsDeeplyStruct(t) != nil {
 		return true
 	}
+	// The error value is the return of a hook-modeled function known to produce a non-nil error.
 	if callExpr, ok := errRet.(*ast.CallExpr); ok {
 		if hook.AssumeReturn(rootNode.Pass(), callExpr) != nil {
 			return true
@@ -453,7 +462,7 @@ func typeIsString(t types.Type) bool {
 func exprAsConsumedByAssignment(rootNode *RootAssertionNode, expr ast.Node) *annotation.ConsumeTrigger {
 	if exprType, ok := expr.(*ast.IndexExpr); ok {
 		t := rootNode.Pass().TypesInfo.TypeOf(exprType.X)
-		if typeshelper.IsDeeplyMap(t) {
+		if typeshelper.IsDeeplyType[*types.Map](t) {
 			return &annotation.ConsumeTrigger{
 				Annotation: &annotation.MapWrittenTo{ConsumeTriggerTautology: &annotation.ConsumeTriggerTautology{}},
 				Expr:       exprType.X,

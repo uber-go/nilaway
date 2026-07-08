@@ -32,7 +32,7 @@ import (
 // nilability of the arguments after certain functions with side effects.
 func SplitBlockOn(pass *analysishelper.EnhancedPass, call *ast.CallExpr) ast.Expr {
 	for sig, act := range _splitBlockOn {
-		if sig.match(pass, call) {
+		if sig.matchCall(pass, call) {
 			return act.action(pass, call, act.argIndex)
 		}
 	}
@@ -286,7 +286,7 @@ var requireLen splitBlockOnAction = func(pass *analysishelper.EnhancedPass, call
 
 // _splitBlockOn defines the map of trusted functions and their corresponding actions on a
 // particular argument.
-var _splitBlockOn = map[trustedFuncSig]struct {
+var _splitBlockOn = map[trustedSig]struct {
 	action   splitBlockOnAction
 	argIndex int
 }{
@@ -294,73 +294,73 @@ var _splitBlockOn = map[trustedFuncSig]struct {
 	{
 		kind:           _method,
 		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/stretchr/testify/(suite\.Suite|assert\.Assertions|require\.Assertions)$`),
-		funcNameRegex:  regexp.MustCompile(`^(Nil(f)?|NoError(f)?)$`),
+		nameRegex:      regexp.MustCompile(`^(Nil(f)?|NoError(f)?)$`),
 	}: {action: nilBinaryExpr, argIndex: 0},
 	{
 		kind:           _method,
 		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/stretchr/testify/(suite\.Suite|assert\.Assertions|require\.Assertions)$`),
-		funcNameRegex:  regexp.MustCompile(`^(NotNil(f)?|Error(f)?)$`),
+		nameRegex:      regexp.MustCompile(`^(NotNil(f)?|Error(f)?)$`),
 	}: {action: nonnilBinaryExpr, argIndex: 0},
 	{
 		kind:           _method,
 		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/stretchr/testify/(suite\.Suite|assert\.Assertions|require\.Assertions)$`),
-		funcNameRegex:  regexp.MustCompile(`^True(f)?$`),
+		nameRegex:      regexp.MustCompile(`^True(f)?$`),
 	}: {action: selfExpr, argIndex: 0},
 	{
 		kind:           _method,
 		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/stretchr/testify/(suite\.Suite|assert\.Assertions|require\.Assertions)$`),
-		funcNameRegex:  regexp.MustCompile(`^False(f)?$`),
+		nameRegex:      regexp.MustCompile(`^False(f)?$`),
 	}: {action: negatedSelfExpr, argIndex: 0},
 	{
 		kind:           _method,
 		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/stretchr/testify/(suite\.Suite|assert\.Assertions|require\.Assertions)$`),
-		funcNameRegex:  regexp.MustCompile(`^(Greater(f)?|Less(f)?|Equal(f)?|GreaterOrEqual(f)?|LessOrEqual(f)?|NotEqual(f)?)$`),
+		nameRegex:      regexp.MustCompile(`^(Greater(f)?|Less(f)?|Equal(f)?|GreaterOrEqual(f)?|LessOrEqual(f)?|NotEqual(f)?)$`),
 	}: {action: requireComparators, argIndex: 0},
 	{
 		kind:           _method,
 		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/stretchr/testify/(suite\.Suite|assert\.Assertions|require\.Assertions)$`),
-		funcNameRegex:  regexp.MustCompile(`^Len(f)?$`),
+		nameRegex:      regexp.MustCompile(`^Len(f)?$`),
 	}: {action: requireLen, argIndex: 0},
 
 	// `assert` and `require`
 	{
 		kind:           _func,
 		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/stretchr/testify/(assert|require)$`),
-		funcNameRegex:  regexp.MustCompile(`^(Nil(f)?|NoError(f)?)$`),
+		nameRegex:      regexp.MustCompile(`^(Nil(f)?|NoError(f)?)$`),
 	}: {action: nilBinaryExpr, argIndex: 1},
 	{
 		kind:           _func,
 		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/stretchr/testify/(assert|require)$`),
-		funcNameRegex:  regexp.MustCompile(`^(NotNil(f)?|Error(f)?)$`),
+		nameRegex:      regexp.MustCompile(`^(NotNil(f)?|Error(f)?)$`),
 	}: {action: nonnilBinaryExpr, argIndex: 1},
 	{
 		kind:           _func,
 		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/stretchr/testify/(assert|require)$`),
-		funcNameRegex:  regexp.MustCompile(`^True(f)?$`),
+		nameRegex:      regexp.MustCompile(`^True(f)?$`),
 	}: {action: selfExpr, argIndex: 1},
 	{
 		kind:           _func,
 		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/stretchr/testify/(assert|require)$`),
-		funcNameRegex:  regexp.MustCompile(`^False(f)?$`),
+		nameRegex:      regexp.MustCompile(`^False(f)?$`),
 	}: {action: negatedSelfExpr, argIndex: 1},
 	{
 		kind:           _func,
 		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/stretchr/testify/(assert|require)$`),
-		funcNameRegex:  regexp.MustCompile(`^(Greater(f)?|Less(f)?|Equal(f)?|GreaterOrEqual(f)?|LessOrEqual(f)?|NotEqual(f)?)$`),
+		nameRegex:      regexp.MustCompile(`^(Greater(f)?|Less(f)?|Equal(f)?|GreaterOrEqual(f)?|LessOrEqual(f)?|NotEqual(f)?)$`),
 	}: {action: requireComparators, argIndex: 1},
 	{
 		kind:           _func,
 		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/stretchr/testify/(assert|require)$`),
-		funcNameRegex:  regexp.MustCompile(`^Len(f)?$`),
+		nameRegex:      regexp.MustCompile(`^Len(f)?$`),
 	}: {action: requireLen, argIndex: 1},
 	{
 		kind:           _func,
 		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/stretchr/testify/(assert|require)$`),
-		funcNameRegex:  regexp.MustCompile(`^(Empty(f)?|NotEmpty(f)?)$`),
+		nameRegex:      regexp.MustCompile(`^(Empty(f)?|NotEmpty(f)?)$`),
 	}: {action: requireZeroComparators, argIndex: 1},
 	{
 		kind:           _method,
 		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/stretchr/testify/(suite\.Suite|assert\.Assertions|require\.Assertions)$`),
-		funcNameRegex:  regexp.MustCompile(`^(Empty(f)?|NotEmpty(f)?)$`),
+		nameRegex:      regexp.MustCompile(`^(Empty(f)?|NotEmpty(f)?)$`),
 	}: {action: requireZeroComparators, argIndex: 0},
 }

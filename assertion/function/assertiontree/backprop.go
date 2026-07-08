@@ -491,13 +491,13 @@ func backpropAcrossRange(rootNode *RootAssertionNode, lhs []ast.Expr, rhs ast.Ex
 	case 1:
 		// If we are ranging over a map slice or string with only a single lhs operand, then that
 		// operand will be int-valued.
-		if typeshelper.IsDeeplyMap(rhsType) || typeshelper.IsDeeplySlice(rhsType) || typeshelper.IsDeeplyArray(rhsType) || typeIsString(rhsType) {
+		if typeshelper.IsDeeplyType[*types.Map](rhsType) || typeshelper.IsDeeplyType[*types.Slice](rhsType) || typeshelper.IsDeeplyArrayOrArrayPtr(rhsType) || typeIsString(rhsType) {
 			produceAsIndex(0)
 			return nil
 		}
 		// Iterating over a channel with only a single lhs operand will still result in deeply
 		// produced lhs values.
-		if typeshelper.IsDeeplyChan(rhsType) {
+		if typeshelper.IsDeeplyType[*types.Chan](rhsType) {
 			produceAsDeepRHS(0)
 			return nil
 		}
@@ -532,6 +532,11 @@ func backpropAcrossRange(rootNode *RootAssertionNode, lhs []ast.Expr, rhs ast.Ex
 // TypesInfo. Uses will give a fresh `types.Var` at every usage site. This is why we have to
 // inspect the assertion tree for any variables that match the symbolic type switch variable
 // without being able to compare the identity of `types.Var` instances as we usually do.
+//
+// NOTE: the preprocessor replicates the type-switch Assign node into every case body (see
+// preprocess.markTypeSwitchStatements), so this function can process the same assignment
+// multiple times along a single path. That replication relies on this function being
+// idempotent: occurrences that find no assertions on the bound variable must remain no-ops.
 // nonnil(lhs, rhs)
 func backpropAcrossTypeSwitch(rootNode *RootAssertionNode, lhs *ast.Ident, rhs ast.Expr) error {
 	// First, make a copy of the children array to iterate over, as we will mutate it.

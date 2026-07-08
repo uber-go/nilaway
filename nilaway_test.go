@@ -47,7 +47,7 @@ func TestNilAway(t *testing.T) {
 		{name: "Inference", patterns: []string{"go.uber.org/inference"}},
 		{name: "Contracts", patterns: []string{"go.uber.org/contracts", "go.uber.org/contracts/namedtypes", "go.uber.org/contracts/inference"}},
 		{name: "TrustedFunc", patterns: []string{"go.uber.org/trustedfunc", "go.uber.org/trustedfunc/inference"}},
-		{name: "ErrorReturn", patterns: []string{"go.uber.org/errorreturn", "go.uber.org/errorreturn/inference"}},
+		{name: "ErrorReturn", patterns: []string{"go.uber.org/errorreturn", "go.uber.org/errorreturn/inference", "go.uber.org/errorreturn/typeswitch", "go.uber.org/errorreturn/typeswitch/shadownil"}},
 		{name: "Maps", patterns: []string{"go.uber.org/maps"}},
 		{name: "Slices", patterns: []string{"go.uber.org/slices", "go.uber.org/slices/inference"}},
 		{name: "Arrays", patterns: []string{"go.uber.org/arrays"}},
@@ -75,6 +75,7 @@ func TestNilAway(t *testing.T) {
 		{name: "AbnormalFlow", patterns: []string{"go.uber.org/abnormalflow"}},
 		{name: "NoLint", patterns: []string{"go.uber.org/nolint"}},
 		{name: "Templ", patterns: []string{"go.uber.org/templ"}},
+		{name: "CtrlflowIntrinsic", patterns: []string{"go.uber.org/zap"}},
 	}
 
 	for _, tt := range tests {
@@ -100,6 +101,32 @@ func TestStructInit(t *testing.T) { //nolint:paralleltest
 
 	testdata := analysistest.TestData()
 	analysistest.Run(t, testdata, Analyzer, "go.uber.org/structinit/funcreturnfields", "go.uber.org/structinit/local", "go.uber.org/structinit/global", "go.uber.org/structinit/paramfield", "go.uber.org/structinit/paramsideeffect", "go.uber.org/structinit/defaultfield")
+}
+
+func TestStructInitV2(t *testing.T) { //nolint:paralleltest
+	//	err := config.Analyzer.Flags.Set(config.StructInitV2EnableFlag, "true")
+	//	require.NoError(t, err)
+	//	defer func() {
+	//		err := config.Analyzer.Flags.Set(config.StructInitV2EnableFlag, "false")
+	//		require.NoError(t, err)
+	//	}()
+	//
+	//	testdata := analysistest.TestData()
+	//	analysistest.Run(t, testdata, Analyzer,
+	//		"go.uber.org/structinitv2/local",
+	//		"go.uber.org/structinitv2/global",
+	//		"go.uber.org/structinitv2/defaultfield",
+	//		"go.uber.org/structinitv2/deep",
+	//		"go.uber.org/structinitv2/paramfield",
+	//		"go.uber.org/structinitv2/paramsideeffect",
+	//		"go.uber.org/structinitv2/funcreturnfields",
+	//		"go.uber.org/structinitv2/returnshape/app",
+	//		"go.uber.org/structinitv2/crosspkg/app",
+	//		"go.uber.org/structinitv2/crosspkgside/app",
+	//		"go.uber.org/structinitv2/limitations",
+	//	)
+	//
+	t.Skip("struct-init-v2 testdata is not wired")
 }
 
 func TestAnonymousFunction(t *testing.T) { //nolint:paralleltest
@@ -151,6 +178,37 @@ func TestGroupErrorMessages(t *testing.T) { //nolint:paralleltest
 	// Reset the flag to its default value.
 	defer func() {
 		err := config.Analyzer.Flags.Set(config.GroupErrorMessagesFlag, defaultValue)
+		require.NoError(t, err)
+	}()
+}
+
+func TestExcludeTestFiles(t *testing.T) { //nolint:paralleltest
+	// We specifically do not set this test to be parallel such that this test is run separately
+	// from the parallel tests. This makes it possible to test the exclude-test-files flag independently
+	// without affecting the other tests.
+	testdata := analysistest.TestData()
+
+	// Restrict analysis to the test package only, since the _test.go file pulls in the testing
+	// infrastructure and its transitive dependencies, which would otherwise produce unrelated
+	// diagnostics from stdlib.
+	err := config.Analyzer.Flags.Set(config.IncludePkgsFlag, "go.uber.org/excludetestfiles")
+	require.NoError(t, err)
+
+	// First, verify that diagnostics ARE produced for test files when flag is disabled.
+	err = config.Analyzer.Flags.Set(config.ExcludeTestFilesFlag, "false")
+	require.NoError(t, err)
+	analysistest.Run(t, testdata, Analyzer, "go.uber.org/excludetestfilesbaseline")
+
+	// Then verify diagnostics are filtered when flag is enabled.
+	err = config.Analyzer.Flags.Set(config.ExcludeTestFilesFlag, "true")
+	require.NoError(t, err)
+	analysistest.Run(t, testdata, Analyzer, "go.uber.org/excludetestfiles")
+
+	// Reset flags to their default values.
+	defer func() {
+		err := config.Analyzer.Flags.Set(config.ExcludeTestFilesFlag, "false")
+		require.NoError(t, err)
+		err = config.Analyzer.Flags.Set(config.IncludePkgsFlag, "")
 		require.NoError(t, err)
 	}()
 }

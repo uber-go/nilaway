@@ -57,6 +57,20 @@ func (n *nilFlow) String() string {
 	return "\n" + strings.Join(flow, "\n")
 }
 
+// involvesTestFile returns true if any node position in the nil or non-nil path originates from
+// a test file (i.e., a file ending with "_test.go").
+func (n *nilFlow) involvesTestFile() bool {
+	for _, nodes := range [2][]node{n.nilPath, n.nonnilPath} {
+		for _, nd := range nodes {
+			if strings.HasSuffix(nd.producerPosition.Filename, "_test.go") ||
+				strings.HasSuffix(nd.consumerPosition.Filename, "_test.go") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 type node struct {
 	producerPosition token.Position
 	consumerPosition token.Position

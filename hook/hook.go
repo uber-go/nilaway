@@ -28,58 +28,86 @@ import (
 	"go.uber.org/nilaway/util/typeshelper"
 )
 
-// funcKind indicates the kind of the trusted function:
+// trustedKind indicates the kind of the trusted entity:
 // (1) _method: it is a method of a struct;
-// (2) _func: it is a top-level function of a package.
-type funcKind uint8
+// (2) _func: it is a top-level function of a package;
+// (3) _var: it is a package-level variable.
+type trustedKind uint8
 
 const (
-	_method funcKind = iota
+	_method trustedKind = iota
 	_func
+	_var
 )
 
-// trustedFuncSig defines the signature of a function that we "trust" to have a certain effect on its arguments, for example.
-type trustedFuncSig struct {
-	kind           funcKind
+// trustedSig defines the signature of a function, method, or package-level variable that we "trust"
+// to have a certain known effect or nilability.
+type trustedSig struct {
+	kind           trustedKind
 	enclosingRegex *regexp.Regexp
-	funcNameRegex  *regexp.Regexp
+	nameRegex      *regexp.Regexp
 }
 
-// match checks if a given call expression matches with a trusted function's signature. Namely,
-// it performs a strict matching for the function / method name and a user-defined regex match for
-// the enclosing package or struct path.
-func (t *trustedFuncSig) match(pass *analysishelper.EnhancedPass, call *ast.CallExpr) bool {
+// matchCall checks if a given call expression invokes a trusted function or method (i.e., a
+// signature of kind _func or _method). It performs a strict match on the called name and a regex
+// match on the enclosing path:
+//   - _func:   match enclosing "<pkg path>". E.g., for `assert.Error(err)`, path = github.com/stretchr/testify/assert
+//   - _method: match "<pkg path>.<struct name>". E.g., for `u.Require().Error(err)`, path = github.com/stretchr/testify/require.Assertions
+//
+// Trusted package-level variables (kind _var) are matched separately via matchSel, since they are
+// read as bare selectors rather than calls.
+func (t *trustedSig) matchCall(pass *analysishelper.EnhancedPass, call *ast.CallExpr) bool {
+	if t.kind != _func && t.kind != _method {
+		return false
+	}
 	sel, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok || !t.funcNameRegex.MatchString(sel.Sel.Name) {
+	if !ok || !t.nameRegex.MatchString(sel.Sel.Name) {
 		return false
 	}
 
-	// Match fully qualified path of the call expression with the expected path specified in `t`
-	// if function, match enclosing "<pkg path>". E.g., for `assert.Error(err)`, path = github.com/stretchr/testify/assert
-	// if method, match with "<pkg path>.<struct name>". E.g., for `u.Require().Error(err)`, path = github.com/stretchr/testify/require.Assertions
-	if funcObj, ok := pass.TypesInfo.ObjectOf(sel.Sel).(*types.Func); ok && funcObj.Pkg() != nil {
-		recv := funcObj.Type().(*types.Signature).Recv()
-		path := funcObj.Pkg().Path()
+	funcObj, ok := pass.TypesInfo.ObjectOf(sel.Sel).(*types.Func)
+	if !ok || funcObj.Pkg() == nil {
+		return false
+	}
+	recv := funcObj.Type().(*types.Signature).Recv()
+	path := funcObj.Pkg().Path()
 
-		// return early if the kind of `t` and `funcObj` don't match. Both should be functions (or methods) for the match to be performed
-		// `recv != nil` implies `funcObj` is a method, while `recv == nil` means it is a function
-		if (t.kind == _func && recv != nil) || (t.kind == _method && recv == nil) {
+	// return early if the kind of `t` and `funcObj` don't match. Both should be functions (or methods) for the match to be performed
+	// `recv != nil` implies `funcObj` is a method, while `recv == nil` means it is a function
+	if (t.kind == _func && recv != nil) || (t.kind == _method && recv == nil) {
+		return false
+	}
+
+	// add struct name to the path
+	if recv != nil {
+		if n, ok := typeshelper.UnwrapPtr(recv.Type()).(*types.Named); ok {
+			path = path + "." + n.Obj().Name()
+		} else {
+			// we should likely never hit this case, but is only added for extra safety since
+			// `util.TypeAsDeeplyNamed` can return nil
 			return false
 		}
-
-		// add struct name to the path
-		if recv != nil {
-			if n, ok := typeshelper.UnwrapPtr(recv.Type()).(*types.Named); ok {
-				path = path + "." + n.Obj().Name()
-			} else {
-				// we should likely never hit this case, but is only added for extra safety since
-				// `util.TypeAsDeeplyNamed` can return nil
-				return false
-			}
-		}
-		return t.enclosingRegex.MatchString(path)
 	}
-	return false
+	return t.enclosingRegex.MatchString(path)
+}
+
+// matchSel checks if a given selector expression reads a trusted package-level variable (i.e., a
+// signature of kind _var). E.g., for `os.Stdout`, path = os. It requires the object to be a genuine
+// package-level variable (its enclosing scope is the package scope), ruling out struct fields and
+// locals so that, e.g., a `Stdout` field on some local struct does not match.
+//
+// This is intentionally independent of how the variable is later used: a read like `os.Stdout`,
+// `os.Stdout.Write(...)` (as a method receiver), or `os.Args[0]` (as an index operand) all parse the
+// bare selector as a producer, so all are covered here without involving matchCall.
+func (t *trustedSig) matchSel(pass *analysishelper.EnhancedPass, sel *ast.SelectorExpr) bool {
+	if t.kind != _var || !t.nameRegex.MatchString(sel.Sel.Name) {
+		return false
+	}
+	varObj, ok := pass.TypesInfo.ObjectOf(sel.Sel).(*types.Var)
+	if !ok || varObj.Pkg() == nil || varObj.Parent() != varObj.Pkg().Scope() {
+		return false
+	}
+	return t.enclosingRegex.MatchString(varObj.Pkg().Path())
 }
 
 // newNilBinaryExpr creates a new binary expression "expr op nil".

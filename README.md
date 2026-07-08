@@ -14,7 +14,7 @@ report errors providing users with the nilness flows for easier debugging.
 
 NilAway enjoys three key properties that make it stand out:
 
-- It is **fully-automated**: NilAway is equipped with an inference engine, making it require _no_ any additional
+- It is **fully-automated**: NilAway is equipped with an inference engine, making it require _no_ additional
   information from the developers (e.g., annotations) besides standard Go code.
 
 - It is **fast**: we have designed NilAway to be fast and scalable, making it suitable for large codebases. In our

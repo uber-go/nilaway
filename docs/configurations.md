@@ -63,6 +63,12 @@ A boolean flag enabling experimental support for anonymous functions in NilAway.
 
 Added in v0.1.0
 
+#### `exclude-test-files`
+
+> Default `false`
+
+A boolean flag that, when enabled, excludes diagnostics that involve test files (`*_test.go`). A diagnostic is excluded if its report position or any position in its nil flow (both nil path and non-nil path) is in a test file. This is useful when users want to focus on production code and skip nil flow errors in test code.
+
 #### `print-full-file-path`
 
 > Default `false`

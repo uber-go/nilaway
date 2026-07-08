@@ -16,6 +16,7 @@ package asthelper
 
 import (
 	"go/ast"
+	"go/parser"
 	"go/token"
 	"testing"
 
@@ -98,6 +99,42 @@ func TestDocContains(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			t.Parallel()
 			require.Equal(t, tc.want, DocContains(tc.node, tc.s))
+		})
+	}
+}
+
+func TestSplitFieldChain(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		expr       string
+		wantBase   string
+		wantPrefix string
+	}{
+		{name: "Ident", expr: "x", wantBase: "x", wantPrefix: ""},
+		{name: "SingleSelector", expr: "x.a", wantBase: "x", wantPrefix: "a"},
+		{name: "NestedSelector", expr: "x.a.b", wantBase: "x", wantPrefix: "a.b"},
+		{name: "ParenthesizedSelector", expr: "(x.a).b", wantBase: "x", wantPrefix: "a.b"},
+		{name: "PointerBase", expr: "(*x).a", wantBase: "", wantPrefix: ""},
+		{name: "CallBase", expr: "f().a", wantBase: "", wantPrefix: ""},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			expr, err := parser.ParseExpr(tt.expr)
+			require.NoError(t, err)
+
+			gotBase, gotPrefix := SplitFieldChain(expr)
+			if tt.wantBase == "" {
+				require.Nil(t, gotBase)
+			} else {
+				require.Equal(t, tt.wantBase, gotBase.Name)
+			}
+			require.Equal(t, tt.wantPrefix, gotPrefix)
 		})
 	}
 }

@@ -30,7 +30,7 @@ import (
 // If the call does not match any known function, nil is returned.
 func ReplaceConditional(pass *analysishelper.EnhancedPass, call *ast.CallExpr) ast.Expr {
 	for sig, act := range _replaceConditionals {
-		if sig.match(pass, call) {
+		if sig.matchCall(pass, call) {
 			return act(pass, call)
 		}
 	}
@@ -69,10 +69,15 @@ var _errorAsAction replaceConditionalAction = func(_ *analysishelper.EnhancedPas
 	}
 }
 
-var _replaceConditionals = map[trustedFuncSig]replaceConditionalAction{
+var _replaceConditionals = map[trustedSig]replaceConditionalAction{
 	{
 		kind:           _func,
 		enclosingRegex: regexp.MustCompile(`^errors$`),
-		funcNameRegex:  regexp.MustCompile(`^As$`),
+		nameRegex:      regexp.MustCompile(`^As$`),
+	}: _errorAsAction,
+	{
+		kind:           _func,
+		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/cockroachdb/errors$`),
+		nameRegex:      regexp.MustCompile(`^As$`),
 	}: _errorAsAction,
 }

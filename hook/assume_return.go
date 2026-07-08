@@ -38,7 +38,7 @@ func AssumeReturn(pass *analysishelper.EnhancedPass, call *ast.CallExpr) *annota
 
 func matchTrustedFuncs(pass *analysishelper.EnhancedPass, call *ast.CallExpr) *annotation.ProduceTrigger {
 	for sig, act := range _assumeReturns {
-		if sig.match(pass, call) {
+		if sig.matchCall(pass, call) {
 			return act(call)
 		}
 	}
@@ -130,31 +130,38 @@ func isErrorWrapperFunc(pass *analysishelper.EnhancedPass, call *ast.CallExpr) b
 
 type assumeReturnAction func(call *ast.CallExpr) *annotation.ProduceTrigger
 
-var _assumeReturns = map[trustedFuncSig]assumeReturnAction{
+var _assumeReturns = map[trustedSig]assumeReturnAction{
 	// `errors.New`
 	{
 		kind:           _func,
 		enclosingRegex: regexp.MustCompile(`^errors$`),
-		funcNameRegex:  regexp.MustCompile(`^New$`),
+		nameRegex:      regexp.MustCompile(`^New$`),
 	}: nonnilProducer,
 
 	// `fmt.Errorf`
 	{
 		kind:           _func,
 		enclosingRegex: regexp.MustCompile(`^fmt$`),
-		funcNameRegex:  regexp.MustCompile(`^Errorf$`),
+		nameRegex:      regexp.MustCompile(`^Errorf$`),
 	}: nonnilProducer,
 
 	// `github.com/pkg/errors`
 	{
 		kind:           _func,
 		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/pkg/errors$`),
-		funcNameRegex:  regexp.MustCompile(`^Errorf$`),
+		nameRegex:      regexp.MustCompile(`^Errorf$`),
 	}: nonnilProducer,
 	{
 		kind:           _func,
 		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/pkg/errors$`),
-		funcNameRegex:  regexp.MustCompile(`^New$`),
+		nameRegex:      regexp.MustCompile(`^New$`),
+	}: nonnilProducer,
+
+	// `github.com/cockroachdb/errors`
+	{
+		kind:           _func,
+		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/cockroachdb/errors$`),
+		nameRegex:      regexp.MustCompile(`^New(f)?$`),
 	}: nonnilProducer,
 
 	// `errors.Join`
@@ -166,7 +173,14 @@ var _assumeReturns = map[trustedFuncSig]assumeReturnAction{
 	{
 		kind:           _func,
 		enclosingRegex: regexp.MustCompile(`^errors$`),
-		funcNameRegex:  regexp.MustCompile(`^Join$`),
+		nameRegex:      regexp.MustCompile(`^Join$`),
+	}: nonnilProducer,
+
+	// `github.com/cockroachdb/errors.Join`
+	{
+		kind:           _func,
+		enclosingRegex: regexp.MustCompile(`^(stubs/)?github\.com/cockroachdb/errors$`),
+		nameRegex:      regexp.MustCompile(`^Join$`),
 	}: nonnilProducer,
 
 	// `strings.Split`
@@ -180,7 +194,17 @@ var _assumeReturns = map[trustedFuncSig]assumeReturnAction{
 	{
 		kind:           _func,
 		enclosingRegex: regexp.MustCompile(`^strings$`),
-		funcNameRegex:  regexp.MustCompile(`^Split(After)?$`),
+		nameRegex:      regexp.MustCompile(`^Split(After)?$`),
+	}: nonnilProducer,
+
+	// `google.golang.org/grpc/status.Error`
+	// Returns a non-nil error when the code is non-OK. When the code is OK, it returns nil.
+	// For simplicity and to reduce false positives, we assume it returns non-nil for any code,
+	// since the OK case is rare in practice and out of scope for NilAway.
+	{
+		kind:           _func,
+		enclosingRegex: regexp.MustCompile(`^(stubs/)?(google\.golang\.org/grpc|google\.golang\.org/grpc/status)$`),
+		nameRegex:      regexp.MustCompile(`^Errorf?$`),
 	}: nonnilProducer,
 }
 

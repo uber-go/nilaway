@@ -92,6 +92,7 @@ func run(p *analysis.Pass) ([]annotation.FullTrigger, error) {
 	// Construct experimental features. By default, enable all features on NilAway itself.
 	functionConfig := assertiontree.FunctionConfig{
 		EnableStructInitCheck: conf.ExperimentalStructInitEnable,
+		EnableStructInitV2:    conf.ExperimentalStructInitV2Enable,
 		EnableAnonymousFunc:   conf.ExperimentalAnonymousFuncEnable,
 	}
 	if strings.HasPrefix(pass.Pkg.Path(), config.NilAwayPkgPathPrefix) { //nolint:revive
@@ -99,6 +100,7 @@ func run(p *analysis.Pass) ([]annotation.FullTrigger, error) {
 		// TODO: enable anonymous function flag.
 	} else {
 		functionConfig.EnableStructInitCheck = conf.ExperimentalStructInitEnable
+		functionConfig.EnableStructInitV2 = conf.ExperimentalStructInitV2Enable
 		functionConfig.EnableAnonymousFunc = conf.ExperimentalAnonymousFuncEnable
 	}
 
@@ -178,20 +180,28 @@ func run(p *analysis.Pass) ([]annotation.FullTrigger, error) {
 			if funcDecl.Body == nil {
 				continue
 			}
+			// Skip if ctrlflow did not produce a CFG. This happens for functions
+			// in ctrlflow's hard-coded knownIntrinsic list (e.g. runtime.Goexit,
+			// (*zap.Logger).Fatal), where buildDecl short-circuits CFG construction
+			// even though the body is non-nil — CFGs.FuncDecl then returns nil and
+			// downstream CFG processing would panic on the nil graph.
+			if graph == nil {
+				continue
+			}
 			// Skip if the function is too large based on CFG complexity.
 			// Use CFG block count as a more accurate measure of function complexity
 			// than token/byte count, which can be misleading due to comments and formatting.
-			if graph != nil && len(graph.Blocks) > _maxFuncSizeInCFGBlocks {
+			if len(graph.Blocks) > _maxFuncSizeInCFGBlocks {
 				err = errors.Join(err, fmt.Errorf("skipping function `%s()` at %s: function too large (%d CFG blocks, exceeds limit of %d blocks)",
 					funcDecl.Name.Name, pass.Fset.Position(funcDecl.Pos()), len(graph.Blocks), _maxFuncSizeInCFGBlocks))
 				continue
 			}
 
 			// Now, analyze the function declarations concurrently.
-			wg.Add(1)
 			funcContext := assertiontree.NewFunctionContext(
 				pass, funcDecl, funcLit, functionConfig, funcLitMap, pkgFakeIdentMap, funcContracts)
-			go analyzeFunc(ctx, pass, funcDecl, funcContext, graph, funcIndex, funcChan, &wg)
+			idx := funcIndex
+			wg.Go(func() { analyzeFunc(ctx, pass, funcDecl, funcContext, graph, idx, funcChan) })
 			funcIndex++
 		}
 	}
@@ -433,15 +443,7 @@ func analyzeFunc(
 	graph *cfg.CFG,
 	index int,
 	funcChan chan functionResult,
-	wg *sync.WaitGroup,
 ) {
-	// Deferred statements are pushed to a stack, which are executed in LIFO order. Calling
-	// wg.Done() would signal the main process that this goroutine is done, and the main process
-	// will close the result channel. However, our panic recovery handler still needs access to
-	// the result channel to send the error back. Therefore, we _must_ call `wg.Done()` after the
-	// panic recovery handler (meaning we defer it first).
-	defer wg.Done()
-
 	// As a last resort, convert the panics into errors and return.
 	defer func() {
 		if r := recover(); r != nil {
