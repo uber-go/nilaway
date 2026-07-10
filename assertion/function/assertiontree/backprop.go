@@ -33,6 +33,7 @@ import (
 	"go.uber.org/nilaway/util/asthelper"
 	"go.uber.org/nilaway/util/typeshelper"
 	"golang.org/x/tools/go/cfg"
+	"golang.org/x/tools/go/types/typeutil"
 )
 
 // backpropAcrossBlock iterates over all nodes in the CFG block in _reverse_ order, writes logs,
@@ -153,6 +154,10 @@ func backpropAcrossReturn(rootNode *RootAssertionNode, node *ast.ReturnStmt) err
 
 	if rootNode.functionContext.functionConfig.EnableStructInitCheck {
 		rootNode.addConsumptionsForFieldsOfParams()
+	}
+
+	if rootNode.functionContext.functionConfig.EnableStructInitV2 {
+		rootNode.bindReturnFieldsToContext(node)
 	}
 
 	if len(node.Results) == 1 {
@@ -319,7 +324,8 @@ func backpropAcrossAssignment(rootNode *RootAssertionNode, lhs, rhs []ast.Expr) 
 				// handle but does involve distinct semantics.
 				return backpropAcrossRange(rootNode, lhs, r.X)
 			case token.AND:
-				if !rootNode.functionContext.functionConfig.EnableStructInitCheck {
+				if !rootNode.functionContext.functionConfig.EnableStructInitCheck &&
+					!rootNode.functionContext.functionConfig.EnableStructInitV2 {
 					// This is the case of creating a pointer and assigning it to a variable, e.g., `x := &y`,
 					// where y is a non-pointer type (e.g., y := S{}).
 					// Here, the pointer is always nonnil, so we can just add a ProduceTriggerNever.
@@ -654,6 +660,15 @@ buildShadowMask:
 		}
 	}
 
+	// Attach field producers before generic assignment handling detaches LHS subtrees.
+	if rootNode.functionContext.functionConfig.EnableStructInitV2 {
+		for i := range lhs {
+			if !shadowMask[i] && !asthelper.IsEmptyExpr(lhs[i]) {
+				rootNode.addAllocationFieldProducers(lhs[i], rhs[i])
+			}
+		}
+	}
+
 	// This struct is declared to assist with deferring the second phase of the assignments
 	type deferredLanding struct {
 		lhsNode AssertionNode
@@ -804,6 +819,18 @@ func backpropAcrossManyToOneAssignment(rootNode *RootAssertionNode, lhs, rhs []a
 		// Eliminates checking of the `_` instances in the lhs of a multiple assignment
 		if asthelper.IsEmptyExpr(lhsVal) {
 			continue
+		}
+
+		// Bind return fields before LHS production detaches its subtree.
+		if rootNode.functionContext.functionConfig.EnableStructInitV2 {
+			if funcObj := typeutil.StaticCallee(rootNode.Pass().TypesInfo, rhsVal); funcObj != nil {
+				sig := funcObj.Type().(*types.Signature)
+				if i < sig.Results().Len() {
+					if st := typeshelper.AsDeeplyStruct(sig.Results().At(i).Type()); st != nil {
+						rootNode.addContextFieldProducers(st, lhsVal, funcObj, annotation.StructFieldReturnContext, i)
+					}
+				}
+			}
 		}
 
 		// Phase 1

@@ -749,6 +749,10 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 				// Add Consumptions for struct field params
 				r.addConsumptionsForArgAndReceiverFields(expr, fun)
 			}
+
+			if r.functionContext.functionConfig.EnableStructInitV2 {
+				r.bindArgAndReceiverFieldsToContext(expr, fun)
+			}
 		} else {
 			// here we have found either a builtin function like make or new,
 			// or a typecast like int(x) - in either case (at least for now), do nothing to try
@@ -1018,6 +1022,10 @@ func (r *RootAssertionNode) ProcessEntry() {
 		if r.functionContext.functionConfig.EnableStructInitCheck {
 			// process field Assertion nodes of function parameters
 			r.addProductionsForParamFields(child, builtExpr)
+		}
+
+		if r.functionContext.functionConfig.EnableStructInitV2 {
+			r.addParamFieldProducers(builtExpr)
 		}
 
 		r.AddProduction(&annotation.ProduceTrigger{

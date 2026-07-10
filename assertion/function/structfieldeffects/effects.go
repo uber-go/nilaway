@@ -17,6 +17,7 @@ package structfieldeffects
 import (
 	"go/ast"
 	"go/types"
+	"sort"
 	"strings"
 
 	"go.uber.org/nilaway/annotation"
@@ -40,6 +41,34 @@ type ParamFieldEffects struct {
 	// result — the demand callers place on a returned value, so a `return <var>` binds only those
 	// paths. Collected at call sites; not transitively closed (under-report only).
 	ReturnReads fieldEffects
+}
+
+// ParamReadPaths returns the field paths read from funcObj's parameter or receiver at idx.
+func (e *ParamFieldEffects) ParamReadPaths(funcObj *types.Func, idx int) []string {
+	if e == nil {
+		return nil
+	}
+	return readPaths(e.ParamReads, funcObj, idx)
+}
+
+// ReturnReadPaths returns the field paths read from funcObj's result at idx.
+func (e *ParamFieldEffects) ReturnReadPaths(funcObj *types.Func, idx int) []string {
+	if e == nil {
+		return nil
+	}
+	return readPaths(e.ReturnReads, funcObj, idx)
+}
+
+func readPaths(effects fieldEffects, funcObj *types.Func, idx int) []string {
+	reads := effects[funcObj]
+	paths := make([]string, 0, len(reads))
+	for key := range reads {
+		if key.idx == idx && key.path != "" {
+			paths = append(paths, key.path)
+		}
+	}
+	sort.Strings(paths)
+	return paths
 }
 
 // ComputeParamFieldEffects walks every function and method in the package once and records the
