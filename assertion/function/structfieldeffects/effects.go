@@ -453,6 +453,15 @@ func fieldPathIsAcyclic(fn *types.Func, paramIdx int, path string) bool {
 		}
 		paramType = sig.Params().At(paramIdx).Type()
 	}
+	// AsDeeplyStruct unwraps at most one pointer, but forwarded field paths can be rooted at
+	// parameters with multiple pointer layers.
+	for {
+		ptr, ok := paramType.Underlying().(*types.Pointer)
+		if !ok {
+			break
+		}
+		paramType = ptr.Elem()
+	}
 	st := typeshelper.AsDeeplyStruct(paramType)
 	if st == nil {
 		return false
