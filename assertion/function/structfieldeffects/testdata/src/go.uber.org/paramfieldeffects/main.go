@@ -24,7 +24,8 @@ type Node struct {
 }
 
 type Outer struct {
-	Mid *Node
+	Mid   *Node
+	Count int
 }
 
 type Wrap struct {
@@ -38,27 +39,27 @@ type Rec struct {
 
 // directRead dereferences two nested field prefixes of its parameter: reaching o.Mid.Child.Ptr
 // requires o.Mid and o.Mid.Child to be non-nil, so both paths are param reads.
-func directRead(o *Outer) { // expect_reads: param_reads:0:Mid param_reads:0:Mid.Child
+func directRead(o *Outer) { // expect_effects: param_reads:0:Mid param_reads:0:Mid.Child
 	_ = o.Mid.Child.Ptr
 }
 
 // forwarder passes its parameter straight through, so the closure copies directRead's reads verbatim.
-func forwarder(o *Outer) { // expect_reads: param_reads:0:Mid param_reads:0:Mid.Child
+func forwarder(o *Outer) { // expect_effects: param_reads:0:Mid param_reads:0:Mid.Child
 	directRead(o)
 }
 
 // forwardField forwards a nested field of its parameter, so the inherited reads gain the "Inner" prefix.
-func forwardField(w *Wrap) { // expect_reads: param_reads:0:Inner.Mid param_reads:0:Inner.Mid.Child
+func forwardField(w *Wrap) { // expect_effects: param_reads:0:Inner.Mid param_reads:0:Inner.Mid.Child
 	directRead(w.Inner)
 }
 
 // recvRead exercises the receiver boundary index (ReceiverParamIndex).
-func (o *Outer) recvRead() { // expect_reads: param_reads:-1:Mid param_reads:-1:Mid.Child
+func (o *Outer) recvRead() { // expect_effects: param_reads:-1:Mid param_reads:-1:Mid.Child
 	_ = o.Mid.Child.Ptr
 }
 
 // makeOuter is a struct-returning constructor; a caller's deref of its result becomes a return read.
-func makeOuter() *Outer { // expect_reads: return_reads:0:Mid return_reads:0:Mid.Child
+func makeOuter() *Outer { // expect_effects: return_reads:0:Mid return_reads:0:Mid.Child
 	return &Outer{}
 }
 
@@ -69,11 +70,52 @@ func consumeReturn() {
 }
 
 // recRead directly dereferences a self-recursive field chain; direct reads keep the exact paths.
-func recRead(r *Rec) { // expect_reads: param_reads:0:Self param_reads:0:Self.Self
+func recRead(r *Rec) { // expect_effects: param_reads:0:Self param_reads:0:Self.Self
 	_ = r.Self.Self.Ptr
 }
 
 // recForward forwards a self-recursive field, so the closure must stop the path from growing.
-func recForward(r *Rec) { // expect_reads:
+func recForward(r *Rec) { // expect_effects:
 	recRead(r.Self)
+}
+
+func directWrite(o *Outer) { // expect_effects: writes:0:Mid
+	o.Mid = &Node{}
+}
+
+func deepWrite(o *Outer) { // expect_effects: writes:0:Mid.Child param_reads:0:Mid
+	o.Mid.Child = nil
+}
+
+func (o *Outer) receiverWrite() { // expect_effects: writes:-1:Mid
+	o.Mid = &Node{}
+}
+
+func forwardWrite(o *Outer) { // expect_effects: writes:0:Mid.Child
+	writeChild(o.Mid)
+}
+
+func forwardWriteAgain(w *Wrap) { // expect_effects: writes:0:Inner.Mid.Child
+	forwardWrite(w.Inner)
+}
+
+func writeChild(n *Node) { // expect_effects: writes:0:Child
+	n.Child = nil
+}
+
+func ignoredNonNilableWrite(o *Outer) { // expect_effects:
+	o.Count = 1
+}
+
+func ignoredLocalWrite() { // expect_effects:
+	o := &Outer{}
+	o.Mid = nil
+}
+
+func ignoredValueParamWrite(o Outer) { // expect_effects:
+	o.Mid = nil
+}
+
+func ignoredRecursiveWrite(r *Rec) { // expect_effects: param_reads:0:Self
+	r.Self.Ptr = nil
 }

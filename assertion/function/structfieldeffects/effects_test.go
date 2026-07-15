@@ -28,11 +28,10 @@ import (
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
-// _expectReadsPrefix precedes a fixture function's expected boundary reads. Each trailing token is
-// "<kind>:<idx>:<path>": kind is "param_reads" (ParamReads) or "return_reads" (ReturnReads), idx is
-// the boundary index (-1 for a receiver, per annotation.ReceiverParamIndex), and path is the dotted
-// field path. A function with no reads carries an empty "// expect_reads:" comment.
-const _expectReadsPrefix = "expect_reads:"
+// _expectEffectsPrefix precedes a fixture function's expected boundary effects. Each trailing token
+// is "<kind>:<idx>:<path>", where kind identifies Writes, ParamReads, or ReturnReads. A function
+// with no effects carries an empty comment.
+const _expectEffectsPrefix = "expect_effects:"
 
 func TestComputeParamFieldEffects(t *testing.T) {
 	t.Parallel()
@@ -51,44 +50,47 @@ func TestComputeParamFieldEffects(t *testing.T) {
 	require.NoError(t, result.Err)
 	effects := result.Res
 
-	// Read the expected boundary reads straight from the fixture comments, splitting them into the
-	// param and return effect sets keyed by the annotated function.
+	// Read the expected boundary effects from fixture comments and split them by effect kind.
 	wantParam := make(map[*types.Func][]IndexedFieldPath)
 	wantReturn := make(map[*types.Func][]IndexedFieldPath)
-	for node, tokens := range nilawaytest.FindExpectedValues(pass, _expectReadsPrefix) {
+	wantWrites := make(map[*types.Func][]IndexedFieldPath)
+	for node, tokens := range nilawaytest.FindExpectedValues(pass, _expectEffectsPrefix) {
 		fd, ok := node.(*ast.FuncDecl)
 		require.True(t, ok)
 		funcObj, ok := pass.TypesInfo.ObjectOf(fd.Name).(*types.Func)
 		require.True(t, ok)
 		for _, token := range tokens {
-			kind, key := parseExpectedRead(t, token)
+			kind, key := parseExpectedEffect(t, token)
 			switch kind {
+			case "writes":
+				wantWrites[funcObj] = append(wantWrites[funcObj], key)
 			case "param_reads":
 				wantParam[funcObj] = append(wantParam[funcObj], key)
 			case "return_reads":
 				wantReturn[funcObj] = append(wantReturn[funcObj], key)
 			default:
-				t.Fatalf("unknown read kind %q in token %q", kind, token)
+				t.Fatalf("unknown effect kind %q in token %q", kind, token)
 			}
 		}
 	}
 
-	requireReads(t, effects.ParamReads, wantParam)
-	requireReads(t, effects.ReturnReads, wantReturn)
+	requireEffects(t, effects.ParamReads, wantParam)
+	requireEffects(t, effects.ReturnReads, wantReturn)
+	requireEffects(t, effects.ParamWrites, wantWrites)
 }
 
-// parseExpectedRead splits a "<kind>:<idx>:<path>" expect_reads token into its kind and boundary key.
-func parseExpectedRead(t *testing.T, token string) (string, IndexedFieldPath) {
+// parseExpectedEffect splits a "<kind>:<idx>:<path>" expect_effects token into its kind and boundary key.
+func parseExpectedEffect(t *testing.T, token string) (string, IndexedFieldPath) {
 	parts := strings.SplitN(token, ":", 3)
-	require.Lenf(t, parts, 3, "malformed expect_reads token %q", token)
+	require.Lenf(t, parts, 3, "malformed expect_effects token %q", token)
 	idx, err := strconv.Atoi(parts[1])
-	require.NoErrorf(t, err, "malformed index in expect_reads token %q", token)
+	require.NoErrorf(t, err, "malformed index in expect_effects token %q", token)
 	return parts[0], IndexedFieldPath{Idx: idx, Path: parts[2]}
 }
 
-// requireReads asserts the computed effect set matches want for every function in either map, so
-// both missing and unexpected reads fail the test.
-func requireReads(t *testing.T, got fieldEffects, want map[*types.Func][]IndexedFieldPath) {
+// requireEffects asserts the computed effect set matches want for every function in either map. so
+// both missing and unexpected effects fail the test.
+func requireEffects(t *testing.T, got fieldEffects, want map[*types.Func][]IndexedFieldPath) {
 	funcs := make(map[*types.Func]bool)
 	for funcObj := range got {
 		funcs[funcObj] = true
@@ -101,6 +103,6 @@ func requireReads(t *testing.T, got fieldEffects, want map[*types.Func][]Indexed
 		for key := range got[funcObj] {
 			gotKeys = append(gotKeys, key)
 		}
-		require.ElementsMatchf(t, want[funcObj], gotKeys, "reads mismatch for %s", funcObj.Name())
+		require.ElementsMatchf(t, want[funcObj], gotKeys, "effects mismatch for %s", funcObj.Name())
 	}
 }
