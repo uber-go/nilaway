@@ -116,7 +116,9 @@ func TestSplitFieldChain(t *testing.T) {
 		{name: "SingleSelector", expr: "x.a", wantBase: "x", wantPrefix: "a"},
 		{name: "NestedSelector", expr: "x.a.b", wantBase: "x", wantPrefix: "a.b"},
 		{name: "ParenthesizedSelector", expr: "(x.a).b", wantBase: "x", wantPrefix: "a.b"},
-		{name: "PointerBase", expr: "(*x).a", wantBase: "", wantPrefix: ""},
+		{name: "PointerBase", expr: "(*x).a", wantBase: "x", wantPrefix: "a"},
+		{name: "PointerBaseNested", expr: "(*x).a.b", wantBase: "x", wantPrefix: "a.b"},
+		{name: "TopLevelDeref", expr: "*x", wantBase: "x", wantPrefix: ""},
 		{name: "CallBase", expr: "f().a", wantBase: "", wantPrefix: ""},
 	}
 
