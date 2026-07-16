@@ -50,7 +50,7 @@ func TestFact(t *testing.T) { //nolint:paralleltest
 				localReads[funcObj] = reads
 			}
 		}
-		requireReads(t, localReads, expectedParamReads(t, pass))
+		requireEffects(t, localReads, expectedParamReads(t, pass))
 	}
 }
 
@@ -129,13 +129,13 @@ func expectedParamReads(t *testing.T, pass *analysis.Pass) map[*types.Func][]Ind
 	t.Helper()
 
 	want := make(map[*types.Func][]IndexedFieldPath)
-	for node, tokens := range nilawaytest.FindExpectedValues(pass, _expectReadsPrefix) {
+	for node, tokens := range nilawaytest.FindExpectedValues(pass, _expectEffectsPrefix) {
 		funcDecl, ok := node.(*ast.FuncDecl)
 		require.True(t, ok)
 		funcObj, ok := pass.TypesInfo.ObjectOf(funcDecl.Name).(*types.Func)
 		require.True(t, ok)
 		for _, token := range tokens {
-			kind, key := parseExpectedRead(t, token)
+			kind, key := parseExpectedEffect(t, token)
 			require.Equal(t, "param_reads", kind)
 			want[funcObj] = append(want[funcObj], key)
 		}

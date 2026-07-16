@@ -13,8 +13,8 @@
 // limitations under the License.
 
 // Package structfieldeffects implements a sub-analyzer that computes the package-level struct-field
-// boundary summary: the field paths each function reads of its parameters and of the results its
-// callers consume.
+// boundary summary: the field paths each function writes or reads on its parameters and the result
+// fields its callers consume.
 package structfieldeffects
 
 import (
@@ -31,7 +31,7 @@ import (
 )
 
 const _doc = "Compute the per-package struct-field boundary summary: the field paths each function " +
-	"reads of its parameters and of the results its callers consume."
+	"writes or reads on its parameters and the result fields its callers consume."
 
 // Analyzer computes the package-level ParamFieldEffects boundary summary.
 var Analyzer = &analysis.Analyzer{
@@ -55,6 +55,7 @@ func run(p *analysis.Pass) (*ParamFieldEffects, error) {
 		return nil, err
 	}
 
+	closeParamFieldSets(packageSummary.ParamWrites, forwardingEdges)
 	closeParamFieldSets(packageSummary.ParamReads, forwardingEdges)
 	fact := &ParamFieldReadsPackageFact{}
 	encoder := &objectpath.Encoder{}

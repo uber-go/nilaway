@@ -41,6 +41,9 @@ type ParamFieldEffects struct {
 	// result — the demand callers place on a returned value, so a `return <var>` binds only those
 	// paths. Collected at call sites; not transitively closed (under-report only).
 	ReturnReads fieldEffects
+	// ParamWrites records (param idx, field path) pairs a function assigns through a parameter or
+	// receiver. Transitively closed over forwarding edges.
+	ParamWrites fieldEffects
 }
 
 // ParamReadPaths returns the field paths read from funcObj's parameter or receiver at idx.
@@ -79,17 +82,19 @@ func readPaths(effects fieldEffects, funcObj *types.Func, idx int) []string {
 // Reads are gathered from selector bases — to evaluate `base.Sel`, base must be non-nil, so the
 // field path of base is a read of whatever boundary value it roots at (a parameter → ParamReads,
 // or a struct-returning-call result local → ReturnReads). ast.Inspect visits nested selectors, so
-// every prefix of a deep access is recorded. Every static call also records an arg→param forwarding
+// every prefix of a deep access is recorded. Writes are gathered from assignment LHS field chains
+// rooted at a parameter or receiver. Every static call also records an arg→param forwarding
 // edge (which caller parameter, possibly at a nested field prefix, is passed as which callee
 // parameter). The analyzer later runs closeParamFieldSets over those edges so forwarders inherit
-// their forwardees' param reads. Static callees are returned so the analyzer imports only facts
-// needed by calls in this package.
+// their forwardees' param reads and writes. Static callees are returned so the analyzer imports
+// only facts needed by calls in this package.
 //
 // Unresolvable (interface/func-value) callees are treated as mutating/dereferencing nothing
 // (under-report only).
 func computeParamFieldEffects(pass *analysishelper.EnhancedPass) (*ParamFieldEffects, map[*types.Func][]paramFieldForwardEdge, map[*types.Func]bool) {
 	reads := make(fieldEffects)
 	returnReads := make(fieldEffects)
+	writes := make(fieldEffects)
 	edges := make(map[*types.Func][]paramFieldForwardEdge)
 	callees := make(map[*types.Func]bool)
 	for _, file := range pass.Files {
@@ -118,6 +123,8 @@ func computeParamFieldEffects(pass *analysishelper.EnhancedPass) (*ParamFieldEff
 			resultVars := collectStructResultVars(pass, fd.Body)
 			ast.Inspect(fd.Body, func(n ast.Node) bool {
 				switch n := n.(type) {
+				case *ast.AssignStmt:
+					collectParamFieldWrites(pass, n, paramIdx, funcObj, writes)
 				case *ast.CallExpr:
 					if callee := collectParamForwardEdges(pass, n, paramIdx, funcObj, edges); callee != nil {
 						callees[callee] = true
@@ -129,7 +136,7 @@ func computeParamFieldEffects(pass *analysishelper.EnhancedPass) (*ParamFieldEff
 			})
 		}
 	}
-	return &ParamFieldEffects{ParamReads: reads, ReturnReads: returnReads}, edges, callees
+	return &ParamFieldEffects{ParamReads: reads, ReturnReads: returnReads, ParamWrites: writes}, edges, callees
 }
 
 // seedImportedParamReads merges an imported callee's parameter-read fact before closure runs.
@@ -170,7 +177,7 @@ type IndexedFieldPath struct {
 	Path string
 }
 
-// fieldEffects maps each function to the set of boundary field paths it reads.
+// fieldEffects maps each function to a set of boundary field paths.
 type fieldEffects map[*types.Func]map[IndexedFieldPath]bool
 
 // add records key for funcObj, allocating the inner set on first use. It reports whether the key
@@ -272,6 +279,41 @@ func collectFieldReadDemand(pass *analysishelper.EnhancedPass, sel *ast.Selector
 	}
 	if src, ok := resultVars[v]; ok {
 		returnReads.add(src.callee, IndexedFieldPath{Idx: src.idx, Path: prefix})
+	}
+}
+
+// collectParamFieldWrites records nilable fields assigned through a pointer parameter or receiver.
+// The full path is retained for deep and explicit-deref writes. Recursive paths are skipped so the
+// forwarding closure remains finite.
+func collectParamFieldWrites(pass *analysishelper.EnhancedPass, assign *ast.AssignStmt, paramIdx map[*types.Var]int, funcObj *types.Func, writes fieldEffects) {
+	for _, lhs := range assign.Lhs {
+		sel, ok := ast.Unparen(lhs).(*ast.SelectorExpr)
+		if !ok {
+			continue
+		}
+		field, ok := pass.TypesInfo.ObjectOf(sel.Sel).(*types.Var)
+		if !ok || typeshelper.TypeBarsNilness(field.Type()) {
+			continue
+		}
+		base, path := asthelper.SplitFieldChain(lhs)
+		if base == nil || path == "" {
+			continue
+		}
+		param, ok := pass.TypesInfo.ObjectOf(base).(*types.Var)
+		if !ok {
+			continue
+		}
+		idx, ok := paramIdx[param]
+		if !ok {
+			continue
+		}
+		if _, ok := param.Type().Underlying().(*types.Pointer); !ok {
+			continue
+		}
+		if !fieldPathIsAcyclic(funcObj, idx, path) {
+			continue
+		}
+		writes.add(funcObj, IndexedFieldPath{Idx: idx, Path: path})
 	}
 }
 
