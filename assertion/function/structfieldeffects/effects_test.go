@@ -53,8 +53,8 @@ func TestComputeParamFieldEffects(t *testing.T) {
 
 	// Read the expected boundary reads straight from the fixture comments, splitting them into the
 	// param and return effect sets keyed by the annotated function.
-	wantParam := make(map[*types.Func][]indexedFieldPath)
-	wantReturn := make(map[*types.Func][]indexedFieldPath)
+	wantParam := make(map[*types.Func][]IndexedFieldPath)
+	wantReturn := make(map[*types.Func][]IndexedFieldPath)
 	for node, tokens := range nilawaytest.FindExpectedValues(pass, _expectReadsPrefix) {
 		fd, ok := node.(*ast.FuncDecl)
 		require.True(t, ok)
@@ -78,17 +78,17 @@ func TestComputeParamFieldEffects(t *testing.T) {
 }
 
 // parseExpectedRead splits a "<kind>:<idx>:<path>" expect_reads token into its kind and boundary key.
-func parseExpectedRead(t *testing.T, token string) (string, indexedFieldPath) {
+func parseExpectedRead(t *testing.T, token string) (string, IndexedFieldPath) {
 	parts := strings.SplitN(token, ":", 3)
 	require.Lenf(t, parts, 3, "malformed expect_reads token %q", token)
 	idx, err := strconv.Atoi(parts[1])
 	require.NoErrorf(t, err, "malformed index in expect_reads token %q", token)
-	return parts[0], indexedFieldPath{idx: idx, path: parts[2]}
+	return parts[0], IndexedFieldPath{Idx: idx, Path: parts[2]}
 }
 
 // requireReads asserts the computed effect set matches want for every function in either map, so
 // both missing and unexpected reads fail the test.
-func requireReads(t *testing.T, got fieldEffects, want map[*types.Func][]indexedFieldPath) {
+func requireReads(t *testing.T, got fieldEffects, want map[*types.Func][]IndexedFieldPath) {
 	funcs := make(map[*types.Func]bool)
 	for funcObj := range got {
 		funcs[funcObj] = true
@@ -97,7 +97,7 @@ func requireReads(t *testing.T, got fieldEffects, want map[*types.Func][]indexed
 		funcs[funcObj] = true
 	}
 	for funcObj := range funcs {
-		var gotKeys []indexedFieldPath
+		var gotKeys []IndexedFieldPath
 		for key := range got[funcObj] {
 			gotKeys = append(gotKeys, key)
 		}

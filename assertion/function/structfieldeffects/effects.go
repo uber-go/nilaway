@@ -27,8 +27,8 @@ import (
 	"golang.org/x/tools/go/types/typeutil"
 )
 
-// ParamFieldEffects is the package-level boundary summary computed once per package by
-// ComputeParamFieldEffects. Every effect set is keyed by *types.Func, then by indexedFieldPath.
+// ParamFieldEffects is the package-level boundary summary. Every effect set is keyed by
+// *types.Func, then by IndexedFieldPath.
 // The read sets bound the field binding at boundaries so it enumerates only the
 // field paths a boundary actually dereferences, never the full type graph.
 type ParamFieldEffects struct {
@@ -63,33 +63,35 @@ func readPaths(effects fieldEffects, funcObj *types.Func, idx int) []string {
 	reads := effects[funcObj]
 	paths := make([]string, 0, len(reads))
 	for key := range reads {
-		if key.idx == idx && key.path != "" {
-			paths = append(paths, key.path)
+		if key.Idx == idx && key.Path != "" {
+			paths = append(paths, key.Path)
 		}
 	}
+
+	// Sort paths so diagnostics at the same source location have a deterministic order.
 	sort.Strings(paths)
 	return paths
 }
 
-// ComputeParamFieldEffects walks every function and method in the package once and records the
-// boundary summary as ParamFieldEffects: the param fields it dereferences and the result fields
-// its callers dereference. It is a read-only, package-level pre-pass (pure
-// syntax/type inspection, no backpropagation).
+// computeParamFieldEffects walks every function and method in the package once and records the
+// unclosed boundary summary as ParamFieldEffects, plus forwarding edges for closure.
 //
 // Reads are gathered from selector bases — to evaluate `base.Sel`, base must be non-nil, so the
 // field path of base is a read of whatever boundary value it roots at (a parameter → ParamReads,
 // or a struct-returning-call result local → ReturnReads). ast.Inspect visits nested selectors, so
 // every prefix of a deep access is recorded. Every static call also records an arg→param forwarding
 // edge (which caller parameter, possibly at a nested field prefix, is passed as which callee
-// parameter). closeParamFieldSets then runs a fixpoint over those edges so forwarders inherit their
-// forwardees' param reads.
+// parameter). The analyzer later runs closeParamFieldSets over those edges so forwarders inherit
+// their forwardees' param reads. Static callees are returned so the analyzer imports only facts
+// needed by calls in this package.
 //
-// Cross-package and unresolvable (interface/func-value) callees contribute no edge and are treated
-// as mutating/dereferencing nothing (under-report only).
-func ComputeParamFieldEffects(pass *analysishelper.EnhancedPass) *ParamFieldEffects {
+// Unresolvable (interface/func-value) callees are treated as mutating/dereferencing nothing
+// (under-report only).
+func computeParamFieldEffects(pass *analysishelper.EnhancedPass) (*ParamFieldEffects, map[*types.Func][]paramFieldForwardEdge, map[*types.Func]bool) {
 	reads := make(fieldEffects)
 	returnReads := make(fieldEffects)
 	edges := make(map[*types.Func][]paramFieldForwardEdge)
+	callees := make(map[*types.Func]bool)
 	for _, file := range pass.Files {
 		for _, decl := range file.Decls {
 			fd, ok := decl.(*ast.FuncDecl)
@@ -117,7 +119,9 @@ func ComputeParamFieldEffects(pass *analysishelper.EnhancedPass) *ParamFieldEffe
 			ast.Inspect(fd.Body, func(n ast.Node) bool {
 				switch n := n.(type) {
 				case *ast.CallExpr:
-					collectParamForwardEdges(pass, n, paramIdx, funcObj, edges)
+					if callee := collectParamForwardEdges(pass, n, paramIdx, funcObj, edges); callee != nil {
+						callees[callee] = true
+					}
 				case *ast.SelectorExpr:
 					collectFieldReadDemand(pass, n, paramIdx, resultVars, funcObj, reads, returnReads)
 				}
@@ -125,26 +129,55 @@ func ComputeParamFieldEffects(pass *analysishelper.EnhancedPass) *ParamFieldEffe
 			})
 		}
 	}
-	closeParamFieldSets(reads, edges)
-	return &ParamFieldEffects{ParamReads: reads, ReturnReads: returnReads}
+	return &ParamFieldEffects{ParamReads: reads, ReturnReads: returnReads}, edges, callees
 }
 
-// indexedFieldPath identifies a boundary value by parameter/result index and field path.
-// For example, in an access to `a.b.c` where `a` is the first parameter, {idx: 0,
-// path: "b"} represents the read demand on that parameter's `b` field.
-type indexedFieldPath struct {
-	idx  int
-	path string
+// seedImportedParamReads merges an imported callee's parameter-read fact before closure runs.
+func seedImportedParamReads(paramReads fieldEffects, funcObj *types.Func, reads []IndexedFieldPath) {
+	for _, read := range reads {
+		if read.Path == "" {
+			continue
+		}
+		paramReads.add(funcObj, read)
+	}
+}
+
+// sortedPaths returns funcObj's field paths in a deterministic order. The paths come from a
+// map-backed set and are serialized in an exported fact, so map iteration order must not
+// affect the encoded fact.
+func (e fieldEffects) sortedPaths(funcObj *types.Func) []IndexedFieldPath {
+	if len(e[funcObj]) == 0 {
+		return nil
+	}
+	paths := make([]IndexedFieldPath, 0, len(e[funcObj]))
+	for key := range e[funcObj] {
+		paths = append(paths, key)
+	}
+	sort.Slice(paths, func(i, j int) bool {
+		if paths[i].Idx != paths[j].Idx {
+			return paths[i].Idx < paths[j].Idx
+		}
+		return paths[i].Path < paths[j].Path
+	})
+	return paths
+}
+
+// IndexedFieldPath identifies a boundary value by parameter/result index and field path.
+// For example, in an access to `a.b.c` where `a` is the first parameter, {Idx: 0,
+// Path: "b"} represents the read demand on that parameter's `b` field.
+type IndexedFieldPath struct {
+	Idx  int
+	Path string
 }
 
 // fieldEffects maps each function to the set of boundary field paths it reads.
-type fieldEffects map[*types.Func]map[indexedFieldPath]bool
+type fieldEffects map[*types.Func]map[IndexedFieldPath]bool
 
 // add records key for funcObj, allocating the inner set on first use. It reports whether the key
 // was newly added.
-func (e fieldEffects) add(funcObj *types.Func, key indexedFieldPath) bool {
+func (e fieldEffects) add(funcObj *types.Func, key IndexedFieldPath) bool {
 	if e[funcObj] == nil {
-		e[funcObj] = make(map[indexedFieldPath]bool)
+		e[funcObj] = make(map[IndexedFieldPath]bool)
 	}
 	if e[funcObj][key] {
 		return false
@@ -234,26 +267,26 @@ func collectFieldReadDemand(pass *analysishelper.EnhancedPass, sel *ast.Selector
 		return
 	}
 	if idx, ok := paramIdx[v]; ok {
-		reads.add(funcObj, indexedFieldPath{idx: idx, path: prefix})
+		reads.add(funcObj, IndexedFieldPath{Idx: idx, Path: prefix})
 		return
 	}
 	if src, ok := resultVars[v]; ok {
-		returnReads.add(src.callee, indexedFieldPath{idx: src.idx, path: prefix})
+		returnReads.add(src.callee, IndexedFieldPath{Idx: src.idx, Path: prefix})
 	}
 }
 
-// collectParamForwardEdges records, for the forwarding phase of ComputeParamFieldEffects, an arg→param
+// collectParamForwardEdges records an arg→param
 // edge for each argument (and the receiver) of call that resolves — through a field chain — to a
-// parameter/receiver of funcObj (the function containing the call). Unresolvable or cross-package
-// callees contribute no edge.
-func collectParamForwardEdges(pass *analysishelper.EnhancedPass, call *ast.CallExpr, paramIdx map[*types.Var]int, funcObj *types.Func, edges map[*types.Func][]paramFieldForwardEdge) {
+// parameter/receiver of funcObj (the function containing the call). Unresolvable (interface/func-value)
+// callees contribute no edge or callee.
+func collectParamForwardEdges(pass *analysishelper.EnhancedPass, call *ast.CallExpr, paramIdx map[*types.Var]int, funcObj *types.Func, edges map[*types.Func][]paramFieldForwardEdge) *types.Func {
 	callee := typeutil.StaticCallee(pass.TypesInfo, call)
 	if callee == nil {
-		return
+		return nil
 	}
 	sig, ok := callee.Type().(*types.Signature)
 	if !ok {
-		return
+		return nil
 	}
 	record := func(calleeIdx int, arg ast.Expr) {
 		base, prefix := asthelper.SplitFieldChain(arg)
@@ -286,6 +319,7 @@ func collectParamForwardEdges(pass *analysishelper.EnhancedPass, call *ast.CallE
 		}
 		record(argIdx, arg)
 	}
+	return callee
 }
 
 // paramFieldForwardEdge records that the caller passes its own parameter/receiver (callerParamIdx) — possibly
@@ -327,16 +361,16 @@ func closeParamFieldSets(fields fieldEffects, edges map[*types.Func][]paramField
 		changed := false
 		for _, e := range edges[f] {
 			for ck := range fields[e.callee] {
-				if ck.idx != e.calleeParamIdx {
+				if ck.Idx != e.calleeParamIdx {
 					continue
 				}
-				path := joinFieldPath(e.callerPrefix, ck.path)
+				path := joinFieldPath(e.callerPrefix, ck.Path)
 				// Skip recursive field paths; otherwise forwarding can keep growing paths like
 				// inner.f, inner.inner.f, ...
 				if !fieldPathIsAcyclic(f, e.callerParamIdx, path) {
 					continue
 				}
-				if fields.add(f, indexedFieldPath{idx: e.callerParamIdx, path: path}) {
+				if fields.add(f, IndexedFieldPath{Idx: e.callerParamIdx, Path: path}) {
 					changed = true
 				}
 			}
