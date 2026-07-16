@@ -117,6 +117,7 @@ func TestStructInitV2(t *testing.T) { //nolint:paralleltest
 		"go.uber.org/structinitv2/defaultfield",
 		"go.uber.org/structinitv2/deep",
 		"go.uber.org/structinitv2/crosspkg/app",
+		"go.uber.org/structinitv2/paramsideeffect",
 	)
 }
 

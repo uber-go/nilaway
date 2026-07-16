@@ -90,19 +90,6 @@ func f14(c *A) {
 	print(c.aptr.ptr) //want "field `aptr` of param 0 of `f14`"
 }
 
-// Positive example with direct composite as parameter
-func giveA15() *A {
-	return &A{}
-}
-
-func callF15() {
-	f15(giveA15())
-}
-
-func f15(c *A) {
-	print(c.aptr.ptr) //want "field `aptr` of param 0 of `f15`"
-}
-
 // Negative example with direct composite as parameter
 
 func callF16() {

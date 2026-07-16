@@ -18,6 +18,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"sort"
 	"strings"
 
 	"go.uber.org/nilaway/annotation"
@@ -412,11 +413,7 @@ func (r *RootAssertionNode) buildFieldPathSelector(base ast.Expr, structType *ty
 
 // bindArgAndReceiverFieldsToContext binds, at a function or method call, the fields of each struct-typed
 // argument to the callee's corresponding parameter context site.
-func (r *RootAssertionNode) bindArgAndReceiverFieldsToContext(call *ast.CallExpr, funcIdent *ast.Ident) {
-	funcObj, ok := r.ObjectOf(funcIdent).(*types.Func)
-	if !ok {
-		return
-	}
+func (r *RootAssertionNode) bindArgAndReceiverFieldsToContext(call *ast.CallExpr, funcObj *types.Func) {
 	sig := funcObj.Signature()
 
 	if recv := sig.Recv(); recv != nil {
@@ -436,5 +433,165 @@ func (r *RootAssertionNode) bindArgAndReceiverFieldsToContext(call *ast.CallExpr
 			continue
 		}
 		r.bindValueFieldsToContext(funcObj, arg, structType, annotation.StructFieldParamContext, argIdx)
+	}
+}
+
+// addCallParamOutFieldProducers attaches a callee's post-call field state to its concrete arguments
+// and receiver. For `f(x)`, if f's parameter 0 may write `b.c`, it produces
+// `x.b.c <- PARAM_OUT(f, 0, "b.c")`. A post-call dereference of x.b.c then consumes f's output
+// summary, while fields absent from the write set retain their pre-call producers.
+func (r *RootAssertionNode) addCallParamOutFieldProducers(call *ast.CallExpr, funcObj *types.Func) {
+	sig := funcObj.Signature()
+	produce := func(arg ast.Expr, structType *types.Struct, index int) {
+		paths := r.functionContext.paramFieldEffects.ParamWritePaths(funcObj, index)
+		// AddProduction detaches a matched subtree, so nested paths must be produced first.
+		sort.SliceStable(paths, func(i, j int) bool {
+			return strings.Count(paths[i], ".") > strings.Count(paths[j], ".")
+		})
+		for _, fieldPath := range paths {
+			fieldExpr, ok := r.buildFieldPathSelector(arg, structType, fieldPath)
+			if !ok {
+				continue
+			}
+			site := &annotation.StructFieldContextSite{
+				FuncObj: funcObj,
+				Kind:    annotation.StructFieldParamOutContext,
+				Index:   index,
+				Path:    fieldPath,
+			}
+			r.AddProduction(&annotation.ProduceTrigger{
+				Annotation: &annotation.StructFieldFromContext{
+					TriggerIfNilable: &annotation.TriggerIfNilable{Ann: site},
+				},
+				Expr: fieldExpr,
+			})
+		}
+	}
+
+	if recv := sig.Recv(); recv != nil {
+		if sel, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr); ok {
+			if structType := typeshelper.AsDeeplyStruct(recv.Type()); structType != nil {
+				produce(sel.X, structType, annotation.ReceiverParamIndex)
+			}
+		}
+	}
+	for index, arg := range call.Args {
+		if index >= sig.Params().Len() {
+			break
+		}
+		if structType := typeshelper.AsDeeplyStruct(sig.Params().At(index).Type()); structType != nil {
+			produce(arg, structType, index)
+		}
+	}
+}
+
+// bindForwardedParamOut connects a callee's output summary to a forwarder's output summary. For
+// `func g(p *A) { f(p) }`, when f's parameter 0 may write b.c, it adds
+// `PARAM_OUT(f, 0, "b.c") -> PARAM_OUT(g, 0, "b.c")`. A field prefix is retained, so passing
+// p.inner to f instead targets `PARAM_OUT(g, 0, "inner.b.c")`. The write summary is already closed
+// over these edges; this supplies each inherited path's context value.
+func (r *RootAssertionNode) bindForwardedParamOut(call *ast.CallExpr, callee *types.Func) {
+	sig := callee.Signature()
+	link := func(calleeIndex int, arg ast.Expr) {
+		base, prefix := asthelper.SplitFieldChain(arg)
+		if base == nil {
+			return
+		}
+		param, ok := r.ObjectOf(base).(*types.Var)
+		if !ok {
+			return
+		}
+		callerIndex, ok := r.getParamIndex(param)
+		if !ok {
+			return
+		}
+		for _, calleePath := range r.functionContext.paramFieldEffects.ParamWritePaths(callee, calleeIndex) {
+			fieldPath := calleePath
+			if prefix != "" {
+				fieldPath = prefix + "." + fieldPath
+			}
+			source := &annotation.StructFieldContextSite{
+				FuncObj: callee, Kind: annotation.StructFieldParamOutContext, Index: calleeIndex, Path: calleePath,
+			}
+			destination := &annotation.StructFieldContextSite{
+				FuncObj: r.FuncObj(), Kind: annotation.StructFieldParamOutContext, Index: callerIndex, Path: fieldPath,
+			}
+			r.AddNewTriggers(annotation.FullTrigger{
+				Producer: &annotation.ProduceTrigger{
+					Annotation: &annotation.StructFieldFromContext{TriggerIfNilable: &annotation.TriggerIfNilable{Ann: source}},
+					Expr:       arg,
+				},
+				Consumer: &annotation.ConsumeTrigger{
+					Annotation: &annotation.StructFieldToContext{TriggerIfNonNil: &annotation.TriggerIfNonNil{Ann: destination}},
+					Expr:       arg,
+					Guards:     guard.NoGuards(),
+				},
+			})
+		}
+	}
+
+	if recv := sig.Recv(); recv != nil {
+		if sel, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr); ok {
+			link(annotation.ReceiverParamIndex, sel.X)
+		}
+	}
+	for index, arg := range call.Args {
+		if index >= sig.Params().Len() {
+			break
+		}
+		link(index, arg)
+	}
+}
+
+// bindParamFieldWriteToContext records a direct parameter or receiver field write as the callee's
+// post-call output. For `func f(p *A) { p.b.c = value }`, it connects
+// `value -> PARAM_OUT(f, 0, "b.c")`. For a local value, the consumer is attached to the local so
+// ordinary intraprocedural flow supplies the context. The write-summary check excludes local field
+// assignments from this boundary.
+func (r *RootAssertionNode) bindParamFieldWriteToContext(lhs, rhs ast.Expr) {
+	base, fieldPath := asthelper.SplitFieldChain(lhs)
+	if base == nil || fieldPath == "" {
+		return
+	}
+	param, ok := r.ObjectOf(base).(*types.Var)
+	if !ok {
+		return
+	}
+	index, ok := r.getParamIndex(param)
+	if !ok {
+		return
+	}
+	for _, path := range r.functionContext.paramFieldEffects.ParamWritePaths(r.FuncObj(), index) {
+		if path != fieldPath {
+			continue
+		}
+		site := &annotation.StructFieldContextSite{
+			FuncObj: r.FuncObj(),
+			Kind:    annotation.StructFieldParamOutContext,
+			Index:   index,
+			Path:    fieldPath,
+		}
+		consumer := &annotation.ConsumeTrigger{
+			Annotation: &annotation.StructFieldToContext{TriggerIfNonNil: &annotation.TriggerIfNonNil{Ann: site}},
+			Expr:       lhs,
+			Guards:     guard.NoGuards(),
+		}
+		if ident, ok := ast.Unparen(rhs).(*ast.Ident); ok {
+			if v, ok := r.ObjectOf(ident).(*types.Var); ok {
+				if _, isParam := r.getParamIndex(v); !isParam && !annotation.VarIsGlobal(v) {
+					consumer.Expr = rhs
+					r.AddConsumption(consumer)
+					return
+				}
+			}
+		}
+		r.AddNewTriggers(annotation.FullTrigger{
+			Producer: &annotation.ProduceTrigger{
+				Annotation: r.getShallowExprNilabilityProducer(rhs),
+				Expr:       rhs,
+			},
+			Consumer: consumer,
+		})
+		return
 	}
 }

@@ -51,7 +51,7 @@ func (e *ParamFieldEffects) ParamReadPaths(funcObj *types.Func, idx int) []strin
 	if e == nil {
 		return nil
 	}
-	return readPaths(e.ParamReads, funcObj, idx)
+	return fieldPathsForIndex(e.ParamReads, funcObj, idx)
 }
 
 // ReturnReadPaths returns the field paths read from funcObj's result at idx.
@@ -59,13 +59,21 @@ func (e *ParamFieldEffects) ReturnReadPaths(funcObj *types.Func, idx int) []stri
 	if e == nil {
 		return nil
 	}
-	return readPaths(e.ReturnReads, funcObj, idx)
+	return fieldPathsForIndex(e.ReturnReads, funcObj, idx)
 }
 
-func readPaths(effects fieldEffects, funcObj *types.Func, idx int) []string {
-	reads := effects[funcObj]
-	paths := make([]string, 0, len(reads))
-	for key := range reads {
+// ParamWritePaths returns the field paths written through funcObj's parameter or receiver at idx.
+func (e *ParamFieldEffects) ParamWritePaths(funcObj *types.Func, idx int) []string {
+	if e == nil {
+		return nil
+	}
+	return fieldPathsForIndex(e.ParamWrites, funcObj, idx)
+}
+
+func fieldPathsForIndex(effects fieldEffects, funcObj *types.Func, idx int) []string {
+	fields := effects[funcObj]
+	paths := make([]string, 0, len(fields))
+	for key := range fields {
 		if key.Idx == idx && key.Path != "" {
 			paths = append(paths, key.Path)
 		}

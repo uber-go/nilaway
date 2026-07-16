@@ -55,6 +55,15 @@ func escapeIntoSink() {
 	sink(&A{aptr: &A2{}}) // supplies aptr.aptr == nil
 }
 
+// A nil field escapes via a callee's side effect and is dereferenced by the caller afterwards.
+func clobber(c *A) { c.aptr = nil }
+
+func derefAfterSideEffect() {
+	b := &A{aptr: &A2{}}
+	clobber(b)
+	print(b.aptr.ptr) //want "field `aptr`"
+}
+
 // ---------------------------------------------------------------------------
 // Unknown caller / unanalyzed escape: optimistic, NOT reported (by design).
 // ---------------------------------------------------------------------------
