@@ -16,6 +16,7 @@ package structfieldeffects
 
 import (
 	"go/ast"
+	"go/token"
 	"go/types"
 	"sort"
 	"strings"
@@ -44,6 +45,9 @@ type BoundaryFieldEffects struct {
 	// ParamWrites records (param idx, field path) pairs a function assigns through a parameter or
 	// receiver. Transitively closed over forwarding edges.
 	ParamWrites fieldEffects
+	// ReturnEffects records (result idx, field path) pairs that are provably nil at a concrete
+	// construction return site. Closed over same-package return forwarding edges.
+	ReturnEffects fieldEffects
 }
 
 // ParamReadPaths returns the field paths read from funcObj's parameter or receiver at idx.
@@ -87,20 +91,23 @@ func fieldPathsForIndex(effects fieldEffects, funcObj *types.Func, idx int) []st
 // collectedFieldEffects owns the unclosed package summary and the forwarding state needed to close
 // it after imported effects have been seeded.
 type collectedFieldEffects struct {
-	summary              *BoundaryFieldEffects
-	paramForwardingEdges map[*types.Func][]paramFieldForwardEdge
-	callees              map[*types.Func]bool
+	summary               *BoundaryFieldEffects
+	paramForwardingEdges  map[*types.Func][]paramFieldForwardEdge
+	returnForwardingEdges map[*types.Func][]returnForwardEdge
+	callees               map[*types.Func]bool
 }
 
 func newCollectedFieldEffects() *collectedFieldEffects {
 	return &collectedFieldEffects{
 		summary: &BoundaryFieldEffects{
-			ParamReads:  make(fieldEffects),
-			ReturnReads: make(fieldEffects),
-			ParamWrites: make(fieldEffects),
+			ParamReads:    make(fieldEffects),
+			ReturnReads:   make(fieldEffects),
+			ParamWrites:   make(fieldEffects),
+			ReturnEffects: make(fieldEffects),
 		},
-		paramForwardingEdges: make(map[*types.Func][]paramFieldForwardEdge),
-		callees:              make(map[*types.Func]bool),
+		paramForwardingEdges:  make(map[*types.Func][]paramFieldForwardEdge),
+		returnForwardingEdges: make(map[*types.Func][]returnForwardEdge),
+		callees:               make(map[*types.Func]bool),
 	}
 }
 
@@ -113,8 +120,9 @@ func newCollectedFieldEffects() *collectedFieldEffects {
 // every prefix of a deep access is recorded. Writes are gathered from assignment LHS field chains
 // rooted at a parameter or receiver. Every static call also records an arg→param forwarding
 // edge (which caller parameter, possibly at a nested field prefix, is passed as which callee
-// parameter). Static callees are retained so the analyzer imports only facts needed by calls in this
-// package before closing the collection.
+// parameter). Concrete struct returns contribute nil field paths, while direct returns of
+// same-package call results contribute return-forwarding edges. Static callees are retained so the
+// analyzer imports only facts needed by calls in this package before closing the collection.
 //
 // Unresolvable (interface/func-value) callees are treated as mutating/dereferencing nothing
 // (under-report only).
@@ -153,6 +161,8 @@ func (c *collectedFieldEffects) collectFunction(pass *analysishelper.EnhancedPas
 	// Locals bound directly to a struct-returning call, so a later dereference of the local's fields
 	// can be attributed to that callee's result (the return-read demand).
 	resultVars := collectStructResultVars(pass, fd.Body)
+	c.collectReturnEffects(pass, fd, funcObj)
+
 	ast.Inspect(fd.Body, func(n ast.Node) bool {
 		switch n := n.(type) {
 		case *ast.AssignStmt:
@@ -171,9 +181,34 @@ func (c *collectedFieldEffects) collectFunction(pass *analysishelper.EnhancedPas
 	})
 }
 
+// collectReturnEffects records this function's concrete nil result fields and same-package return
+// forwarding edges. Only direct construction sites and direct same-package call returns are
+// recognized; returned locals are handled by a later revision.
+func (c *collectedFieldEffects) collectReturnEffects(pass *analysishelper.EnhancedPass, fd *ast.FuncDecl, funcObj *types.Func) {
+	sig := funcObj.Signature()
+	// Fast path: no struct-shaped result can ever produce a concrete return effect or forwarding
+	// edge, so the body walk below would do nothing. Use the same predicate as
+	// collectConcreteReturnEffects to avoid a narrower type check.
+	hasStructResult := false
+	for result := range sig.Results().Variables() {
+		if typeshelper.AsDeeplyStruct(result.Type()) != nil {
+			hasStructResult = true
+			break
+		}
+	}
+	if !hasStructResult {
+		return
+	}
+	collectConcreteReturnEffects(
+		pass, fd.Body, funcObj,
+		c.summary.ReturnEffects, c.returnForwardingEdges,
+	)
+}
+
 func (c *collectedFieldEffects) close() *BoundaryFieldEffects {
 	closeParamFieldSets(c.summary.ParamWrites, c.paramForwardingEdges)
 	closeParamFieldSets(c.summary.ParamReads, c.paramForwardingEdges)
+	closeReturnEffects(c.summary.ReturnEffects, c.returnForwardingEdges)
 	return c.summary
 }
 
@@ -295,6 +330,118 @@ func collectStructResultVars(pass *analysishelper.EnhancedPass, body *ast.BlockS
 	return out
 }
 
+type structAllocationSource struct {
+	structType *types.Struct
+	fieldInits []ast.Expr
+}
+
+// staticStructAllocation recognizes struct values created directly by a composite literal or new.
+func staticStructAllocation(pass *analysishelper.EnhancedPass, expr ast.Expr) (structAllocationSource, bool) {
+	switch e := ast.Unparen(expr).(type) {
+	case *ast.UnaryExpr:
+		if e.Op == token.AND {
+			return staticStructAllocation(pass, e.X)
+		}
+	case *ast.CompositeLit:
+		if structType := typeshelper.AsDeeplyStruct(pass.TypesInfo.TypeOf(e)); structType != nil {
+			return structAllocationSource{structType: structType, fieldInits: e.Elts}, true
+		}
+	case *ast.CallExpr:
+		ident, ok := ast.Unparen(e.Fun).(*ast.Ident)
+		if ok && pass.TypesInfo.ObjectOf(ident) == typeshelper.BuiltinNew {
+			if structType := typeshelper.AsDeeplyStruct(pass.TypesInfo.TypeOf(e)); structType != nil {
+				return structAllocationSource{structType: structType}, true
+			}
+		}
+	}
+	return structAllocationSource{}, false
+}
+
+// collectConcreteReturnEffects records concrete nil result fields and same-package forwarding edges.
+func collectConcreteReturnEffects(
+	pass *analysishelper.EnhancedPass,
+	body *ast.BlockStmt,
+	funcObj *types.Func,
+	effects fieldEffects,
+	edges map[*types.Func][]returnForwardEdge,
+) {
+	sig := funcObj.Signature()
+	addEdge := func(callerResultIdx int, callee *types.Func, calleeResultIdx int) {
+		if callee == nil || callee.Pkg() != pass.Pkg {
+			return
+		}
+		calleeSig, ok := callee.Type().(*types.Signature)
+		if !ok || calleeResultIdx < 0 || calleeResultIdx >= calleeSig.Results().Len() ||
+			typeshelper.AsDeeplyStruct(calleeSig.Results().At(calleeResultIdx).Type()) == nil {
+			return
+		}
+		edges[funcObj] = append(edges[funcObj], returnForwardEdge{
+			callerResultIdx: callerResultIdx,
+			callee:          callee,
+			calleeResultIdx: calleeResultIdx,
+		})
+	}
+
+	ast.Inspect(body, func(n ast.Node) bool {
+		switch n := n.(type) {
+		case *ast.FuncLit:
+			return false
+		case *ast.ReturnStmt:
+			// A bare spreading return such as `return f()` is one expression that yields every
+			// result, so len(n.Results) is 1 while the signature may have many; we bail out
+			// rather than try to split it, so such multi-result call returns are unsupported.
+			if len(n.Results) != sig.Results().Len() {
+				return false
+			}
+			for resultIdx, resultExpr := range n.Results {
+				if typeshelper.AsDeeplyStruct(sig.Results().At(resultIdx).Type()) == nil {
+					continue
+				}
+				if source, ok := staticStructAllocation(pass, resultExpr); ok {
+					enumerateConcreteReturnEffects(pass, funcObj, resultIdx, source.structType, source.fieldInits, "", effects)
+					continue
+				}
+				if call, ok := ast.Unparen(resultExpr).(*ast.CallExpr); ok {
+					callee := typeutil.StaticCallee(pass.TypesInfo, call)
+					if callee != nil {
+						calleeSig, _ := callee.Type().(*types.Signature)
+						if calleeSig != nil && calleeSig.Results().Len() == 1 {
+							addEdge(resultIdx, callee, 0)
+						}
+					}
+					continue
+				}
+			}
+			return false
+		}
+		return true
+	})
+}
+
+// enumerateConcreteReturnEffects records omitted and explicitly nil fields from one allocation.
+func enumerateConcreteReturnEffects(pass *analysishelper.EnhancedPass, funcObj *types.Func, resultIdx int, structType *types.Struct, fieldInits []ast.Expr, prefix string, effects fieldEffects) {
+	for i := range structType.NumFields() {
+		field := structType.Field(i)
+		path := joinFieldPath(prefix, field.Name())
+		fieldVal := asthelper.GetFieldVal(fieldInits, field.Name(), structType.NumFields(), i)
+		nilable := !typeshelper.TypeBarsNilness(field.Type())
+		switch {
+		case fieldVal == nil && !nilable:
+			if innerType := typeshelper.AsDeeplyStruct(field.Type()); innerType != nil {
+				enumerateConcreteReturnEffects(pass, funcObj, resultIdx, innerType, nil, path, effects)
+			}
+		case fieldVal == nil || pass.IsNil(fieldVal):
+			if nilable && resultFieldPathIsAcyclic(funcObj, resultIdx, path) {
+				effects.add(funcObj, IndexedFieldPath{Idx: resultIdx, Path: path})
+			}
+		default:
+			if source, ok := staticStructAllocation(pass, fieldVal); ok {
+				enumerateConcreteReturnEffects(pass, funcObj, resultIdx, source.structType, source.fieldInits, path, effects)
+			}
+		}
+	}
+}
+
 // collectFieldReadDemand records the field-path dereference demand implied by a single selector
 // expression. To evaluate `base.Sel`, base must be non-nil, so the field path of base (relative to
 // the boundary value it roots at) is a read of that value. If base roots at a parameter/receiver of
@@ -414,6 +561,13 @@ type paramFieldForwardEdge struct {
 	calleeParamIdx int
 }
 
+// returnForwardEdge records that one result directly returns a same-package callee result.
+type returnForwardEdge struct {
+	callerResultIdx int
+	callee          *types.Func
+	calleeResultIdx int
+}
+
 // closeParamFieldSets extends a field-effect set to a fixpoint over the forwarding edges:
 // whenever a callee has effect (j, p) and a caller forwards its own param i (at prefix pre) as the
 // callee's param j, the caller inherits effect (i, join(pre, p)). It is a standard worklist
@@ -466,6 +620,48 @@ func closeParamFieldSets(fields fieldEffects, edges map[*types.Func][]paramField
 	}
 }
 
+// closeReturnEffects copies concrete effects through direct same-package return forwarding to a
+// fixpoint. Paths are unchanged because field projections are not part of this boundary.
+func closeReturnEffects(effects fieldEffects, edges map[*types.Func][]returnForwardEdge) {
+	preds := make(map[*types.Func][]*types.Func)
+	worklist := make([]*types.Func, 0, len(edges))
+	inWork := make(map[*types.Func]bool, len(edges))
+	for caller, callerEdges := range edges {
+		worklist = append(worklist, caller)
+		inWork[caller] = true
+		for _, edge := range callerEdges {
+			preds[edge.callee] = append(preds[edge.callee], caller)
+		}
+	}
+
+	for len(worklist) > 0 {
+		funcObj := worklist[len(worklist)-1]
+		worklist = worklist[:len(worklist)-1]
+		inWork[funcObj] = false
+
+		changed := false
+		for _, edge := range edges[funcObj] {
+			for effect := range effects[edge.callee] {
+				if effect.Idx != edge.calleeResultIdx ||
+					!resultFieldPathIsAcyclic(funcObj, edge.callerResultIdx, effect.Path) {
+					continue
+				}
+				if effects.add(funcObj, IndexedFieldPath{Idx: edge.callerResultIdx, Path: effect.Path}) {
+					changed = true
+				}
+			}
+		}
+		if changed {
+			for _, pred := range preds[funcObj] {
+				if !inWork[pred] {
+					worklist = append(worklist, pred)
+					inWork[pred] = true
+				}
+			}
+		}
+	}
+}
+
 // joinFieldPath concatenates a (possibly empty) field-path prefix with a sub-path: join("", p) = p,
 // join("inner", "f") = "inner.f".
 func joinFieldPath(prefix, sub string) string {
@@ -487,6 +683,14 @@ func paramFieldPathIsAcyclic(fn *types.Func, paramIdx int, path string) bool {
 		return false
 	}
 	return fieldPathIsAcyclic(sig.Params().At(paramIdx).Type(), path)
+}
+
+func resultFieldPathIsAcyclic(fn *types.Func, resultIdx int, path string) bool {
+	sig := fn.Signature()
+	if resultIdx < 0 || resultIdx >= sig.Results().Len() {
+		return false
+	}
+	return fieldPathIsAcyclic(sig.Results().At(resultIdx).Type(), path)
 }
 
 // fieldPathIsAcyclic reports whether path can be followed without re-entering a struct type already

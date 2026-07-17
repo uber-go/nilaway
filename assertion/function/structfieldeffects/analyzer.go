@@ -13,8 +13,8 @@
 // limitations under the License.
 
 // Package structfieldeffects implements a sub-analyzer that computes the package-level struct-field
-// boundary summary: the field paths each function writes or reads on its parameters and the result
-// fields its callers consume.
+// boundary summary: parameter reads and writes, result fields consumed by callers, and concrete nil
+// result fields.
 package structfieldeffects
 
 import (
@@ -30,8 +30,8 @@ import (
 	"golang.org/x/tools/go/types/objectpath"
 )
 
-const _doc = "Compute the per-package struct-field boundary summary: the field paths each function " +
-	"writes or reads on its parameters and the result fields its callers consume."
+const _doc = "Compute the per-package struct-field boundary summary: parameter reads and writes, " +
+	"result fields consumed by callers, and concrete nil result fields."
 
 // Analyzer computes the package-level BoundaryFieldEffects summary.
 var Analyzer = &analysis.Analyzer{
