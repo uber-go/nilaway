@@ -43,9 +43,25 @@ func directRead(o *Outer) { // expect_effects: param_reads:0:Mid param_reads:0:M
 	_ = o.Mid.Child.Ptr
 }
 
+func explicitDerefRead(o *Outer) { // expect_effects: param_reads:0:Mid param_reads:0:Mid.Child
+	_ = (*o).Mid.Child.Ptr
+}
+
+func intermediateDerefRead(o *Outer) { // expect_effects: param_reads:0:Mid param_reads:0:Mid.Child
+	_ = (*o.Mid).Child.Ptr
+}
+
+func doublePointerRead(o **Outer) { // expect_effects: param_reads:0:Mid param_reads:0:Mid.Child
+	_ = (*o).Mid.Child.Ptr
+}
+
 // forwarder passes its parameter straight through, so the closure copies directRead's reads verbatim.
 func forwarder(o *Outer) { // expect_effects: param_reads:0:Mid param_reads:0:Mid.Child
 	directRead(o)
+}
+
+func forwardDerefPointerRead(o **Outer) { // expect_effects: param_reads:0:Mid param_reads:0:Mid.Child
+	directRead(*o)
 }
 
 // forwardField forwards a nested field of its parameter, so the inherited reads gain the "Inner" prefix.
@@ -95,6 +111,10 @@ func forwardWrite(o *Outer) { // expect_effects: writes:0:Mid.Child
 	writeChild(o.Mid)
 }
 
+func forwardDerefPointerWrite(o **Outer) { // expect_effects: writes:0:Mid
+	directWrite(*o)
+}
+
 func forwardWriteAgain(w *Wrap) { // expect_effects: writes:0:Inner.Mid.Child
 	forwardWrite(w.Inner)
 }
@@ -118,4 +138,12 @@ func ignoredValueParamWrite(o Outer) { // expect_effects:
 
 func ignoredRecursiveWrite(r *Rec) { // expect_effects: param_reads:0:Self
 	r.Self.Ptr = nil
+}
+
+func explicitDerefWrite(o *Outer) { // expect_effects: writes:0:Mid
+	(*o).Mid = nil
+}
+
+func explicitDoublePointerWrite(o **Outer) { // expect_effects: writes:0:Mid
+	(*o).Mid = nil
 }
