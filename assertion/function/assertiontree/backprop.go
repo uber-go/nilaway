@@ -774,6 +774,9 @@ buildShadowMask:
 	// Phase 2
 	for i := range rhs {
 		lhsVal, rhsVal := lhs[i], rhs[i]
+		if rootNode.functionContext.functionConfig.EnableStructInitV2 {
+			rootNode.bindParamFieldWriteToContext(lhsVal, rhsVal)
+		}
 		// Check whether a consumption trigger needs to be added for a field assignment here
 		consumeTrigger, err := exprAsAssignmentConsumer(rootNode, lhsVal, rhsVal)
 		if err != nil {

@@ -751,7 +751,13 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 			}
 
 			if r.functionContext.functionConfig.EnableStructInitV2 {
-				r.bindArgAndReceiverFieldsToContext(expr, fun)
+				funcObj := r.ObjectOf(fun).(*types.Func)
+				// First, let post-call field reads use the callee's param-out summary.
+				r.addCallParamOutFieldProducers(expr, funcObj)
+				// Then, if this function forwards its own parameter, make that summary its own output.
+				r.bindForwardedParamOut(expr, funcObj)
+				// Finally, bind the arguments' incoming fields to the callee's param-in summary.
+				r.bindArgAndReceiverFieldsToContext(expr, funcObj)
 			}
 		} else {
 			// here we have found either a builtin function like make or new,

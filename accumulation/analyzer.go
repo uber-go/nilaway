@@ -131,10 +131,22 @@ func run(p *analysis.Pass) (result interface{}, _ error) {
 		// TODO: This is a suppression added for handling of struct field assignments. We plan to add
 		//  object sensitivity to NilAway in the future, which will allow us to be more precise in struct fields'
 		//  handling. Remove this suppression once we have the object sensitivity implemented (issue #339).
-		for _, t := range assertionsResult.Res {
+		for i := range assertionsResult.Res {
+			t := &assertionsResult.Res[i]
 			if _, ok := t.Consumer.Annotation.(*annotation.FldAssign); ok {
-				// update its producer to be non-nil
-				t.Producer.Annotation = &annotation.ProduceTriggerNever{}
+				if conf.ExperimentalStructInitV2Enable {
+					// The legacy FldAssign suppression changes its producer's annotation to Never. A
+					// producer can be shared by multiple full triggers; under ExperimentalStructInitV2Enable ,
+					// a param-out consumer for the same field write can share it. Mutating that producer would silence the
+					// param-out consumer too, so give only the FldAssign trigger a Never producer.
+					// Once ExperimentalStructInitV2Enable is complete, FldAssign and this block should be removed.
+					t.Producer = &annotation.ProduceTrigger{
+						Annotation: &annotation.ProduceTriggerNever{},
+						Expr:       t.Producer.Expr,
+					}
+				} else {
+					t.Producer.Annotation = &annotation.ProduceTriggerNever{}
+				}
 			}
 		}
 

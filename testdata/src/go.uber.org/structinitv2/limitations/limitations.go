@@ -172,16 +172,6 @@ func tForwardViaFuncValue() *int {
 	return b.child.ptr
 }
 
-// False negative: parameter field writes are not supported, so a nil field written by a callee is
-// not re-produced at the call site.
-func clobberParamField(c *Node) { c.child = nil }
-
-func tParamFieldWriteNotMerged() *int {
-	b := &Node{child: &Leaf{}}
-	clobberParamField(b)
-	return b.child.ptr
-}
-
 // False negative: a struct-returning call forwarded through a return (`return f()`) is unsupported.
 // The callee's per-field return summary is not composed across the forward, so the nil child from
 // makeNilNode is not tracked at the caller. Supporting it would need the return-read demand closed
@@ -193,6 +183,25 @@ func forwardNilNode() *Node { return makeNilNode() }
 func tForwardedReturnNotComposed() *int {
 	b := forwardNilNode()
 	return b.child.ptr
+}
+
+// False negative: a struct-returning call used directly as an argument is not composed into the
+// parameter boundary. Return-effects support must bind makeNilNodeForParam's field summary to n.
+func makeNilNodeForParam() *Node { return &Node{} }
+
+func readReturnedParam(n *Node) *int { return n.child.ptr }
+
+func tReturnedCallAsParam() *int {
+	return readReturnedParam(makeNilNodeForParam())
+}
+
+// False negative: the same missing return-to-boundary composition applies to a method receiver.
+func makeNilNodeForReceiver() *Node { return &Node{} }
+
+func (n *Node) readReturnedReceiver() *int { return n.child.ptr }
+
+func tReturnedCallAsReceiver() *int {
+	return makeNilNodeForReceiver().readReturnedReceiver()
 }
 
 // ---------------------------------------------------------------------------------------------
