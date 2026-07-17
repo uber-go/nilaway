@@ -147,13 +147,13 @@ func computeParamFieldEffects(pass *analysishelper.EnhancedPass) (*ParamFieldEff
 	return &ParamFieldEffects{ParamReads: reads, ReturnReads: returnReads, ParamWrites: writes}, edges, callees
 }
 
-// seedImportedParamReads merges an imported callee's parameter-read fact before closure runs.
-func seedImportedParamReads(paramReads fieldEffects, funcObj *types.Func, reads []IndexedFieldPath) {
-	for _, read := range reads {
-		if read.Path == "" {
+// seedImportedParamEffects merges an imported callee's parameter effects before closure runs.
+func seedImportedParamEffects(effects fieldEffects, funcObj *types.Func, paths []IndexedFieldPath) {
+	for _, path := range paths {
+		if path.Path == "" {
 			continue
 		}
-		paramReads.add(funcObj, read)
+		effects.add(funcObj, path)
 	}
 }
 

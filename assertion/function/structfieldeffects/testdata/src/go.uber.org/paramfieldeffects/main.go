@@ -95,31 +95,31 @@ func recForward(r *Rec) { // expect_effects:
 	recRead(r.Self)
 }
 
-func directWrite(o *Outer) { // expect_effects: writes:0:Mid
+func directWrite(o *Outer) { // expect_effects: param_writes:0:Mid
 	o.Mid = &Node{}
 }
 
-func deepWrite(o *Outer) { // expect_effects: writes:0:Mid.Child param_reads:0:Mid
+func deepWrite(o *Outer) { // expect_effects: param_writes:0:Mid.Child param_reads:0:Mid
 	o.Mid.Child = nil
 }
 
-func (o *Outer) receiverWrite() { // expect_effects: writes:-1:Mid
+func (o *Outer) receiverWrite() { // expect_effects: param_writes:-1:Mid
 	o.Mid = &Node{}
 }
 
-func forwardWrite(o *Outer) { // expect_effects: writes:0:Mid.Child
+func forwardWrite(o *Outer) { // expect_effects: param_writes:0:Mid.Child
 	writeChild(o.Mid)
 }
 
-func forwardDerefPointerWrite(o **Outer) { // expect_effects: writes:0:Mid
+func forwardDerefPointerWrite(o **Outer) { // expect_effects: param_writes:0:Mid
 	directWrite(*o)
 }
 
-func forwardWriteAgain(w *Wrap) { // expect_effects: writes:0:Inner.Mid.Child
+func forwardWriteAgain(w *Wrap) { // expect_effects: param_writes:0:Inner.Mid.Child
 	forwardWrite(w.Inner)
 }
 
-func writeChild(n *Node) { // expect_effects: writes:0:Child
+func writeChild(n *Node) { // expect_effects: param_writes:0:Child
 	n.Child = nil
 }
 
@@ -140,10 +140,10 @@ func ignoredRecursiveWrite(r *Rec) { // expect_effects: param_reads:0:Self
 	r.Self.Ptr = nil
 }
 
-func explicitDerefWrite(o *Outer) { // expect_effects: writes:0:Mid
+func explicitDerefWrite(o *Outer) { // expect_effects: param_writes:0:Mid
 	(*o).Mid = nil
 }
 
-func explicitDoublePointerWrite(o **Outer) { // expect_effects: writes:0:Mid
+func explicitDoublePointerWrite(o **Outer) { // expect_effects: param_writes:0:Mid
 	(*o).Mid = nil
 }

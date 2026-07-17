@@ -62,7 +62,7 @@ func TestComputeParamFieldEffects(t *testing.T) {
 		for _, token := range tokens {
 			kind, key := parseExpectedEffect(t, token)
 			switch kind {
-			case "writes":
+			case "param_writes":
 				wantWrites[funcObj] = append(wantWrites[funcObj], key)
 			case "param_reads":
 				wantParam[funcObj] = append(wantParam[funcObj], key)

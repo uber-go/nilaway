@@ -39,7 +39,7 @@ var Analyzer = &analysis.Analyzer{
 	Doc:        _doc,
 	Run:        analysishelper.WrapRun(run),
 	ResultType: reflect.TypeOf((*analysishelper.Result[*ParamFieldEffects])(nil)),
-	FactTypes:  []analysis.Fact{new(ParamFieldReadsPackageFact)},
+	FactTypes:  []analysis.Fact{new(ParamFieldEffectsPackageFact)},
 	Requires:   []*analysis.Analyzer{config.Analyzer},
 }
 
@@ -51,34 +51,46 @@ func run(p *analysis.Pass) (*ParamFieldEffects, error) {
 	}
 
 	packageSummary, forwardingEdges, callees := computeParamFieldEffects(pass)
-	if err := importUsedParamReads(pass, packageSummary.ParamReads, callees); err != nil {
+	if err := importUsedParamEffects(pass, packageSummary, callees); err != nil {
 		return nil, err
 	}
 
 	closeParamFieldSets(packageSummary.ParamWrites, forwardingEdges)
 	closeParamFieldSets(packageSummary.ParamReads, forwardingEdges)
-	fact := &ParamFieldReadsPackageFact{}
+	fact := &ParamFieldEffectsPackageFact{}
 	encoder := &objectpath.Encoder{}
+	funcs := make(map[*types.Func]bool, len(packageSummary.ParamReads)+len(packageSummary.ParamWrites))
 	for funcObj := range packageSummary.ParamReads {
+		funcs[funcObj] = true
+	}
+	for funcObj := range packageSummary.ParamWrites {
+		funcs[funcObj] = true
+	}
+	for funcObj := range funcs {
 		if funcObj.Pkg() != pass.Pkg || !funcObj.Exported() {
 			continue
 		}
-		// Export only parameter reads. Return reads remain local because callers infer them
+		// Return reads remain local because callers infer them
 		// from their dereferences of results, opposite the direction of fact propagation.
 		reads := packageSummary.ParamReads.sortedPaths(funcObj)
-		if len(reads) == 0 {
+		writes := packageSummary.ParamWrites.sortedPaths(funcObj)
+		if len(reads) == 0 && len(writes) == 0 {
 			continue
 		}
 		path, err := encoder.For(funcObj)
 		if err != nil {
 			return nil, fmt.Errorf("create object path for exported function %s: %w", funcObj, err)
 		}
-		fact.Functions = append(fact.Functions, FunctionParamFieldReads{FunctionObjectPath: path, ParamReads: reads})
+		fact.Functions = append(fact.Functions, FunctionParamFieldEffects{
+			FunctionObjectPath: path,
+			ParamReads:         reads,
+			ParamWrites:        writes,
+		})
 	}
 	if len(fact.Functions) > 0 {
 		// Functions were collected by ranging a map. Sorting makes the serialized fact
 		// deterministic and maintains the ordering required by BinarySearchFunc on import.
-		slices.SortFunc(fact.Functions, func(left, right FunctionParamFieldReads) int {
+		slices.SortFunc(fact.Functions, func(left, right FunctionParamFieldEffects) int {
 			return cmp.Compare(left.FunctionObjectPath, right.FunctionObjectPath)
 		})
 		pass.ExportPackageFact(fact)
@@ -87,7 +99,7 @@ func run(p *analysis.Pass) (*ParamFieldEffects, error) {
 	return packageSummary, nil
 }
 
-func importUsedParamReads(pass *analysishelper.EnhancedPass, paramReads fieldEffects, callees map[*types.Func]bool) error {
+func importUsedParamEffects(pass *analysishelper.EnhancedPass, effects *ParamFieldEffects, callees map[*types.Func]bool) error {
 	calleesByPackage := make(map[*types.Package][]*types.Func)
 	for callee := range callees {
 		if callee.Pkg() != nil && callee.Pkg() != pass.Pkg {
@@ -102,7 +114,7 @@ func importUsedParamReads(pass *analysishelper.EnhancedPass, paramReads fieldEff
 
 	encoder := &objectpath.Encoder{}
 	for _, pkg := range packages {
-		var fact ParamFieldReadsPackageFact
+		var fact ParamFieldEffectsPackageFact
 		if !pass.ImportPackageFact(pkg, &fact) {
 			continue
 		}
@@ -111,11 +123,12 @@ func importUsedParamReads(pass *analysishelper.EnhancedPass, paramReads fieldEff
 			if err != nil {
 				return fmt.Errorf("create object path for imported function %s: %w", callee, err)
 			}
-			index, found := slices.BinarySearchFunc(fact.Functions, path, func(entry FunctionParamFieldReads, path objectpath.Path) int {
+			index, found := slices.BinarySearchFunc(fact.Functions, path, func(entry FunctionParamFieldEffects, path objectpath.Path) int {
 				return cmp.Compare(entry.FunctionObjectPath, path)
 			})
 			if found {
-				seedImportedParamReads(paramReads, callee, fact.Functions[index].ParamReads)
+				seedImportedParamEffects(effects.ParamReads, callee, fact.Functions[index].ParamReads)
+				seedImportedParamEffects(effects.ParamWrites, callee, fact.Functions[index].ParamWrites)
 			}
 		}
 	}
