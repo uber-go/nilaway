@@ -45,16 +45,23 @@ func TestFact(t *testing.T) { //nolint:paralleltest
 		require.NoError(t, effects.Err)
 
 		localReads := make(fieldEffects)
+		localWrites := make(fieldEffects)
 		for funcObj, reads := range effects.Res.ParamReads {
 			if funcObj.Pkg() == pass.Pkg {
 				localReads[funcObj] = reads
 			}
 		}
+		for funcObj, writes := range effects.Res.ParamWrites {
+			if funcObj.Pkg() == pass.Pkg {
+				localWrites[funcObj] = writes
+			}
+		}
 		requireEffects(t, localReads, expectedParamReads(t, pass))
+		requireEffects(t, localWrites, expectedParamWrites(t, pass))
 	}
 }
 
-func TestParamFieldReadsPackageFactCodec(t *testing.T) {
+func TestParamFieldEffectsPackageFactCodec(t *testing.T) {
 	t.Parallel()
 
 	fact := newFact(100)
@@ -64,10 +71,10 @@ func TestParamFieldReadsPackageFactCodec(t *testing.T) {
 		require.NoError(t, gob.NewEncoder(&buf).Encode(fact))
 		encoded := append([]byte(nil), buf.Bytes()...)
 		require.NotEmpty(t, encoded)
-		require.Less(t, len(encoded), 10_000,
+		require.Less(t, len(encoded), 15_000,
 			"encoded facts contribute to artifact size; increase this cap only with justification")
 
-		var decoded ParamFieldReadsPackageFact
+		var decoded ParamFieldEffectsPackageFact
 		require.NoError(t, gob.NewDecoder(bytes.NewReader(encoded)).Decode(&decoded))
 		require.Equal(t, fact, &decoded)
 
@@ -78,8 +85,8 @@ func TestParamFieldReadsPackageFactCodec(t *testing.T) {
 	}
 }
 
-// BenchmarkParamFieldReadsPackageFactCodec measures one complete fact in a fresh gob stream.
-func BenchmarkParamFieldReadsPackageFactCodec(b *testing.B) {
+// BenchmarkParamFieldEffectsPackageFactCodec measures one complete fact in a fresh gob stream.
+func BenchmarkParamFieldEffectsPackageFactCodec(b *testing.B) {
 	for _, functionCount := range []int{1, 10, 100} {
 		fact := newFact(functionCount)
 		b.Run(fmt.Sprintf("encode/%d-functions", functionCount), func(b *testing.B) {
@@ -108,7 +115,7 @@ func BenchmarkParamFieldReadsPackageFactCodec(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for b.Loop() {
-				var decoded ParamFieldReadsPackageFact
+				var decoded ParamFieldEffectsPackageFact
 				if err := gob.NewDecoder(bytes.NewReader(encoded.Bytes())).Decode(&decoded); err != nil {
 					b.Fatal(err)
 				}
@@ -126,6 +133,14 @@ func enableStructInitV2(t *testing.T) {
 }
 
 func expectedParamReads(t *testing.T, pass *analysis.Pass) map[*types.Func][]IndexedFieldPath {
+	return expectedParamEffects(t, pass, "param_reads")
+}
+
+func expectedParamWrites(t *testing.T, pass *analysis.Pass) map[*types.Func][]IndexedFieldPath {
+	return expectedParamEffects(t, pass, "param_writes")
+}
+
+func expectedParamEffects(t *testing.T, pass *analysis.Pass, wantKind string) map[*types.Func][]IndexedFieldPath {
 	t.Helper()
 
 	want := make(map[*types.Func][]IndexedFieldPath)
@@ -136,17 +151,18 @@ func expectedParamReads(t *testing.T, pass *analysis.Pass) map[*types.Func][]Ind
 		require.True(t, ok)
 		for _, token := range tokens {
 			kind, key := parseExpectedEffect(t, token)
-			require.Equal(t, "param_reads", kind)
-			want[funcObj] = append(want[funcObj], key)
+			if kind == wantKind {
+				want[funcObj] = append(want[funcObj], key)
+			}
 		}
 	}
 	return want
 }
 
-func newFact(functionCount int) *ParamFieldReadsPackageFact {
-	functions := make([]FunctionParamFieldReads, functionCount)
+func newFact(functionCount int) *ParamFieldEffectsPackageFact {
+	functions := make([]FunctionParamFieldEffects, functionCount)
 	for i := range functions {
-		functions[i] = FunctionParamFieldReads{
+		functions[i] = FunctionParamFieldEffects{
 			FunctionObjectPath: objectpath.Path(fmt.Sprintf("Function%03d", i)),
 			ParamReads: []IndexedFieldPath{
 				{Idx: -1, Path: "Receiver"},
@@ -154,7 +170,13 @@ func newFact(functionCount int) *ParamFieldReadsPackageFact {
 				{Idx: 0, Path: "Child.Leaf"},
 				{Idx: 1, Path: fmt.Sprintf("Argument%d.Field", i)},
 			},
+			ParamWrites: []IndexedFieldPath{
+				{Idx: -1, Path: "Receiver.Child"},
+				{Idx: 0, Path: "Child"},
+				{Idx: 0, Path: "Child.Leaf"},
+				{Idx: 1, Path: fmt.Sprintf("Argument%d.Field", i)},
+			},
 		}
 	}
-	return &ParamFieldReadsPackageFact{Functions: functions}
+	return &ParamFieldEffectsPackageFact{Functions: functions}
 }

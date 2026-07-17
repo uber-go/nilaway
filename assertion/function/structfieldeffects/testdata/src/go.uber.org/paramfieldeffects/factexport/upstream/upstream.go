@@ -31,3 +31,15 @@ func ExportedNoRead(o *Outer) {
 func unexportedRead(o *Outer) { // expect_effects: param_reads:0:Mid param_reads:0:Mid.Child
 	_ = o.Mid.Child.Ptr
 }
+
+func ExportedWrite(o *Outer) { // expect_effects: param_writes:0:Mid
+	o.Mid = nil
+}
+
+func ExportedDeepWrite(o *Outer) { // expect_effects: param_reads:0:Mid param_writes:0:Mid.Child
+	o.Mid.Child = nil
+}
+
+func ExportedForwardWrite(o *Outer) { // expect_effects: param_reads:0:Mid param_writes:0:Mid.Child
+	ExportedDeepWrite(o)
+}
