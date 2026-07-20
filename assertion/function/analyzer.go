@@ -109,7 +109,7 @@ func run(p *analysis.Pass) ([]annotation.FullTrigger, error) {
 	ctrlflowResult := pass.ResultOf[ctrlflow.Analyzer].(*ctrlflow.CFGs)
 	anonymousFuncResult := pass.ResultOf[anonymousfunc.Analyzer].(*analysishelper.Result[map[*ast.FuncLit]*anonymousfunc.FuncLitInfo])
 	contractsResult := pass.ResultOf[functioncontracts.Analyzer].(*analysishelper.Result[functioncontracts.Map])
-	structFieldEffectsResult := pass.ResultOf[structfieldeffects.Analyzer].(*analysishelper.Result[*structfieldeffects.ParamFieldEffects])
+	structFieldEffectsResult := pass.ResultOf[structfieldeffects.Analyzer].(*analysishelper.Result[*structfieldeffects.BoundaryFieldEffects])
 	if err := errors.Join(anonymousFuncResult.Err, contractsResult.Err, structFieldEffectsResult.Err); err != nil {
 		return nil, err
 	}
@@ -124,7 +124,7 @@ func run(p *analysis.Pass) ([]annotation.FullTrigger, error) {
 
 	// Field paths needed for the boundary bindings, precomputed by the struct field effects
 	// analyzer (empty when the analysis is disabled).
-	paramFieldEffects := structFieldEffectsResult.Res
+	boundaryFieldEffects := structFieldEffectsResult.Res
 
 	// Set up variables for synchronization and communication.
 	ctx, cancel := context.WithCancel(context.Background())
@@ -206,7 +206,7 @@ func run(p *analysis.Pass) ([]annotation.FullTrigger, error) {
 
 			// Now, analyze the function declarations concurrently.
 			funcContext := assertiontree.NewFunctionContext(
-				pass, funcDecl, funcLit, functionConfig, funcLitMap, pkgFakeIdentMap, funcContracts, paramFieldEffects)
+				pass, funcDecl, funcLit, functionConfig, funcLitMap, pkgFakeIdentMap, funcContracts, boundaryFieldEffects)
 			idx := funcIndex
 			wg.Go(func() { analyzeFunc(ctx, pass, funcDecl, funcContext, graph, idx, funcChan) })
 			funcIndex++

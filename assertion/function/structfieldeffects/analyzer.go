@@ -33,31 +33,30 @@ import (
 const _doc = "Compute the per-package struct-field boundary summary: the field paths each function " +
 	"writes or reads on its parameters and the result fields its callers consume."
 
-// Analyzer computes the package-level ParamFieldEffects boundary summary.
+// Analyzer computes the package-level BoundaryFieldEffects summary.
 var Analyzer = &analysis.Analyzer{
 	Name:       "nilaway_struct_field_effects_analyzer",
 	Doc:        _doc,
 	Run:        analysishelper.WrapRun(run),
-	ResultType: reflect.TypeOf((*analysishelper.Result[*ParamFieldEffects])(nil)),
-	FactTypes:  []analysis.Fact{new(ParamFieldEffectsPackageFact)},
+	ResultType: reflect.TypeOf((*analysishelper.Result[*BoundaryFieldEffects])(nil)),
+	FactTypes:  []analysis.Fact{new(BoundaryFieldEffectsPackageFact)},
 	Requires:   []*analysis.Analyzer{config.Analyzer},
 }
 
-func run(p *analysis.Pass) (*ParamFieldEffects, error) {
+func run(p *analysis.Pass) (*BoundaryFieldEffects, error) {
 	pass := analysishelper.NewEnhancedPass(p)
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
 	if !conf.ExperimentalStructInitV2Enable || !conf.IsPkgInScope(pass.Pkg) {
-		return &ParamFieldEffects{}, nil
+		return &BoundaryFieldEffects{}, nil
 	}
 
-	packageSummary, forwardingEdges, callees := computeParamFieldEffects(pass)
-	if err := importUsedParamEffects(pass, packageSummary, callees); err != nil {
+	collected := computeBoundaryFieldEffects(pass)
+	if err := importUsedParamEffects(pass, collected.summary, collected.callees); err != nil {
 		return nil, err
 	}
 
-	closeParamFieldSets(packageSummary.ParamWrites, forwardingEdges)
-	closeParamFieldSets(packageSummary.ParamReads, forwardingEdges)
-	fact := &ParamFieldEffectsPackageFact{}
+	packageSummary := collected.close()
+	fact := &BoundaryFieldEffectsPackageFact{}
 	encoder := &objectpath.Encoder{}
 	funcs := make(map[*types.Func]bool, len(packageSummary.ParamReads)+len(packageSummary.ParamWrites))
 	for funcObj := range packageSummary.ParamReads {
@@ -81,7 +80,7 @@ func run(p *analysis.Pass) (*ParamFieldEffects, error) {
 		if err != nil {
 			return nil, fmt.Errorf("create object path for exported function %s: %w", funcObj, err)
 		}
-		fact.Functions = append(fact.Functions, FunctionParamFieldEffects{
+		fact.Functions = append(fact.Functions, FunctionFieldEffects{
 			FunctionObjectPath: path,
 			ParamReads:         reads,
 			ParamWrites:        writes,
@@ -90,7 +89,7 @@ func run(p *analysis.Pass) (*ParamFieldEffects, error) {
 	if len(fact.Functions) > 0 {
 		// Functions were collected by ranging a map. Sorting makes the serialized fact
 		// deterministic and maintains the ordering required by BinarySearchFunc on import.
-		slices.SortFunc(fact.Functions, func(left, right FunctionParamFieldEffects) int {
+		slices.SortFunc(fact.Functions, func(left, right FunctionFieldEffects) int {
 			return cmp.Compare(left.FunctionObjectPath, right.FunctionObjectPath)
 		})
 		pass.ExportPackageFact(fact)
@@ -99,7 +98,7 @@ func run(p *analysis.Pass) (*ParamFieldEffects, error) {
 	return packageSummary, nil
 }
 
-func importUsedParamEffects(pass *analysishelper.EnhancedPass, effects *ParamFieldEffects, callees map[*types.Func]bool) error {
+func importUsedParamEffects(pass *analysishelper.EnhancedPass, effects *BoundaryFieldEffects, callees map[*types.Func]bool) error {
 	calleesByPackage := make(map[*types.Package][]*types.Func)
 	for callee := range callees {
 		if callee.Pkg() != nil && callee.Pkg() != pass.Pkg {
@@ -114,7 +113,7 @@ func importUsedParamEffects(pass *analysishelper.EnhancedPass, effects *ParamFie
 
 	encoder := &objectpath.Encoder{}
 	for _, pkg := range packages {
-		var fact ParamFieldEffectsPackageFact
+		var fact BoundaryFieldEffectsPackageFact
 		if !pass.ImportPackageFact(pkg, &fact) {
 			continue
 		}
@@ -123,7 +122,7 @@ func importUsedParamEffects(pass *analysishelper.EnhancedPass, effects *ParamFie
 			if err != nil {
 				return fmt.Errorf("create object path for imported function %s: %w", callee, err)
 			}
-			index, found := slices.BinarySearchFunc(fact.Functions, path, func(entry FunctionParamFieldEffects, path objectpath.Path) int {
+			index, found := slices.BinarySearchFunc(fact.Functions, path, func(entry FunctionFieldEffects, path objectpath.Path) int {
 				return cmp.Compare(entry.FunctionObjectPath, path)
 			})
 			if found {

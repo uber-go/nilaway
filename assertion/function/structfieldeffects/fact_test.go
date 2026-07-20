@@ -41,7 +41,7 @@ func TestFact(t *testing.T) { //nolint:paralleltest
 	require.Len(t, results, 2)
 	for _, result := range results {
 		pass := result.Pass
-		effects := result.Result.(*analysishelper.Result[*ParamFieldEffects])
+		effects := result.Result.(*analysishelper.Result[*BoundaryFieldEffects])
 		require.NoError(t, effects.Err)
 
 		localReads := make(fieldEffects)
@@ -61,7 +61,7 @@ func TestFact(t *testing.T) { //nolint:paralleltest
 	}
 }
 
-func TestParamFieldEffectsPackageFactCodec(t *testing.T) {
+func TestBoundaryFieldEffectsPackageFactCodec(t *testing.T) {
 	t.Parallel()
 
 	fact := newFact(100)
@@ -74,7 +74,7 @@ func TestParamFieldEffectsPackageFactCodec(t *testing.T) {
 		require.Less(t, len(encoded), 15_000,
 			"encoded facts contribute to artifact size; increase this cap only with justification")
 
-		var decoded ParamFieldEffectsPackageFact
+		var decoded BoundaryFieldEffectsPackageFact
 		require.NoError(t, gob.NewDecoder(bytes.NewReader(encoded)).Decode(&decoded))
 		require.Equal(t, fact, &decoded)
 
@@ -85,8 +85,8 @@ func TestParamFieldEffectsPackageFactCodec(t *testing.T) {
 	}
 }
 
-// BenchmarkParamFieldEffectsPackageFactCodec measures one complete fact in a fresh gob stream.
-func BenchmarkParamFieldEffectsPackageFactCodec(b *testing.B) {
+// BenchmarkBoundaryFieldEffectsPackageFactCodec measures one complete fact in a fresh gob stream.
+func BenchmarkBoundaryFieldEffectsPackageFactCodec(b *testing.B) {
 	for _, functionCount := range []int{1, 10, 100} {
 		fact := newFact(functionCount)
 		b.Run(fmt.Sprintf("encode/%d-functions", functionCount), func(b *testing.B) {
@@ -115,7 +115,7 @@ func BenchmarkParamFieldEffectsPackageFactCodec(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for b.Loop() {
-				var decoded ParamFieldEffectsPackageFact
+				var decoded BoundaryFieldEffectsPackageFact
 				if err := gob.NewDecoder(bytes.NewReader(encoded.Bytes())).Decode(&decoded); err != nil {
 					b.Fatal(err)
 				}
@@ -159,10 +159,10 @@ func expectedParamEffects(t *testing.T, pass *analysis.Pass, wantKind string) ma
 	return want
 }
 
-func newFact(functionCount int) *ParamFieldEffectsPackageFact {
-	functions := make([]FunctionParamFieldEffects, functionCount)
+func newFact(functionCount int) *BoundaryFieldEffectsPackageFact {
+	functions := make([]FunctionFieldEffects, functionCount)
 	for i := range functions {
-		functions[i] = FunctionParamFieldEffects{
+		functions[i] = FunctionFieldEffects{
 			FunctionObjectPath: objectpath.Path(fmt.Sprintf("Function%03d", i)),
 			ParamReads: []IndexedFieldPath{
 				{Idx: -1, Path: "Receiver"},
@@ -178,5 +178,5 @@ func newFact(functionCount int) *ParamFieldEffectsPackageFact {
 			},
 		}
 	}
-	return &ParamFieldEffectsPackageFact{Functions: functions}
+	return &BoundaryFieldEffectsPackageFact{Functions: functions}
 }

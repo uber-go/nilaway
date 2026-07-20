@@ -33,7 +33,7 @@ import (
 // with no effects carries an empty comment.
 const _expectEffectsPrefix = "expect_effects:"
 
-func TestComputeParamFieldEffects(t *testing.T) {
+func TestComputeBoundaryFieldEffects(t *testing.T) {
 	t.Parallel()
 	err := config.Analyzer.Flags.Set(config.ExperimentalStructInitV2EnableFlag, "true")
 	require.NoError(t, err)
@@ -46,7 +46,7 @@ func TestComputeParamFieldEffects(t *testing.T) {
 	r := analysistest.Run(t, testdata, Analyzer, "go.uber.org/paramfieldeffects")
 	require.Len(t, r, 1)
 	pass := r[0].Pass
-	result := r[0].Result.(*analysishelper.Result[*ParamFieldEffects])
+	result := r[0].Result.(*analysishelper.Result[*BoundaryFieldEffects])
 	require.NoError(t, result.Err)
 	effects := result.Res
 
