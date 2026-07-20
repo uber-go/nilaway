@@ -29,3 +29,7 @@ func ForwardExportedForwardWrite(o *upstream.Outer) { // expect_effects: param_r
 func ForwardWriteTwice(o *upstream.Outer) { // expect_effects: param_reads:0:Mid param_writes:0:Mid.Child
 	ForwardDeepWrite(o)
 }
+
+func ForwardGenericWrite(o *upstream.Outer) { // expect_effects: param_writes:0:Mid
+	upstream.GenericExportedWrite[int](o)
+}

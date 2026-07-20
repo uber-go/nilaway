@@ -759,20 +759,19 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 				r.addConsumptionsForArgAndReceiverFields(expr, fun)
 			}
 
-			if r.functionContext.functionConfig.EnableStructInitV2 {
-				funcObj := r.ObjectOf(fun).(*types.Func)
-				// First, let post-call field reads use the callee's param-out summary.
-				r.addCallParamOutFieldProducers(expr, funcObj)
-				// Then, if this function forwards its own parameter, make that summary its own output.
-				r.bindForwardedParamOut(expr, funcObj)
-				// Finally, bind the arguments' incoming fields to the callee's param-in summary.
-				r.bindArgAndReceiverFieldsToContext(expr, funcObj)
-			}
 		} else {
 			// here we have found either a builtin function like make or new,
 			// or a typecast like int(x) - in either case (at least for now), do nothing to try
 			// to consume the arguments
 			consumeArg = consumeArgNoop
+		}
+
+		if r.functionContext.functionConfig.EnableStructInitV2 {
+			if target, ok := typeshelper.ResolveStaticCallTarget(r.Pass().TypesInfo, expr); ok {
+				r.addCallParamOutFieldProducers(expr, target)
+				r.bindForwardedParamOut(expr, target)
+				r.bindArgAndReceiverFieldsToContext(expr, target)
+			}
 		}
 
 		// when we reach this point, consumeArg will be set to a no-op exactly if we don't know

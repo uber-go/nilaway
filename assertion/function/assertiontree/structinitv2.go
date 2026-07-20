@@ -25,7 +25,6 @@ import (
 	"go.uber.org/nilaway/guard"
 	"go.uber.org/nilaway/util/asthelper"
 	"go.uber.org/nilaway/util/typeshelper"
-	"golang.org/x/tools/go/types/typeutil"
 )
 
 // asStructAllocation inspects expr and, if it allocates a struct value, returns the (deeply
@@ -79,12 +78,9 @@ func (r *RootAssertionNode) addAllocationFieldProducers(lhsVal, rhsVal ast.Expr)
 	// `lhs := f()` where f returns a single struct value: bind lhs's fields to f's return
 	// context sites. (Multi-return calls are handled by the many-to-one assignment path.)
 	if call, ok := ast.Unparen(rhsVal).(*ast.CallExpr); ok {
-		if funcObj := typeutil.StaticCallee(r.Pass().TypesInfo, call); funcObj != nil {
-			sig := funcObj.Type().(*types.Signature)
-			if sig.Results().Len() == 1 {
-				if structType := typeshelper.AsDeeplyStruct(sig.Results().At(0).Type()); structType != nil {
-					r.addContextFieldProducers(structType, lhsVal, funcObj, annotation.StructFieldReturnContext, 0)
-				}
+		if target, ok := typeshelper.ResolveStaticCallTarget(r.Pass().TypesInfo, call); ok && target.Signature.Results().Len() == 1 {
+			if structType := typeshelper.AsDeeplyStruct(target.Signature.Results().At(0).Type()); structType != nil {
+				r.addContextFieldProducers(structType, lhsVal, target.Origin, annotation.StructFieldReturnContext, 0)
 			}
 		}
 	}
@@ -413,26 +409,24 @@ func (r *RootAssertionNode) buildFieldPathSelector(base ast.Expr, structType *ty
 
 // bindArgAndReceiverFieldsToContext binds, at a function or method call, the fields of each struct-typed
 // argument to the callee's corresponding parameter context site.
-func (r *RootAssertionNode) bindArgAndReceiverFieldsToContext(call *ast.CallExpr, funcObj *types.Func) {
-	sig := funcObj.Signature()
-
-	if recv := sig.Recv(); recv != nil {
+func (r *RootAssertionNode) bindArgAndReceiverFieldsToContext(call *ast.CallExpr, target typeshelper.StaticCallTarget) {
+	if recv := target.Signature.Recv(); recv != nil {
 		if sel, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr); ok {
 			if structType := typeshelper.AsDeeplyStruct(recv.Type()); structType != nil {
-				r.bindValueFieldsToContext(funcObj, sel.X, structType, annotation.StructFieldParamContext, annotation.ReceiverParamIndex)
+				r.bindValueFieldsToContext(target.Origin, sel.X, structType, annotation.StructFieldParamContext, annotation.ReceiverParamIndex)
 			}
 		}
 	}
 
 	for argIdx, arg := range call.Args {
-		if argIdx >= sig.Params().Len() {
+		if argIdx >= target.Signature.Params().Len() {
 			break
 		}
-		structType := typeshelper.AsDeeplyStruct(sig.Params().At(argIdx).Type())
+		structType := typeshelper.AsDeeplyStruct(target.Signature.Params().At(argIdx).Type())
 		if structType == nil {
 			continue
 		}
-		r.bindValueFieldsToContext(funcObj, arg, structType, annotation.StructFieldParamContext, argIdx)
+		r.bindValueFieldsToContext(target.Origin, arg, structType, annotation.StructFieldParamContext, argIdx)
 	}
 }
 
@@ -440,10 +434,9 @@ func (r *RootAssertionNode) bindArgAndReceiverFieldsToContext(call *ast.CallExpr
 // and receiver. For `f(x)`, if f's parameter 0 may write `b.c`, it produces
 // `x.b.c <- PARAM_OUT(f, 0, "b.c")`. A post-call dereference of x.b.c then consumes f's output
 // summary, while fields absent from the write set retain their pre-call producers.
-func (r *RootAssertionNode) addCallParamOutFieldProducers(call *ast.CallExpr, funcObj *types.Func) {
-	sig := funcObj.Signature()
+func (r *RootAssertionNode) addCallParamOutFieldProducers(call *ast.CallExpr, target typeshelper.StaticCallTarget) {
 	produce := func(arg ast.Expr, structType *types.Struct, index int) {
-		paths := r.functionContext.boundaryFieldEffects.ParamWritePaths(funcObj, index)
+		paths := r.functionContext.boundaryFieldEffects.ParamWritePaths(target.Origin, index)
 		// AddProduction detaches a matched subtree, so nested paths must be produced first.
 		sort.SliceStable(paths, func(i, j int) bool {
 			return strings.Count(paths[i], ".") > strings.Count(paths[j], ".")
@@ -454,7 +447,7 @@ func (r *RootAssertionNode) addCallParamOutFieldProducers(call *ast.CallExpr, fu
 				continue
 			}
 			site := &annotation.StructFieldContextSite{
-				FuncObj: funcObj,
+				FuncObj: target.Origin,
 				Kind:    annotation.StructFieldParamOutContext,
 				Index:   index,
 				Path:    fieldPath,
@@ -468,7 +461,7 @@ func (r *RootAssertionNode) addCallParamOutFieldProducers(call *ast.CallExpr, fu
 		}
 	}
 
-	if recv := sig.Recv(); recv != nil {
+	if recv := target.Signature.Recv(); recv != nil {
 		if sel, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr); ok {
 			if structType := typeshelper.AsDeeplyStruct(recv.Type()); structType != nil {
 				produce(sel.X, structType, annotation.ReceiverParamIndex)
@@ -476,10 +469,10 @@ func (r *RootAssertionNode) addCallParamOutFieldProducers(call *ast.CallExpr, fu
 		}
 	}
 	for index, arg := range call.Args {
-		if index >= sig.Params().Len() {
+		if index >= target.Signature.Params().Len() {
 			break
 		}
-		if structType := typeshelper.AsDeeplyStruct(sig.Params().At(index).Type()); structType != nil {
+		if structType := typeshelper.AsDeeplyStruct(target.Signature.Params().At(index).Type()); structType != nil {
 			produce(arg, structType, index)
 		}
 	}
@@ -490,8 +483,7 @@ func (r *RootAssertionNode) addCallParamOutFieldProducers(call *ast.CallExpr, fu
 // `PARAM_OUT(f, 0, "b.c") -> PARAM_OUT(g, 0, "b.c")`. A field prefix is retained, so passing
 // p.inner to f instead targets `PARAM_OUT(g, 0, "inner.b.c")`. The write summary is already closed
 // over these edges; this supplies each inherited path's context value.
-func (r *RootAssertionNode) bindForwardedParamOut(call *ast.CallExpr, callee *types.Func) {
-	sig := callee.Signature()
+func (r *RootAssertionNode) bindForwardedParamOut(call *ast.CallExpr, target typeshelper.StaticCallTarget) {
 	link := func(calleeIndex int, arg ast.Expr) {
 		base, prefix := asthelper.SplitFieldChain(arg)
 		if base == nil {
@@ -505,13 +497,13 @@ func (r *RootAssertionNode) bindForwardedParamOut(call *ast.CallExpr, callee *ty
 		if !ok {
 			return
 		}
-		for _, calleePath := range r.functionContext.boundaryFieldEffects.ParamWritePaths(callee, calleeIndex) {
+		for _, calleePath := range r.functionContext.boundaryFieldEffects.ParamWritePaths(target.Origin, calleeIndex) {
 			fieldPath := calleePath
 			if prefix != "" {
 				fieldPath = prefix + "." + fieldPath
 			}
 			source := &annotation.StructFieldContextSite{
-				FuncObj: callee, Kind: annotation.StructFieldParamOutContext, Index: calleeIndex, Path: calleePath,
+				FuncObj: target.Origin, Kind: annotation.StructFieldParamOutContext, Index: calleeIndex, Path: calleePath,
 			}
 			destination := &annotation.StructFieldContextSite{
 				FuncObj: r.FuncObj(), Kind: annotation.StructFieldParamOutContext, Index: callerIndex, Path: fieldPath,
@@ -530,13 +522,13 @@ func (r *RootAssertionNode) bindForwardedParamOut(call *ast.CallExpr, callee *ty
 		}
 	}
 
-	if recv := sig.Recv(); recv != nil {
+	if recv := target.Signature.Recv(); recv != nil {
 		if sel, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr); ok {
 			link(annotation.ReceiverParamIndex, sel.X)
 		}
 	}
 	for index, arg := range call.Args {
-		if index >= sig.Params().Len() {
+		if index >= target.Signature.Params().Len() {
 			break
 		}
 		link(index, arg)

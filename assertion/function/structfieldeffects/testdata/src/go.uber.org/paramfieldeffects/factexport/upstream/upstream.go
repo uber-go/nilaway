@@ -43,3 +43,7 @@ func ExportedDeepWrite(o *Outer) { // expect_effects: param_reads:0:Mid param_wr
 func ExportedForwardWrite(o *Outer) { // expect_effects: param_reads:0:Mid param_writes:0:Mid.Child
 	ExportedDeepWrite(o)
 }
+
+func GenericExportedWrite[T any](o *Outer) { // expect_effects: param_writes:0:Mid
+	o.Mid = nil
+}
