@@ -265,9 +265,9 @@ func (r *RootAssertionNode) bindValueFieldsToContext(targetFunc *types.Func, val
 	var demanded []string
 	switch kind {
 	case annotation.StructFieldParamContext:
-		demanded = r.functionContext.paramFieldEffects.ParamReadPaths(funcObj, index)
+		demanded = r.functionContext.boundaryFieldEffects.ParamReadPaths(funcObj, index)
 	case annotation.StructFieldReturnContext:
-		demanded = r.functionContext.paramFieldEffects.ReturnReadPaths(funcObj, index)
+		demanded = r.functionContext.boundaryFieldEffects.ReturnReadPaths(funcObj, index)
 	}
 	for _, fieldPath := range demanded {
 		sel, ok := r.buildFieldPathSelector(valExpr, structType, fieldPath)
@@ -443,7 +443,7 @@ func (r *RootAssertionNode) bindArgAndReceiverFieldsToContext(call *ast.CallExpr
 func (r *RootAssertionNode) addCallParamOutFieldProducers(call *ast.CallExpr, funcObj *types.Func) {
 	sig := funcObj.Signature()
 	produce := func(arg ast.Expr, structType *types.Struct, index int) {
-		paths := r.functionContext.paramFieldEffects.ParamWritePaths(funcObj, index)
+		paths := r.functionContext.boundaryFieldEffects.ParamWritePaths(funcObj, index)
 		// AddProduction detaches a matched subtree, so nested paths must be produced first.
 		sort.SliceStable(paths, func(i, j int) bool {
 			return strings.Count(paths[i], ".") > strings.Count(paths[j], ".")
@@ -505,7 +505,7 @@ func (r *RootAssertionNode) bindForwardedParamOut(call *ast.CallExpr, callee *ty
 		if !ok {
 			return
 		}
-		for _, calleePath := range r.functionContext.paramFieldEffects.ParamWritePaths(callee, calleeIndex) {
+		for _, calleePath := range r.functionContext.boundaryFieldEffects.ParamWritePaths(callee, calleeIndex) {
 			fieldPath := calleePath
 			if prefix != "" {
 				fieldPath = prefix + "." + fieldPath
@@ -561,7 +561,7 @@ func (r *RootAssertionNode) bindParamFieldWriteToContext(lhs, rhs ast.Expr) {
 	if !ok {
 		return
 	}
-	for _, path := range r.functionContext.paramFieldEffects.ParamWritePaths(r.FuncObj(), index) {
+	for _, path := range r.functionContext.boundaryFieldEffects.ParamWritePaths(r.FuncObj(), index) {
 		if path != fieldPath {
 			continue
 		}

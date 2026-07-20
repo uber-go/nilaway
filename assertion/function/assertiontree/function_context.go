@@ -65,11 +65,11 @@ type FunctionContext struct {
 	// funcContracts stores the function contracts of all the functions.
 	funcContracts functioncontracts.Map
 
-	// paramFieldEffects is the package-level boundary summary computed by the struct field effects
+	// boundaryFieldEffects is the package-level boundary summary computed by the struct field effects
 	// analyzer. Read-only here and always non-nil (empty when the analysis is disabled): the boundary
 	// field binding consults the read-path accessors to bind only the field paths a boundary actually
 	// dereferences rather than the full type.
-	paramFieldEffects *structfieldeffects.ParamFieldEffects
+	boundaryFieldEffects *structfieldeffects.BoundaryFieldEffects
 
 	// declaringIdentCache stores declaring identifiers by object.
 	declaringIdentCache map[types.Object]*ast.Ident
@@ -94,12 +94,12 @@ func NewFunctionContext(
 	funcLitMap map[*ast.FuncLit]*anonymousfunc.FuncLitInfo,
 	pkgFakeIdentMap map[*ast.Ident]types.Object,
 	funcContracts functioncontracts.Map,
-	effects *structfieldeffects.ParamFieldEffects,
+	effects *structfieldeffects.BoundaryFieldEffects,
 ) FunctionContext {
 	// Keep effects non-nil so the boundary lookups never need a nil guard; an empty summary
 	// (nil inner maps) reads back as "no effects", which is correct when the analysis is disabled.
 	if effects == nil {
-		effects = &structfieldeffects.ParamFieldEffects{}
+		effects = &structfieldeffects.BoundaryFieldEffects{}
 	}
 	return FunctionContext{
 		pass:                    pass,
@@ -111,7 +111,7 @@ func NewFunctionContext(
 		funcLitMap:              funcLitMap,
 		pkgFakeIdentMap:         pkgFakeIdentMap,
 		funcContracts:           funcContracts,
-		paramFieldEffects:       effects,
+		boundaryFieldEffects:    effects,
 		declaringIdentCache:     make(map[types.Object]*ast.Ident),
 	}
 }

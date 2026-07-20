@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package paramfieldeffects is the fixture for the ComputeParamFieldEffects boundary-summary test.
+// Package paramfieldeffects is the fixture for the boundary field-effects test.
 package paramfieldeffects
 
 type Leaf struct {

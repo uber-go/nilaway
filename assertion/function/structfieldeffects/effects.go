@@ -27,11 +27,11 @@ import (
 	"golang.org/x/tools/go/types/typeutil"
 )
 
-// ParamFieldEffects is the package-level boundary summary. Every effect set is keyed by
+// BoundaryFieldEffects is the package-level boundary summary. Every effect set is keyed by
 // *types.Func, then by IndexedFieldPath.
 // The read sets bound the field binding at boundaries so it enumerates only the
 // field paths a boundary actually dereferences, never the full type graph.
-type ParamFieldEffects struct {
+type BoundaryFieldEffects struct {
 	// ParamReads records (param idx, field path) pairs a function dereferences of that parameter —
 	// the demand a callee places on its caller's argument. Transitively closed over forwarding edges
 	// (a pure forwarder inherits its forwardees' reads), so a caller binds exactly the field paths
@@ -47,7 +47,7 @@ type ParamFieldEffects struct {
 }
 
 // ParamReadPaths returns the field paths read from funcObj's parameter or receiver at idx.
-func (e *ParamFieldEffects) ParamReadPaths(funcObj *types.Func, idx int) []string {
+func (e *BoundaryFieldEffects) ParamReadPaths(funcObj *types.Func, idx int) []string {
 	if e == nil {
 		return nil
 	}
@@ -55,7 +55,7 @@ func (e *ParamFieldEffects) ParamReadPaths(funcObj *types.Func, idx int) []strin
 }
 
 // ReturnReadPaths returns the field paths read from funcObj's result at idx.
-func (e *ParamFieldEffects) ReturnReadPaths(funcObj *types.Func, idx int) []string {
+func (e *BoundaryFieldEffects) ReturnReadPaths(funcObj *types.Func, idx int) []string {
 	if e == nil {
 		return nil
 	}
@@ -63,7 +63,7 @@ func (e *ParamFieldEffects) ReturnReadPaths(funcObj *types.Func, idx int) []stri
 }
 
 // ParamWritePaths returns the field paths written through funcObj's parameter or receiver at idx.
-func (e *ParamFieldEffects) ParamWritePaths(funcObj *types.Func, idx int) []string {
+func (e *BoundaryFieldEffects) ParamWritePaths(funcObj *types.Func, idx int) []string {
 	if e == nil {
 		return nil
 	}
@@ -84,8 +84,28 @@ func fieldPathsForIndex(effects fieldEffects, funcObj *types.Func, idx int) []st
 	return paths
 }
 
-// computeParamFieldEffects walks every function and method in the package once and records the
-// unclosed boundary summary as ParamFieldEffects, plus forwarding edges for closure.
+// collectedFieldEffects owns the unclosed package summary and the forwarding state needed to close
+// it after imported effects have been seeded.
+type collectedFieldEffects struct {
+	summary              *BoundaryFieldEffects
+	paramForwardingEdges map[*types.Func][]paramFieldForwardEdge
+	callees              map[*types.Func]bool
+}
+
+func newCollectedFieldEffects() *collectedFieldEffects {
+	return &collectedFieldEffects{
+		summary: &BoundaryFieldEffects{
+			ParamReads:  make(fieldEffects),
+			ReturnReads: make(fieldEffects),
+			ParamWrites: make(fieldEffects),
+		},
+		paramForwardingEdges: make(map[*types.Func][]paramFieldForwardEdge),
+		callees:              make(map[*types.Func]bool),
+	}
+}
+
+// computeBoundaryFieldEffects collects the unclosed boundary summary and forwarding state for every
+// function and method in the package.
 //
 // Reads are gathered from selector bases — to evaluate `base.Sel`, base must be non-nil, so the
 // field path of base is a read of whatever boundary value it roots at (a parameter → ParamReads,
@@ -93,58 +113,68 @@ func fieldPathsForIndex(effects fieldEffects, funcObj *types.Func, idx int) []st
 // every prefix of a deep access is recorded. Writes are gathered from assignment LHS field chains
 // rooted at a parameter or receiver. Every static call also records an arg→param forwarding
 // edge (which caller parameter, possibly at a nested field prefix, is passed as which callee
-// parameter). The analyzer later runs closeParamFieldSets over those edges so forwarders inherit
-// their forwardees' param reads and writes. Static callees are returned so the analyzer imports
-// only facts needed by calls in this package.
+// parameter). Static callees are retained so the analyzer imports only facts needed by calls in this
+// package before closing the collection.
 //
 // Unresolvable (interface/func-value) callees are treated as mutating/dereferencing nothing
 // (under-report only).
-func computeParamFieldEffects(pass *analysishelper.EnhancedPass) (*ParamFieldEffects, map[*types.Func][]paramFieldForwardEdge, map[*types.Func]bool) {
-	reads := make(fieldEffects)
-	returnReads := make(fieldEffects)
-	writes := make(fieldEffects)
-	edges := make(map[*types.Func][]paramFieldForwardEdge)
-	callees := make(map[*types.Func]bool)
+func computeBoundaryFieldEffects(pass *analysishelper.EnhancedPass) *collectedFieldEffects {
+	collected := newCollectedFieldEffects()
 	for _, file := range pass.Files {
 		for _, decl := range file.Decls {
 			fd, ok := decl.(*ast.FuncDecl)
 			if !ok || fd.Body == nil {
 				continue
 			}
-			funcObj, ok := pass.TypesInfo.ObjectOf(fd.Name).(*types.Func)
-			if !ok {
-				continue
-			}
-			sig, ok := funcObj.Type().(*types.Signature)
-			if !ok {
-				continue
-			}
-			paramIdx := make(map[*types.Var]int)
-			if recv := sig.Recv(); recv != nil {
-				paramIdx[recv] = annotation.ReceiverParamIndex
-			}
-			for i := range sig.Params().Len() {
-				paramIdx[sig.Params().At(i)] = i
-			}
-			// Locals bound directly to a struct-returning call, so a later dereference of the local's
-			// fields can be attributed to that callee's result (the return-read demand).
-			resultVars := collectStructResultVars(pass, fd.Body)
-			ast.Inspect(fd.Body, func(n ast.Node) bool {
-				switch n := n.(type) {
-				case *ast.AssignStmt:
-					collectParamFieldWrites(pass, n, paramIdx, funcObj, writes)
-				case *ast.CallExpr:
-					if callee := collectParamForwardEdges(pass, n, paramIdx, funcObj, edges); callee != nil {
-						callees[callee] = true
-					}
-				case *ast.SelectorExpr:
-					collectFieldReadDemand(pass, n, paramIdx, resultVars, funcObj, reads, returnReads)
-				}
-				return true
-			})
+			collected.collectFunction(pass, fd)
 		}
 	}
-	return &ParamFieldEffects{ParamReads: reads, ReturnReads: returnReads, ParamWrites: writes}, edges, callees
+	return collected
+}
+
+func (c *collectedFieldEffects) collectFunction(pass *analysishelper.EnhancedPass, fd *ast.FuncDecl) {
+	funcObj, ok := pass.TypesInfo.ObjectOf(fd.Name).(*types.Func)
+	if !ok {
+		return
+	}
+	sig, ok := funcObj.Type().(*types.Signature)
+	if !ok {
+		return
+	}
+
+	paramIdx := make(map[*types.Var]int)
+	if recv := sig.Recv(); recv != nil {
+		paramIdx[recv] = annotation.ReceiverParamIndex
+	}
+	for i := range sig.Params().Len() {
+		paramIdx[sig.Params().At(i)] = i
+	}
+
+	// Locals bound directly to a struct-returning call, so a later dereference of the local's fields
+	// can be attributed to that callee's result (the return-read demand).
+	resultVars := collectStructResultVars(pass, fd.Body)
+	ast.Inspect(fd.Body, func(n ast.Node) bool {
+		switch n := n.(type) {
+		case *ast.AssignStmt:
+			collectParamFieldWrites(pass, n, paramIdx, funcObj, c.summary.ParamWrites)
+		case *ast.CallExpr:
+			if callee := collectParamForwardEdges(pass, n, paramIdx, funcObj, c.paramForwardingEdges); callee != nil {
+				c.callees[callee] = true
+			}
+		case *ast.SelectorExpr:
+			collectFieldReadDemand(
+				pass, n, paramIdx, resultVars, funcObj,
+				c.summary.ParamReads, c.summary.ReturnReads,
+			)
+		}
+		return true
+	})
+}
+
+func (c *collectedFieldEffects) close() *BoundaryFieldEffects {
+	closeParamFieldSets(c.summary.ParamWrites, c.paramForwardingEdges)
+	closeParamFieldSets(c.summary.ParamReads, c.paramForwardingEdges)
+	return c.summary
 }
 
 // seedImportedParamEffects merges an imported callee's parameter effects before closure runs.
@@ -318,7 +348,7 @@ func collectParamFieldWrites(pass *analysishelper.EnhancedPass, assign *ast.Assi
 		if _, ok := param.Type().Underlying().(*types.Pointer); !ok {
 			continue
 		}
-		if !fieldPathIsAcyclic(funcObj, idx, path) {
+		if !paramFieldPathIsAcyclic(funcObj, idx, path) {
 			continue
 		}
 		writes.add(funcObj, IndexedFieldPath{Idx: idx, Path: path})
@@ -417,7 +447,7 @@ func closeParamFieldSets(fields fieldEffects, edges map[*types.Func][]paramField
 				path := joinFieldPath(e.callerPrefix, ck.Path)
 				// Skip recursive field paths; otherwise forwarding can keep growing paths like
 				// inner.f, inner.inner.f, ...
-				if !fieldPathIsAcyclic(f, e.callerParamIdx, path) {
+				if !paramFieldPathIsAcyclic(f, e.callerParamIdx, path) {
 					continue
 				}
 				if fields.add(f, IndexedFieldPath{Idx: e.callerParamIdx, Path: path}) {
@@ -445,32 +475,33 @@ func joinFieldPath(prefix, sub string) string {
 	return prefix + "." + sub
 }
 
-// fieldPathIsAcyclic reports whether path can be followed without re-entering a struct type already
-// seen on the chain. Recursive paths are skipped so the forwarding fixpoint stays finite.
-func fieldPathIsAcyclic(fn *types.Func, paramIdx int, path string) bool {
+func paramFieldPathIsAcyclic(fn *types.Func, paramIdx int, path string) bool {
 	sig := fn.Signature()
-	var paramType types.Type
 	if paramIdx == annotation.ReceiverParamIndex {
 		if sig.Recv() == nil {
 			return false
 		}
-		paramType = sig.Recv().Type()
-	} else {
-		if paramIdx < 0 || paramIdx >= sig.Params().Len() {
-			return false
-		}
-		paramType = sig.Params().At(paramIdx).Type()
+		return fieldPathIsAcyclic(sig.Recv().Type(), path)
 	}
+	if paramIdx < 0 || paramIdx >= sig.Params().Len() {
+		return false
+	}
+	return fieldPathIsAcyclic(sig.Params().At(paramIdx).Type(), path)
+}
+
+// fieldPathIsAcyclic reports whether path can be followed without re-entering a struct type already
+// seen on the chain. Recursive paths are skipped so forwarding fixpoints remain finite.
+func fieldPathIsAcyclic(boundaryType types.Type, path string) bool {
 	// AsDeeplyStruct unwraps at most one pointer, but forwarded field paths can be rooted at
-	// parameters with multiple pointer layers.
+	// boundary values with multiple pointer layers.
 	for {
-		ptr, ok := paramType.Underlying().(*types.Pointer)
+		ptr, ok := boundaryType.Underlying().(*types.Pointer)
 		if !ok {
 			break
 		}
-		paramType = ptr.Elem()
+		boundaryType = ptr.Elem()
 	}
-	st := typeshelper.AsDeeplyStruct(paramType)
+	st := typeshelper.AsDeeplyStruct(boundaryType)
 	if st == nil {
 		return false
 	}

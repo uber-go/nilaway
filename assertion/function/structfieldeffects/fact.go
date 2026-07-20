@@ -16,16 +16,16 @@ package structfieldeffects
 
 import "golang.org/x/tools/go/types/objectpath"
 
-// ParamFieldEffectsPackageFact is the exported parameter field-effect summary for one package.
-type ParamFieldEffectsPackageFact struct {
-	Functions []FunctionParamFieldEffects
+// BoundaryFieldEffectsPackageFact is the exported boundary field-effect summary for one package.
+type BoundaryFieldEffectsPackageFact struct {
+	Functions []FunctionFieldEffects
 }
 
 // AFact enables use of the facts passing mechanism in Go's analysis framework.
-func (*ParamFieldEffectsPackageFact) AFact() {}
+func (*BoundaryFieldEffectsPackageFact) AFact() {}
 
-// FunctionParamFieldEffects is a function's parameter field-effect summary within a package fact.
-type FunctionParamFieldEffects struct {
+// FunctionFieldEffects is a function's field-effect summary within a package fact.
+type FunctionFieldEffects struct {
 	FunctionObjectPath objectpath.Path
 	ParamReads         []IndexedFieldPath
 	ParamWrites        []IndexedFieldPath
