@@ -122,3 +122,154 @@ func multiResultWithNil() (Outer, error) { // expect_effects: return_effects:0:M
 func multiResultSpread() (Outer, error) { // expect_effects:
 	return multiResultWithNil()
 }
+
+func shortLocal() *Outer { // expect_effects: return_effects:0:Mid return_effects:0:Value.Child
+	x := &Outer{}
+	return x
+}
+
+func declaredLocal() *Outer { // expect_effects: return_effects:0:Mid.Child return_effects:0:Value.Child
+	var x = &Outer{Mid: &Node{}}
+	return x
+}
+
+func parenthesizedLocal() *Outer { // expect_effects: return_effects:0:Mid return_effects:0:Value.Child
+	x := &Outer{}
+	return (x)
+}
+
+func multipleLocalReturns(cond bool) *Outer { // expect_effects: return_effects:0:Mid return_effects:0:Value.Child
+	x := &Outer{}
+	if cond {
+		return x
+	}
+	return x
+}
+
+func genericLocalForward() *Outer { // expect_effects: return_effects:0:Mid return_effects:0:Value.Child
+	x := genericConcrete[int]()
+	return x
+}
+
+func localForward() *Outer { // expect_effects: return_effects:0:Mid return_effects:0:Value.Child
+	x := directForward()
+	return x
+}
+
+func forwardSecondResult() *Node { // expect_effects: return_effects:0:Child
+	_, n := pair()
+	return n
+}
+
+// No return effects: mutating the local invalidates its tracked allocation.
+func mutatedLocal() *Outer { // expect_effects:
+	x := &Outer{}
+	x.Mid = &Node{}
+	return x
+}
+
+// No return effects: reassigning the local invalidates its tracked allocation.
+func reassignedLocal() *Outer { // expect_effects:
+	x := &Outer{}
+	x = safeOuter()
+	return x
+}
+
+// No return effects: mixed reassignment invalidates the tracked local.
+func mixedReassignment() *Outer { // expect_effects:
+	x := &Outer{}
+	x, used := safeOuter(), true
+	_ = used
+	return x
+}
+
+// No return effects: the range assignment overwrites the tracked local.
+func rangeReassignment() *Outer { // expect_effects:
+	x := &Outer{}
+	for _, x = range []*Outer{safeOuter()} {
+	}
+	return x
+}
+
+func rangeWithoutOperands() *Outer { // expect_effects: return_effects:0:Mid return_effects:0:Value.Child
+	x := &Outer{}
+	for range []int{} {
+	}
+	return x
+}
+
+// No return effects: taking the local's address exposes it to mutation.
+func addressTaken() *Outer { // expect_effects:
+	x := &Outer{}
+	_ = &x
+	return x
+}
+
+func escape(*Outer) {}
+
+// No return effects: passing the local to a call exposes it to mutation.
+func passedToCall() *Outer { // expect_effects:
+	x := &Outer{}
+	escape(x)
+	return x
+}
+
+// No return effects: assigning the local to an alias loses exclusive ownership.
+func aliasedLocal() *Outer { // expect_effects:
+	x := &Outer{}
+	y := x
+	_ = y
+	return x
+}
+
+// No return effects: capturing the local allows deferred mutation. This is a false negative
+// caused by conservativeness: the closure is never invoked, so x's allocation is in fact safe to
+// track, but collectStableStructVars disqualifies any captured candidate without distinguishing
+// called from uncalled closures.
+func capturedLocal() *Outer { // expect_effects:
+	x := &Outer{}
+	_ = func() { x.Mid = &Node{} }
+	return x
+}
+
+// No return effects: capturing the local allows deferred mutation, and here the closure is actually
+// invoked, so conservativeness is justified and the loss of effects is a true negative.
+func capturedLocalInvoked() *Outer { // expect_effects:
+	x := &Outer{}
+	f := func() { x.Mid = &Node{} }
+	f()
+	return x
+}
+
+// No return effects: a return from a closure is not an allowed use of the enclosing local.
+func returnedFromClosure() *Outer { // expect_effects:
+	x := &Outer{}
+	_ = func() *Outer { return x }
+	return x
+}
+
+// No return effects: even a non-mutating observation is outside the stable local pattern.
+func observedLocal() *Outer { // expect_effects:
+	x := &Outer{}
+	if x.Mid == nil {
+		return safeOuter()
+	}
+	return x
+}
+
+// No return effects: field projections are not tracked as concrete return sources.
+func fieldProjection() *Node { // expect_effects:
+	x := &Outer{}
+	return x.Mid
+}
+
+// No return effects: an uninitialized local is not a tracked allocation.
+func zeroValue() Outer { // expect_effects:
+	var x Outer
+	return x
+}
+
+// No return effects: a naked return has no explicit result expression.
+func nakedReturn() (out Outer) { // expect_effects:
+	return
+}
