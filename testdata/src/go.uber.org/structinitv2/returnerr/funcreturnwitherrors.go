@@ -12,16 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Tests the (value, error) constructor pattern: a struct returned alongside a non-nil (or unknown)
-// error is never observed by a caller that checks `err != nil`, so its possibly-nil fields must not
-// poison the success-path summary; but a caller that ignores the error is still flagged.
-
-package funcreturnfields
+// Package returnerr tests the (value, error) constructor pattern: a struct returned alongside a
+// non-nil (or unknown) error is never observed by a caller that checks `err != nil`, so its
+// possibly-nil fields must not poison the success-path summary; but a caller that ignores the error
+// is still flagged.
+package returnerr
 
 import (
 	"errors"
 	"fmt"
 )
+
+type leaf struct {
+	ptr *int
+}
+
+type A11 struct {
+	aptr *leaf
+}
 
 // 1. Always returns a non-nil error: the nil-fielded value is never observed on the success path.
 type myErr struct{}
