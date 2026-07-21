@@ -75,7 +75,7 @@ func (o *Outer) recvRead() { // expect_effects: param_reads:-1:Mid param_reads:-
 }
 
 // makeOuter is a struct-returning constructor; a caller's deref of its result becomes a return read.
-func makeOuter() *Outer { // expect_effects: return_reads:0:Mid return_reads:0:Mid.Child
+func makeOuter() *Outer { // expect_effects: return_reads:0:Mid return_reads:0:Mid.Child return_effects:0:Mid
 	return &Outer{}
 }
 

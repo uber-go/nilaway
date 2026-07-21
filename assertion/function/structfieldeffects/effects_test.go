@@ -29,8 +29,8 @@ import (
 )
 
 // _expectEffectsPrefix precedes a fixture function's expected boundary effects. Each trailing token
-// is "<kind>:<idx>:<path>", where kind identifies Writes, ParamReads, or ReturnReads. A function
-// with no effects carries an empty comment.
+// is "<kind>:<idx>:<path>", where kind identifies parameter writes, parameter reads, return reads,
+// or concrete return effects. A function with no effects carries an empty comment.
 const _expectEffectsPrefix = "expect_effects:"
 
 func TestComputeBoundaryFieldEffects(t *testing.T) {
@@ -43,40 +43,49 @@ func TestComputeBoundaryFieldEffects(t *testing.T) {
 	}()
 
 	testdata := analysistest.TestData()
-	r := analysistest.Run(t, testdata, Analyzer, "go.uber.org/paramfieldeffects")
-	require.Len(t, r, 1)
-	pass := r[0].Pass
-	result := r[0].Result.(*analysishelper.Result[*BoundaryFieldEffects])
-	require.NoError(t, result.Err)
-	effects := result.Res
+	results := analysistest.Run(t, testdata, Analyzer,
+		"go.uber.org/paramfieldeffects",
+		"go.uber.org/returneffects",
+	)
+	require.Len(t, results, 2)
+	for _, analysisResult := range results {
+		pass := analysisResult.Pass
+		result := analysisResult.Result.(*analysishelper.Result[*BoundaryFieldEffects])
+		require.NoError(t, result.Err)
+		effects := result.Res
 
-	// Read the expected boundary effects from fixture comments and split them by effect kind.
-	wantParam := make(map[*types.Func][]IndexedFieldPath)
-	wantReturn := make(map[*types.Func][]IndexedFieldPath)
-	wantWrites := make(map[*types.Func][]IndexedFieldPath)
-	for node, tokens := range nilawaytest.FindExpectedValues(pass, _expectEffectsPrefix) {
-		fd, ok := node.(*ast.FuncDecl)
-		require.True(t, ok)
-		funcObj, ok := pass.TypesInfo.ObjectOf(fd.Name).(*types.Func)
-		require.True(t, ok)
-		for _, token := range tokens {
-			kind, key := parseExpectedEffect(t, token)
-			switch kind {
-			case "param_writes":
-				wantWrites[funcObj] = append(wantWrites[funcObj], key)
-			case "param_reads":
-				wantParam[funcObj] = append(wantParam[funcObj], key)
-			case "return_reads":
-				wantReturn[funcObj] = append(wantReturn[funcObj], key)
-			default:
-				t.Fatalf("unknown effect kind %q in token %q", kind, token)
+		// Read the expected boundary effects from fixture comments and split them by effect kind.
+		wantParam := make(map[*types.Func][]IndexedFieldPath)
+		wantReturn := make(map[*types.Func][]IndexedFieldPath)
+		wantWrites := make(map[*types.Func][]IndexedFieldPath)
+		wantReturnEffects := make(map[*types.Func][]IndexedFieldPath)
+		for node, tokens := range nilawaytest.FindExpectedValues(pass, _expectEffectsPrefix) {
+			fd, ok := node.(*ast.FuncDecl)
+			require.True(t, ok)
+			funcObj, ok := pass.TypesInfo.ObjectOf(fd.Name).(*types.Func)
+			require.True(t, ok)
+			for _, token := range tokens {
+				kind, key := parseExpectedEffect(t, token)
+				switch kind {
+				case "param_writes":
+					wantWrites[funcObj] = append(wantWrites[funcObj], key)
+				case "param_reads":
+					wantParam[funcObj] = append(wantParam[funcObj], key)
+				case "return_reads":
+					wantReturn[funcObj] = append(wantReturn[funcObj], key)
+				case "return_effects":
+					wantReturnEffects[funcObj] = append(wantReturnEffects[funcObj], key)
+				default:
+					t.Fatalf("unknown effect kind %q in token %q", kind, token)
+				}
 			}
 		}
-	}
 
-	requireEffects(t, effects.ParamReads, wantParam)
-	requireEffects(t, effects.ReturnReads, wantReturn)
-	requireEffects(t, effects.ParamWrites, wantWrites)
+		requireEffects(t, effects.ParamReads, wantParam)
+		requireEffects(t, effects.ReturnReads, wantReturn)
+		requireEffects(t, effects.ParamWrites, wantWrites)
+		requireEffects(t, effects.ReturnEffects, wantReturnEffects)
+	}
 }
 
 // parseExpectedEffect splits a "<kind>:<idx>:<path>" expect_effects token into its kind and boundary key.
