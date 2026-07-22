@@ -720,7 +720,7 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 					//   foo(s) // <-- track shallow and deep nilability of `s` here
 					// }
 					// ```
-					if typeshelper.IsDeep(r.Pass().TypesInfo.TypeOf(arg)) {
+					if annotation.DeepNilabilityIsLocal(r.Pass().TypesInfo.TypeOf(arg)) {
 						deepProducer := &annotation.ProduceTrigger{
 							Annotation: exprAsDeepProducer(r, arg),
 							Expr:       arg,
