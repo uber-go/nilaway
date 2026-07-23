@@ -263,8 +263,7 @@ func fieldProjection() *Node { // expect_effects:
 	return x.Mid
 }
 
-// No return effects: an uninitialized local is not a tracked allocation.
-func zeroValue() Outer { // expect_effects:
+func zeroValue() Outer { // expect_effects: return_effects:0:Mid return_effects:0:Value.Child
 	var x Outer
 	return x
 }
@@ -272,4 +271,11 @@ func zeroValue() Outer { // expect_effects:
 // No return effects: a naked return has no explicit result expression.
 func nakedReturn() (out Outer) { // expect_effects:
 	return
+}
+
+// No return effects: `var x *Outer` is a nil pointer, not a zero-valued struct — it has no field
+// shape to summarize (its top-level nilness is the ordinary annotation machinery's job).
+func pointerZeroVar() *Outer { // expect_effects:
+	var x *Outer
+	return x
 }

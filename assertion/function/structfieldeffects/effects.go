@@ -369,17 +369,20 @@ func staticStructAllocation(pass *analysishelper.EnhancedPass, expr ast.Expr) (s
 // collectStructAllocationVars records locals whose defining value is a concrete struct allocation.
 func collectStructAllocationVars(pass *analysishelper.EnhancedPass, body *ast.BlockStmt) map[*types.Var]structAllocationSource {
 	var out map[*types.Var]structAllocationSource
-	record := func(ident *ast.Ident, expr ast.Expr) {
+	recordAllocation := func(ident *ast.Ident, source structAllocationSource) {
 		v, ok := pass.TypesInfo.Defs[ident].(*types.Var)
 		if !ok {
 			return
 		}
+		if out == nil {
+			out = make(map[*types.Var]structAllocationSource)
+		}
+		out[v] = source
+	}
+	recordIfAllocation := func(ident *ast.Ident, expr ast.Expr) {
 		source, ok := staticStructAllocation(pass, expr)
 		if ok {
-			if out == nil {
-				out = make(map[*types.Var]structAllocationSource)
-			}
-			out[v] = source
+			recordAllocation(ident, source)
 		}
 	}
 	ast.Inspect(body, func(n ast.Node) bool {
@@ -390,15 +393,28 @@ func collectStructAllocationVars(pass *analysishelper.EnhancedPass, body *ast.Bl
 			}
 			for i, lhs := range n.Lhs {
 				if ident, ok := ast.Unparen(lhs).(*ast.Ident); ok {
-					record(ident, n.Rhs[i])
+					recordIfAllocation(ident, n.Rhs[i])
 				}
 			}
 		case *ast.ValueSpec:
+			if len(n.Values) == 0 {
+				for _, ident := range n.Names {
+					// `var x *A` declares a nil pointer, not a zero-valued struct: it has no
+					// field shape to summarize
+					if typeshelper.IsDeeplyType[*types.Pointer](pass.TypesInfo.TypeOf(ident)) {
+						continue
+					}
+					if structType := typeshelper.AsDeeplyStruct(pass.TypesInfo.TypeOf(ident)); structType != nil {
+						recordAllocation(ident, structAllocationSource{structType: structType})
+					}
+				}
+				return true
+			}
 			if len(n.Names) != len(n.Values) {
 				return true
 			}
 			for i, ident := range n.Names {
-				record(ident, n.Values[i])
+				recordIfAllocation(ident, n.Values[i])
 			}
 		case *ast.FuncLit:
 			return false
