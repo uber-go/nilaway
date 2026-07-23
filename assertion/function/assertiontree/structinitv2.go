@@ -147,6 +147,26 @@ func (r *RootAssertionNode) addFieldProducers(structType *types.Struct, fieldIni
 	}
 }
 
+// isLocalRootedValue reports whether expr is a function-local variable, a field chain rooted
+// at one, or the address of either. Locals have no boundary annotation to snapshot statically, so
+// callers must resolve them through their flow-sensitive producers instead. Address-of is
+// unwrapped because even a proven-non-nil pointer snapshot carries no pointee field shape.
+func (r *RootAssertionNode) isLocalRootedValue(expr ast.Expr) bool {
+	if u, ok := ast.Unparen(expr).(*ast.UnaryExpr); ok && u.Op == token.AND {
+		expr = u.X
+	}
+	base, _ := asthelper.SplitFieldChain(expr)
+	if base == nil {
+		return false
+	}
+	v, ok := r.ObjectOf(base).(*types.Var)
+	if !ok {
+		return false
+	}
+	funcObj := r.FuncObj()
+	return !annotation.VarIsParam(funcObj, v) && !annotation.VarIsRecv(funcObj, v) && !annotation.VarIsGlobal(v)
+}
+
 // accessedFieldPath is one accessed field path under a boundary value, paired with the synthesized
 // selector expression that reaches it.
 type accessedFieldPath struct {
@@ -656,14 +676,13 @@ func (r *RootAssertionNode) bindParamFieldWriteToContext(lhs, rhs ast.Expr) {
 			Expr:       lhs,
 			Guards:     guard.NoGuards(),
 		}
-		if ident, ok := ast.Unparen(rhs).(*ast.Ident); ok {
-			if v, ok := r.ObjectOf(ident).(*types.Var); ok {
-				if _, isParam := r.getParamIndex(v); !isParam && !annotation.VarIsGlobal(v) {
-					consumer.Expr = rhs
-					r.AddConsumption(consumer)
-					return
-				}
-			}
+		// A local-rooted RHS has no boundary annotation to snapshot; attach the param-out
+		// supply as a consumption so backpropagation resolves its flow-sensitive producer.
+		// Any other RHS snapshots to its provable boundary nilability below.
+		if r.isLocalRootedValue(rhs) {
+			consumer.Expr = rhs
+			r.AddConsumption(consumer)
+			return
 		}
 		r.AddNewTriggers(annotation.FullTrigger{
 			Producer: &annotation.ProduceTrigger{
