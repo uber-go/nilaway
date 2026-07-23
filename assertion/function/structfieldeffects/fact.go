@@ -29,4 +29,5 @@ type FunctionFieldEffects struct {
 	FunctionObjectPath objectpath.Path
 	ParamReads         []IndexedFieldPath
 	ParamWrites        []IndexedFieldPath
+	ReturnEffects      []IndexedFieldPath
 }
