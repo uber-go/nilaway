@@ -194,6 +194,14 @@ func (r *RootAssertionNode) addContextFieldProducers(_ *types.Struct, base ast.E
 	}
 	var paths []accessedFieldPath
 	r.collectAccessedFieldPaths(node, base, "", make(map[*types.Struct]bool), &paths)
+	returnEffects := make(map[string]bool)
+	// Error-returning functions are skipped for now: correlating the fields with the error result to be added
+	// in the future.
+	if kind == annotation.StructFieldReturnContext && !typeshelper.FuncIsErrReturning(funcObj.Signature()) {
+		for _, fieldPath := range r.functionContext.boundaryFieldEffects.ReturnEffectPaths(funcObj, index) {
+			returnEffects[fieldPath] = true
+		}
+	}
 	for _, p := range paths {
 		site := &annotation.StructFieldContextSite{
 			FuncObj: funcObj, Kind: kind, Index: index, Path: p.path,
@@ -204,6 +212,25 @@ func (r *RootAssertionNode) addContextFieldProducers(_ *types.Struct, base ast.E
 			},
 			Expr: p.sel,
 		})
+		// If the callee's known return effects prove this path nil (e.g. `return &T{}`),
+		// additionally seed the context site with a definite nil here at the caller.
+		if returnEffects[p.path] {
+			parts := strings.Split(p.path, ".")
+			r.AddNewTriggers(annotation.FullTrigger{
+				Producer: &annotation.ProduceTrigger{
+					Annotation: &annotation.StructFieldNil{
+						ProduceTriggerTautology: &annotation.ProduceTriggerTautology{},
+						FieldName:               parts[len(parts)-1],
+					},
+					Expr: p.sel,
+				},
+				Consumer: &annotation.ConsumeTrigger{
+					Annotation: &annotation.StructFieldToContext{TriggerIfNonNil: &annotation.TriggerIfNonNil{Ann: site}},
+					Expr:       p.sel,
+					Guards:     guard.NoGuards(),
+				},
+			})
+		}
 	}
 }
 
@@ -232,24 +259,26 @@ func (r *RootAssertionNode) bindReturnFieldsToContext(node *ast.ReturnStmt) {
 }
 
 // bindValueFieldsToContext connects the fields of the value produced by valExpr to the context
-// site of targetFunc at (kind, index). Inline allocations and trackable values are bound; a
-// struct-returning call forwarded across the boundary is unsupported (see below).
+// site of targetFunc at (kind, index). For returns, targetFunc is the current function; for
+// arguments and receivers, it is the callee. An inline struct allocation creates full triggers
+// from its per-field shape; a struct-returning call links the destination site to the callee's
+// return site (see bindCallResultFieldsToContext); any other trackable value adds consumers on
+// `valExpr.<path>` for the field paths read at the boundary (boundaryReadPaths), matched later
+// against the value's own field producers.
 func (r *RootAssertionNode) bindValueFieldsToContext(targetFunc *types.Func, valExpr ast.Expr, structType *types.Struct, kind annotation.StructFieldContextKind, index int) {
 	funcObj := targetFunc
-
-	// A struct-returning call forwarded across a boundary (e.g. `return f()` or `g(f())`) is
-	// unsupported, so we do nothing for it. Binding it would compose the callee's per-field return
-	// summary into this boundary, which requires the return-read demand to be transitively closed
-	// over forwarding edges (as the effects prepass does for param reads). That closure is not
-	// computed for returns, as it is incomplete for cross package returns (return read info flows in
-	// the opposite direction of analysis facts)
-	if _, ok := ast.Unparen(valExpr).(*ast.CallExpr); ok {
-		return
-	}
 
 	allocType, fieldInits, isAlloc := r.asStructAllocation(valExpr)
 	if isAlloc {
 		r.bindAllocationFieldsToContext(allocType, fieldInits, valExpr, "", funcObj, kind, index)
+		return
+	}
+
+	// A struct-returning call forwarded across the boundary (e.g. `return f()` or `g(f())`)
+	// has no local field values to inspect; instead, link this boundary site to the callee's
+	// return site so the callee's per-field summary flows through.
+	if call, ok := ast.Unparen(valExpr).(*ast.CallExpr); ok {
+		r.bindCallResultFieldsToContext(call, valExpr, funcObj, kind, index)
 		return
 	}
 
@@ -258,14 +287,7 @@ func (r *RootAssertionNode) bindValueFieldsToContext(targetFunc *types.Func, val
 		return
 	}
 
-	var demanded []string
-	switch kind {
-	case annotation.StructFieldParamContext:
-		demanded = r.functionContext.boundaryFieldEffects.ParamReadPaths(funcObj, index)
-	case annotation.StructFieldReturnContext:
-		demanded = r.functionContext.boundaryFieldEffects.ReturnReadPaths(funcObj, index)
-	}
-	for _, fieldPath := range demanded {
+	for _, fieldPath := range r.boundaryReadPaths(funcObj, kind, index) {
 		sel, ok := r.buildFieldPathSelector(valExpr, structType, fieldPath)
 		if !ok {
 			continue
@@ -277,6 +299,72 @@ func (r *RootAssertionNode) bindValueFieldsToContext(targetFunc *types.Func, val
 			Annotation: &annotation.StructFieldToContext{TriggerIfNonNil: &annotation.TriggerIfNonNil{Ann: site}},
 			Expr:       sel,
 			Guards:     guard.NoGuards(),
+		})
+	}
+}
+
+// boundaryReadPaths returns the field paths that are read through the boundary context site of
+// funcObj at (kind, index): the callee's param read-set for an argument or receiver, or the
+// callers' return read-set for a return value.
+func (r *RootAssertionNode) boundaryReadPaths(funcObj *types.Func, kind annotation.StructFieldContextKind, index int) []string {
+	switch kind {
+	case annotation.StructFieldParamContext:
+		return r.functionContext.boundaryFieldEffects.ParamReadPaths(funcObj, index)
+	case annotation.StructFieldReturnContext:
+		return r.functionContext.boundaryFieldEffects.ReturnReadPaths(funcObj, index)
+	}
+	return nil
+}
+
+// bindCallResultFieldsToContext handles a call result that flows directly into a boundary,
+// as in `return g()` or `h(g())`. The result of g is never stored in a variable, so we have
+// no assertion-tree node to inspect for its fields. Instead, for each relevant field path,
+// we link the two context sites directly: "if g's return field is nilable, then the
+// destination site's field is nilable too". This works regardless of how g's return site was
+// populated: inline allocation triggers (bindAllocationFieldsToContext), consumers matched
+// against the returned value's field producers in the assertion tree (bindValueFieldsToContext),
+// or inferred values imported from another package via the Facts mechanism.
+//
+// The field paths linked are the union of g's known return-effect paths and the paths the
+// destination site is known to read, so `return g()` propagates nested fields as deeply as
+// g constructs them, not just top-level ones. Calls with multiple results or a non-struct
+// result are not handled here.
+func (r *RootAssertionNode) bindCallResultFieldsToContext(call *ast.CallExpr, valExpr ast.Expr, targetFunc *types.Func, kind annotation.StructFieldContextKind, index int) {
+	source, ok := typeshelper.ResolveStaticCallTarget(r.Pass().TypesInfo, call)
+	if !ok || source.Origin == nil || source.Signature.Results().Len() != 1 {
+		return
+	}
+	sourceType := typeshelper.AsDeeplyStruct(source.Signature.Results().At(0).Type())
+	if sourceType == nil {
+		return
+	}
+	pathSet := make(map[string]bool)
+	for _, path := range r.functionContext.boundaryFieldEffects.ReturnEffectPaths(source.Origin, 0) {
+		pathSet[path] = true
+	}
+	for _, path := range r.boundaryReadPaths(targetFunc, kind, index) {
+		pathSet[path] = true
+	}
+	paths := make([]string, 0, len(pathSet))
+	for path := range pathSet {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	for _, fieldPath := range paths {
+		site := &annotation.StructFieldContextSite{FuncObj: targetFunc, Kind: kind, Index: index, Path: fieldPath}
+		srcSite := &annotation.StructFieldContextSite{
+			FuncObj: source.Origin, Kind: annotation.StructFieldReturnContext, Index: 0, Path: fieldPath,
+		}
+		r.AddNewTriggers(annotation.FullTrigger{
+			Producer: &annotation.ProduceTrigger{
+				Annotation: &annotation.StructFieldFromContext{TriggerIfNilable: &annotation.TriggerIfNilable{Ann: srcSite}},
+				Expr:       valExpr,
+			},
+			Consumer: &annotation.ConsumeTrigger{
+				Annotation: &annotation.StructFieldToContext{TriggerIfNonNil: &annotation.TriggerIfNonNil{Ann: site}},
+				Expr:       valExpr,
+				Guards:     guard.NoGuards(),
+			},
 		})
 	}
 }
