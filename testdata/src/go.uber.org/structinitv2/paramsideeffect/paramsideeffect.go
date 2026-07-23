@@ -164,3 +164,23 @@ func testStructObject() *int {
 	populate11(&b)
 	return b.newPtr.ptr
 }
+
+// Negative test: a callee that both reads through and writes the same parameter field creates
+// two context sites that differ only in kind: PARAM (the entry value, read via the guarded
+// deep access) and PARAM_OUT (the post-call value, unconditionally assigned). The two must stay
+// distinct inference sites: the nil entering at the call in m16 poisons only the entry site, so
+// the post-call dereference stays safe. If the kinds collapsed into one site, the nil argument
+// would falsely reach the post-call dereference.
+
+func readAndSet(x *A) {
+	if x.aptr != nil {
+		print(x.aptr.ptr) // deep read through `aptr`, guarded so safe here
+	}
+	x.aptr = &A{} // post-call x.aptr is never nil
+}
+
+func m16() {
+	b := &A{} // b.aptr is nil on entry to readAndSet
+	readAndSet(b)
+	print(b.aptr.ptr) // safe: readAndSet always assigns aptr before returning
+}
