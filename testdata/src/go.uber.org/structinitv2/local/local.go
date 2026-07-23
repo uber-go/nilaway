@@ -181,3 +181,40 @@ func m25(l *leaf) {
 	b := &A{aptr: l}
 	print(b.aptr.ptr)
 }
+
+func genericNewA[T any]() *A { return &A{} }
+
+func m26() {
+	b := genericNewA[int]()
+	print(b.aptr.ptr) //want "uninitialized field `aptr`"
+}
+
+type genericFactory[T any] struct{}
+
+func (genericFactory[T]) newA() *A { return &A{} }
+
+func m27() {
+	b := genericFactory[int]{}.newA()
+	print(b.aptr.ptr) //want "uninitialized field `aptr`"
+}
+
+// False negative: the call site knows genericIdentity returns *A, but the generic declaration
+// returns T. A per-field return summary cannot be formed from an unconstrained type parameter.
+func genericIdentity[T any](value T) T { return value }
+
+func m28() {
+	b := genericIdentity(&A{})
+	print(b.aptr.ptr)
+}
+
+// The same false negative applies to a generic method whose result is its receiver's type parameter.
+type genericBox[T any] struct {
+	value T
+}
+
+func (b genericBox[T]) valueOf() T { return b.value }
+
+func m29() {
+	b := genericBox[*A]{value: &A{}}.valueOf()
+	print(b.aptr.ptr)
+}

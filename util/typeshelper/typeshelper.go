@@ -17,10 +17,12 @@ package typeshelper
 
 import (
 	"fmt"
+	"go/ast"
 	"go/types"
 
 	"go.uber.org/nilaway/util/tokenhelper"
 	"golang.org/x/exp/typeparams"
+	"golang.org/x/tools/go/types/typeutil"
 )
 
 // ErrorType is the type of the builtin "error" interface.
@@ -46,6 +48,36 @@ var BuiltinAppend = types.Universe.Lookup("append")
 
 // BuiltinNew is the builtin "new" function object.
 var BuiltinNew = types.Universe.Lookup("new")
+
+// StaticCallTarget describes a statically resolved call. Origin identifies the declared function;
+// for a generic instantiation, it is the generic declaration. Signature describes this call's
+// parameter and result types after type arguments and method selection have been applied.
+type StaticCallTarget struct {
+	Origin    *types.Func
+	Signature *types.Signature
+}
+
+// ResolveStaticCallTarget returns the target of call when it has a statically resolved callee. For a
+// non-generic call, Origin identifies the declaration and Signature is its call signature. For a
+// generic instantiation, Origin still identifies the generic declaration while Signature includes
+// the type-argument substitutions.
+func ResolveStaticCallTarget(info *types.Info, call *ast.CallExpr) (StaticCallTarget, bool) {
+	callee := typeutil.StaticCallee(info, call)
+	if callee == nil {
+		return StaticCallTarget{}, false
+	}
+	target := StaticCallTarget{Origin: callee.Origin()}
+	target.Signature, _ = info.TypeOf(call.Fun).(*types.Signature)
+	if selector, isSelector := ast.Unparen(call.Fun).(*ast.SelectorExpr); isSelector {
+		if selection := info.Selections[selector]; selection != nil {
+			target.Signature, _ = selection.Type().(*types.Signature)
+		}
+	}
+	if target.Origin == nil || target.Signature == nil {
+		return StaticCallTarget{}, false
+	}
+	return target, true
+}
 
 // IsDeep checks if a type is an expression that admits deep nilability, such as maps, slices, arrays, etc.
 // Only consider pointers to deep types (e.g., `var x *[]int`) as deep type,

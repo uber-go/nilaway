@@ -75,6 +75,14 @@ func directForward() *Outer { // expect_effects: return_effects:0:Mid return_eff
 	return inlinePointer()
 }
 
+func genericConcrete[T any]() *Outer { // expect_effects: return_effects:0:Mid return_effects:0:Value.Child
+	return &Outer{}
+}
+
+func genericForward() *Outer { // expect_effects: return_effects:0:Mid return_effects:0:Value.Child
+	return genericConcrete[int]()
+}
+
 func pair() (*Outer, *Node) { // expect_effects: return_effects:1:Child
 	return safeOuter(), &Node{}
 }

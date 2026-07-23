@@ -25,11 +25,11 @@ import (
 	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/asthelper"
 	"go.uber.org/nilaway/util/typeshelper"
-	"golang.org/x/tools/go/types/typeutil"
 )
 
-// BoundaryFieldEffects is the package-level boundary summary. Every effect set is keyed by
-// *types.Func, then by IndexedFieldPath.
+// BoundaryFieldEffects is the package-level boundary summary. Every effect set is keyed by a
+// function origin, then by IndexedFieldPath. Function declarations and StaticCallTarget both
+// provide that identity, including for instantiated generic calls.
 // The read sets bound the field binding at boundaries so it enumerates only the
 // field paths a boundary actually dereferences, never the full type graph.
 type BoundaryFieldEffects struct {
@@ -288,12 +288,11 @@ func collectStructResultVars(pass *analysishelper.EnhancedPass, body *ast.BlockS
 		if !ok {
 			return
 		}
-		callee := typeutil.StaticCallee(pass.TypesInfo, call)
-		if callee == nil {
+		target, ok := typeshelper.ResolveStaticCallTarget(pass.TypesInfo, call)
+		if !ok {
 			return
 		}
-		sig, ok := callee.Type().(*types.Signature)
-		if !ok || sig.Results().Len() != len(lhs) {
+		if target.Signature.Results().Len() != len(lhs) {
 			return
 		}
 		for i, l := range lhs {
@@ -305,11 +304,11 @@ func collectStructResultVars(pass *analysishelper.EnhancedPass, body *ast.BlockS
 			if !ok {
 				continue
 			}
-			if typeshelper.AsDeeplyStruct(sig.Results().At(i).Type()) == nil {
+			if typeshelper.AsDeeplyStruct(target.Signature.Results().At(i).Type()) == nil {
 				continue
 			}
 			if _, seen := out[v]; !seen {
-				out[v] = structResultSource{callee: callee, idx: i}
+				out[v] = structResultSource{callee: target.Origin, idx: i}
 			}
 		}
 	}
@@ -366,18 +365,17 @@ func collectConcreteReturnEffects(
 	edges map[*types.Func][]returnForwardEdge,
 ) {
 	sig := funcObj.Signature()
-	addEdge := func(callerResultIdx int, callee *types.Func, calleeResultIdx int) {
-		if callee == nil || callee.Pkg() != pass.Pkg {
+	addEdge := func(callerResultIdx int, target typeshelper.StaticCallTarget, calleeResultIdx int) {
+		if target.Origin == nil || target.Origin.Pkg() != pass.Pkg {
 			return
 		}
-		calleeSig, ok := callee.Type().(*types.Signature)
-		if !ok || calleeResultIdx < 0 || calleeResultIdx >= calleeSig.Results().Len() ||
-			typeshelper.AsDeeplyStruct(calleeSig.Results().At(calleeResultIdx).Type()) == nil {
+		if calleeResultIdx < 0 || calleeResultIdx >= target.Signature.Results().Len() ||
+			typeshelper.AsDeeplyStruct(target.Signature.Results().At(calleeResultIdx).Type()) == nil {
 			return
 		}
 		edges[funcObj] = append(edges[funcObj], returnForwardEdge{
 			callerResultIdx: callerResultIdx,
-			callee:          callee,
+			callee:          target.Origin,
 			calleeResultIdx: calleeResultIdx,
 		})
 	}
@@ -402,12 +400,9 @@ func collectConcreteReturnEffects(
 					continue
 				}
 				if call, ok := ast.Unparen(resultExpr).(*ast.CallExpr); ok {
-					callee := typeutil.StaticCallee(pass.TypesInfo, call)
-					if callee != nil {
-						calleeSig, _ := callee.Type().(*types.Signature)
-						if calleeSig != nil && calleeSig.Results().Len() == 1 {
-							addEdge(resultIdx, callee, 0)
-						}
+					target, ok := typeshelper.ResolveStaticCallTarget(pass.TypesInfo, call)
+					if ok && target.Signature.Results().Len() == 1 {
+						addEdge(resultIdx, target, 0)
 					}
 					continue
 				}
@@ -507,11 +502,7 @@ func collectParamFieldWrites(pass *analysishelper.EnhancedPass, assign *ast.Assi
 // parameter/receiver of funcObj (the function containing the call). Unresolvable (interface/func-value)
 // callees contribute no edge or callee.
 func collectParamForwardEdges(pass *analysishelper.EnhancedPass, call *ast.CallExpr, paramIdx map[*types.Var]int, funcObj *types.Func, edges map[*types.Func][]paramFieldForwardEdge) *types.Func {
-	callee := typeutil.StaticCallee(pass.TypesInfo, call)
-	if callee == nil {
-		return nil
-	}
-	sig, ok := callee.Type().(*types.Signature)
+	target, ok := typeshelper.ResolveStaticCallTarget(pass.TypesInfo, call)
 	if !ok {
 		return nil
 	}
@@ -531,22 +522,22 @@ func collectParamForwardEdges(pass *analysishelper.EnhancedPass, call *ast.CallE
 		edges[funcObj] = append(edges[funcObj], paramFieldForwardEdge{
 			callerParamIdx: callerIdx,
 			callerPrefix:   prefix,
-			callee:         callee,
+			callee:         target.Origin,
 			calleeParamIdx: calleeIdx,
 		})
 	}
-	if recv := sig.Recv(); recv != nil {
+	if recv := target.Signature.Recv(); recv != nil {
 		if sel, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr); ok {
 			record(annotation.ReceiverParamIndex, sel.X)
 		}
 	}
 	for argIdx, arg := range call.Args {
-		if argIdx >= sig.Params().Len() {
+		if argIdx >= target.Signature.Params().Len() {
 			break
 		}
 		record(argIdx, arg)
 	}
-	return callee
+	return target.Origin
 }
 
 // paramFieldForwardEdge records that the caller passes its own parameter/receiver (callerParamIdx) — possibly
