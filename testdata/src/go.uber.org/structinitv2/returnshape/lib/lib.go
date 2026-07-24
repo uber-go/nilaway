@@ -32,24 +32,6 @@ type Outer struct {
 	Mid *Node
 }
 
-// ReturnDeepNil returns a value whose Mid is set but whose nested Mid.Child is left nil.
-func ReturnDeepNil() *Outer {
-	x := &Outer{Mid: &Node{}}
-	return x
-}
-
-// ReturnDeepNonNil is the negative control: it initializes Mid.Child, so the same deref is safe.
-func ReturnDeepNonNil() *Outer {
-	x := &Outer{Mid: &Node{Child: &Leaf{}}}
-	return x
-}
-
-// ReturnForwardedConstructor forwards a constructor's result directly (`return g()`), so it is as
-// deep as ReturnDeepNil's own return shape.
-func ReturnForwardedConstructor() *Outer {
-	return ReturnDeepNil()
-}
-
 // Inner and Wrap give a field-projection return target.
 type Inner struct {
 	Child *Leaf
@@ -58,44 +40,6 @@ type Inner struct {
 // Wrap nests an Inner so ReturnProjection can return the projection x.In.
 type Wrap struct {
 	In *Inner
-}
-
-// ReturnProjection returns a field projection (`return x.In`); the result is an *Inner whose Child
-// is left nil.
-func ReturnProjection() *Inner {
-	x := &Wrap{In: &Inner{}}
-	return x.In
-}
-
-// ReturnProjectionSafe is the negative control for ReturnProjection: Child is initialized.
-func ReturnProjectionSafe() *Inner {
-	x := &Wrap{In: &Inner{Child: &Leaf{}}}
-	return x.In
-}
-
-// ReturnZeroValue returns a zero-value struct (`var x Outer; return x`), so Mid is nil. The value
-// form is summarized; the naked form below is not.
-func ReturnZeroValue() Outer {
-	var x Outer
-	return x
-}
-
-// NakedRet is a documented under-report: a naked named return has no result expression, so its shape
-// is not summarized and the cross-package deref is NOT flagged.
-func NakedRet() (x Outer) {
-	return
-}
-
-// Rec is a self-referential type: paths through Self are recursive and skipped past the first
-// unrolling, so MkRec's top-level Ptr is tracked but Self.Ptr is not.
-type Rec struct {
-	Ptr  *int
-	Self *Rec
-}
-
-// MkRec constructs a recursive value with Self set but Ptr (and Self.Ptr) nil.
-func MkRec() *Rec {
-	return &Rec{Self: &Rec{}}
 }
 
 // ForwardParam forwards its parameter to its result (`return x`); the result's shape is the caller's
