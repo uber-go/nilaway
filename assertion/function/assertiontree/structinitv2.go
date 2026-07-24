@@ -634,7 +634,7 @@ func (r *RootAssertionNode) boundaryReadPaths(funcObj *types.Func, kind annotati
 	case annotation.StructFieldParamContext:
 		return r.functionContext.boundaryFieldEffects.ParamReadPaths(funcObj, index)
 	case annotation.StructFieldReturnContext:
-		return r.functionContext.boundaryFieldEffects.ReturnReadPaths(funcObj, index)
+		return r.contextDemandedReturnPaths(funcObj, index)
 	}
 	return nil
 }
@@ -695,6 +695,33 @@ func (r *RootAssertionNode) bindCallResultFieldsToContext(call *ast.CallExpr, va
 			},
 		})
 	}
+}
+
+// contextDemandedReturnPaths returns the field paths to bind when a value flows into funcObj's
+// index-th return context: the paths same-package callers dereference (ReturnReads) unioned with
+// the function's own supply-side return summary — the concrete return-effect paths and the finite
+// result paths of its field-level param sources. The supply-side paths make the binding exist even
+// when no same-package caller reads the path (cross-package demand cannot travel backwards); an
+// unread path only produces an inert return site, so the union adds no false positive.
+func (r *RootAssertionNode) contextDemandedReturnPaths(funcObj *types.Func, index int) []annotation.FieldPath {
+	demanded := r.functionContext.boundaryFieldEffects.ReturnReadPaths(funcObj, index)
+	demandedSet := make(map[annotation.FieldPath]bool, len(demanded))
+	for _, path := range demanded {
+		demandedSet[path] = true
+	}
+	for _, path := range r.functionContext.boundaryFieldEffects.ReturnEffectPaths(funcObj, index) {
+		if !demandedSet[path] {
+			demandedSet[path] = true
+			demanded = append(demanded, path)
+		}
+	}
+	for _, src := range r.functionContext.boundaryFieldEffects.ReturnParamSources(funcObj) {
+		if src.Result.Idx == index && !src.Result.Path.IsRoot() && !demandedSet[src.Result.Path] {
+			demandedSet[src.Result.Path] = true
+			demanded = append(demanded, src.Result.Path)
+		}
+	}
+	return demanded
 }
 
 // bindAllocationFieldsToContext binds the per-field nilability of an inline struct allocation to
