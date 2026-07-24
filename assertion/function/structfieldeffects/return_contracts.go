@@ -279,10 +279,27 @@ func (fc *functionCollector) recordFieldParamSource(resultIdx int, path annotati
 	})
 }
 
-// dropMixedResultParamSources drops sources for results that are both constructed and forwarded.
-// It runs before closure so the ambiguity cannot propagate into wrappers.
+// dropMixedResultParamSources removes both summaries when a result is constructed and wholly
+// parameter-sourced. It runs after closure so wrappers inherit the mixed state before the drop.
 func (c *collectedFieldEffects) dropMixedResultParamSources() {
+	constructed := make(map[*types.Func]map[int]bool, len(c.resultsWithConstructSite))
+	markConstructed := func(fn *types.Func, idx int) {
+		if constructed[fn] == nil {
+			constructed[fn] = make(map[int]bool)
+		}
+		constructed[fn][idx] = true
+	}
 	for fn, results := range c.resultsWithConstructSite {
+		for idx := range results {
+			markConstructed(fn, idx)
+		}
+	}
+	for fn, effects := range c.summary.returnEffects {
+		for key := range effects {
+			markConstructed(fn, key.Idx)
+		}
+	}
+	for fn, results := range constructed {
 		for idx := range results {
 			mixed := false
 			for source := range c.summary.returnParamSources[fn] {
@@ -291,23 +308,9 @@ func (c *collectedFieldEffects) dropMixedResultParamSources() {
 					break
 				}
 			}
-			if !mixed {
-				for _, edge := range c.returnForwardingEdges[fn] {
-					if edge.callerResultIdx == idx && len(edge.paramForwardingEdges) > 0 {
-						mixed = true
-						break
-					}
-				}
-			}
 			if mixed {
 				c.dropReturnParamSources(fn, idx)
-				edges := c.returnForwardingEdges[fn]
-				for i := range edges {
-					if edges[i].callerResultIdx == idx {
-						edges[i].paramForwardingEdges = nil
-					}
-				}
-				c.returnForwardingEdges[fn] = edges
+				c.dropReturnEffects(fn, idx)
 			}
 		}
 	}
@@ -325,6 +328,15 @@ func (c *collectedFieldEffects) dropWholeResultParamSources(fn *types.Func, resu
 	for key := range c.summary.returnParamSources[fn] {
 		if key.Result.Idx == result && key.Result.Path.IsRoot() {
 			delete(c.summary.returnParamSources[fn], key)
+		}
+	}
+}
+
+// dropReturnEffects deletes every concrete return effect of fn's result index.
+func (c *collectedFieldEffects) dropReturnEffects(fn *types.Func, result int) {
+	for key := range c.summary.returnEffects[fn] {
+		if key.Idx == result {
+			delete(c.summary.returnEffects[fn], key)
 		}
 	}
 }
