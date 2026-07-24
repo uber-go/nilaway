@@ -68,6 +68,9 @@ const (
 	// StructFieldParamContext is the nilability of a field of a function's parameter/receiver,
 	// as observed on entry to the function (the value passed in by the caller).
 	StructFieldParamContext
+	// StructFieldParamOutContext is the nilability of a parameter or receiver field after the
+	// function has assigned it.
+	StructFieldParamOutContext
 )
 
 func (k StructFieldContextKind) string() string {
@@ -82,7 +85,7 @@ func (k StructFieldContextKind) string() string {
 // boundaryDesc renders the boundary descriptor used in diagnostics, e.g. "param 0 of `f`",
 // "result 0 of `g`", or "method receiver of `m`" (when the param index is the receiver index).
 func boundaryDesc(kind StructFieldContextKind, index int, funcName string) string {
-	if kind == StructFieldParamContext && index == ReceiverParamIndex {
+	if kind != StructFieldReturnContext && index == ReceiverParamIndex {
 		return fmt.Sprintf("method receiver of `%s`", funcName)
 	}
 	return fmt.Sprintf("%s %d of `%s`", kind.string(), index, funcName)

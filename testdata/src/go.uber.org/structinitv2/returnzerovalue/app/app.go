@@ -12,16 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package mid is the middle hop of the transitive cross-package return-shape test: it forwards a
-// param-forwarder defined in lib so the app package (two hops away) can tie the result to its own
-// argument.
-package mid
+// Package app is the consumer side of the zero-value return tests.
+package app
 
-import "go.uber.org/structinitv2/returnshape/lib"
+import "go.uber.org/structinitv2/returnzerovalue/lib"
 
-// ForwardParamCrossPkg returns a call to lib.ForwardParam (a param-forwarder in another package), so
-// it forwards its own param 0 to result 0; a caller in app ties the result to its own argument across
-// two package hops.
-func ForwardParamCrossPkg(y *lib.Outer) *lib.Outer {
-	return lib.ForwardParam(y)
+// Zero-value return `var x Outer; return x`; Mid is nil.
+func useReturnZeroValue() {
+	a := lib.ReturnZeroValue()
+	print(a.Mid.Child) //want "field `Mid` of result 0 of `ReturnZeroValue`"
+}
+
+// Naked named return is a documented under-report — NOT flagged.
+func useNaked() {
+	a := lib.NakedRet()
+	print(a.Mid.Child)
 }

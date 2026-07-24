@@ -136,3 +136,85 @@ func m13() {
 	// This should actually give an error
 	print(b.aptr.ptr)
 }
+
+// Explicit nil field initializers are treated as nil producers.
+func m17() {
+	b := &A{aptr: nil}
+	print(b.aptr.ptr) //want "accessed field `ptr`"
+}
+
+// Parenthesized allocations are still recognized as struct allocations.
+func m18() {
+	b := (&A{})
+	print(b.aptr.ptr) //want "uninitialized field `aptr`"
+}
+
+// Non-struct parameters are ignored by the v2 field binding.
+func m19(n int) {
+	print(n)
+}
+
+// Explicit field reassignment to nil overrides the allocation shape.
+func m22() {
+	b := &A{aptr: &leaf{}}
+	b.aptr = nil
+	print(b.aptr.ptr) //want "accessed field `ptr`"
+}
+
+// Non-struct pointer parameters do not trigger v2 field binding.
+func m23(p *int) {
+	print(*p)
+}
+
+// Selector-returning calls are treated like function calls.
+type localFactory struct{}
+
+func (localFactory) newA() *A { return &A{} }
+
+func m24() {
+	b := localFactory{}.newA()
+	print(b.aptr.ptr) //want "uninitialized field `aptr`"
+}
+
+// Field initializers from parameters use the parameter's nilability.
+func m25(l *leaf) {
+	b := &A{aptr: l}
+	print(b.aptr.ptr)
+}
+
+func genericNewA[T any]() *A { return &A{} }
+
+func m26() {
+	b := genericNewA[int]()
+	print(b.aptr.ptr) //want "uninitialized field `aptr`"
+}
+
+type genericFactory[T any] struct{}
+
+func (genericFactory[T]) newA() *A { return &A{} }
+
+func m27() {
+	b := genericFactory[int]{}.newA()
+	print(b.aptr.ptr) //want "uninitialized field `aptr`"
+}
+
+// False negative: the call site knows genericIdentity returns *A, but the generic declaration
+// returns T. A per-field return summary cannot be formed from an unconstrained type parameter.
+func genericIdentity[T any](value T) T { return value }
+
+func m28() {
+	b := genericIdentity(&A{})
+	print(b.aptr.ptr)
+}
+
+// The same false negative applies to a generic method whose result is its receiver's type parameter.
+type genericBox[T any] struct {
+	value T
+}
+
+func (b genericBox[T]) valueOf() T { return b.value }
+
+func m29() {
+	b := genericBox[*A]{value: &A{}}.valueOf()
+	print(b.aptr.ptr)
+}

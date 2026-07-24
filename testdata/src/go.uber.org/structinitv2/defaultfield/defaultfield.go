@@ -14,8 +14,8 @@
 
 // Package defaultfield checks the escape policy for nil struct fields:
 //
-//  1. A nil field that escapes into analyzed code (returned to, passed to, or mutated by a function
-//     NilAway can see) and is then dereferenced IS reported, at the dereference.
+//  1. A nil field that escapes into analyzed code (returned to or passed to a function NilAway can
+//     see) and is then dereferenced IS reported, at the dereference.
 //  2. A nil field that escapes into unanalyzed code, or a parameter with no in-package caller, gets
 //     NilAway's standard optimistic treatment and is NOT reported.
 package defaultfield
@@ -86,4 +86,23 @@ func neverNil(c *A) {
 		return
 	}
 	print(c.aptr.ptr)
+}
+
+// Method receiver bindings preserve allocation-site field nilability.
+func (c *A) sinkMethod() {
+	print(c.aptr.ptr) //want "uninitialized field `aptr`"
+}
+
+func escapeIntoMethodSink() {
+	(&A{}).sinkMethod()
+}
+
+// Trackable local arguments preserve allocation-site field nilability.
+func sinkTracked(c *A) {
+	print(c.aptr.ptr) //want "uninitialized field `aptr`"
+}
+
+func escapeTrackedIntoSink() {
+	b := &A{}
+	sinkTracked(b)
 }

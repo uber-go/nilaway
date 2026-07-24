@@ -131,10 +131,15 @@ func run(p *analysis.Pass) (result interface{}, _ error) {
 		// TODO: This is a suppression added for handling of struct field assignments. We plan to add
 		//  object sensitivity to NilAway in the future, which will allow us to be more precise in struct fields'
 		//  handling. Remove this suppression once we have the object sensitivity implemented (issue #339).
-		for _, t := range assertionsResult.Res {
+		for i := range assertionsResult.Res {
+			t := &assertionsResult.Res[i]
 			if _, ok := t.Consumer.Annotation.(*annotation.FldAssign); ok {
-				// update its producer to be non-nil
-				t.Producer.Annotation = &annotation.ProduceTriggerNever{}
+				// Create a fresh producer for this consumer so the shared producer is not
+				// mutated.
+				t.Producer = &annotation.ProduceTrigger{
+					Annotation: &annotation.ProduceTriggerNever{},
+					Expr:       t.Producer.Expr,
+				}
 			}
 		}
 

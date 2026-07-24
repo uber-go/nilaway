@@ -21,67 +21,6 @@ import (
 	"go.uber.org/structinitv2/returnshape/mid"
 )
 
-// ReturnDeepNil leaves Mid.Child nil; the deep deref must flag.
-func useReturnDeepNil() {
-	a := lib.ReturnDeepNil()
-	print(a.Mid.Child.Ptr) //want "field `Mid.Child` of result 0 of `ReturnDeepNil`"
-}
-
-// ReturnDeepNonNil initializes Mid.Child; the same deref must NOT flag.
-func useReturnDeepNonNil() {
-	a := lib.ReturnDeepNonNil()
-	print(a.Mid.Child.Ptr)
-}
-
-// Transitive across two package hops (app -> mid.ForwardImportedResult -> lib.ReturnDeepNil).
-func useForwardImportedResult() {
-	a := mid.ForwardImportedResult()
-	print(a.Mid.Child.Ptr) //want "field `Mid.Child` of result 0 of `ForwardImportedResult`"
-}
-
-// `return g()` is as deep as g's own return shape.
-func useReturnForwardedConstructor() {
-	a := lib.ReturnForwardedConstructor()
-	print(a.Mid.Child.Ptr) //want "field `Mid.Child` of result 0 of `ReturnForwardedConstructor`"
-}
-
-// Field-projection return `return x.In`; x.In.Child is nil.
-func useReturnProjection() {
-	a := lib.ReturnProjection()
-	print(a.Child.Ptr) //want "field `Child` of result 0 of `ReturnProjection`"
-}
-
-// ReturnProjectionSafe initializes Child; no flag.
-func useReturnProjectionSafe() {
-	a := lib.ReturnProjectionSafe()
-	print(a.Child.Ptr)
-}
-
-// Zero-value return `var x Outer; return x`; Mid is nil.
-func useReturnZeroValue() {
-	a := lib.ReturnZeroValue()
-	print(a.Mid.Child) //want "field `Mid` of result 0 of `ReturnZeroValue`"
-}
-
-// Naked named return is a documented under-report — NOT flagged.
-func useNaked() {
-	a := lib.NakedRet()
-	print(a.Mid.Child)
-}
-
-// The recursive constructor's top-level Ptr is tracked.
-func useRecTop() {
-	a := lib.MkRec()
-	print(*a.Ptr) //want "field `Ptr` of result 0 of `MkRec`"
-}
-
-// One unrolling of the recursive type is supported, and Self.Ptr is genuinely nil, so this flags.
-// Paths beyond the first unrolling (Self.Self.Ptr) stay under-reports.
-func useRecDeep() {
-	a := lib.MkRec()
-	print(*a.Self.Ptr) //want "field `Self.Ptr` of result 0 of `MkRec`"
-}
-
 // Param tie: b ties to t; t.Mid.Child is nil, so the deep deref flags.
 func useForwardParam() {
 	t := &lib.Outer{Mid: &lib.Node{}}

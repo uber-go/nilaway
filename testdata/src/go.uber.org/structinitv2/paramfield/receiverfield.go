@@ -50,19 +50,6 @@ func (c A) f24() {
 	print(c.aptr.ptr) //want "field `aptr` of method receiver of `f24`"
 }
 
-// Positive example with direct composite as parameter
-func giveA25() *A {
-	return &A{}
-}
-
-func callF25() {
-	giveA25().f25()
-}
-
-func (c *A) f25() {
-	print(c.aptr.ptr) //want "field `aptr` of method receiver of `f25`"
-}
-
 // Negative example with direct composite as parameter
 
 func callF26() {

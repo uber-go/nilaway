@@ -187,9 +187,9 @@ func IsFieldSelectorChain(expr ast.Expr) bool {
 }
 
 // SplitFieldChain decomposes a field-chain expression into its base identifier and the dotted
-// field prefix from that base: `x` -> (x, ""), `x.a` -> (x, "a"), `x.a.b` -> (x, "a.b"). It
-// returns (nil, "") for anything whose innermost base is not a bare identifier, such as `(*x).a`
-// or `f().a`.
+// field prefix from that base: `x` -> (x, ""), `x.a` -> (x, "a"), `x.a.b` -> (x, "a.b"). Pointer
+// dereferences are transparent, so `(*x).a` -> (x, "a") and `*x` -> (x, ""). It returns (nil, "")
+// for anything whose innermost base is not a bare identifier, such as `f().a`.
 func SplitFieldChain(expr ast.Expr) (*ast.Ident, string) {
 	expr = ast.Unparen(expr)
 	var parts []string
@@ -205,6 +205,8 @@ func SplitFieldChain(expr ast.Expr) (*ast.Ident, string) {
 			return e, strings.Join(parts, ".")
 		case *ast.SelectorExpr:
 			parts = append(parts, e.Sel.Name)
+			expr = ast.Unparen(e.X)
+		case *ast.StarExpr:
 			expr = ast.Unparen(e.X)
 		default:
 			return nil, ""
