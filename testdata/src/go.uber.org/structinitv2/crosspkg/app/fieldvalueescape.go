@@ -12,24 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package shared defines a struct type returned by both sibling constructors p1.New and p2.New.
-// See package app.
-package shared
+// A parameter field read as a value in another package: shared.Get returns a.Aptr without
+// dereferencing it, so the imported read summary must carry the value demand for `Aptr` for the
+// caller-side dereference of the escaped value to be flagged.
 
-// A is returned by both p1.New and p2.New.
-type A struct {
-	Ptr  *int
-	Aptr *Leaf
+package app
+
+import "go.uber.org/structinitv2/crosspkg/shared"
+
+func unsafeFieldValueEscape() {
+	a := &shared.A{}
+	usePtr(shared.Get(a).Ptr) //want "uninitialized field `Aptr`"
 }
 
-// Leaf is the dereference target of A.Aptr.
-type Leaf struct {
-	Ptr *int
-}
-
-// Get reads the Aptr field as a value without dereferencing it, so only the selector's value
-// demand exports `Aptr` in the parameter read summary. A caller in another package dereferences
-// the escaped value; without value demand the nil field never reaches the boundary site.
-func Get(a *A) *Leaf {
-	return a.Aptr
+func safeFieldValueEscape() {
+	a := &shared.A{Aptr: &shared.Leaf{}}
+	usePtr(shared.Get(a).Ptr)
 }

@@ -2,7 +2,7 @@ package downstream // want package:".*"
 
 import "go.uber.org/paramfieldeffects/factexport/upstream"
 
-func Forward(o *upstream.Outer) { // expect_effects: param_reads:0:Mid param_reads:0:Mid.Child
+func Forward(o *upstream.Outer) { // expect_effects: param_reads:0:Mid param_reads:0:Mid.Child param_reads:0:Mid.Child.Ptr
 	upstream.ExportedRead(o)
 }
 
