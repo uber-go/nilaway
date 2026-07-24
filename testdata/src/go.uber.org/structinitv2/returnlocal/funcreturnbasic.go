@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package funcreturnfields tests nilability flowing through fields of a function or method result.
-package funcreturnfields
+// Package returnlocal tests nilability flowing through fields of a function or method result
+// within a single package.
+package returnlocal
 
 import (
 	"go.uber.org/structinit/multipackage/packageone"
