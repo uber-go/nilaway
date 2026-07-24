@@ -161,7 +161,7 @@ func (c *collectedFieldEffects) collectFunction(pass *analysishelper.EnhancedPas
 	// Locals bound directly to a struct-returning call, so a later dereference of the local's fields
 	// can be attributed to that callee's result (the return-read demand).
 	resultVars := collectStructResultVars(pass, fd.Body)
-	c.collectReturnEffects(pass, fd, funcObj)
+	c.collectReturnEffects(pass, fd, funcObj, resultVars)
 
 	ast.Inspect(fd.Body, func(n ast.Node) bool {
 		switch n := n.(type) {
@@ -182,9 +182,9 @@ func (c *collectedFieldEffects) collectFunction(pass *analysishelper.EnhancedPas
 }
 
 // collectReturnEffects records this function's concrete nil result fields and same-package return
-// forwarding edges. Only direct construction sites and direct same-package call returns are
-// recognized; returned locals are handled by a later revision.
-func (c *collectedFieldEffects) collectReturnEffects(pass *analysishelper.EnhancedPass, fd *ast.FuncDecl, funcObj *types.Func) {
+// forwarding edges. resultVars maps locals bound directly to struct-returning calls and is shared
+// with the later read-demand pass.
+func (c *collectedFieldEffects) collectReturnEffects(pass *analysishelper.EnhancedPass, fd *ast.FuncDecl, funcObj *types.Func, resultVars map[*types.Var]structResultSource) {
 	sig := funcObj.Signature()
 	// Fast path: no struct-shaped result can ever produce a concrete return effect or forwarding
 	// edge, so the body walk below would do nothing. Use the same predicate as
@@ -199,8 +199,10 @@ func (c *collectedFieldEffects) collectReturnEffects(pass *analysishelper.Enhanc
 	if !hasStructResult {
 		return
 	}
+	allocationVars := collectStructAllocationVars(pass, fd.Body)
+	stableVars := collectStableStructVars(pass, fd.Body, allocationVars, resultVars)
 	collectConcreteReturnEffects(
-		pass, fd.Body, funcObj,
+		pass, fd.Body, funcObj, allocationVars, resultVars, stableVars,
 		c.summary.ReturnEffects, c.returnForwardingEdges,
 	)
 }
@@ -269,7 +271,7 @@ func (e fieldEffects) add(funcObj *types.Func, key IndexedFieldPath) bool {
 // structResultSource identifies the struct-returning callee and result index a local variable was
 // assigned from, so dereferences of that local's fields can be attributed to the callee's return.
 type structResultSource struct {
-	callee *types.Func
+	callee typeshelper.StaticCallTarget
 	idx    int
 }
 
@@ -308,7 +310,7 @@ func collectStructResultVars(pass *analysishelper.EnhancedPass, body *ast.BlockS
 				continue
 			}
 			if _, seen := out[v]; !seen {
-				out[v] = structResultSource{callee: target.Origin, idx: i}
+				out[v] = structResultSource{callee: target, idx: i}
 			}
 		}
 	}
@@ -356,11 +358,115 @@ func staticStructAllocation(pass *analysishelper.EnhancedPass, expr ast.Expr) (s
 	return structAllocationSource{}, false
 }
 
+// collectStructAllocationVars records locals whose defining value is a concrete struct allocation.
+func collectStructAllocationVars(pass *analysishelper.EnhancedPass, body *ast.BlockStmt) map[*types.Var]structAllocationSource {
+	var out map[*types.Var]structAllocationSource
+	record := func(ident *ast.Ident, expr ast.Expr) {
+		v, ok := pass.TypesInfo.Defs[ident].(*types.Var)
+		if !ok {
+			return
+		}
+		source, ok := staticStructAllocation(pass, expr)
+		if ok {
+			if out == nil {
+				out = make(map[*types.Var]structAllocationSource)
+			}
+			out[v] = source
+		}
+	}
+	ast.Inspect(body, func(n ast.Node) bool {
+		switch n := n.(type) {
+		case *ast.AssignStmt:
+			if len(n.Lhs) != len(n.Rhs) {
+				return true
+			}
+			for i, lhs := range n.Lhs {
+				if ident, ok := ast.Unparen(lhs).(*ast.Ident); ok {
+					record(ident, n.Rhs[i])
+				}
+			}
+		case *ast.ValueSpec:
+			if len(n.Names) != len(n.Values) {
+				return true
+			}
+			for i, ident := range n.Names {
+				record(ident, n.Values[i])
+			}
+		case *ast.FuncLit:
+			return false
+		}
+		return true
+	})
+	return out
+}
+
+// collectStableStructVars returns candidate locals whose only uses are as bare operands of explicit
+// returns from the enclosing function. Starting from known-safe uses makes unfamiliar syntax
+// conservative by default: any reassignment, mutation, alias, observation, escape, or closure
+// capture is a non-return use and disqualifies the local.
+func collectStableStructVars(pass *analysishelper.EnhancedPass, body *ast.BlockStmt, allocationVars map[*types.Var]structAllocationSource, resultVars map[*types.Var]structResultSource) map[*types.Var]bool {
+	if len(allocationVars) == 0 && len(resultVars) == 0 {
+		return nil
+	}
+
+	candidates := make(map[*types.Var]bool, len(allocationVars)+len(resultVars))
+	for v := range allocationVars {
+		candidates[v] = true
+	}
+	for v := range resultVars {
+		candidates[v] = true
+	}
+
+	// Record exact identifier occurrences that are bare return operands. Returns inside closures do
+	// not return from the function being summarized, so they are not allowed uses.
+	allowedUses := make(map[*ast.Ident]bool)
+	ast.Inspect(body, func(n ast.Node) bool {
+		switch n := n.(type) {
+		case *ast.FuncLit:
+			return false
+		case *ast.ReturnStmt:
+			for _, result := range n.Results {
+				if ident, ok := ast.Unparen(result).(*ast.Ident); ok {
+					allowedUses[ident] = true
+				}
+			}
+		}
+		return true
+	})
+
+	// Only candidates that are actually returned start stable. The second walk intentionally enters
+	// closures so a captured candidate is seen as a disallowed use.
+	stable := make(map[*types.Var]bool)
+	for ident := range allowedUses {
+		if v, ok := pass.TypesInfo.Uses[ident].(*types.Var); ok && candidates[v] {
+			stable[v] = true
+		}
+	}
+
+	// Reject a candidate if any of its uses is not one of the exact return occurrences recorded
+	// above. Definitions are absent from TypesInfo.Uses, so they do not disqualify the candidate.
+	ast.Inspect(body, func(n ast.Node) bool {
+		ident, ok := n.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		v, ok := pass.TypesInfo.Uses[ident].(*types.Var)
+		if ok && candidates[v] && !allowedUses[ident] {
+			delete(stable, v)
+		}
+		return true
+	})
+	return stable
+}
+
 // collectConcreteReturnEffects records concrete nil result fields and same-package forwarding edges.
 func collectConcreteReturnEffects(
 	pass *analysishelper.EnhancedPass,
 	body *ast.BlockStmt,
 	funcObj *types.Func,
+	allocationVars map[*types.Var]structAllocationSource,
+	resultVars map[*types.Var]structResultSource,
+	stableVars map[*types.Var]bool,
 	effects fieldEffects,
 	edges map[*types.Func][]returnForwardEdge,
 ) {
@@ -405,6 +511,21 @@ func collectConcreteReturnEffects(
 						addEdge(resultIdx, target, 0)
 					}
 					continue
+				}
+				ident, ok := ast.Unparen(resultExpr).(*ast.Ident)
+				if !ok {
+					continue
+				}
+				v, ok := pass.TypesInfo.ObjectOf(ident).(*types.Var)
+				if !ok || !stableVars[v] {
+					continue
+				}
+				if source, ok := allocationVars[v]; ok {
+					enumerateConcreteReturnEffects(pass, funcObj, resultIdx, source.structType, source.fieldInits, "", effects)
+					continue
+				}
+				if source, ok := resultVars[v]; ok {
+					addEdge(resultIdx, source.callee, source.idx)
 				}
 			}
 			return false
@@ -458,7 +579,7 @@ func collectFieldReadDemand(pass *analysishelper.EnhancedPass, sel *ast.Selector
 		return
 	}
 	if src, ok := resultVars[v]; ok {
-		returnReads.add(src.callee, IndexedFieldPath{Idx: src.idx, Path: prefix})
+		returnReads.add(src.callee.Origin, IndexedFieldPath{Idx: src.idx, Path: prefix})
 	}
 }
 
