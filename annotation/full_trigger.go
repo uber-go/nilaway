@@ -91,9 +91,9 @@ func (t *FullTrigger) equalsModuloGuardMatched(other FullTrigger) bool {
 		t.Consumer.Expr == other.Consumer.Expr
 }
 
-// A LocatedPrestring wraps another Prestring with a `token.Position` - for formatting with that position
+// A LocatedPrestring wraps another fmt.Stringer with a `token.Position` - for formatting with that position
 type LocatedPrestring struct {
-	Contained Prestring
+	Contained fmt.Stringer
 	Location  token.Position
 }
 
@@ -112,7 +112,7 @@ func (l LocatedPrestring) String() string {
 // with artifical expression generated from the position of that consumer in the assertion tree,
 // and producers that arise from non-trackable expressions correspond to those real non-trackable
 // expressions.
-func (t *FullTrigger) Prestrings(pass *analysishelper.EnhancedPass) (Prestring, Prestring) {
+func (t *FullTrigger) Prestrings(pass *analysishelper.EnhancedPass) (fmt.Stringer, fmt.Stringer) {
 	producerPrestring := t.Producer.Annotation.Prestring()
 	if pass.ExprIsAuthentic(t.Producer.Expr) {
 		producerPrestring = LocatedPrestring{
