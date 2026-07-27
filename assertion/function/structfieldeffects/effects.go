@@ -46,7 +46,7 @@ type BoundaryFieldEffects struct {
 	// receiver. Transitively closed over forwarding edges.
 	ParamWrites fieldEffects
 	// ReturnEffects records (result idx, field path) pairs that are provably nil at a concrete
-	// construction return site. Closed over same-package return forwarding edges.
+	// construction return site. Closed over return forwarding edges.
 	ReturnEffects fieldEffects
 }
 
@@ -189,7 +189,7 @@ func (c *collectedFieldEffects) collectFunction(pass *analysishelper.EnhancedPas
 	})
 }
 
-// collectReturnEffects records this function's concrete nil result fields and same-package return
+// collectReturnEffects records this function's concrete nil result fields and return
 // forwarding edges. resultVars maps locals bound directly to struct-returning calls and is shared
 // with the later read-demand pass.
 func (c *collectedFieldEffects) collectReturnEffects(pass *analysishelper.EnhancedPass, fd *ast.FuncDecl, funcObj *types.Func, resultVars map[*types.Var]structResultSource) {
@@ -467,7 +467,7 @@ func collectStableStructVars(pass *analysishelper.EnhancedPass, body *ast.BlockS
 	return stable
 }
 
-// collectConcreteReturnEffects records concrete nil result fields and same-package forwarding edges.
+// collectConcreteReturnEffects records concrete nil result fields and forwarding edges.
 func collectConcreteReturnEffects(
 	pass *analysishelper.EnhancedPass,
 	body *ast.BlockStmt,
@@ -480,7 +480,7 @@ func collectConcreteReturnEffects(
 ) {
 	sig := funcObj.Signature()
 	addEdge := func(callerResultIdx int, target typeshelper.StaticCallTarget, calleeResultIdx int) {
-		if target.Origin == nil || target.Origin.Pkg() != pass.Pkg {
+		if target.Origin == nil {
 			return
 		}
 		if calleeResultIdx < 0 || calleeResultIdx >= target.Signature.Results().Len() ||
@@ -681,7 +681,7 @@ type paramFieldForwardEdge struct {
 	calleeParamIdx int
 }
 
-// returnForwardEdge records that one result directly returns a same-package callee result.
+// returnForwardEdge records that one result directly returns a callee result.
 type returnForwardEdge struct {
 	callerResultIdx int
 	callee          *types.Func
@@ -740,7 +740,7 @@ func closeParamFieldSets(fields fieldEffects, edges map[*types.Func][]paramField
 	}
 }
 
-// closeReturnEffects copies concrete effects through direct same-package return forwarding to a
+// closeReturnEffects copies concrete effects through direct return forwarding to a
 // fixpoint. Paths are unchanged because field projections are not part of this boundary.
 func closeReturnEffects(effects fieldEffects, edges map[*types.Func][]returnForwardEdge) {
 	preds := make(map[*types.Func][]*types.Func)

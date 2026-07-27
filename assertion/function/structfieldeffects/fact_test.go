@@ -176,6 +176,9 @@ func newFact(functionCount int) *BoundaryFieldEffectsPackageFact {
 				{Idx: 0, Path: "Child.Leaf"},
 				{Idx: 1, Path: fmt.Sprintf("Argument%d.Field", i)},
 			},
+			ReturnEffects: []IndexedFieldPath{
+				{Idx: 0, Path: "Result"},
+			},
 		}
 	}
 	return &BoundaryFieldEffectsPackageFact{Functions: functions}
