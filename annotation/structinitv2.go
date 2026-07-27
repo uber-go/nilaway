@@ -126,7 +126,10 @@ func (s *StructFieldContextSite) copy() Key {
 }
 
 func (s *StructFieldContextSite) String() string {
-	return fmt.Sprintf("field `%s` of %s", s.Path, boundaryDesc(s.Kind, s.Index, s.FuncObj.Name()))
+	// Kind value is included in String to differentiate param-in and param-out site. Without it the two
+	// would collapse into one inference site, conflating a parameter's entry value with its
+	// post-call state.
+	return fmt.Sprintf("field `%s` of kind %d %s", s.Path, s.Kind, boundaryDesc(s.Kind, s.Index, s.FuncObj.Name()))
 }
 
 // StructFieldFromContext is a producer: the value of a field (read from a boundary, e.g.
