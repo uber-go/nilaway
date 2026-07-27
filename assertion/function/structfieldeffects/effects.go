@@ -66,6 +66,14 @@ func (e *BoundaryFieldEffects) ReturnReadPaths(funcObj *types.Func, idx int) []s
 	return fieldPathsForIndex(e.ReturnReads, funcObj, idx)
 }
 
+// ReturnEffectPaths returns the field paths that are provably nil in funcObj's result at idx.
+func (e *BoundaryFieldEffects) ReturnEffectPaths(funcObj *types.Func, idx int) []string {
+	if e == nil {
+		return nil
+	}
+	return fieldPathsForIndex(e.ReturnEffects, funcObj, idx)
+}
+
 // ParamWritePaths returns the field paths written through funcObj's parameter or receiver at idx.
 func (e *BoundaryFieldEffects) ParamWritePaths(funcObj *types.Func, idx int) []string {
 	if e == nil {
