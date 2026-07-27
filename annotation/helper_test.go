@@ -86,9 +86,9 @@ func (m *mockProducingAnnotationTrigger) SetNeedsGuard(b bool) {
 	m.Called(b)
 }
 
-func (m *mockProducingAnnotationTrigger) Prestring() Prestring {
+func (m *mockProducingAnnotationTrigger) Prestring() fmt.Stringer {
 	args := m.Called()
-	return args.Get(0).(Prestring)
+	return args.Get(0).(fmt.Stringer)
 }
 
 func (m *mockProducingAnnotationTrigger) Kind() TriggerKind {

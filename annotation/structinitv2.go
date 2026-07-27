@@ -41,12 +41,12 @@ func (s *StructFieldNil) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this StructFieldNil as a Prestring.
-func (s *StructFieldNil) Prestring() Prestring {
+// Prestring returns this StructFieldNil as a fmt.Stringer.
+func (s *StructFieldNil) Prestring() fmt.Stringer {
 	return StructFieldNilPrestring{FieldName: s.FieldName}
 }
 
-// StructFieldNilPrestring is a Prestring storing the information needed to compactly encode a
+// StructFieldNilPrestring is a fmt.Stringer storing the information needed to compactly encode a
 // StructFieldNil.
 type StructFieldNilPrestring struct {
 	FieldName string
@@ -145,8 +145,8 @@ func (s *StructFieldFromContext) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this StructFieldFromContext as a Prestring.
-func (s *StructFieldFromContext) Prestring() Prestring {
+// Prestring returns this StructFieldFromContext as a fmt.Stringer.
+func (s *StructFieldFromContext) Prestring() fmt.Stringer {
 	site := s.Ann.(*StructFieldContextSite)
 	return StructFieldFromContextPrestring{Path: site.Path, Kind: site.Kind, Index: site.Index, FuncName: site.FuncObj.Name()}
 }
@@ -184,8 +184,8 @@ func (s *StructFieldToContext) Copy() ConsumingAnnotationTrigger {
 	return &c
 }
 
-// Prestring returns this StructFieldToContext as a Prestring.
-func (s *StructFieldToContext) Prestring() Prestring {
+// Prestring returns this StructFieldToContext as a fmt.Stringer.
+func (s *StructFieldToContext) Prestring() fmt.Stringer {
 	site := s.Ann.(*StructFieldContextSite)
 	return StructFieldToContextPrestring{Path: site.Path, Kind: site.Kind, Index: site.Index, FuncName: site.FuncObj.Name()}
 }

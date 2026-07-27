@@ -32,14 +32,12 @@ import (
 // only that information that will be relevant for formatting error messages: a prestring
 // representation  of their production, a prestring representation of their consumption, and the
 // position in the source.
-// See annotation.Prestring for more info, but in short prestrings are structs that store some
-// minimal information that will vary between string representations meant to be passed with the
-// static type information necessary to format that minimal information into a full string
-// representation without needing to encode it all when using Gob encodings through the Facts mechanism
+// Prestrings are fmt.Stringer implementations that store the minimal information needed to format
+// full string representations without encoding all of that information through the Facts mechanism.
 type primitiveFullTrigger struct {
 	Position     token.Position
-	ProducerRepr annotation.Prestring
-	ConsumerRepr annotation.Prestring
+	ProducerRepr fmt.Stringer
+	ConsumerRepr fmt.Stringer
 }
 
 // A primitiveSite represents an atomic choice that may be made about annotations. It is
