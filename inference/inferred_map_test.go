@@ -128,8 +128,8 @@ func newBigInferredMap() *InferredMap {
 		m.StoreImplication(site2, site3,
 			primitiveFullTrigger{
 				Position:     token.Position{Filename: "foo.go", Line: 1, Column: 2},
-				ConsumerRepr: annotation.GlobalVarAssignPrestring{VarName: "foo"},
-				ProducerRepr: annotation.GlobalVarAssignDeepPrestring{VarName: "bar"},
+				ConsumerRepr: annotation.GlobalVarAssignRepr{VarName: "foo"},
+				ProducerRepr: annotation.GlobalVarAssignDeepRepr{VarName: "bar"},
 			},
 		)
 	}
