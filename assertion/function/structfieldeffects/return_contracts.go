@@ -26,6 +26,7 @@ import (
 	"go/token"
 	"go/types"
 	"slices"
+	"strings"
 
 	"go.uber.org/nilaway/util/asthelper"
 )
@@ -43,6 +44,20 @@ type ReturnParamSource struct {
 	Param  IndexedFieldPath
 }
 
+// SuppliesResultPath reports whether s supplies the value at (resultIdx, resultPath): a
+// whole-result source (empty result path) supplies every path of that result, and a field-level
+// source supplies its exact path and everything beneath it. The prefix match is per segment —
+// source `Mid` supplies `Mid.Child` but not the sibling field `Middle`.
+func (s ReturnParamSource) SuppliesResultPath(resultIdx int, resultPath string) bool {
+	if s.Result.Idx != resultIdx {
+		return false
+	}
+	if s.Result.Path == "" {
+		return true
+	}
+	return resultPath == s.Result.Path || strings.HasPrefix(resultPath, s.Result.Path+".")
+}
+
 // returnParamSourceSet maps each function to its set of return param sources.
 type returnParamSourceSet map[*types.Func]map[ReturnParamSource]bool
 
@@ -54,15 +69,15 @@ func (s returnParamSourceSet) add(funcObj *types.Func, source ReturnParamSource)
 	s[funcObj][source] = true
 }
 
-// ReturnParamSources returns funcObj's return param sources in a deterministic order. The sources come
+// sortedSources returns funcObj's return param sources in a deterministic order. The sources come
 // from a map-backed set and reach an exported fact and trigger emission, so map iteration order
 // must not affect either.
-func (e *BoundaryFieldEffects) ReturnParamSources(funcObj *types.Func) []ReturnParamSource {
-	if e == nil || len(e.returnParamSources[funcObj]) == 0 {
+func (s returnParamSourceSet) sortedSources(funcObj *types.Func) []ReturnParamSource {
+	if len(s[funcObj]) == 0 {
 		return nil
 	}
-	sources := make([]ReturnParamSource, 0, len(e.returnParamSources[funcObj]))
-	for c := range e.returnParamSources[funcObj] {
+	sources := make([]ReturnParamSource, 0, len(s[funcObj]))
+	for c := range s[funcObj] {
 		sources = append(sources, c)
 	}
 	slices.SortFunc(sources, func(a, b ReturnParamSource) int {
@@ -72,6 +87,14 @@ func (e *BoundaryFieldEffects) ReturnParamSources(funcObj *types.Func) []ReturnP
 		)
 	})
 	return sources
+}
+
+// ReturnParamSources returns funcObj's return param sources in the sortedSources order.
+func (e *BoundaryFieldEffects) ReturnParamSources(funcObj *types.Func) []ReturnParamSource {
+	if e == nil {
+		return nil
+	}
+	return e.returnParamSources.sortedSources(funcObj)
 }
 
 // collectWholeResultParamSource records the whole-result param source of one return operand: a

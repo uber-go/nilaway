@@ -30,4 +30,5 @@ type FunctionFieldEffects struct {
 	ParamReads         []IndexedFieldPath
 	ParamWrites        []IndexedFieldPath
 	ReturnEffects      []IndexedFieldPath
+	ReturnParamSources []ReturnParamSource
 }
