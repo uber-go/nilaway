@@ -879,14 +879,14 @@ func (a *ArgPassDeep) Copy() ConsumingAnnotationTrigger {
 func (a *ArgPassDeep) Repr() fmt.Stringer {
 	switch key := a.Ann.(type) {
 	case *ParamAnnotationKey:
-		return ArgPassRepr{
+		return ArgPassDeepRepr{
 			ParamName:     key.MinimalString(),
 			FuncName:      key.FuncDecl.Name(),
 			Location:      "",
 			AssignmentStr: a.String(),
 		}
 	case *CallSiteParamAnnotationKey:
-		return ArgPassRepr{
+		return ArgPassDeepRepr{
 			ParamName:     key.MinimalString(),
 			FuncName:      key.FuncDecl.Name(),
 			Location:      key.Location.String(),
@@ -898,12 +898,12 @@ func (a *ArgPassDeep) Repr() fmt.Stringer {
 	}
 }
 
-// ArgPassDeepRepr is a fmt.Stringer storing the needed information to compactly encode a ArgPassDeep
+// ArgPassDeepRepr is a fmt.Stringer storing the needed information to compactly encode an ArgPassDeep.
 type ArgPassDeepRepr struct {
 	ParamName string
 	FuncName  string
-	// Location points to the code location of the argument pass at the call site for a ArgPass
-	// enclosing CallSiteParamAnnotationKey; Location is empty for a ArgPass enclosing ParamAnnotationKey.
+	// Location points to the code location of the argument pass at the call site for an ArgPassDeep
+	// enclosing CallSiteParamAnnotationKey; Location is empty for an ArgPassDeep enclosing ParamAnnotationKey.
 	Location      string
 	AssignmentStr string
 }

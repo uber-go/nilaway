@@ -67,6 +67,10 @@ func retsNonnil3() *int {
 	return &dummyInt
 }
 
+func BlankVarReturn() (_ *int) {
+	return
+}
+
 func retsNilable4() *int {
 	if dummyBool {
 		return retsNilable3()
