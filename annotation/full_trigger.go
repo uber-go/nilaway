@@ -91,18 +91,18 @@ func (t *FullTrigger) equalsModuloGuardMatched(other FullTrigger) bool {
 		t.Consumer.Expr == other.Consumer.Expr
 }
 
-// A LocatedPrestring wraps another fmt.Stringer with a `token.Position` - for formatting with that position
-type LocatedPrestring struct {
+// A LocatedRepr wraps another fmt.Stringer with a `token.Position` - for formatting with that position
+type LocatedRepr struct {
 	Contained fmt.Stringer
 	Location  token.Position
 }
 
-func (l LocatedPrestring) String() string {
+func (l LocatedRepr) String() string {
 	return fmt.Sprintf("%s at \"%s\"", l.Contained.String(), l.Location.String())
 }
 
-// Prestrings returns Prestrings for clauses describing the production and consumption indicated by this
-// FullTrigger, of the forms: "assigned into a field a bar.go:10" or
+// Reprs returns compact representations for clauses describing the production and consumption
+// indicated by this FullTrigger, of the forms: "assigned into a field a bar.go:10" or
 // "returned from the function foo at baz.go:25"
 //
 // If the Producer's expression is an artificial one created by NilAway instead of pulled as an authentic
@@ -112,19 +112,19 @@ func (l LocatedPrestring) String() string {
 // with artifical expression generated from the position of that consumer in the assertion tree,
 // and producers that arise from non-trackable expressions correspond to those real non-trackable
 // expressions.
-func (t *FullTrigger) Prestrings(pass *analysishelper.EnhancedPass) (fmt.Stringer, fmt.Stringer) {
-	producerPrestring := t.Producer.Annotation.Prestring()
+func (t *FullTrigger) Reprs(pass *analysishelper.EnhancedPass) (fmt.Stringer, fmt.Stringer) {
+	producerRepr := t.Producer.Annotation.Repr()
 	if pass.ExprIsAuthentic(t.Producer.Expr) {
-		producerPrestring = LocatedPrestring{
-			Contained: producerPrestring,
+		producerRepr = LocatedRepr{
+			Contained: producerRepr,
 			Location:  t.truncatedProducerPos(pass),
 		}
 	}
-	consumerPrestring := LocatedPrestring{
-		Contained: t.Consumer.Annotation.Prestring(),
+	consumerRepr := LocatedRepr{
+		Contained: t.Consumer.Annotation.Repr(),
 		Location:  t.truncatedConsumerPos(pass),
 	}
-	return producerPrestring, consumerPrestring
+	return producerRepr, consumerRepr
 }
 
 // FullTriggerSlicesEq returns true if the two passed slices of FullTriggers contain the same elements. It determines if

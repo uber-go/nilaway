@@ -78,14 +78,14 @@ type node struct {
 	consumerRepr     string
 }
 
-// newNode creates a new node object from the given producer and consumer Prestrings.
-// LocatedPrestring contains accurate information about the position and the reason why NilAway deemed that position
-// to be nilable. We use it if available, else we use the raw string representation available from the fmt.Stringer.
+// newNode creates a new node from the given producer and consumer representations.
+// LocatedRepr provides accurate position information; otherwise, newNode uses the representation
+// string without a position.
 func newNode(p fmt.Stringer, c fmt.Stringer) node {
 	nodeObj := node{}
 
 	// get producer representation string
-	if l, ok := p.(annotation.LocatedPrestring); ok {
+	if l, ok := p.(annotation.LocatedRepr); ok {
 		nodeObj.producerPosition = l.Location
 		nodeObj.producerRepr = l.Contained.String()
 	} else if p != nil {
@@ -93,7 +93,7 @@ func newNode(p fmt.Stringer, c fmt.Stringer) node {
 	}
 
 	// get consumer representation string
-	if l, ok := c.(annotation.LocatedPrestring); ok {
+	if l, ok := c.(annotation.LocatedRepr); ok {
 		nodeObj.consumerPosition = l.Location
 		nodeObj.consumerRepr = l.Contained.String()
 	} else if c != nil {
