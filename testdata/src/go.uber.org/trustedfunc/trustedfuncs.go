@@ -318,8 +318,8 @@ func (u *testSetupEmbeddedDepth1) testAmbiguity(t *testing.T, x *int) *int {
 	// calling the top-level function, where they are actually calling the `suite.Suite` method.
 	// NilAway should not be confused and assert that `x` is nonnil.
 
-	// The first error is for passing nilable x to the `msgAndArgs` argument.
-	u.NotNil(t, x) //want "passed"
+	// `msgAndArgs` is nilable, so passing x as a message argument is allowed.
+	u.NotNil(t, x)
 	// The second error is that x is still nilable (u.NotNil does not really do anything).
 	return x //want "returned"
 }
