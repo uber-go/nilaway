@@ -39,43 +39,43 @@ type Rec struct {
 
 // directRead dereferences two nested field prefixes of its parameter: reaching o.Mid.Child.Ptr
 // requires o.Mid and o.Mid.Child to be non-nil, so both paths are param reads.
-func directRead(o *Outer) { // expect_effects: param_reads:0:Mid param_reads:0:Mid.Child
+func directRead(o *Outer) { // expect_effects: param_reads:0:Mid param_reads:0:Mid.Child param_reads:0:Mid.Child.Ptr
 	_ = o.Mid.Child.Ptr
 }
 
-func explicitDerefRead(o *Outer) { // expect_effects: param_reads:0:Mid param_reads:0:Mid.Child
+func explicitDerefRead(o *Outer) { // expect_effects: param_reads:0:Mid param_reads:0:Mid.Child param_reads:0:Mid.Child.Ptr
 	_ = (*o).Mid.Child.Ptr
 }
 
-func intermediateDerefRead(o *Outer) { // expect_effects: param_reads:0:Mid param_reads:0:Mid.Child
+func intermediateDerefRead(o *Outer) { // expect_effects: param_reads:0:Mid param_reads:0:Mid.Child param_reads:0:Mid.Child.Ptr
 	_ = (*o.Mid).Child.Ptr
 }
 
-func doublePointerRead(o **Outer) { // expect_effects: param_reads:0:Mid param_reads:0:Mid.Child
+func doublePointerRead(o **Outer) { // expect_effects: param_reads:0:Mid param_reads:0:Mid.Child param_reads:0:Mid.Child.Ptr
 	_ = (*o).Mid.Child.Ptr
 }
 
 // forwarder passes its parameter straight through, so the closure copies directRead's reads verbatim.
-func forwarder(o *Outer) { // expect_effects: param_reads:0:Mid param_reads:0:Mid.Child
+func forwarder(o *Outer) { // expect_effects: param_reads:0:Mid param_reads:0:Mid.Child param_reads:0:Mid.Child.Ptr
 	directRead(o)
 }
 
-func forwardDerefPointerRead(o **Outer) { // expect_effects: param_reads:0:Mid param_reads:0:Mid.Child
+func forwardDerefPointerRead(o **Outer) { // expect_effects: param_reads:0:Mid param_reads:0:Mid.Child param_reads:0:Mid.Child.Ptr
 	directRead(*o)
 }
 
 // forwardField forwards a nested field of its parameter, so the inherited reads gain the "Inner" prefix.
-func forwardField(w *Wrap) { // expect_effects: param_reads:0:Inner.Mid param_reads:0:Inner.Mid.Child
+func forwardField(w *Wrap) { // expect_effects: param_reads:0:Inner param_reads:0:Inner.Mid param_reads:0:Inner.Mid.Child param_reads:0:Inner.Mid.Child.Ptr
 	directRead(w.Inner)
 }
 
 // recvRead exercises the receiver boundary index (ReceiverParamIndex).
-func (o *Outer) recvRead() { // expect_effects: param_reads:-1:Mid param_reads:-1:Mid.Child
+func (o *Outer) recvRead() { // expect_effects: param_reads:-1:Mid param_reads:-1:Mid.Child param_reads:-1:Mid.Child.Ptr
 	_ = o.Mid.Child.Ptr
 }
 
 // makeOuter is a struct-returning constructor; a caller's deref of its result becomes a return read.
-func makeOuter() *Outer { // expect_effects: return_reads:0:Mid return_reads:0:Mid.Child return_effects:0:Mid
+func makeOuter() *Outer { // expect_effects: return_reads:0:Mid return_reads:0:Mid.Child return_reads:0:Mid.Child.Ptr return_effects:0:Mid
 	return &Outer{}
 }
 
@@ -86,12 +86,12 @@ func consumeReturn() {
 }
 
 // recRead directly dereferences a self-recursive field chain; direct reads keep the exact paths.
-func recRead(r *Rec) { // expect_effects: param_reads:0:Self param_reads:0:Self.Self
+func recRead(r *Rec) { // expect_effects: param_reads:0:Self param_reads:0:Self.Self param_reads:0:Self.Self.Ptr
 	_ = r.Self.Self.Ptr
 }
 
 // recForward forwards a self-recursive field, so the closure must stop the path from growing.
-func recForward(r *Rec) { // expect_effects:
+func recForward(r *Rec) { // expect_effects: param_reads:0:Self
 	recRead(r.Self)
 }
 
@@ -107,7 +107,7 @@ func (o *Outer) receiverWrite() { // expect_effects: param_writes:-1:Mid
 	o.Mid = &Node{}
 }
 
-func forwardWrite(o *Outer) { // expect_effects: param_writes:0:Mid.Child
+func forwardWrite(o *Outer) { // expect_effects: param_reads:0:Mid param_writes:0:Mid.Child
 	writeChild(o.Mid)
 }
 
@@ -115,7 +115,7 @@ func forwardDerefPointerWrite(o **Outer) { // expect_effects: param_writes:0:Mid
 	directWrite(*o)
 }
 
-func forwardWriteAgain(w *Wrap) { // expect_effects: param_writes:0:Inner.Mid.Child
+func forwardWriteAgain(w *Wrap) { // expect_effects: param_reads:0:Inner param_reads:0:Inner.Mid param_writes:0:Inner.Mid.Child
 	forwardWrite(w.Inner)
 }
 
