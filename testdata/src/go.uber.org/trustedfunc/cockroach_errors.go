@@ -1,4 +1,4 @@
-package inference
+package trustedfunc
 
 import cockroachdbErrors "stubs/github.com/cockroachdb/errors"
 

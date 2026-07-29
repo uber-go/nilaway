@@ -1,4 +1,4 @@
-package inference
+package trustedfunc
 
 import (
 	"stubs/google.golang.org/grpc/codes"

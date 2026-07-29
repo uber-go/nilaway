@@ -1,4 +1,4 @@
-package inference
+package trustedfunc
 
 import "stubs/go.uber.org/cadence/workflow"
 
