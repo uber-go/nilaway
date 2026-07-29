@@ -14,8 +14,6 @@
 
 /*
 This package aims to test any nilaway behavior specific to accomdating tests, such as the `github.com/stretchr/testify` library
-
-<nilaway no inference>
 */
 package trustedfunc
 
@@ -32,8 +30,11 @@ import (
 
 type any interface{}
 
-func errs() (any, error) {
-	return 0, nil
+func errs() (*int, error) {
+	if dummy {
+		return new(int), nil
+	}
+	return nil, errors.New("error")
 }
 
 // nilable(param 0)
@@ -42,10 +43,10 @@ func consume(any) {}
 var dummy bool
 
 // nilable(x)
-func testRequire(t *testing.T, x any, z any, m map[any]any) interface{} {
+func testRequire(t *testing.T, x *int, z *int, m map[any]*int) interface{} {
 	switch 0.0 {
 	case 1.0:
-		return x //want "returned"
+		return *x //want "dereferenced"
 	case 1.1:
 		return z
 	case 2.0:
@@ -56,7 +57,7 @@ func testRequire(t *testing.T, x any, z any, m map[any]any) interface{} {
 		return z
 	case 2.2:
 		require.Nil(t, x)
-		return x //want "returned"
+		return *x //want "dereferenced"
 	case 2.3:
 		require.Nil(t, z)
 		// this is unreachable, so no diagnostics should be reported
@@ -69,7 +70,7 @@ func testRequire(t *testing.T, x any, z any, m map[any]any) interface{} {
 		return z
 	case 2.6:
 		require.Nilf(t, x, "mymsg: %s", "arg")
-		return x //want "returned"
+		return *x //want "dereferenced"
 	case 2.7:
 		require.Nilf(t, z, "mymsg: %s", "arg")
 		// this is unreachable, so no diagnostics should be reported
@@ -77,7 +78,7 @@ func testRequire(t *testing.T, x any, z any, m map[any]any) interface{} {
 	case 3:
 		y, err := errs()
 		consume(err)
-		return y //want "returned"
+		return *y //want "result 0 of `errs.*` lacking guarding"
 	case 4.0:
 		y, err := errs()
 		require.NoError(t, err)
@@ -85,7 +86,7 @@ func testRequire(t *testing.T, x any, z any, m map[any]any) interface{} {
 	case 4.1:
 		y, err := errs()
 		require.Error(t, err)
-		return y //want "returned"
+		return *y //want "result 0 of `errs.*` lacking guarding"
 	case 4.2:
 		y, err := errs()
 		require.NoErrorf(t, err, "mymsg: %s", "arg")
@@ -93,7 +94,7 @@ func testRequire(t *testing.T, x any, z any, m map[any]any) interface{} {
 	case 4.3:
 		y, err := errs()
 		require.Errorf(t, err, "mymsg: %s", "arg")
-		return y //want "returned"
+		return *y //want "result 0 of `errs.*` lacking guarding"
 	case 5:
 		require.True(t, x != nil)
 		return x
@@ -102,34 +103,34 @@ func testRequire(t *testing.T, x any, z any, m map[any]any) interface{} {
 		return x
 	case 7:
 		require.True(t, x == nil)
-		return x //want "returned"
+		return *x //want "dereferenced"
 	case 8:
 		require.True(t, nil == x)
-		return x //want "returned"
+		return *x //want "dereferenced"
 	case 9:
 		require.True(t, x != nil && dummy)
 		return x
 	case 10:
 		require.True(t, x != nil || dummy)
-		return x //want "returned"
+		return *x //want "dereferenced"
 	case 11:
 		require.True(t, dummy && x != nil)
 		return x
 	case 12:
 		require.True(t, dummy || x != nil)
-		return x //want "returned"
+		return *x //want "dereferenced"
 	case 11.1:
 		require.Truef(t, dummy && x != nil, "mymsg: %s", "arg")
 		return x
 	case 12.1:
 		require.Truef(t, dummy || x != nil, "mymsg: %s", "arg")
-		return x //want "returned"
+		return *x //want "dereferenced"
 	case 13:
 		require.False(t, x != nil)
-		return x //want "returned"
+		return *x //want "dereferenced"
 	case 14:
 		require.False(t, nil != x)
-		return x //want "returned"
+		return *x //want "dereferenced"
 	case 15:
 		require.False(t, x == nil)
 		return x
@@ -138,19 +139,19 @@ func testRequire(t *testing.T, x any, z any, m map[any]any) interface{} {
 		return x
 	case 17:
 		require.False(t, x == nil && dummy)
-		return x //want "returned"
+		return *x //want "dereferenced"
 	case 16.1:
 		require.Falsef(t, nil == x, "mymsg: %s", "arg")
 		return x
 	case 17.1:
 		require.Falsef(t, x == nil && dummy, "mymsg: %s", "arg")
-		return x //want "returned"
+		return *x //want "dereferenced"
 	case 18:
 		require.False(t, x == nil || dummy)
 		return x
 	case 19:
 		require.False(t, dummy && x == nil)
-		return x //want "returned"
+		return *x //want "dereferenced"
 	case 20:
 		require.False(t, dummy || x == nil)
 		return x
@@ -161,7 +162,7 @@ func testRequire(t *testing.T, x any, z any, m map[any]any) interface{} {
 	case 22:
 		v, ok := m[0]
 		require.False(t, ok)
-		return v //want "returned"
+		return *v //want "deep read from parameter `m` lacking guarding"
 	case 23:
 		_, ok := m[x]
 		require.True(t, ok)
@@ -169,19 +170,19 @@ func testRequire(t *testing.T, x any, z any, m map[any]any) interface{} {
 	case 24:
 		_, ok := m[x]
 		require.False(t, ok)
-		return m[x] //want "returned"
+		return *m[x] //want "deep read from parameter `m` lacking guarding"
 	case 25:
 		require.NotNil(t, m[x])
 		return m[x]
 	case 26:
 		require.Nil(t, m[x])
-		return m[x] //want "returned"
+		return *m[x] //want "deep read from parameter `m` lacking guarding"
 	case 27:
 		require.True(t, m[x] != nil)
 		return m[x]
 	case 28:
 		require.True(t, m[x] == nil)
-		return m[x] //want "returned"
+		return *m[x] //want "deep read from parameter `m` lacking guarding"
 	case 29:
 		mapOfSlice := map[any][]int{}
 		require.True(t, len(mapOfSlice[x]) == 1)
@@ -195,15 +196,15 @@ func testRequire(t *testing.T, x any, z any, m map[any]any) interface{} {
 }
 
 // nilable(a, b, c)
-func testMultipleRequires(t *testing.T, a, b, c any) any {
+func testMultipleRequires(t *testing.T, a, b, c *int) any {
 	if dummy {
-		return a //want "returned"
+		return *a //want "dereferenced"
 	}
 	if dummy {
-		return b //want "returned"
+		return *b //want "dereferenced"
 	}
 	if dummy {
-		return c //want "returned"
+		return *c //want "dereferenced"
 	}
 
 	require.NotNil(t, a)
@@ -212,10 +213,10 @@ func testMultipleRequires(t *testing.T, a, b, c any) any {
 		return a
 	}
 	if dummy {
-		return b //want "returned"
+		return *b //want "dereferenced"
 	}
 	if dummy {
-		return c //want "returned"
+		return *c //want "dereferenced"
 	}
 
 	require.NotNil(t, b)
@@ -227,7 +228,7 @@ func testMultipleRequires(t *testing.T, a, b, c any) any {
 		return b
 	}
 	if dummy {
-		return c //want "returned"
+		return *c //want "dereferenced"
 	}
 
 	require.NotNil(t, c)
@@ -321,7 +322,8 @@ func (u *testSetupEmbeddedDepth1) testAmbiguity(t *testing.T, x *int) *int {
 	// `msgAndArgs` is nilable, so passing x as a message argument is allowed.
 	u.NotNil(t, x)
 	// The second error is that x is still nilable (u.NotNil does not really do anything).
-	return x //want "returned"
+	print(*x) //want "dereferenced"
+	return x
 }
 
 // test for embedded testify package `suite` at depth 4
@@ -343,7 +345,7 @@ func (u *testSetupEmbeddedDepth4) testSuiteDepth4() any {
 	response, err := errs()
 	u.NotNil(err)
 	u.Nil(response)
-	return response //want "returned"
+	return *response //want "result 0 of `errs.*` lacking guarding"
 }
 
 // test for field of type testify package `suite` at depth 2
@@ -572,10 +574,10 @@ func (s *testSetupEmbeddedDepth1) testCallChain(i int) interface{} {
 		return v
 	case 2:
 		s.Require().Error(err)
-		return v //want "returned"
+		return *v //want "result 0 of `errs.*` lacking guarding"
 	case 3:
 		s.Require().Nil(v)
-		return v //want "returned"
+		return *v //want "result 0 of `errs.*` lacking guarding"
 	case 4:
 		s.Assert().NoError(err)
 		return v
@@ -584,10 +586,10 @@ func (s *testSetupEmbeddedDepth1) testCallChain(i int) interface{} {
 		return v
 	case 6:
 		s.Assert().Error(err)
-		return v //want "returned"
+		return *v //want "result 0 of `errs.*` lacking guarding"
 	case 7:
 		s.Assert().Nil(v)
-		return v //want "returned"
+		return *v //want "result 0 of `errs.*` lacking guarding"
 	case 8:
 		var a []int
 		s.Require().Greater(len(a), 0)
@@ -713,12 +715,12 @@ func testEqual(t *testing.T, i int, a []int) interface{} {
 	case 10:
 		x, err := errs()
 		require.NotEqual(t, err, nil)
-		return x //want "result 0 of `errs.*` lacking guarding"
+		return *x //want "result 0 of `errs.*` lacking guarding"
 
 	case 11:
 		x, err := errs()
 		require.NotEqual(t, nil, err)
-		return x //want "result 0 of `errs.*` lacking guarding"
+		return *x //want "result 0 of `errs.*` lacking guarding"
 
 	// test with suite.Suite
 	case 12:
@@ -731,7 +733,7 @@ func testEqual(t *testing.T, i int, a []int) interface{} {
 		x, err := errs()
 		s := &testSetupEmbeddedDepth1{}
 		s.NotEqual(err, nil)
-		return x //want "result 0 of `errs.*` lacking guarding"
+		return *x //want "result 0 of `errs.*` lacking guarding"
 
 	case 14:
 		var x *int
@@ -914,7 +916,7 @@ func testEmpty(t *testing.T, i int, a []int, mp map[int]*int) interface{} {
 	case 5:
 		x, err := errs()
 		require.NotEmpty(t, err)
-		return x //want "result 0 of `errs.*` lacking guarding"
+		return *x //want "result 0 of `errs.*` lacking guarding"
 
 	// zero value of boolean check should be supported
 	case 6:
@@ -1137,11 +1139,13 @@ type SSuite struct {
 	S *S
 }
 
-func (s *SSuite) TestFieldAssignment() {
+func (s *SSuite) SetupTest() {
 	var err error
-	// TODO: this is a false positive. Fix it by adding support for this case.
-	//  Note that this is already being suppressed in the inference mode.
-	s.S, err = NewS() //want "lacking guarding"
+	s.S, err = NewS()
 	s.NoError(err)
-	print(s.S.f)
+	print(s.S.f) // safe
+}
+
+func (s *SSuite) TestField() {
+	print(s.S.f) // safe since SetupTest is called before this
 }
