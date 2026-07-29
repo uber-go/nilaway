@@ -16,6 +16,10 @@ name: Golden Test
 on:
   pull_request:
 
+concurrency:
+  group: golden-test-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   golden-test:
     name: Run
