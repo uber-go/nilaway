@@ -17,7 +17,6 @@ This is a test for checking support for caching functionality. Affiliations witn
 not be re-analyzed by downstream ones (mergedDependencies/mainFile.go)
 TODO: the caching behavior can only be observed by inspecting the logs. Make it as part of a unit test in the future perhaps by adding mocking of the log
 
-<nilaway no inference>
 */
 package mergedDependencies
 

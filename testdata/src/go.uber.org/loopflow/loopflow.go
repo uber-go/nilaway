@@ -18,7 +18,6 @@ algorithm. It's TP and TN cases reflect loops that may or may not, respectively,
 into the return of a non-nil returning function, which would trigger an error. More than 2
 iterations are required to observe the correct behavior.
 
-<nilaway no inference>
 */
 package loopflow
 
