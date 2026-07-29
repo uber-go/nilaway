@@ -46,6 +46,9 @@ type BoundaryFieldEffects struct {
 	// ReturnEffects records (result idx, field path) pairs that are provably nil at a concrete
 	// construction return site. Closed over return forwarding edges.
 	ReturnEffects fieldEffects
+	// returnParamSources records, per function, the sources relating a result (or result field)
+	// to the parameter that supplies it. See ReturnParamSource for the collection rules.
+	returnParamSources returnParamSourceSet
 }
 
 // ParamReadPaths returns the field paths read from funcObj's parameter or receiver at idx.
@@ -98,6 +101,7 @@ func (c *collectedFieldEffects) close() *BoundaryFieldEffects {
 	closeParamFieldSets(c.summary.ParamWrites, c.paramForwardingEdges)
 	closeParamFieldSets(c.summary.ParamReads, c.paramForwardingEdges)
 	closeReturnEffects(c.summary.ReturnEffects, c.returnForwardingEdges)
+	c.dropMixedResultParamSources()
 	return c.summary
 }
 

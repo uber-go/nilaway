@@ -31,6 +31,9 @@ type collectedFieldEffects struct {
 	summary               *BoundaryFieldEffects
 	paramForwardingEdges  map[*types.Func][]paramFieldForwardEdge
 	returnForwardingEdges map[*types.Func][]returnForwardEdge
+	// resultsWithConstructSite marks, per function, the result indices with at least one in-package
+	// construction return site. Used to drop ambiguous mixed construct/forward param sources in close().
+	resultsWithConstructSite map[*types.Func]map[int]bool
 	// calledFunctions is the set of functions statically called from this package, whose facts
 	// are imported before the collection is closed.
 	calledFunctions map[*types.Func]bool
@@ -39,14 +42,16 @@ type collectedFieldEffects struct {
 func newCollectedFieldEffects() *collectedFieldEffects {
 	return &collectedFieldEffects{
 		summary: &BoundaryFieldEffects{
-			ParamReads:    make(fieldEffects),
-			ReturnReads:   make(fieldEffects),
-			ParamWrites:   make(fieldEffects),
-			ReturnEffects: make(fieldEffects),
+			ParamReads:         make(fieldEffects),
+			ReturnReads:        make(fieldEffects),
+			ParamWrites:        make(fieldEffects),
+			ReturnEffects:      make(fieldEffects),
+			returnParamSources: make(returnParamSourceSet),
 		},
-		paramForwardingEdges:  make(map[*types.Func][]paramFieldForwardEdge),
-		returnForwardingEdges: make(map[*types.Func][]returnForwardEdge),
-		calledFunctions:       make(map[*types.Func]bool),
+		paramForwardingEdges:     make(map[*types.Func][]paramFieldForwardEdge),
+		returnForwardingEdges:    make(map[*types.Func][]returnForwardEdge),
+		resultsWithConstructSite: make(map[*types.Func]map[int]bool),
+		calledFunctions:          make(map[*types.Func]bool),
 	}
 }
 
@@ -72,6 +77,12 @@ func (c *collectedFieldEffects) addReturnEffect(fn *types.Func, p IndexedFieldPa
 	c.summary.ReturnEffects.add(fn, p)
 }
 
+// addReturnParamSource records a source relating fn's result (or result field) to the parameter
+// that supplies it.
+func (c *collectedFieldEffects) addReturnParamSource(fn *types.Func, source ReturnParamSource) {
+	c.summary.returnParamSources.add(fn, source)
+}
+
 // addParamForwardEdge records that fn passes one of its parameters (at a field prefix) as a
 // callee argument.
 func (c *collectedFieldEffects) addParamForwardEdge(fn *types.Func, e paramFieldForwardEdge) {
@@ -87,6 +98,15 @@ func (c *collectedFieldEffects) addReturnForwardEdge(fn *types.Func, e returnFor
 // imported before the collection is closed.
 func (c *collectedFieldEffects) markCalled(fn *types.Func) {
 	c.calledFunctions[fn] = true
+}
+
+// markResultWithConstructSite records that fn's resultIdx has an in-package construction return site,
+// so close() can drop the ambiguous whole-result sources of mixed construct/forward results.
+func (c *collectedFieldEffects) markResultWithConstructSite(fn *types.Func, resultIdx int) {
+	if c.resultsWithConstructSite[fn] == nil {
+		c.resultsWithConstructSite[fn] = make(map[int]bool)
+	}
+	c.resultsWithConstructSite[fn][resultIdx] = true
 }
 
 // computeBoundaryFieldEffects collects the unclosed boundary summary and forwarding state for every
@@ -123,7 +143,7 @@ func (c *collectedFieldEffects) collectFunction(pass *analysishelper.EnhancedPas
 	if !ok {
 		return
 	}
-	fc.collectReturnEffects()
+	fc.collectReturnSites()
 	fc.collectUseEffects()
 }
 
@@ -145,10 +165,12 @@ type functionCollector struct {
 	// of the local's fields can be attributed to that callee's result (the return-read demand).
 	resultVars map[*types.Var]structResultSource
 	// allocationVars maps locals whose defining value is a concrete struct allocation, and
-	// stableVars is the subset of allocation/result locals used only as bare return operands.
-	// Both are populated by collectReturnEffects, the only pass that reads them.
 	allocationVars map[*types.Var]structAllocationSource
-	stableVars     map[*types.Var]bool
+	// stableVars is the subset of allocation/result locals used only as bare return operands.
+	stableVars map[*types.Var]bool
+	// unstableParams holds the parameters whose value at a return may not be the caller's
+	// argument (reassigned or address-taken), which never produce param sources.
+	unstableParams map[*types.Var]bool
 	// collected is the package-level collection every pass accumulates into.
 	collected *collectedFieldEffects
 }
@@ -214,17 +236,19 @@ func (fc *functionCollector) collectUseEffects() {
 	})
 }
 
-// collectReturnEffects records this function's concrete nil result fields and return
-// forwarding edges, classifying each struct-shaped return operand once
-// (collectReturnOperandEffect).
-func (fc *functionCollector) collectReturnEffects() {
-	// Fast path: no struct-shaped result can ever produce a concrete return effect or forwarding
-	// edge, so the state preparation and walks below would do nothing.
+// collectReturnSites gathers everything derived from this function's return statements: concrete
+// nil result fields, return param sources, and return forwarding edges. One loop owns the site guards so
+// the param-source and effect collections always see the same return sites — the mixed construct/forward
+// drop in close() relies on that agreement.
+func (fc *functionCollector) collectReturnSites() {
+	// Fast path: no struct-shaped result can ever produce a concrete return effect, param source, or
+	// forwarding edge, so the state preparation and walks below would do nothing.
 	if !hasStructShapedResult(fc.sig) {
 		return
 	}
 	fc.allocationVars = collectStructAllocationVars(fc.pass, fc.fd.Body)
 	fc.stableVars = fc.collectStableStructVars()
+	fc.unstableParams = fc.collectUnstableParamVars()
 
 	for _, stmt := range returnStatements(fc.fd.Body) {
 		// A bare spreading return such as `return f()` is one expression that yields every
@@ -237,7 +261,8 @@ func (fc *functionCollector) collectReturnEffects() {
 			if typeshelper.AsDeeplyStruct(fc.sig.Results().At(resultIdx).Type()) == nil {
 				continue
 			}
-			fc.collectReturnOperandEffect(resultIdx, resultExpr)
+			fc.collectReturnSiteEffect(resultIdx, resultExpr)
+			fc.collectWholeResultParamSource(resultIdx, resultExpr)
 		}
 	}
 }
@@ -477,12 +502,13 @@ func (fc *functionCollector) collectStableStructVars() map[*types.Var]bool {
 	return stable
 }
 
-// collectReturnOperandEffect records what one struct-shaped return operand contributes to the
-// effects summary: a construction (direct or through a stable local) enumerates its nil fields;
-// a direct return of a static call result — or of a stable local bound to one — adds a return
-// forwarding edge.
-func (fc *functionCollector) collectReturnOperandEffect(resultIdx int, resultExpr ast.Expr) {
+// collectReturnSiteEffect records what one struct-shaped return operand contributes to the
+// effects summary: a construction (direct or through a stable local) enumerates its nil fields
+// and marks the result index as constructed (see markResultWithConstructSite); a direct return of a
+// static call result — or of a stable local bound to one — adds a return forwarding edge.
+func (fc *functionCollector) collectReturnSiteEffect(resultIdx int, resultExpr ast.Expr) {
 	if source, ok := staticStructAllocation(fc.pass, resultExpr); ok {
+		fc.collected.markResultWithConstructSite(fc.funcObj, resultIdx)
 		fc.enumerateConcreteReturnEffects(resultIdx, source.structType, source.fieldInits, "")
 		return
 	}
@@ -502,6 +528,7 @@ func (fc *functionCollector) collectReturnOperandEffect(resultIdx int, resultExp
 		return
 	}
 	if source, ok := fc.allocationVars[v]; ok {
+		fc.collected.markResultWithConstructSite(fc.funcObj, resultIdx)
 		fc.enumerateConcreteReturnEffects(resultIdx, source.structType, source.fieldInits, "")
 		return
 	}
@@ -527,7 +554,8 @@ func (fc *functionCollector) addReturnEdge(callerResultIdx int, target typeshelp
 	})
 }
 
-// enumerateConcreteReturnEffects records omitted and explicitly nil fields from one allocation.
+// enumerateConcreteReturnEffects records omitted and explicitly nil fields from one allocation,
+// and the field-level param sources of fields initialized from parameters (recordFieldParamSource).
 func (fc *functionCollector) enumerateConcreteReturnEffects(resultIdx int, structType *types.Struct, fieldInits []ast.Expr, prefix string) {
 	for i := range structType.NumFields() {
 		field := structType.Field(i)
@@ -544,6 +572,7 @@ func (fc *functionCollector) enumerateConcreteReturnEffects(resultIdx int, struc
 				fc.collected.addReturnEffect(fc.funcObj, IndexedFieldPath{Idx: resultIdx, Path: path})
 			}
 		default:
+			fc.recordFieldParamSource(resultIdx, path, fieldVal)
 			if source, ok := staticStructAllocation(fc.pass, fieldVal); ok {
 				fc.enumerateConcreteReturnEffects(resultIdx, source.structType, source.fieldInits, path)
 			}
