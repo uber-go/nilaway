@@ -66,6 +66,11 @@ func ForwardParamProjection(x *Wrap) *Inner {
 	return x.In
 }
 
+// ReceiverProjection returns x.In.
+func (x *Wrap) ReceiverProjection() *Inner {
+	return x.In
+}
+
 // ForwardParamTransitive returns a call to ForwardParam passing its own parameter, so it too
 // forwards param 0 to result 0; a caller's deref observes its own argument shape.
 func ForwardParamTransitive(y *Outer) *Outer {

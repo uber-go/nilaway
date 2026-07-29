@@ -215,6 +215,58 @@ func (r *RootAssertionNode) bindParamSourcedResultFieldAtCall(
 	return true
 }
 
+// bindShallowCallResultArgs supplies call-scoped sites for parameter-sourced result values.
+func (r *RootAssertionNode) bindShallowCallResultArgs(call *ast.CallExpr, funcObj *types.Func) {
+	sources := r.functionContext.boundaryFieldEffects.ReturnParamSources(funcObj)
+	sig := funcObj.Signature()
+	for resultIdx := range sig.Results().Len() {
+		result := structfieldeffects.IndexedFieldPath{Idx: resultIdx}
+		param, ok := sources.ParamPathFromResultPath(result.Idx, result.Path)
+		if !ok {
+			continue
+		}
+		sourceExpr, ok := r.paramPathExprAtCall(call, sig, param)
+		if !ok {
+			continue
+		}
+		site := &annotation.StructFieldContextSite{
+			FuncObj:  funcObj,
+			Kind:     annotation.StructFieldReturnContext,
+			Index:    result.Idx,
+			Path:     result.Path,
+			Location: r.LocationOf(call),
+		}
+		r.bindExprNilabilityToContext(sourceExpr, site)
+	}
+}
+
+// shallowCallResultSiteProducer returns a call-scoped producer for a parameter-sourced result.
+func (r *RootAssertionNode) shallowCallResultSiteProducer(
+	call *ast.CallExpr,
+	funcObj *types.Func,
+	resultIdx int,
+) (annotation.ProducingAnnotationTrigger, bool) {
+	sources := r.functionContext.boundaryFieldEffects.ReturnParamSources(funcObj)
+	result := structfieldeffects.IndexedFieldPath{Idx: resultIdx}
+	param, ok := sources.ParamPathFromResultPath(result.Idx, result.Path)
+	if !ok {
+		return nil, false
+	}
+	if _, ok := r.paramPathExprAtCall(call, funcObj.Signature(), param); !ok {
+		return nil, false
+	}
+	site := &annotation.StructFieldContextSite{
+		FuncObj:  funcObj,
+		Kind:     annotation.StructFieldReturnContext,
+		Index:    result.Idx,
+		Path:     result.Path,
+		Location: r.LocationOf(call),
+	}
+	return &annotation.StructFieldFromContext{
+		TriggerIfNilable: &annotation.TriggerIfNilable{Ann: site},
+	}, true
+}
+
 func (r *RootAssertionNode) paramPathExprAtCall(
 	call *ast.CallExpr,
 	sig *types.Signature,
@@ -254,8 +306,7 @@ func (r *RootAssertionNode) paramPathExprAtCall(
 	return r.buildFieldPathSelector(source, structType, param.Path)
 }
 
-// bindExprNilabilityToContext supplies site from expr, using static nilability when expr is not
-// trackable.
+// bindExprNilabilityToContext supplies site from expr, using static nilability as a fallback.
 func (r *RootAssertionNode) bindExprNilabilityToContext(expr ast.Expr, site annotation.Key) {
 	consumer := &annotation.ConsumeTrigger{
 		Annotation: &annotation.StructFieldToContext{TriggerIfNonNil: &annotation.TriggerIfNonNil{Ann: site}},

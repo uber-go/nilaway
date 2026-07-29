@@ -29,6 +29,10 @@ type funcAssertionNode struct {
 	// declaring identifier for this function
 	decl *types.Func
 	args []ast.Expr
+	// call identifies the source call. With -experimental-struct-init-v2 enabled, shallowEqNodes
+	// uses its position to distinguish nodes only when the result has a unique whole-result
+	// parameter source.
+	call *ast.CallExpr
 }
 
 func (f *funcAssertionNode) MinimalString() string {
@@ -41,10 +45,14 @@ func (f *funcAssertionNode) DefaultTrigger() annotation.ProducingAnnotationTrigg
 		panic("only functions with singular result should be entered into the assertion tree")
 	}
 
-	// A result value supplied by a caller argument must not be read from the shared declaration
-	// return, which merges unrelated callers (see getFuncReturnProducers).
+	// Parameter-sourced results use call-scoped sites instead of the shared return.
 	if root := f.Root(); root != nil && root.functionContext.functionConfig.EnableStructInitV2 &&
 		root.resultValueHasParamSource(f.decl, 0) {
+		if f.call != nil {
+			if siteProducer, ok := root.shallowCallResultSiteProducer(f.call, f.decl, 0); ok {
+				return siteProducer
+			}
+		}
 		return &annotation.ProduceTriggerNever{}
 	}
 
