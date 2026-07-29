@@ -17,7 +17,6 @@
 // NilAway should not panic when seeing ASTs related to generics.
 // TODO: Add support for generics.
 //
-// <nilaway no inference>
 package generics
 
 type A struct{}
