@@ -171,9 +171,18 @@ func (c *collectedFieldEffects) collectFunction(pass *analysishelper.EnhancedPas
 	resultVars := collectStructResultVars(pass, fd.Body)
 	c.collectReturnEffects(pass, fd, funcObj, resultVars)
 
+	// Selectors assigned to (`a.y = ...`) write their selected field rather than read it, so they
+	// must not contribute value demand. ast.Inspect visits an AssignStmt before descending into its
+	// LHS, so the set is always populated before the selector itself is visited.
+	assignedSelectors := make(map[*ast.SelectorExpr]bool)
 	ast.Inspect(fd.Body, func(n ast.Node) bool {
 		switch n := n.(type) {
 		case *ast.AssignStmt:
+			for _, lhs := range n.Lhs {
+				if sel, ok := ast.Unparen(lhs).(*ast.SelectorExpr); ok {
+					assignedSelectors[sel] = true
+				}
+			}
 			collectParamFieldWrites(pass, n, paramIdx, funcObj, c.summary.ParamWrites)
 		case *ast.CallExpr:
 			if callee := collectParamForwardEdges(pass, n, paramIdx, funcObj, c.paramForwardingEdges); callee != nil {
@@ -182,7 +191,7 @@ func (c *collectedFieldEffects) collectFunction(pass *analysishelper.EnhancedPas
 		case *ast.SelectorExpr:
 			collectFieldReadDemand(
 				pass, n, paramIdx, resultVars, funcObj,
-				c.summary.ParamReads, c.summary.ReturnReads,
+				c.summary.ParamReads, c.summary.ReturnReads, assignedSelectors[n],
 			)
 		}
 		return true
@@ -582,29 +591,53 @@ func enumerateConcreteReturnEffects(pass *analysishelper.EnhancedPass, funcObj *
 	}
 }
 
-// collectFieldReadDemand records the field-path dereference demand implied by a single selector
-// expression. To evaluate `base.Sel`, base must be non-nil, so the field path of base (relative to
-// the boundary value it roots at) is a read of that value. If base roots at a parameter/receiver of
-// funcObj the demand goes to reads (param-in); if it roots at a local bound from a struct-returning
-// call (resultVars) it goes to returnReads, attributed to that callee's result. A selector whose
-// base is the boundary value itself (prefix "") only requires the value's own top-level nilability,
-// handled by the ordinary annotation machinery, so it is skipped here.
-func collectFieldReadDemand(pass *analysishelper.EnhancedPass, sel *ast.SelectorExpr, paramIdx map[*types.Var]int, resultVars map[*types.Var]structResultSource, funcObj *types.Func, reads, returnReads fieldEffects) {
+// collectFieldReadDemand records the finite field-path demand implied by a single selector
+// expression. There are two distinct demands:
+//
+//   - Base demand: to evaluate `base.Sel`, base must be non-nil, so the field path of base
+//     (relative to the boundary value it roots at) is a read of that value. For `a.y.z` this
+//     records `y`. A selector whose base is the boundary value itself (prefix "") only requires
+//     the value's own top-level nilability, handled by the ordinary annotation machinery.
+//   - Value demand: reading the selected field value itself may later flow through a local
+//     snapshot (`w := a.y; return &D{v: w}`), so for a nilable selected field the full selector
+//     path is recorded. This is what makes `a.y` demand `y`, not only deeper selectors like
+//     `a.y.z`. Suppressed for assignment LHS selectors (skipValueDemand), which write rather
+//     than read the selected field.
+//
+// If the root is a parameter/receiver of funcObj the demand goes to reads (param-in); if it roots
+// at a local bound from a struct-returning call (resultVars) it goes to returnReads, attributed to
+// that callee's result.
+func collectFieldReadDemand(pass *analysishelper.EnhancedPass, sel *ast.SelectorExpr, paramIdx map[*types.Var]int, resultVars map[*types.Var]structResultSource, funcObj *types.Func, reads, returnReads fieldEffects, skipValueDemand bool) {
+	record := func(base *ast.Ident, path string) {
+		if base == nil || path == "" {
+			return
+		}
+		v, ok := pass.TypesInfo.ObjectOf(base).(*types.Var)
+		if !ok {
+			return
+		}
+		if idx, ok := paramIdx[v]; ok {
+			reads.add(funcObj, IndexedFieldPath{Idx: idx, Path: path})
+			return
+		}
+		if src, ok := resultVars[v]; ok {
+			returnReads.add(src.callee.Origin, IndexedFieldPath{Idx: src.idx, Path: path})
+		}
+	}
+
+	// Base demand: `a.y.z` needs `a.y` to be non-nil.
 	base, prefix := asthelper.SplitFieldChain(sel.X)
-	if base == nil || prefix == "" {
+	record(base, prefix)
+
+	// Value demand: `a.y` reads field `y` as a value. Only nilable field values need a field
+	// nilability summary; non-nilable value-struct sub-fields are reached by their own later
+	// selectors.
+	field, ok := pass.TypesInfo.ObjectOf(sel.Sel).(*types.Var)
+	if skipValueDemand || !ok || typeshelper.TypeBarsNilness(field.Type()) {
 		return
 	}
-	v, ok := pass.TypesInfo.ObjectOf(base).(*types.Var)
-	if !ok {
-		return
-	}
-	if idx, ok := paramIdx[v]; ok {
-		reads.add(funcObj, IndexedFieldPath{Idx: idx, Path: prefix})
-		return
-	}
-	if src, ok := resultVars[v]; ok {
-		returnReads.add(src.callee.Origin, IndexedFieldPath{Idx: src.idx, Path: prefix})
-	}
+	base, path := asthelper.SplitFieldChain(sel)
+	record(base, path)
 }
 
 // collectParamFieldWrites records nilable fields assigned through a pointer parameter or receiver.
