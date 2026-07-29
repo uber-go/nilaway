@@ -100,6 +100,7 @@ func (c *collectedFieldEffects) close() *BoundaryFieldEffects {
 	closeParamFieldSets(c.summary.paramReads, c.paramForwardingEdges)
 	closeReturnEffects(c.summary.returnEffects, c.returnForwardingEdges)
 	c.dropMixedResultParamSources()
+	closeReturnParamSources(c.summary.returnParamSources, c.returnForwardingEdges)
 	return c.summary
 }
 
@@ -174,11 +175,14 @@ type paramFieldForwardEdge struct {
 	calleeParamIdx int
 }
 
-// returnForwardEdge records that one result directly returns a callee result.
+// returnForwardEdge records that one result directly returns a callee result. A direct returned
+// call also retains its parameter-forwarding edges when every call input is a stable parameter of
+// the caller; call-backed locals leave paramForwardingEdges empty.
 type returnForwardEdge struct {
-	callerResultIdx int
-	callee          *types.Func
-	calleeResultIdx int
+	callerResultIdx      int
+	callee               *types.Func
+	calleeResultIdx      int
+	paramForwardingEdges []paramFieldForwardEdge
 }
 
 // closeParamFieldSets extends a field-effect set to a fixpoint over the forwarding edges:

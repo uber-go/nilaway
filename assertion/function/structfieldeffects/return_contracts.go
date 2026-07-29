@@ -29,6 +29,7 @@ import (
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/util/asthelper"
+	"go.uber.org/nilaway/util/typeshelper"
 )
 
 // ReturnParamSource records a result (or result field) whose value is the caller's own argument:
@@ -63,12 +64,17 @@ func (s ReturnParamSource) paramPathFromResultPath(resultIdx int, resultPath ann
 // returnParamSourceSet maps each function to its set of return param sources.
 type returnParamSourceSet map[*types.Func]map[ReturnParamSource]bool
 
-// add records source for funcObj, allocating the inner set on first use.
-func (s returnParamSourceSet) add(funcObj *types.Func, source ReturnParamSource) {
+// add records source for funcObj, allocating the inner set on first use. It reports whether
+// the source was newly added.
+func (s returnParamSourceSet) add(funcObj *types.Func, source ReturnParamSource) bool {
 	if s[funcObj] == nil {
 		s[funcObj] = make(map[ReturnParamSource]bool)
 	}
+	if s[funcObj][source] {
+		return false
+	}
 	s[funcObj][source] = true
+	return true
 }
 
 // sortedSources returns funcObj's return param sources in a deterministic order. The sources come
@@ -133,22 +139,124 @@ func (s ReturnParamSources) ParamPathFromResultPath(resultIdx int, resultPath an
 	return param, found
 }
 
-// collectWholeResultParamSource records the whole-result param source of one return operand: a
-// returned parameter or parameter field chain (`return p`, `return p.x`, receiver variants).
-// Disagreeing sources for the same result (a different parameter per return site) are all kept —
-// consumers refuse to answer when sources disagree, which keeps the collected set deterministic. A
-// result index that both constructs in-package and carries a whole-result source is ambiguous and
-// dropped in close(); field-level sources of constructed results are recorded by
-// recordFieldParamSource instead.
-func (fc *functionCollector) collectWholeResultParamSource(resultIdx int, expr ast.Expr) {
-	source, ok := fc.resolveReturnParamSource(expr)
-	if !ok {
-		return
+// collectWholeResultParamSource records a direct parameter source. Forwarded call sources compose
+// through the parameter edges retained on their return forwarding edge.
+func (fc *functionCollector) collectWholeResultParamSource(resultIdx int, expr ast.Expr) bool {
+	if source, ok := fc.resolveReturnParamSource(expr); ok {
+		fc.collected.addReturnParamSource(fc.funcObj, ReturnParamSource{
+			Result: IndexedFieldPath{Idx: resultIdx},
+			Param:  source,
+		})
+		return true
 	}
-	fc.collected.addReturnParamSource(fc.funcObj, ReturnParamSource{
-		Result: IndexedFieldPath{Idx: resultIdx},
-		Param:  source,
-	})
+	return false
+}
+
+// returnCallParamForwardingEdges maps every supported call input to a stable parameter of the
+// caller. Unsupported call shapes return no edges rather than risk relating the result to the
+// wrong caller value.
+func (fc *functionCollector) returnCallParamForwardingEdges(
+	call *ast.CallExpr,
+	target typeshelper.StaticCallTarget,
+) []paramFieldForwardEdge {
+	if target.Origin == nil || target.Signature.Variadic() {
+		return nil
+	}
+	var receiver ast.Expr
+	if sel, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr); ok {
+		if selection := fc.pass.TypesInfo.Selections[sel]; selection != nil {
+			if selection.Kind() != types.MethodVal || len(selection.Index()) != 1 {
+				return nil
+			}
+			receiver = sel.X
+		}
+	}
+	var edges []paramFieldForwardEdge
+	add := func(idx int, expr ast.Expr) bool {
+		source, ok := fc.resolveReturnParamSource(expr)
+		if !ok {
+			return false
+		}
+		edges = append(edges, paramFieldForwardEdge{
+			callerParamIdx: source.Idx,
+			callerPrefix:   source.Path,
+			callee:         target.Origin,
+			calleeParamIdx: idx,
+		})
+		return true
+	}
+	if recv := target.Origin.Signature().Recv(); recv != nil {
+		if receiver == nil {
+			return nil
+		}
+		if _, isInterface := recv.Type().Underlying().(*types.Interface); isInterface {
+			return nil
+		}
+		if !add(annotation.ReceiverParamIndex, receiver) {
+			return nil
+		}
+	}
+	for i, arg := range call.Args {
+		if i >= target.Signature.Params().Len() {
+			break
+		}
+		if _, isInterface := target.Signature.Params().At(i).Type().Underlying().(*types.Interface); isInterface {
+			return nil
+		}
+		if !add(i, arg) {
+			return nil
+		}
+	}
+	return edges
+}
+
+// closeReturnParamSources composes callee sources through return forwarding edges until a fixpoint.
+// Edges form chains (`return f()` inside `return g()`), so newly composed wrapper sources must feed
+// back in for callers of the wrapper to resolve. Conflicting sources remain in the set so lookups
+// reject them as ambiguous.
+func closeReturnParamSources(sources returnParamSourceSet, edges map[*types.Func][]returnForwardEdge) {
+	changed := true
+	for changed {
+		changed = false
+		for fn, es := range edges {
+			for _, edge := range es {
+				if composeReturnParamSources(sources, fn, edge) {
+					changed = true
+				}
+			}
+		}
+	}
+}
+
+// composeReturnParamSources re-roots every composable source of edge's callee onto fn through
+// the matching parameter forwarding edge, reporting whether any source was newly added.
+func composeReturnParamSources(sources returnParamSourceSet, fn *types.Func, edge returnForwardEdge) bool {
+	if len(edge.paramForwardingEdges) == 0 {
+		return false
+	}
+	changed := false
+	for source := range sources[edge.callee] {
+		if source.Result.Idx != edge.calleeResultIdx {
+			continue
+		}
+		for _, paramEdge := range edge.paramForwardingEdges {
+			if paramEdge.calleeParamIdx != source.Param.Idx {
+				continue
+			}
+			paramPath := paramEdge.callerPrefix.Join(source.Param.Path)
+			if !paramPath.IsRoot() && !paramFieldPathIsAcyclic(fn, paramEdge.callerParamIdx, paramPath) {
+				break
+			}
+			if sources.add(fn, ReturnParamSource{
+				Result: IndexedFieldPath{Idx: edge.callerResultIdx, Path: source.Result.Path},
+				Param:  IndexedFieldPath{Idx: paramEdge.callerParamIdx, Path: paramPath},
+			}) {
+				changed = true
+			}
+			break
+		}
+	}
+	return changed
 }
 
 // recordFieldParamSource records the param source of one construction field: a field at path
@@ -171,10 +279,8 @@ func (fc *functionCollector) recordFieldParamSource(resultIdx int, path annotati
 	})
 }
 
-// dropMixedResultParamSources removes every param source of a result index that has an in-package
-// construction return site alongside a whole-result source. Such a result sometimes carries the
-// parameter and sometimes a fresh object, so no context-insensitive source is sound for it;
-// dropping is a deliberate under-report.
+// dropMixedResultParamSources drops sources for results that are both constructed and forwarded.
+// It runs before closure so the ambiguity cannot propagate into wrappers.
 func (c *collectedFieldEffects) dropMixedResultParamSources() {
 	for fn, results := range c.resultsWithConstructSite {
 		for idx := range results {
@@ -185,8 +291,23 @@ func (c *collectedFieldEffects) dropMixedResultParamSources() {
 					break
 				}
 			}
+			if !mixed {
+				for _, edge := range c.returnForwardingEdges[fn] {
+					if edge.callerResultIdx == idx && len(edge.paramForwardingEdges) > 0 {
+						mixed = true
+						break
+					}
+				}
+			}
 			if mixed {
 				c.dropReturnParamSources(fn, idx)
+				edges := c.returnForwardingEdges[fn]
+				for i := range edges {
+					if edges[i].callerResultIdx == idx {
+						edges[i].paramForwardingEdges = nil
+					}
+				}
+				c.returnForwardingEdges[fn] = edges
 			}
 		}
 	}
@@ -195,6 +316,14 @@ func (c *collectedFieldEffects) dropMixedResultParamSources() {
 func (c *collectedFieldEffects) dropReturnParamSources(fn *types.Func, result int) {
 	for key := range c.summary.returnParamSources[fn] {
 		if key.Result.Idx == result {
+			delete(c.summary.returnParamSources[fn], key)
+		}
+	}
+}
+
+func (c *collectedFieldEffects) dropWholeResultParamSources(fn *types.Func, result int) {
+	for key := range c.summary.returnParamSources[fn] {
+		if key.Result.Idx == result && key.Result.Path.IsRoot() {
 			delete(c.summary.returnParamSources[fn], key)
 		}
 	}

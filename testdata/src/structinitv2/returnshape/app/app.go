@@ -56,14 +56,14 @@ func useForwardParamProjection() {
 	print(b.Child.Ptr) //want "field `Child` of result 0 of `ForwardParamProjection`"
 }
 
-// Transitive parameter sources are not resolved.
+// Transitive forwarding resolves against this caller's argument.
 func useForwardParamTransitive() {
 	t := &lib.Outer{Mid: &lib.Node{}}
 	b := lib.ForwardParamTransitive(t)
-	print(b.Mid.Child.Ptr)
+	print(b.Mid.Child.Ptr) //want "field `Mid.Child` of result 0 of `ForwardParamTransitive`"
 }
 
-// The transitive tie carries t's real (non-nil) shape; no flag.
+// A safe caller does not inherit another call's nil argument.
 func useForwardParamTransitiveSafe() {
 	t := &lib.Outer{Mid: &lib.Node{Child: &lib.Leaf{}}}
 	b := lib.ForwardParamTransitive(t)
@@ -78,11 +78,11 @@ func useForwardParamAmbiguous() {
 	print(b.Mid.Child.Ptr)
 }
 
-// Cross-package transitive parameter sources are not resolved.
+// Cross-package forwarding resolves against this caller's argument.
 func useForwardParamCrossPkg() {
 	t := &lib.Outer{Mid: &lib.Node{}}
 	b := mid.ForwardParamCrossPkg(t)
-	print(b.Mid.Child.Ptr)
+	print(b.Mid.Child.Ptr) //want "field `Mid.Child` of result 0 of `ForwardParamCrossPkg`"
 }
 
 // Mixed construct/forward results retain concrete effects but no parameter source.
@@ -172,4 +172,63 @@ func useIdenticalCallsStayDistinct() {
 	t.In = &lib.Inner{Child: &lib.Leaf{}}
 	second := t.ReceiverProjection()
 	print(second.Child.Ptr)
+}
+
+// A whole-value projection remains caller-sensitive through a forwarding call.
+func useForwardProjectionTransitiveNil() {
+	t := &lib.Wrap{}
+	print(lib.ForwardProjectionTransitive(t).Child.Ptr) //want "uninitialized field `In`"
+}
+
+func useForwardProjectionTransitiveSafe() {
+	t := &lib.Wrap{In: &lib.Inner{Child: &lib.Leaf{}}}
+	print(lib.ForwardProjectionTransitive(t).Child.Ptr)
+}
+
+// The shallow projection source also survives a cross-package forwarding hop.
+func useForwardProjectionCrossPkgNil() {
+	t := &lib.Wrap{}
+	print(mid.ForwardProjectionCrossPkg(t).Child.Ptr) //want "uninitialized field `In`"
+}
+
+func useForwardProjectionCrossPkgSafe() {
+	t := &lib.Wrap{In: &lib.Inner{Child: &lib.Leaf{}}}
+	print(mid.ForwardProjectionCrossPkg(t).Child.Ptr)
+}
+
+// The no-poison guarantee survives transitive composition through `return g(args)`.
+func usePairViaCallNoPoison() {
+	ptr := 1
+	requested := &lib.Leaf{Ptr: &ptr}
+	create := lib.NewPairViaCall(nil, requested)
+	print(*create.Requested.Ptr)
+	existing := &lib.Leaf{Ptr: &ptr}
+	update := lib.NewPairViaCall(existing, requested)
+	print(*update.Existing.Ptr)
+}
+
+// The composed field-level source keeps the true positive at its own call site.
+func usePairViaCallBad() {
+	ptr := 1
+	requested := &lib.Leaf{Ptr: &ptr}
+	bad := lib.NewPairViaCall(nil, requested)
+	print(*bad.Existing.Ptr) //want "field `Existing` of result 0"
+}
+
+// The no-poison guarantee also survives a cross-package forwarding hop.
+func useForwardPairNoPoison() {
+	ptr := 1
+	requested := &lib.Leaf{Ptr: &ptr}
+	create := mid.ForwardPair(nil, requested)
+	print(*create.Requested.Ptr)
+	existing := &lib.Leaf{Ptr: &ptr}
+	update := mid.ForwardPair(existing, requested)
+	print(*update.Existing.Ptr)
+}
+
+// Cross-package field sources keep the bad call visible.
+func useForwardPairBad() {
+	requested := &lib.Leaf{}
+	bad := mid.ForwardPair(nil, requested)
+	print(*bad.Existing.Ptr) //want "field `Existing` of result 0"
 }
