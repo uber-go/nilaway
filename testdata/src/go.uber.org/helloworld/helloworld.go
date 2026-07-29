@@ -16,7 +16,6 @@
 The point of this test is to make sure that the package fmt can be imported, which runs the
 analyzer on a larger variety of library packages
 
-<nilaway no inference>
 */
 package helloworld
 
