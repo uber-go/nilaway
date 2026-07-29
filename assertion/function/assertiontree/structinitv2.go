@@ -88,12 +88,19 @@ func (r *RootAssertionNode) addAllocationFieldProducers(lhsVal, rhsVal ast.Expr)
 
 // getShallowExprNilabilityProducer returns the producer encoding the nilability of the value of expr: an
 // always-nil producer for an explicit `nil`, the shallow producer of a trackable/nilable
-// expression, or Never for a value that cannot be nil (e.g. `&A{}`, `new(A)`).
+// expression, or Never for a value that cannot be nil (e.g. `&A{}`, `new(A)`, `&local`).
 func (r *RootAssertionNode) getShallowExprNilabilityProducer(expr ast.Expr) annotation.ProducingAnnotationTrigger {
 	if ident, ok := ast.Unparen(expr).(*ast.Ident); ok && r.isNil(ident) {
 		return &annotation.ProduceTriggerTautology{}
 	}
 	if _, _, ok := r.asStructAllocation(expr); ok {
+		return &annotation.ProduceTriggerNever{}
+	}
+	// The address of any expression is a non-nil pointer at the shallow level. ParseExprAsProducer's
+	// `&A{} ≡ A{}` rule re-parses the pointee for field tracking, so its GetShallow returns the
+	// pointee's shallow nilability — which defaults to nilable for an unannotated local. That leaks
+	// the pointee's deep concern into a shallow answer; short-circuit to Never here.
+	if u, ok := ast.Unparen(expr).(*ast.UnaryExpr); ok && u.Op == token.AND {
 		return &annotation.ProduceTriggerNever{}
 	}
 	if _, producers := r.ParseExprAsProducer(expr, true); len(producers) != 0 {
