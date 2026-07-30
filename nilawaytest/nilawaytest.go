@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package nilawaytest holds test-utility code shared across NilAway's packages.
-// It lives under internal so external users cannot depend on it.
+// Package nilawaytest Test helper utilities shared across NilAway packages.
 package nilawaytest
 
 import (

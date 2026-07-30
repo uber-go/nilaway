@@ -18,7 +18,7 @@ import (
 	"strings"
 
 	"github.com/stretchr/testify/suite"
-	"go.uber.org/nilaway/internal/nilawaytest"
+	"go.uber.org/nilaway/nilawaytest"
 )
 
 // This test file tests the implementation of the `equals` method defined for the interfaces `ConsumingAnnotationTrigger`,

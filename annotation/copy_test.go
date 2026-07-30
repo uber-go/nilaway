@@ -18,7 +18,7 @@ import (
 	"strings"
 
 	"github.com/stretchr/testify/suite"
-	"go.uber.org/nilaway/internal/nilawaytest"
+	"go.uber.org/nilaway/nilawaytest"
 )
 
 // CopyTestSuite is a generic test suite that checks the deep-copy method implementation of every struct in
