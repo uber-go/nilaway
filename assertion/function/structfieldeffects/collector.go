@@ -215,17 +215,48 @@ func (fc *functionCollector) collectUseEffects() {
 }
 
 // collectReturnEffects records this function's concrete nil result fields and return
-// forwarding edges.
+// forwarding edges, classifying each struct-shaped return operand once
+// (collectReturnOperandEffect).
 func (fc *functionCollector) collectReturnEffects() {
 	// Fast path: no struct-shaped result can ever produce a concrete return effect or forwarding
-	// edge, so the body walk below would do nothing. Use the same predicate as
-	// collectConcreteReturnEffects to avoid a narrower type check.
+	// edge, so the state preparation and walks below would do nothing.
 	if !hasStructShapedResult(fc.sig) {
 		return
 	}
 	fc.allocationVars = collectStructAllocationVars(fc.pass, fc.fd.Body)
 	fc.stableVars = fc.collectStableStructVars()
-	fc.collectConcreteReturnEffects()
+
+	for _, stmt := range returnStatements(fc.fd.Body) {
+		// A bare spreading return such as `return f()` is one expression that yields every
+		// result, so len(stmt.Results) is 1 while the signature may have many; we bail out
+		// rather than try to split it, so such multi-result call returns are unsupported.
+		if len(stmt.Results) != fc.sig.Results().Len() {
+			continue
+		}
+		for resultIdx, resultExpr := range stmt.Results {
+			if typeshelper.AsDeeplyStruct(fc.sig.Results().At(resultIdx).Type()) == nil {
+				continue
+			}
+			fc.collectReturnOperandEffect(resultIdx, resultExpr)
+		}
+	}
+}
+
+// returnStatements returns the return statements of body that return from the function being
+// summarized; returns inside function literals belong to the literal, not the function.
+func returnStatements(body *ast.BlockStmt) []*ast.ReturnStmt {
+	var out []*ast.ReturnStmt
+	ast.Inspect(body, func(n ast.Node) bool {
+		if _, ok := n.(*ast.FuncLit); ok {
+			return false
+		}
+		if s, ok := n.(*ast.ReturnStmt); ok {
+			out = append(out, s)
+			return false
+		}
+		return true
+	})
+	return out
 }
 
 // hasStructShapedResult reports whether any of sig's results is a struct or pointer-to-struct —
@@ -446,68 +477,53 @@ func (fc *functionCollector) collectStableStructVars() map[*types.Var]bool {
 	return stable
 }
 
-// collectConcreteReturnEffects records concrete nil result fields and forwarding edges.
-func (fc *functionCollector) collectConcreteReturnEffects() {
-	addEdge := func(callerResultIdx int, target typeshelper.StaticCallTarget, calleeResultIdx int) {
-		if target.Origin == nil {
-			return
-		}
-		if calleeResultIdx < 0 || calleeResultIdx >= target.Signature.Results().Len() ||
-			typeshelper.AsDeeplyStruct(target.Signature.Results().At(calleeResultIdx).Type()) == nil {
-			return
-		}
-		fc.collected.addReturnForwardEdge(fc.funcObj, returnForwardEdge{
-			callerResultIdx: callerResultIdx,
-			callee:          target.Origin,
-			calleeResultIdx: calleeResultIdx,
-		})
+// collectReturnOperandEffect records what one struct-shaped return operand contributes to the
+// effects summary: a construction (direct or through a stable local) enumerates its nil fields;
+// a direct return of a static call result — or of a stable local bound to one — adds a return
+// forwarding edge.
+func (fc *functionCollector) collectReturnOperandEffect(resultIdx int, resultExpr ast.Expr) {
+	if source, ok := staticStructAllocation(fc.pass, resultExpr); ok {
+		fc.enumerateConcreteReturnEffects(resultIdx, source.structType, source.fieldInits, "")
+		return
 	}
-
-	ast.Inspect(fc.fd.Body, func(n ast.Node) bool {
-		switch n := n.(type) {
-		case *ast.FuncLit:
-			return false
-		case *ast.ReturnStmt:
-			// A bare spreading return such as `return f()` is one expression that yields every
-			// result, so len(n.Results) is 1 while the signature may have many; we bail out
-			// rather than try to split it, so such multi-result call returns are unsupported.
-			if len(n.Results) != fc.sig.Results().Len() {
-				return false
-			}
-			for resultIdx, resultExpr := range n.Results {
-				if typeshelper.AsDeeplyStruct(fc.sig.Results().At(resultIdx).Type()) == nil {
-					continue
-				}
-				if source, ok := staticStructAllocation(fc.pass, resultExpr); ok {
-					fc.enumerateConcreteReturnEffects(resultIdx, source.structType, source.fieldInits, "")
-					continue
-				}
-				if call, ok := ast.Unparen(resultExpr).(*ast.CallExpr); ok {
-					target, ok := typeshelper.ResolveStaticCallTarget(fc.pass.TypesInfo, call)
-					if ok && target.Signature.Results().Len() == 1 {
-						addEdge(resultIdx, target, 0)
-					}
-					continue
-				}
-				ident, ok := ast.Unparen(resultExpr).(*ast.Ident)
-				if !ok {
-					continue
-				}
-				v, ok := fc.pass.TypesInfo.ObjectOf(ident).(*types.Var)
-				if !ok || !fc.stableVars[v] {
-					continue
-				}
-				if source, ok := fc.allocationVars[v]; ok {
-					fc.enumerateConcreteReturnEffects(resultIdx, source.structType, source.fieldInits, "")
-					continue
-				}
-				if source, ok := fc.resultVars[v]; ok {
-					addEdge(resultIdx, source.callee, source.idx)
-				}
-			}
-			return false
+	if call, ok := ast.Unparen(resultExpr).(*ast.CallExpr); ok {
+		target, ok := typeshelper.ResolveStaticCallTarget(fc.pass.TypesInfo, call)
+		if ok && target.Signature.Results().Len() == 1 {
+			fc.addReturnEdge(resultIdx, target, 0)
 		}
-		return true
+		return
+	}
+	ident, ok := ast.Unparen(resultExpr).(*ast.Ident)
+	if !ok {
+		return
+	}
+	v, ok := fc.pass.TypesInfo.ObjectOf(ident).(*types.Var)
+	if !ok || !fc.stableVars[v] {
+		return
+	}
+	if source, ok := fc.allocationVars[v]; ok {
+		fc.enumerateConcreteReturnEffects(resultIdx, source.structType, source.fieldInits, "")
+		return
+	}
+	if source, ok := fc.resultVars[v]; ok {
+		fc.addReturnEdge(resultIdx, source.callee, source.idx)
+	}
+}
+
+// addReturnEdge records a return forwarding edge when the callee resolves to an origin and its
+// forwarded result is struct-shaped.
+func (fc *functionCollector) addReturnEdge(callerResultIdx int, target typeshelper.StaticCallTarget, calleeResultIdx int) {
+	if target.Origin == nil {
+		return
+	}
+	if calleeResultIdx < 0 || calleeResultIdx >= target.Signature.Results().Len() ||
+		typeshelper.AsDeeplyStruct(target.Signature.Results().At(calleeResultIdx).Type()) == nil {
+		return
+	}
+	fc.collected.addReturnForwardEdge(fc.funcObj, returnForwardEdge{
+		callerResultIdx: callerResultIdx,
+		callee:          target.Origin,
+		calleeResultIdx: calleeResultIdx,
 	})
 }
 
