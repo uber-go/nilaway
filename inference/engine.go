@@ -556,6 +556,8 @@ func (e *Engine) observeImplication(
 // and decoder of the exported facts always run the same binary in supported setups (drivers key
 // their fact caches on the analyzer binary), so the exact order is not load-bearing; still,
 // prefer appending new entries at the end to keep names stable across versions.
+// TestGobRegistrationCompleteness verifies that no type that may be gob-encoded inside the
+// exported InferredMap fact is missing from this slice.
 var gobRegisteredTypes = []any{
 	&DeterminedVal{},
 	&UndeterminedVal{},
@@ -638,6 +640,10 @@ var gobRegisteredTypes = []any{
 	annotation.StructFieldNilRepr{},
 	annotation.StructFieldFromContextRepr{},
 	annotation.StructFieldToContextRepr{},
+	annotation.BlankVarReturnRepr{},
+	annotation.ConsumeTriggerTautologyRepr{},
+	annotation.TriggerIfNonNilRepr{},
+	annotation.TriggerIfDeepNonNilRepr{},
 }
 
 // GobRegister must be called in an `init` function before attempting to run any procedure that can
