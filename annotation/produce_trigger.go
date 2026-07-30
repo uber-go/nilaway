@@ -33,7 +33,7 @@ import (
 // -ProduceTriggerNever
 //
 // This is because there are interfaces, such as AdmitsPrimitive, that are implemented only for those
-// structs, and to which a ProducingAnnotationTrigger must be able to be case
+// structs, and to which a ProducingAnnotationTrigger must be able to be cast
 type ProducingAnnotationTrigger interface {
 	// CheckProduce can be called to determined whether this trigger should be triggered
 	// given a particular Annotation map
