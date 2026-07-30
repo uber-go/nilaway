@@ -24,16 +24,7 @@ import (
 	"go.uber.org/nilaway/util/typeshelper"
 )
 
-// A ProducingAnnotationTrigger is a possible reason that a nil value might be produced
-//
-// All ProducingAnnotationTriggers must embed one of the following 4 structs:
-// -TriggerIfNilable
-// -TriggerIfDeepNilable
-// -ProduceTriggerTautology
-// -ProduceTriggerNever
-//
-// This is because there are interfaces, such as AdmitsPrimitive, that are implemented only for those
-// structs, and to which a ProducingAnnotationTrigger must be able to be case
+// A ProducingAnnotationTrigger is a possible reason that a nil value might be produced.
 type ProducingAnnotationTrigger interface {
 	// CheckProduce can be called to determined whether this trigger should be triggered
 	// given a particular Annotation map

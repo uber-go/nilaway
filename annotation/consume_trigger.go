@@ -26,13 +26,7 @@ import (
 	"go.uber.org/nilaway/util/typeshelper"
 )
 
-// A ConsumingAnnotationTrigger indicated a possible reason that a nil flow to this site would indicate
-// an error
-//
-// All ConsumingAnnotationTriggers must embed one of the following 3 structs:
-// -TriggerIfNonnil
-// -TriggerIfDeepNonnil
-// -ConsumeTriggerTautology
+// A ConsumingAnnotationTrigger indicates a possible reason that a nil flow to a site would be an error.
 type ConsumingAnnotationTrigger interface {
 	// CheckConsume can be called to determined whether this trigger should be triggered
 	// given a particular Annotation map
