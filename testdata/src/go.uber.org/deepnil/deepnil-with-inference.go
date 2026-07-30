@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This package aims to test deep nilability in the inference mode.
+// This file tests inferred deep nilability.
 
-package inference
+package deepnil
 
 var dummy bool
 
@@ -105,7 +105,7 @@ func testLocalDeepAssignNil(i int) {
 // are separated interprocedurally.
 var globalNil2 *int = nil
 
-type A struct {
+type inferredA struct {
 	f *int
 }
 
@@ -163,7 +163,7 @@ func deepLocalReturn9(i int, o []*int) []*int {
 	return s
 }
 
-func deepLocalReturn10(a *A) []*int {
+func deepLocalReturn10(a *inferredA) []*int {
 	s := make([]*int, 1)
 	s[0] = a.f
 	return s
@@ -194,7 +194,7 @@ func testDeepLocalInterprocedural(i int) {
 		o[0] = nil
 		_ = *deepLocalReturn9(i, o)[i] //want "deep read from result 0 of `deepLocalReturn9.*` dereferenced"
 	case 10:
-		a := &A{}
+		a := &inferredA{}
 		a.f = nil
 		// TODO: Error should be reported on the line below. It is currently not reported because of the suppression of
 		//  struct field assignment logic that we added until we add object sensitivity for precise handling (issue #339).

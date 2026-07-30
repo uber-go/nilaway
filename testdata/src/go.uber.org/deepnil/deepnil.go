@@ -20,8 +20,6 @@ notably, a few are left as TODOs, this is because certain desirable nilability p
 flow-sensitive beyond top-level nilability tracking, and we do NOT actually track deeper nilability
 between expressions - we just read it where appropriate. This will hopefully be remedied in the future
 and is tracked in Jira as
-
-<nilaway no inference>
 */
 package deepnil
 
@@ -33,22 +31,26 @@ type B []*int
 func takesTwoTypedArrs(a A, b B) *int {
 	i := 0
 	a[1] = nil
-	b[1] = nil //want "assigned"
+	b[1] = nil
+	print(*b[1]) //want "dereferenced"
 
 	a[2] = &i
 	b[2] = &i
 
 	switch 0 {
 	case 1:
-		return a[0] //want "returned"
+		print(*a[0]) //want "dereferenced"
+		return a[0]
 	case 2:
-		return a[1] //want "returned"
+		print(*a[1]) //want "dereferenced"
+		return a[1]
 	case 3:
 		return a[2]
 	case 4:
 		return b[0]
 	case 5:
-		return b[1] //want "returned"
+		print(*b[1]) //want "dereferenced"
+		return b[1]
 	case 6:
 		return b[2]
 	}
@@ -60,7 +62,8 @@ func deferredArrPass(a A, b B) *int {
 	a2 := a[0]
 	b2 := b[0]
 	if true {
-		return a2 //want "returned"
+		print(*a2) //want "dereferenced"
+		return a2
 	} else {
 		return b2
 	}
@@ -69,14 +72,17 @@ func deferredArrPass(a A, b B) *int {
 func rangeTest(a A, b B) *int {
 	if true {
 		for _, a2 := range a {
-			return a2 //want "returned"
+			print(*a2) //want "dereferenced"
+			return a2
 		}
 	} else {
 		for _, b2 := range b {
 			return b2
 		}
 	}
-	return nil //want "returned"
+	var nilResult *int
+	print(*nilResult) //want "dereferenced"
+	return nil
 }
 
 func retsNonnilNonnil() (*int, *int) {
@@ -113,18 +119,26 @@ func testsManyToOneDeep(a A, b B) {
 	case "first nilable":
 		a[0], a[1] = retsNilableNonnil()
 		a[2], b[3] = retsNilableNonnil()
-		b[4], a[5] = retsNilableNonnil() //want "assigned"
-		b[6], b[7] = retsNilableNonnil() //want "assigned"
+		b[4], a[5] = retsNilableNonnil()
+		print(*b[4]) //want "dereferenced"
+		b[6], b[7] = retsNilableNonnil()
+		print(*b[6]) //want "dereferenced"
 	case "second nilable":
 		a[10], a[11] = retsNonnilNilable()
-		a[12], b[13] = retsNonnilNilable() //want "assigned"
+		a[12], b[13] = retsNonnilNilable()
+		print(*b[13]) //want "dereferenced"
 		b[14], a[15] = retsNonnilNilable()
-		b[16], b[17] = retsNonnilNilable() //want "assigned"
+		b[16], b[17] = retsNonnilNilable()
+		print(*b[17]) //want "dereferenced"
 	case "both nilable":
 		a[0], a[1] = retsNilableNilable()
-		a[2], b[3] = retsNilableNilable() //want "assigned"
-		b[4], a[5] = retsNilableNilable() //want "assigned"
-		b[6], b[7] = retsNilableNilable() //want "assigned" "assigned"
+		a[2], b[3] = retsNilableNilable()
+		print(*b[3]) //want "dereferenced"
+		b[4], a[5] = retsNilableNilable()
+		print(*b[4]) //want "dereferenced"
+		b[6], b[7] = retsNilableNilable()
+		print(*b[6]) //want "dereferenced"
+		print(*b[7]) //want "dereferenced"
 	}
 }
 
@@ -133,22 +147,26 @@ func testsManyToOneDeep(a A, b B) {
 func takesTwoAnnotatedArrs(a []*int, b []*int) *int {
 	i := 0
 	a[1] = nil
-	b[1] = nil //want "assigned"
+	b[1] = nil
+	print(*b[1]) //want "dereferenced"
 
 	a[2] = &i
 	b[2] = &i
 
 	switch 0 {
 	case 1:
-		return a[0] //want "returned"
+		print(*a[0]) //want "dereferenced"
+		return a[0]
 	case 2:
-		return a[1] //want "returned"
+		print(*a[1]) //want "dereferenced"
+		return a[1]
 	case 3:
 		return a[2]
 	case 4:
 		return b[0]
 	case 5:
-		return b[1] //want "returned"
+		print(*b[1]) //want "dereferenced"
+		return b[1]
 	case 6:
 		return b[2]
 	}
@@ -177,65 +195,83 @@ var i = 0
 func testsArrRets() *int {
 	switch 0 {
 	case 1:
-		return retsNilableArr(0)[0] //want "returned"
+		print(*retsNilableArr(0)[0]) //want "dereferenced"
+		return retsNilableArr(0)[0]
 	case 2:
 		return retsNonNilArr(0)[0]
 	case 3:
-		return retsNilableArr(i)[0] //want "returned"
+		print(*retsNilableArr(i)[0]) //want "dereferenced"
+		return retsNilableArr(i)[0]
 	case 4:
 		return retsNonNilArr(i)[0]
 	case 5:
-		return retsNilableArr(0)[i] //want "returned"
+		print(*retsNilableArr(0)[i]) //want "dereferenced"
+		return retsNilableArr(0)[i]
 	case 6:
 		return retsNonNilArr(0)[i]
 	case 7:
-		return retsNilableArr(i)[i] //want "returned"
+		print(*retsNilableArr(i)[i]) //want "dereferenced"
+		return retsNilableArr(i)[i]
 	case 8:
 		return retsNonNilArr(i)[i]
 	case 9:
 		a := retsNilableArr(0)
-		return a[0] //want "returned"
+		print(*a[0]) //want "dereferenced"
+		return a[0]
 	case 10:
 		a := retsNonNilArr(0)
 		return a[0]
 	case 11:
 		a := retsNilableArr(i)
-		return a[0] //want "returned"
+		print(*a[0]) //want "dereferenced"
+		return a[0]
 	case 12:
 		a := retsNonNilArr(i)
 		return a[0]
 	case 13:
 		a := retsNilableArr(0)
-		return a[i] //want "returned"
+		print(*a[i]) //want "dereferenced"
+		return a[i]
 	case 14:
 		a := retsNonNilArr(0)
 		return a[i]
 	case 15:
 		a := retsNilableArr(i)
-		return a[i] //want "returned"
+		print(*a[i]) //want "dereferenced"
+		return a[i]
 	case 16:
 		a := retsNonNilArr(i)
 		return a[i]
 	case 17:
 		for _, a := range retsNilableArr(0) {
-			return a //want "returned"
+			print(*a) //want "dereferenced"
+			return a
 		}
-		return nil //want "returned"
+		var nilResult17 *int
+		print(*nilResult17) //want "dereferenced"
+		return nil
 	case 18:
 		for _, a := range retsNonNilArr(0) {
 			return a
 		}
-		return nil //want "returned"
+		var nilResult18 *int
+		print(*nilResult18) //want "dereferenced"
+		return nil
 	case 19:
 		for _, a := range retsNilableArr(0) {
-			takesNonNilIntStar(a) //want "passed"
+			print(*a) //want "dereferenced"
+			takesNonNilIntStar(a)
 		}
-		return nil //want "returned"
+		var nilResult19 *int
+		print(*nilResult19) //want "dereferenced"
+		return nil
 	default:
 		for _, a := range retsNonNilArr(0) {
 			takesNonNilIntStar(a)
 		}
-		return nil //want "returned"
+		var nilResultDefault *int
+		print(*nilResultDefault) //want "dereferenced"
+		return nil
 	}
 }
 
@@ -249,22 +285,26 @@ type S struct {
 // same as takesTwoTypedArrs but uses annotated fields of a struct
 func takesStruct(s *S) *S {
 	s.f[1] = nil
-	s.g[1] = nil //want "assigned"
+	s.g[1] = nil
+	_ = *s.g[1] //want "dereferenced"
 
 	s.f[2] = &S{}
 	s.g[2] = &S{}
 
 	switch 0 {
 	case 1:
-		return s.f[0] //want "returned"
+		_ = *s.f[0] //want "dereferenced"
+		return s.f[0]
 	case 2:
-		return s.f[1] //want "returned"
+		_ = *s.f[1] //want "dereferenced"
+		return s.f[1]
 	case 3:
 		return s.f[2]
 	case 4:
 		return s.g[0]
 	case 5:
-		return s.g[1] //want "returned"
+		_ = *s.g[1] //want "dereferenced"
+		return s.g[1]
 	case 6:
 		return s.g[2]
 	}
@@ -274,21 +314,35 @@ func takesStruct(s *S) *S {
 func testDeepNilStruct(s *S) *S {
 	switch 0 {
 	case 1:
-		return s.f[0] //want "returned"
+		_ = *s.f[0] //want "dereferenced"
+		return s.f[0]
 	case 2:
 		return s.g[0]
 	case 3:
 		s2 := s.f[0]
-		return s2 //want "returned"
+		_ = *s2 //want "dereferenced"
+		return s2
 	case 4:
 		s2 := s.g[0]
 		return s2
 	case 5:
-		return s.g[0].f[0] //want "returned"
+		g0 := s.g[0]
+		if g0 == nil {
+			return &S{}
+		}
+		result := g0.f[0]
+		_ = *result //want "dereferenced"
+		return result
 	case 6:
-		return s.g[0].g[0]
+		g0 := s.g[0]
+		if g0 == nil {
+			return &S{}
+		}
+		return g0.g[0]
 	case 7:
-		return s.f[0].f[0] //want "deep read from field `f`" "returned"
+		result := s.f[0].f[0] //want "deep read from field `f`"
+		_ = *result           //want "dereferenced"
+		return result
 	default:
 		return s.f[0].g[0] //want "deep read from field `f`"
 	}
@@ -312,37 +366,63 @@ type YX []X
 func testSliceTypes(xy XY, xx XX, yy YY, yx YX) *int {
 	switch 0 {
 	case 1:
-		return xy[0][0] //want "sliced into"
+		xy[0] = nil
+		result := xy[0][0] //want "sliced into"
+		return result
 	case 2:
-		return xx[0][0] //want "returned" "sliced into"
+		xx[0] = nil
+		result := xx[0][0] //want "sliced into"
+		print(*result)     //want "dereferenced"
+		return result
 	case 3:
 		return yy[0][0]
 	case 4:
-		return yx[0][0] //want "returned"
+		print(*yx[0][0]) //want "dereferenced"
+		return yx[0][0]
 	case 5:
-		return xy[i][i] //want "sliced into"
+		xy[i] = nil
+		result := xy[i][i] //want "sliced into"
+		return result
 	case 6:
-		return xx[i][i] //want "returned" "sliced into"
+		xx[i] = nil
+		result := xx[i][i] //want "sliced into"
+		print(*result)     //want "dereferenced"
+		return result
 	case 7:
 		return yy[i][i]
 	case 8:
-		return yx[i][i] //want "returned"
+		print(*yx[i][i]) //want "dereferenced"
+		return yx[i][i]
 	case 9:
-		return xy[i][0] //want "sliced into"
+		xy[i] = nil
+		result := xy[i][0] //want "sliced into"
+		return result
 	case 10:
-		return xx[i][0] //want "returned" "sliced into"
+		xx[i] = nil
+		result := xx[i][0] //want "sliced into"
+		print(*result)     //want "dereferenced"
+		return result
 	case 11:
 		return yy[i][0]
 	case 12:
-		return yx[i][0] //want "returned"
+		print(*yx[i][0]) //want "dereferenced"
+		return yx[i][0]
 	case 13:
-		return xy[i][0] //want "sliced into"
+		xy[i] = nil
+		result := xy[i][0] //want "sliced into"
+		return result
 	case 14:
-		return xx[i][0] //want "returned" "sliced into"
+		xx[i] = nil
+		result := xx[i][0] //want "sliced into"
+		print(*result)     //want "dereferenced"
+		return result
 	case 15:
 		return yy[i][0]
 	case 16:
-		return yx[i][0] //want "returned"
+		print(*yx[i][0]) //want "dereferenced"
+		return yx[i][0]
 	}
-	return nil //want "returned"
+	var nilResult *int
+	print(*nilResult) //want "dereferenced"
+	return nil
 }

@@ -54,7 +54,7 @@ func TestNilAway(t *testing.T) {
 		{name: "Channels", patterns: []string{"go.uber.org/channels"}},
 		{name: "GoQuirks", patterns: []string{"go.uber.org/goquirks"}},
 		{name: "GlobalVars", patterns: []string{"go.uber.org/globalvars"}},
-		{name: "DeepNil", patterns: []string{"go.uber.org/deepnil", "go.uber.org/deepnil/inference"}},
+		{name: "DeepNil", patterns: []string{"go.uber.org/deepnil"}},
 		{name: "NilableTypes", patterns: []string{"go.uber.org/nilabletypes"}},
 		{name: "HelloWorld", patterns: []string{"go.uber.org/helloworld"}},
 		{name: "MultiFilePackage", patterns: []string{"go.uber.org/multifilepackage", "go.uber.org/multifilepackage/firstpackage", "go.uber.org/multifilepackage/secondpackage"}},
