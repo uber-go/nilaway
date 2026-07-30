@@ -51,6 +51,14 @@ func init_next_next() {
 	_init4 = new(int)
 }
 
+// bodylessFunc simulates a function implemented outside Go, such as through assembly or
+// go:linkname. The global analyzer should not panic when an init function calls it.
+func bodylessFunc()
+
+func init() {
+	bodylessFunc()
+}
+
 // nilable(nilableVar)
 var nilableVar *int
 var assignedNilable = nilableVar
