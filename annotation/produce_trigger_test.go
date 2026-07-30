@@ -21,21 +21,17 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type ProducingAnnotationTriggerTestSuite struct {
-	EqualsTestSuite
-}
+const _interfaceNameProducingAnnotationTrigger = "ProducingAnnotationTrigger"
 
-func (s *ProducingAnnotationTriggerTestSuite) SetupTest() {
-	s.interfaceName = "ProducingAnnotationTrigger"
-
+// initStructsProducingAnnotationTrigger initializes all structs that implement the ProducingAnnotationTrigger interface.
+func initStructsProducingAnnotationTrigger() []ProducingAnnotationTrigger {
 	mockedKey := new(mockKey)
 	mockedKey.On("equals", mock.Anything).Return(true)
 
 	mockedProducingAnnotationTrigger := new(mockProducingAnnotationTrigger)
 	mockedProducingAnnotationTrigger.On("equals", mock.Anything).Return(true)
 
-	// initialize all structs that implement ProducingAnnotationTrigger
-	s.initStructs = []any{
+	return []ProducingAnnotationTrigger{
 		&TriggerIfNilable{Ann: mockedKey},
 		&TriggerIfDeepNilable{Ann: mockedKey},
 		&ProduceTriggerTautology{},
@@ -85,5 +81,5 @@ func (s *ProducingAnnotationTriggerTestSuite) SetupTest() {
 // the `ProducingAnnotationTrigger` interface.
 func TestProducingAnnotationTriggerEqualsSuite(t *testing.T) {
 	t.Parallel()
-	suite.Run(t, new(ProducingAnnotationTriggerTestSuite))
+	suite.Run(t, NewEqualsTestSuite(_interfaceNameProducingAnnotationTrigger, initStructsProducingAnnotationTrigger()))
 }

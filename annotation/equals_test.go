@@ -18,75 +18,67 @@ import (
 	"strings"
 
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/nilaway/internal/nilawaytest"
 )
 
 // This test file tests the implementation of the `equals` method defined for the interfaces `ConsumingAnnotationTrigger`,
 // `ProducingAnnotationTrigger` and `Key`.
 
-type EqualsTestSuite struct {
+// equaler is the constraint satisfied by any interface T in this package that defines an `equals(other T) bool`
+// method. Since `equals` is unexported, this constraint must live in the `annotation` package.
+type equaler[T any] interface {
+	equals(other T) bool
+}
+
+// EqualsTestSuite is a generic test suite that checks the `equals` method implementation of every struct in
+// initStructs, all of which implement the single interface T.
+type EqualsTestSuite[T equaler[T]] struct {
 	suite.Suite
-	initStructs   []any
+	initStructs   []T
 	interfaceName string
 	packagePath   string
+}
+
+// NewEqualsTestSuite constructs an EqualsTestSuite for interfaceName, backed by initStructs.
+func NewEqualsTestSuite[T equaler[T]](interfaceName string, initStructs []T) *EqualsTestSuite[T] {
+	return &EqualsTestSuite[T]{interfaceName: interfaceName, initStructs: initStructs, packagePath: "."}
 }
 
 // This test checks that the `equals` method of all the implemented consumer structs when compared with themselves
 // returns true. Although trivial, this test is important to ensure that the type assertion in `equals` method is
 // implemented correctly.
-func (s *EqualsTestSuite) TestEqualsTrue() {
+func (s *EqualsTestSuite[T]) TestEqualsTrue() {
 	msg := "equals() of `%T` should return true when compared with object of same type"
 
-	for _, initStruct := range s.initStructs {
-		switch t := initStruct.(type) {
-		case ConsumingAnnotationTrigger:
-			s.Truef(t.equals(t), msg, t)
-		case ProducingAnnotationTrigger:
-			s.Truef(t.equals(t), msg, t)
-		case Key:
-			s.Truef(t.equals(t), msg, t)
-		default:
-			s.Failf("unknown type", "unknown type `%T`", t)
-		}
+	for _, t := range s.initStructs {
+		s.Truef(t.equals(t), msg, t)
 	}
 }
 
 // This test checks that the `equals` method of all the implemented consumer structs when compared with any other consumer
 // struct returns false. This test is important to ensure that the `equals` method is robust to differentiate between
 // different consumer struct types.
-func (s *EqualsTestSuite) TestEqualsFalse() {
+func (s *EqualsTestSuite[T]) TestEqualsFalse() {
 	msg := "equals() of `%T` should return false when compared with object of different type `%T`"
 
-	for _, s1 := range s.initStructs {
-		for _, s2 := range s.initStructs {
-			if s1 != s2 {
-				switch t1 := s1.(type) {
-				case ConsumingAnnotationTrigger:
-					if t2, ok := s2.(ConsumingAnnotationTrigger); ok {
-						s.Falsef(t1.equals(t2), msg, t1, t2)
-					}
-				case ProducingAnnotationTrigger:
-					if t2, ok := s2.(ProducingAnnotationTrigger); ok {
-						s.Falsef(t1.equals(t2), msg, t1, t2)
-					}
-				case Key:
-					if t2, ok := s2.(Key); ok {
-						s.Falsef(t1.equals(t2), msg, t1, t2)
-					}
-				default:
-					s.Failf("unknown type", "unknown type `%T`", t1)
-				}
+	for _, t1 := range s.initStructs {
+		for _, t2 := range s.initStructs {
+			// T is an interface type without a `comparable` constraint, so compare through `any` while still
+			// comparing the underlying pointer values.
+			if any(t1) != any(t2) {
+				s.Falsef(t1.equals(t2), msg, t1, t2)
 			}
 		}
 	}
 }
 
 // This test serves as a sanity check to ensure that all the implemented consumer structs are tested in this file.
-// Ideally, we would have liked to  programmatically parse all the consumer structs, instantiate them, and call their
+// Ideally, we would have liked to programmatically parse all the consumer structs, instantiate them, and call their
 // methods. However, this does not seem to be possible. Therefore, we rely on this not-so-ideal, but practical approach.
 // It finds the expected list of consumer structs implementing the interface under test (e.g., `ConsumingAnnotationTrigger`)
-// using `structsImplementingInterface()`, and finds the actual list of consumer structs that are tested in the
+// using `nilawaytest.StructsImplementingInterface()`, and finds the actual list of consumer structs that are tested in the
 // governing test case. The test fails if there are any structs that are missing from the expected list.
-func (s *EqualsTestSuite) TestStructsChecked() {
-	missedStructs := structsCheckedTestHelper(s.interfaceName, s.packagePath, s.initStructs)
+func (s *EqualsTestSuite[T]) TestStructsChecked() {
+	missedStructs := nilawaytest.MissingStructs(s.interfaceName, s.packagePath, s.initStructs)
 	s.Equalf(0, len(missedStructs), "the following structs were not tested: [`%s`]", strings.Join(missedStructs, "`, `"))
 }

@@ -23,7 +23,7 @@ import (
 const _interfaceNameKey = "Key"
 
 // initStructsKey initializes all structs that implement the Key interface
-var initStructsKey = []any{
+var initStructsKey = []Key{
 	&FieldAnnotationKey{},
 	&CallSiteParamAnnotationKey{},
 	&ParamAnnotationKey{},
@@ -41,31 +41,13 @@ var initStructsKey = []any{
 
 // TestKeyEqualsSuite runs the test suite for the `equals` method of all the structs that implement
 // the `Key` interface.
-type KeyEqualsTestSuite struct {
-	EqualsTestSuite
-}
-
-func (s *KeyEqualsTestSuite) SetupTest() {
-	s.interfaceName = _interfaceNameKey
-	s.initStructs = initStructsKey
-}
-
 func TestKeyEqualsSuite(t *testing.T) {
 	t.Parallel()
-	suite.Run(t, new(KeyEqualsTestSuite))
+	suite.Run(t, NewEqualsTestSuite(_interfaceNameKey, initStructsKey))
 }
 
 // TestKeyCopySuite runs the test suite for the `copy` method of all the structs that implement the `Key` interface.
-type KeyCopyTestSuite struct {
-	CopyTestSuite
-}
-
-func (s *KeyCopyTestSuite) SetupTest() {
-	s.interfaceName = _interfaceNameKey
-	s.initStructs = initStructsKey
-}
-
 func TestKeyCopySuite(t *testing.T) {
 	t.Parallel()
-	suite.Run(t, new(KeyCopyTestSuite))
+	suite.Run(t, NewCopyTestSuite(_interfaceNameKey, initStructsKey, func(k Key) Key { return k.copy() }))
 }

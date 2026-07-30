@@ -15,61 +15,31 @@
 package annotation
 
 import (
-	"fmt"
-	"reflect"
 	"strings"
 
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/nilaway/internal/nilawaytest"
 )
 
-type CopyTestSuite struct {
+// CopyTestSuite is a generic test suite that checks the deep-copy method implementation of every struct in
+// initStructs, all of which implement interface T. copyFn performs the actual copy for a given element.
+//
+// Note that copyFn is a plain function value rather than a method constraint on T: ConsumingAnnotationTrigger
+// exposes `Copy() ConsumingAnnotationTrigger` while Key exposes the unexported `copy() Key`.
+type CopyTestSuite[T any] struct {
 	suite.Suite
-	initStructs   []any
+	initStructs   []T
+	copyFn        func(T) T
 	interfaceName string
 	packagePath   string
 }
 
-type objInfo struct {
-	addr      string
-	numFields int
-	typ       reflect.Type
+// NewCopyTestSuite constructs a CopyTestSuite for interfaceName, backed by initStructs and copyFn.
+func NewCopyTestSuite[T any](interfaceName string, initStructs []T, copyFn func(T) T) *CopyTestSuite[T] {
+	return &CopyTestSuite[T]{interfaceName: interfaceName, initStructs: initStructs, copyFn: copyFn, packagePath: "."}
 }
 
-func newObjInfo(addr string, numFields int, typ reflect.Type) objInfo {
-	return objInfo{
-		addr:      addr,
-		numFields: numFields,
-		typ:       typ,
-	}
-}
-
-// getObjInfo is a helper function that returns a map of struct and field names to their objInfo.
-// The key is in the format of `struct_<struct name>` or `fld_<struct name>.<field name>`.
-func getObjInfo(obj any) map[string]objInfo {
-	ptr := make(map[string]objInfo)
-
-	val := reflect.ValueOf(obj).Elem()
-	ptr[fmt.Sprintf("struct_%s", val.Type().Name())] = newObjInfo(fmt.Sprintf("%p", val.Addr().Interface()), val.NumField(), val.Type())
-	for i := 0; i < val.NumField(); i++ {
-		field := val.Field(i)
-		key := fmt.Sprintf("fld_%s.%s", val.Type().Name(), val.Type().Field(i).Name)
-		if field.Kind() == reflect.Ptr {
-			if !field.IsZero() {
-				ptr[key] = newObjInfo(fmt.Sprintf("%p", field.Interface()), field.Elem().NumField(), field.Elem().Type())
-			}
-		} else if field.Kind() == reflect.Interface && !field.IsNil() {
-			// %p cannot be used directly with a reflect.Value, so we need to extract the underlying value first.
-			interfaceValue := field.Interface()
-			underlyingValue := reflect.ValueOf(interfaceValue).Elem()
-			ptr[key] = newObjInfo(fmt.Sprintf("%p", underlyingValue.Addr().Interface()), underlyingValue.NumField(), underlyingValue.Type())
-		} else {
-			ptr[key] = newObjInfo("", 0, field.Type())
-		}
-	}
-	return ptr
-}
-
-// This test checks that the `Copy` method implementations perform a deep copy, i.e., copies the values but generates
+// This test checks that the `Copy`/`copy` method implementations perform a deep copy, i.e., copies the values but generates
 // different pointer addresses for the copied struct and its fields.
 // Note that here we cannot use `reflect.DeepEqual` to compare the original and copied structs because reflection
 // does not work well with fields with nested struct pointers, giving incorrect results.
@@ -77,38 +47,26 @@ func getObjInfo(obj any) map[string]objInfo {
 // - type
 // - number of fields
 // - pointer address (if the field is a struct and has at least one field)
-func (s *CopyTestSuite) TestCopy() {
-	var expectedObjs, actualObjs map[string]objInfo
-
+func (s *CopyTestSuite[T]) TestCopy() {
 	for _, initStruct := range s.initStructs {
-		var copied any
-		expectedObjs = getObjInfo(initStruct)
-
-		switch t := initStruct.(type) {
-		case ConsumingAnnotationTrigger:
-			copied = t.Copy()
-			actualObjs = getObjInfo(copied)
-		case Key:
-			copied = t.copy()
-			actualObjs = getObjInfo(copied)
-		default:
-			s.Failf("unknown type", "unknown type %T", t)
-		}
+		expectedObjs := nilawaytest.GetObjInfo(initStruct)
+		copied := s.copyFn(initStruct)
+		actualObjs := nilawaytest.GetObjInfo(copied)
 
 		for expectedKey, expectedObj := range expectedObjs {
 			actualObj, ok := actualObjs[expectedKey]
 			s.True(ok, "key `%s` should exist in copied struct object", expectedKey)
-			s.Equal(expectedObj.typ, actualObj.typ, "key `%s` should have the same type after deep copying", expectedKey)
-			s.Equal(expectedObj.numFields, actualObj.numFields, "key `%s` should have the same number of fields after deep copying", expectedKey)
+			s.Equal(expectedObj.Typ, actualObj.Typ, "key `%s` should have the same type after deep copying", expectedKey)
+			s.Equal(expectedObj.NumFields, actualObj.NumFields, "key `%s` should have the same number of fields after deep copying", expectedKey)
 
 			// Note that Go optimizes the memory allocation of pointers to structs. The pointer address for structs with
-			// no fields will be the same. E.g., consider struct `S` with no fields, then `s1 := &S{}, s2 := &S{};
-			// fmt.Printf("%p %p", s1, s2)` will print the same address. Therefore, we only add the pointer address of a struct
+			// no fields will be the same. E.g., consider struct `S` with no fields, then `s1 := &S{}, s2 := &S{}`;
+			// fmt.Printf("%p %p", s1, s2) will print the same address. Therefore, we only add the pointer address of a struct
 			// if it has at least one field. The reason for this being that currently, the use of this helper function is used only in
 			// the `CopyTestSuite` to check that the `Copy` method implementations perform a deep copy, i.e., generates different
 			// pointer addresses for the copied struct and its fields. We may want to modify this behavior in the future, if needed.
-			if expectedObj.addr != "" && actualObj.addr != "" && expectedObj.numFields > 0 && actualObj.numFields > 0 {
-				s.NotEqual(expectedObj.addr, actualObj.addr, "key `%s` should not have the same pointer value after deep copying", expectedKey)
+			if expectedObj.Addr != "" && actualObj.Addr != "" && expectedObj.NumFields > 0 && actualObj.NumFields > 0 {
+				s.NotEqual(expectedObj.Addr, actualObj.Addr, "key `%s` should not have the same pointer value after deep copying", expectedKey)
 			}
 		}
 	}
@@ -116,7 +74,7 @@ func (s *CopyTestSuite) TestCopy() {
 
 // Similar to EqualsTestSuite, this test serves as a sanity check to ensure that all the implemented consumer structs
 // are tested in this file. The test fails if there are any structs that are found missing from the expected list.
-func (s *CopyTestSuite) TestStructsChecked() {
-	missedStructs := structsCheckedTestHelper(s.interfaceName, s.packagePath, s.initStructs)
+func (s *CopyTestSuite[T]) TestStructsChecked() {
+	missedStructs := nilawaytest.MissingStructs(s.interfaceName, s.packagePath, s.initStructs)
 	s.Equalf(0, len(missedStructs), "the following structs were not tested: [`%s`]", strings.Join(missedStructs, "`, `"))
 }
