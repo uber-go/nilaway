@@ -28,22 +28,20 @@ func testArrayRet() [2]*int {
 	return globalArr
 }
 
-func testParamArrayWrite(a [4]*int, v *int, b bool) (*int, *int) {
+func testParamArrayWrite(a [4]*int, b bool) (*int, *int) {
 	a[0] = new(int)
-	v = nil
 	if b {
-		a[0] = v
+		a[0] = nil
 		print(*a[0]) //want "dereferenced"
 	}
 	print(*a[0]) //want "dereferenced"
 	return a[0], a[1]
 }
 
-func testGlobalArrayWrite(v *int, b bool) *int {
+func testGlobalArrayWrite(b bool) *int {
 	globalArr[0] = new(int)
-	v = nil
 	if b {
-		globalArr[0] = v
+		globalArr[0] = nil
 	}
 	print(*globalArr[0]) //want "dereferenced"
 	return globalArr[0]
@@ -57,11 +55,10 @@ func testLocalArrayWrite() *int {
 	return a[0]
 }
 
-func testParamNilableArrayWrite(a [4]*int, v *int, b bool) (*int, *int) {
+func testParamNilableArrayWrite(a [4]*int, b bool) (*int, *int) {
 	a[0] = new(int)
-	v = nil
 	if b {
-		a[0] = v
+		a[0] = nil
 	}
 	i := 0
 	a[1] = &i
@@ -70,7 +67,7 @@ func testParamNilableArrayWrite(a [4]*int, v *int, b bool) (*int, *int) {
 }
 
 func testParamNilableArrayWriteCall() {
-	v, _ := testParamNilableArrayWrite([4]*int{}, new(int), true)
+	v, _ := testParamNilableArrayWrite([4]*int{}, true)
 	print(*v) //want "dereferenced"
 }
 

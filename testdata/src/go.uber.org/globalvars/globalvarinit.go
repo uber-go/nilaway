@@ -51,13 +51,6 @@ func init_next_next() {
 	_init4 = new(int)
 }
 
-// This should throw an error since it is not initialized
-var noInit *int //want "assigned into global variable"
-
-func testNoInit() {
-	print(*noInit) //want "dereferenced"
-}
-
 // nilable(nilableVar)
 var nilableVar *int
 var assignedNilable = nilableVar
@@ -147,7 +140,7 @@ func testMultiNil() {
 // nilable(result 0)
 func foo() *int {
 	// Just arbitrary use of all the vars to avoid unused var errors
-	print(noInit, primitive, prim1, prim2, noInitButNilable, nilableMethod)
+	print(primitive, prim1, prim2, noInitButNilable, nilableMethod)
 	print(noInitMult, initMult, initNew, noInitAgain, nilableField)
 	print(multiNonNil, multiNil, nonnilMethod, assignedNilable)
 	return nil

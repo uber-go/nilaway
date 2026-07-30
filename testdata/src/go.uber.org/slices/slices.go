@@ -83,8 +83,8 @@ func testGlobals() int {
 type simpleWrap []int
 
 // nonnil(nonNilWrap)
-func testSimpleWrap(nilableWrap, nonNilWrap simpleWrap) int {
-	nilableWrap = nil
+func testSimpleWrap(nonNilWrap simpleWrap) int {
+	var nilableWrap simpleWrap
 
 	if aBool {
 		return nilableWrap[0] //want "sliced into"
@@ -100,14 +100,13 @@ type wrappednonNilSl [][]int
 
 // nonnil(nonNilSl, nonNilnilableSl, nonNilnonNilSl)
 func testTypedParams(
-	nilableSl, nonNilSl []int,
+	nonNilSl []int,
 	nilablenilableSl wrappednilableSl,
 	nonNilnilableSl wrappednilableSl,
-	nilablenonNilSl wrappednonNilSl,
 	nonNilnonNilSl wrappednonNilSl,
 ) int {
-	nilableSl = nil
-	nilablenonNilSl = nil
+	var nilableSl []int
+	var nilablenonNilSl wrappednonNilSl
 
 	switch 0 {
 	case 1:
@@ -150,8 +149,8 @@ func testTypedParams(
 	return 0
 }
 
-func lengthCheckAsNilCheckTest(a []int) int {
-	a = nil
+func lengthCheckAsNilCheckTest() int {
+	var a []int
 
 	switch 0 {
 	case 1:
@@ -354,8 +353,8 @@ func lengthCheckAsNilCheckTest(a []int) int {
 	return 0
 }
 
-func lengthCheckByIntExprTest(a []int, i int) int {
-	a = nil
+func lengthCheckByIntExprTest(i int) int {
+	var a []int
 
 	var j int
 	k := 7
@@ -467,8 +466,8 @@ func dummyBool() bool          { return true }
 // this function tests whether we properly interpret double len equality checks
 // as producing non-nil - this is technically unsound, but used so often in practice
 // that we support it
-func testDoubleLenCheck(a, b, c, d []int) int {
-	a, b, c, d = nil, nil, nil, nil
+func testDoubleLenCheck() int {
+	var a, b, c, d []int
 
 	switch 0 {
 	case 1:
@@ -510,8 +509,8 @@ func testDoubleLenCheck(a, b, c, d []int) int {
 	return 0
 }
 
-func testSwitchAsLenCheck(a []int) int {
-	a = nil
+func testSwitchAsLenCheck() int {
+	var a []int
 
 	var i int
 	switch len(a) {
@@ -1019,9 +1018,9 @@ func testSliceAssignNil(a []*int) {
 	print(*a[0]) //want "dereferenced"
 }
 
-func testAppendNil(a []*int) {
+func testAppendNil() {
 	// Now, we append a literal nil into a deeply nonnil slice.
-	a = []*int{new(int)}
+	a := []*int{new(int)}
 	a = append(a, nil)
 	_ = a[len(a)-1] //want "sliced into"
 }
@@ -1029,16 +1028,16 @@ func testAppendNil(a []*int) {
 type namedPtrSlice []*int
 
 // Named slice types (and aliases) must get the same append handling as plain slices.
-func testAppendNilNamedSlice(a namedPtrSlice) {
-	a = namedPtrSlice{new(int)}
+func testAppendNilNamedSlice() {
+	a := namedPtrSlice{new(int)}
 	a = append(a, nil)
 	_ = a[len(a)-1] //want "sliced into"
 }
 
-func testAppend(a []*int, b, c *int) {
-	c = nil
-	b = c
-	a = []*int{new(int)}
+func testAppend() {
+	var c *int
+	b := c
+	a := []*int{new(int)}
 	a = append(a, b)
 	print(*a[len(a)-1]) //want "sliced into"
 	c = nil
@@ -1071,11 +1070,11 @@ func testTheFirstArgumentOfAppend(a, b []*int) {
 	print(*a[0])
 }
 
-func testVariadicArgs(a, b []*int) {
-	b = make([]*int, 1)
+func testVariadicArgs() {
+	b := make([]*int, 1)
 	b[0] = nil
 	print(*b[0]) //want "dereferenced"
-	a = []*int{new(int)}
+	a := []*int{new(int)}
 	a = append(a, b...)
 	b = append(b, a...)
 }
