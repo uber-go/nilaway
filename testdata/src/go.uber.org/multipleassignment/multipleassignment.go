@@ -18,8 +18,6 @@ multiply-returning functions. Multiple assignments such as x, y, z = a, b, c hav
 regarding ordering and shadowing which are tested below. Multiply-returning functions must track
 nilability for each return separately, at the sites of assignments, calls, and returns, which are
 all tested below.
-
-<nilaway no inference>
 */
 package multipleassignment
 
@@ -65,7 +63,8 @@ func swapField2(x *T) *T {
 
 func unsafeRedundantSwap(x *T) *T {
 	x, x = x, nil
-	return x //want "returned"
+	print(*x) //want "dereferenced"
+	return x
 }
 
 func safeRedundantSwap(x *T) *T {
@@ -83,7 +82,8 @@ func slightlyDeeperSwap(x *T) *T {
 	case 2:
 		return x.f
 	default:
-		return x.f.f //want "returned"
+		print(*x.f.f) //want "dereferenced"
+		return x.f.f
 	}
 }
 
@@ -95,7 +95,8 @@ func slightlyDeeperSwap2(x *T) *T {
 	case 1:
 		return x
 	default:
-		return x.f //want "returned"
+		print(*x.f) //want "dereferenced"
+		return x.f
 	}
 }
 
@@ -122,37 +123,53 @@ func rightNonNil() (a *T, b *T, c *T) {
 func testThreeRets() (a *T, b *T, c *T) {
 	switch 0 {
 	case 1:
-		return leftNonNil() //want "returned from `testThreeRets.*` in position 2"
+		a, b, c = leftNonNil()
+		print(*c) //want "dereferenced"
+		return
 	case 2:
-		return centerNonNil() //want "returned from `testThreeRets.*` in position 2" "returned from `testThreeRets.*` in position 0"
+		a, b, c = centerNonNil()
+		print(*c) //want "dereferenced"
+		print(*a) //want "dereferenced"
+		return
 	case 3:
-		return rightNonNil() //want "returned from `testThreeRets.*` in position 0"
+		a, b, c = rightNonNil()
+		print(*a) //want "dereferenced"
+		return
 	case 4:
-		return nil, nil, nil //want "returned from `testThreeRets.*` in position 2" "returned from `testThreeRets.*` in position 0"
+		a, b, c = nil, nil, nil
+		print(*c) //want "dereferenced"
+		print(*a) //want "dereferenced"
+		return
 	default:
 		return &T{}, &T{}, &T{}
 	}
 }
 
 // nilable(b, c)
-func takesLeftNonNil(a *T, b *T, c *T) {}
+func takesLeftNonNil(a *T, b *T, c *T) {
+	print(*a) //want "dereferenced" "dereferenced"
+}
 
 // nilable(a, c)
-func takesCenterNonNil(a *T, b *T, c *T) {}
+func takesCenterNonNil(a *T, b *T, c *T) {
+	print(*b) //want "dereferenced" "dereferenced"
+}
 
 // nilable(a, b)
-func takesRightNonNil(a *T, b *T, c *T) {}
+func takesRightNonNil(a *T, b *T, c *T) {
+	print(*c) //want "dereferenced" "dereferenced"
+}
 
 // multiple returners can be passed directly to multiple param funcs - test that here
 func testMultiToMultiCalls() {
 	takesLeftNonNil(leftNonNil())
-	takesLeftNonNil(centerNonNil()) //want "passed as arg `a`"
-	takesLeftNonNil(rightNonNil())  //want "passed as arg `a`"
-	takesCenterNonNil(leftNonNil()) //want "passed as arg `b`"
+	takesLeftNonNil(centerNonNil())
+	takesLeftNonNil(rightNonNil())
+	takesCenterNonNil(leftNonNil())
 	takesCenterNonNil(centerNonNil())
-	takesCenterNonNil(rightNonNil()) //want "passed as arg `b`"
-	takesRightNonNil(leftNonNil())   //want "passed as arg `c`"
-	takesRightNonNil(centerNonNil()) //want "passed as arg `c`"
+	takesCenterNonNil(rightNonNil())
+	takesRightNonNil(leftNonNil())
+	takesRightNonNil(centerNonNil())
 	takesRightNonNil(rightNonNil())
 }
 
@@ -172,9 +189,24 @@ func returnTwoNonNil() *T {
 }
 
 func assignThreeNonNil(tt *twoTs) {
-	tt.second, tt.second, tt.second = rightNonNil()  //want "assigned into field" "assigned into field"
-	tt.second, tt.second, tt.second = centerNonNil() //want "assigned into field" "assigned into field"
-	tt.second, tt.second, tt.second = leftNonNil()   //want "assigned into field" "assigned into field"
+	{
+		a, b, c := rightNonNil()
+		print(*a) //want "dereferenced"
+		print(*b) //want "dereferenced"
+		tt.second, tt.second, tt.second = a, b, c
+	}
+	{
+		a, b, c := centerNonNil()
+		print(*a) //want "dereferenced"
+		print(*c) //want "dereferenced"
+		tt.second, tt.second, tt.second = a, b, c
+	}
+	{
+		a, b, c := leftNonNil()
+		print(*b) //want "dereferenced"
+		print(*c) //want "dereferenced"
+		tt.second, tt.second, tt.second = a, b, c
+	}
 	tt.first, tt.first, tt.second = rightNonNil()
 	tt.first, tt.second, tt.first = centerNonNil()
 	tt.second, tt.first, tt.first = leftNonNil()
@@ -192,9 +224,11 @@ func oneTrueNonNil() *T {
 	}
 	switch 0 {
 	case 1:
-		return a //want "returned" "returned" "returned"
+		print(*a) //want "dereferenced" "dereferenced" "dereferenced"
+		return a
 	case 2:
-		return b //want "returned" "returned" "returned"
+		print(*b) //want "dereferenced" "dereferenced" "dereferenced"
+		return b
 	default:
 		return c
 	}
