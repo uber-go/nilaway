@@ -16,8 +16,6 @@
 These tests aim to ensure that nilness information gained in an earlier node of short circuited
 logic is correctly propagate to later nodes. All the checks here are structured safely, but if
 the nilflow engine were not aware of short circuiting it would not realize that.
-
-<nilaway no inference>
 */
 package nilcheck
 
@@ -72,7 +70,8 @@ func noDeep4(x *ralph) *ralph {
 	if x == nil {
 		x = x
 	}
-	return x //want "returned from `noDeep4.*`"
+	print(*x) //want "dereferenced"
+	return x
 }
 
 // nilable(x)
@@ -110,7 +109,8 @@ func posNilCheckPreservesNilable(x *ralph) *ralph {
 	if x == nil {
 		noop()
 	}
-	return x //want "returned"
+	print(*x) //want "dereferenced"
+	return x
 }
 
 // nilable(x)
@@ -118,7 +118,8 @@ func negNilCheckPreservesNilable(x *ralph) *ralph {
 	if x != nil {
 		noop()
 	}
-	return x //want "returned"
+	print(*x) //want "dereferenced"
+	return x
 }
 
 func posNilCheckDoesntTriggerConsumption(x *ralph) *ralph {

@@ -12,20 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This package tests error messages for the inference mode.
+// This file tests error messages produced from inferred nilability.
 
-package inference
+package errormessage
 
 // Below test checks error messages for single assertion conflicts when the producer expression is not authentic, i.e.,
 // it is built from assertion nodes and hence not found in the original AST.
 
-type S struct {
-	f map[int]*S
+type inferenceS struct {
+	f map[int]*inferenceS
 	g string
 }
 
 type T struct {
-	m map[string]S
+	m map[string]inferenceS
 }
 
 // Here, although the two error messages are similar for test1 and test2, they should not be grouped together as they are
@@ -67,20 +67,20 @@ func (t *T) test5(str string) {
 // Here, although the two error messages are similar for the pairs test8-test9 and test10-test11,
 // they should not be grouped together as they are from different functions.
 
-func test8(mp map[int]*int) {
+func testInference8(mp map[int]*int) {
 	_ = *mp[0] //want "dereferenced"
 }
 
-func test9(mp map[int]*int) {
+func testInference9(mp map[int]*int) {
 	_ = *mp[0] //want "dereferenced"
 }
 
-func test10() {
+func testInference10() {
 	mp := make(map[int]*int)
 	_ = *mp[0] //want "dereferenced"
 }
 
-func test11() {
+func testInference11() {
 	mp := make(map[int]*int)
 	_ = *mp[0] //want "dereferenced"
 }
