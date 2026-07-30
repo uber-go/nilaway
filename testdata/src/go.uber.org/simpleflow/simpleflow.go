@@ -15,8 +15,6 @@
 /*
 This is a very simple test that just checks direct return of nilable and non-nilable values
 to ensure that correct diagnostics are thrown in some common cases
-
-<nilaway no inference>
 */
 package testdata
 
@@ -36,22 +34,29 @@ func (a *A) foo(b, c *A) *A {
 	case 1:
 		return a
 	case 2:
-		return a.f //want "returned from `foo.*`"
+		_ = a.f.g //want "accessed field"
+		return a.f
 	case 3:
 		return a.g
 	case 4:
 		return b
 	case 5:
-		return b.f //want "returned from `foo.*`"
+		_ = b.f.g //want "accessed field"
+		return b.f
 	case 6:
 		return b.g
 	case 7:
-		return c //want "returned from `foo.*`"
+		_ = c.g //want "accessed field"
+		return c
 	case 8:
-		return c.f //want "returned from `foo.*`" "accessed field `f`"
+		f := c.f //want "accessed field `f`"
+		_ = f.g  //want "accessed field"
+		return f
 	case 9:
 		return c.g //want "accessed field `g`"
 	default:
-		return nil //want "returned from `foo.*`"
+		var result *A
+		_ = result.g //want "accessed field"
+		return nil
 	}
 }

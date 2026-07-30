@@ -16,8 +16,6 @@
 This test aims to check some common cases where even though a variable is never
 assigned to, it is still known to be non-nil from its type. We make sure that in
 these cases no diagnostics are emitted
-
-<nilaway no inference>
 */
 package nilabletypes
 
@@ -27,7 +25,9 @@ type A struct {
 
 type A2 A
 
-type B interface{}
+type B interface {
+	isB()
+}
 
 type myInt int
 
@@ -50,19 +50,24 @@ func nilableTypesTest() interface{} {
 
 	switch 0 {
 	case 1:
-		return aptr //want "returned"
+		_ = aptr.f //want "accessed field"
+		return aptr
 	case 2:
 		return a
 	case 3:
-		return a2ptr //want "returned"
+		_ = a2ptr.f //want "accessed field"
+		return a2ptr
 	case 4:
 		return a2
 	case 5:
-		return bptr //want "returned"
+		_ = *bptr //want "dereferenced"
+		return bptr
 	case 6:
-		return b //want "returned"
+		b.isB() //want "called"
+		return b
 	case 7:
-		return iptr //want "returned"
+		_ = *iptr //want "dereferenced"
+		return iptr
 	case 8:
 		return i
 	case 9:
@@ -70,7 +75,8 @@ func nilableTypesTest() interface{} {
 	case 10:
 		return mi
 	case 11:
-		return miptr //want "returned"
+		_ = *miptr //want "dereferenced"
+		return miptr
 	case 12:
 		return &A{}
 	case 13:
@@ -80,19 +86,25 @@ func nilableTypesTest() interface{} {
 	case 15:
 		return A2{}
 	case 16:
-		return nil //want "returned"
+		var result *A
+		_ = result.f //want "accessed field"
+		return result
 	case 17:
 		return func(i int) int { return i }
 	case 18:
 		return 0
 	case 19:
-		return slc1 //want "returned"
+		_ = slc1[0] //want "sliced into"
+		return slc1
 	case 20:
-		return slc2 //want "returned"
+		_ = slc2[0] //want "sliced into"
+		return slc2
 	case 21:
-		return mp1 //want "returned"
+		mp1[0] = 0 //want "written to at an index"
+		return mp1
 	case 22:
-		return mp2 //want "returned"
+		mp2[nil] = nil //want "written to at an index"
+		return mp2
 	case 23:
 		var x A
 		y := &x
@@ -123,7 +135,8 @@ func nilableTypesTest() interface{} {
 		return &y
 	case 31:
 		var x *A
-		return &x //want "unassigned variable `x` returned"
+		_ = x.f //want "unassigned variable `x` accessed field"
+		return &x
 	case 32:
 		var x *A
 		return x.f //want "unassigned variable `x` accessed field `f`"

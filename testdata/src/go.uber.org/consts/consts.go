@@ -1,6 +1,4 @@
 // This packages tests the behavior of nilaway on constants.
-//
-// <nilaway no inference>
 package consts
 
 import (
@@ -12,8 +10,9 @@ import (
 var dummy bool
 
 // tests for checking index expressions as constants both built-in and user defined (declared locally and in another package)
-// nonnil(mp, mp[])
-func testConst(mp map[string]*string, i int) string {
+func testConst(i int) string {
+	nonnilStr := "1"
+	mp := map[string]*string{"a": &nonnilStr}
 	switch i {
 	case 0:
 		// local const
@@ -49,7 +48,7 @@ func testConst(mp map[string]*string, i int) string {
 			mp[lib.MyStrConst] = new(string)
 			return *mp[lib.MyStrConst]
 		}
-		mp[lib.MyStrConst] = nil   //want "assigned"
+		mp[lib.MyStrConst] = nil
 		return *mp[lib.MyStrConst] //want "dereferenced"
 	case 5:
 		// built-in
