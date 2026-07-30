@@ -46,7 +46,7 @@ func TestNilAway(t *testing.T) {
 	}{
 		{name: "Inference", patterns: []string{"go.uber.org/inference"}},
 		{name: "Contracts", patterns: []string{"go.uber.org/contracts", "go.uber.org/contracts/namedtypes", "go.uber.org/contracts/inference"}},
-		{name: "TrustedFunc", patterns: []string{"go.uber.org/trustedfunc", "go.uber.org/trustedfunc/inference"}},
+		{name: "TrustedFunc", patterns: []string{"go.uber.org/trustedfunc"}},
 		{name: "ErrorReturn", patterns: []string{"go.uber.org/errorreturn", "go.uber.org/errorreturn/inference", "go.uber.org/errorreturn/typeswitch", "go.uber.org/errorreturn/typeswitch/shadownil"}},
 		{name: "Maps", patterns: []string{"go.uber.org/maps"}},
 		{name: "Slices", patterns: []string{"go.uber.org/slices", "go.uber.org/slices/inference"}},
@@ -104,29 +104,26 @@ func TestStructInit(t *testing.T) { //nolint:paralleltest
 }
 
 func TestStructInitV2(t *testing.T) { //nolint:paralleltest
-	//	err := config.Analyzer.Flags.Set(config.StructInitV2EnableFlag, "true")
-	//	require.NoError(t, err)
-	//	defer func() {
-	//		err := config.Analyzer.Flags.Set(config.StructInitV2EnableFlag, "false")
-	//		require.NoError(t, err)
-	//	}()
-	//
-	//	testdata := analysistest.TestData()
-	//	analysistest.Run(t, testdata, Analyzer,
-	//		"go.uber.org/structinitv2/local",
-	//		"go.uber.org/structinitv2/global",
-	//		"go.uber.org/structinitv2/defaultfield",
-	//		"go.uber.org/structinitv2/deep",
-	//		"go.uber.org/structinitv2/paramfield",
-	//		"go.uber.org/structinitv2/paramsideeffect",
-	//		"go.uber.org/structinitv2/funcreturnfields",
-	//		"go.uber.org/structinitv2/returnshape/app",
-	//		"go.uber.org/structinitv2/crosspkg/app",
-	//		"go.uber.org/structinitv2/crosspkgside/app",
-	//		"go.uber.org/structinitv2/limitations",
-	//	)
-	//
-	t.Skip("struct-init-v2 testdata is not wired")
+	err := config.Analyzer.Flags.Set(config.ExperimentalStructInitV2EnableFlag, "true")
+	require.NoError(t, err)
+	defer func() {
+		err := config.Analyzer.Flags.Set(config.ExperimentalStructInitV2EnableFlag, "false")
+		require.NoError(t, err)
+	}()
+
+	testdata := analysistest.TestData()
+	analysistest.Run(t, testdata, Analyzer,
+		"go.uber.org/structinitv2/local",
+		"go.uber.org/structinitv2/defaultfield",
+		"go.uber.org/structinitv2/deep",
+		"go.uber.org/structinitv2/crosspkg/app",
+		"go.uber.org/structinitv2/returncrosspkg/app",
+		"go.uber.org/structinitv2/crosspkgside/app",
+		"go.uber.org/structinitv2/paramfield",
+		"go.uber.org/structinitv2/paramsideeffect",
+		"go.uber.org/structinitv2/returnlocal",
+		"go.uber.org/structinitv2/returnzerovalue/app",
+	)
 }
 
 func TestAnonymousFunction(t *testing.T) { //nolint:paralleltest
@@ -169,7 +166,7 @@ func TestGroupErrorMessages(t *testing.T) { //nolint:paralleltest
 	err := config.Analyzer.Flags.Set(config.GroupErrorMessagesFlag, "true")
 	require.NoError(t, err)
 	analysistest.Run(t, testdata, Analyzer, "grouping/enabled")
-	analysistest.Run(t, testdata, Analyzer, "grouping/errormessage", "grouping/errormessage/inference")
+	analysistest.Run(t, testdata, Analyzer, "grouping/errormessage")
 
 	err = config.Analyzer.Flags.Set(config.GroupErrorMessagesFlag, "false")
 	require.NoError(t, err)

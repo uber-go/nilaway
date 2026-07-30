@@ -111,6 +111,58 @@ func Generic[A ~[8]int, E ArrayConstraint, U ~[8]int | ~[16]int, X ~[8]int | ~[]
 	}
 }
 
+func TestResolveStaticCallTarget(t *testing.T) {
+	t.Parallel()
+
+	const src = `package testpkg
+
+type Result struct{}
+
+func Generic[T any](value T) T { return value }
+
+type Factory[T any] struct{}
+
+func (Factory[T]) New() *Result { return &Result{} }
+
+func use() {
+	Generic[Result](Result{})
+	Factory[int]{}.New()
+}
+`
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "test.go", src, 0)
+	require.NoError(t, err)
+	info := &types.Info{
+		Types:      make(map[ast.Expr]types.TypeAndValue),
+		Uses:       make(map[*ast.Ident]types.Object),
+		Selections: make(map[*ast.SelectorExpr]*types.Selection),
+	}
+	pkg, err := (&types.Config{}).Check("testpkg", fset, []*ast.File{file}, info)
+	require.NoError(t, err)
+
+	var calls []*ast.CallExpr
+	ast.Inspect(file, func(node ast.Node) bool {
+		if call, ok := node.(*ast.CallExpr); ok {
+			calls = append(calls, call)
+		}
+		return true
+	})
+	require.Len(t, calls, 2)
+
+	generic, ok := ResolveStaticCallTarget(info, calls[0])
+	require.True(t, ok)
+	require.Equal(t, pkg.Scope().Lookup("Generic").(*types.Func), generic.Origin)
+	require.Equal(t, "testpkg.Result", generic.Signature.Params().At(0).Type().String())
+	require.Equal(t, "testpkg.Result", generic.Signature.Results().At(0).Type().String())
+
+	method, ok := ResolveStaticCallTarget(info, calls[1])
+	require.True(t, ok)
+	factory := pkg.Scope().Lookup("Factory").Type().(*types.Named)
+	newMethod, _, _ := types.LookupFieldOrMethod(factory, true, pkg, "New")
+	require.Equal(t, newMethod.(*types.Func), method.Origin)
+	require.Equal(t, "*testpkg.Result", method.Signature.Results().At(0).Type().String())
+}
+
 func TestIsIterType(t *testing.T) {
 	t.Parallel()
 

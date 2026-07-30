@@ -14,8 +14,6 @@
 
 /*
 This set of tests aims to capture a grab bag of strange go features
-
-<nilaway no inference>
 */
 package goquirks
 
@@ -30,8 +28,10 @@ func (a A) add(b1, b2, b3 B) {}
 func foo(a A, b1, b2 B) {
 	a.add(b1, b2, b1)
 	A.add(a, b1, b2, b1)
-	a.add(b2, b1, b2)    //want "passed"
-	A.add(a, b2, b1, b2) //want "passed"
+	a.add(b2, b1, b2)
+	print(*b1) //want "dereferenced"
+	A.add(a, b2, b1, b2)
+	print(*b1) //want "dereferenced"
 }
 
 // nilable(b1, b3)
@@ -42,8 +42,10 @@ func (a *A) add2(b1, b2, b3 B) {}
 func foo2(a *A, b1, b2 B) {
 	a.add2(b1, b2, b1)
 	(*A).add2(a, b1, b2, b1)
-	a.add2(b2, b1, b2)       //want "passed"
-	(*A).add2(a, b2, b1, b2) //want "passed"
+	a.add2(b2, b1, b2)
+	print(*b1) //want "dereferenced"
+	(*A).add2(a, b2, b1, b2)
+	print(*b1) //want "dereferenced"
 }
 
 // this tests the common paradigm in go of a nilable return of error type
@@ -62,11 +64,13 @@ func fooThatConsumesErrs() interface{} {
 	b, c, d := fooThatErrs2()
 	switch 0 {
 	case 1:
-		return a //want "returned"
+		a.Error() //want "called"
+		return a
 	case 2:
 		return b
 	case 3:
-		return c //want "returned"
+		c.Error() //want "called"
+		return c
 	default:
 		return d
 	}

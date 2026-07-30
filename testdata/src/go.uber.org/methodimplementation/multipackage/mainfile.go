@@ -17,7 +17,6 @@ This is a test for checking support for downstream/upstream dependencies. For ex
 different packages and their instantiation(s) witnessed in yet another package(s). Also, this test checks the use of
 cache passed across packages to avoid re-analysis of the affiliations.
 
-<nilaway no inference>
 */
 package multipackage
 

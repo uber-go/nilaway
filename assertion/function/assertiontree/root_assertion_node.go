@@ -132,7 +132,16 @@ func (r *RootAssertionNode) GetTriggers() []annotation.FullTrigger {
 
 // GetDeclaringIdent finds the identifier that serves as the declaration of the passed object
 func (r *RootAssertionNode) GetDeclaringIdent(obj types.Object) *ast.Ident {
+	if ident, ok := r.functionContext.declaringIdentCache[obj]; ok {
+		return ident
+	}
 
+	ident := r.computeDeclaringIdent(obj)
+	r.functionContext.declaringIdentCache[obj] = ident
+	return ident
+}
+
+func (r *RootAssertionNode) computeDeclaringIdent(obj types.Object) *ast.Ident {
 	if path, ok := GetDeclaringPath(r.Pass(), obj.Pos(), obj.Pos()); ok && len(path) > 0 {
 		if ident, ok := path[0].(*ast.Ident); ok && ident.Name == obj.Name() {
 			return ident
@@ -749,11 +758,20 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 				// Add Consumptions for struct field params
 				r.addConsumptionsForArgAndReceiverFields(expr, fun)
 			}
+
 		} else {
 			// here we have found either a builtin function like make or new,
 			// or a typecast like int(x) - in either case (at least for now), do nothing to try
 			// to consume the arguments
 			consumeArg = consumeArgNoop
+		}
+
+		if r.functionContext.functionConfig.EnableStructInitV2 {
+			if target, ok := typeshelper.ResolveStaticCallTarget(r.Pass().TypesInfo, expr); ok {
+				r.addCallParamOutFieldProducers(expr, target)
+				r.bindForwardedParamOut(expr, target)
+				r.bindArgAndReceiverFieldsToContext(expr, target)
+			}
 		}
 
 		// when we reach this point, consumeArg will be set to a no-op exactly if we don't know
@@ -1018,6 +1036,10 @@ func (r *RootAssertionNode) ProcessEntry() {
 		if r.functionContext.functionConfig.EnableStructInitCheck {
 			// process field Assertion nodes of function parameters
 			r.addProductionsForParamFields(child, builtExpr)
+		}
+
+		if r.functionContext.functionConfig.EnableStructInitV2 {
+			r.addParamFieldProducers(builtExpr)
 		}
 
 		r.AddProduction(&annotation.ProduceTrigger{

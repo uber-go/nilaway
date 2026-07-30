@@ -41,18 +41,18 @@ func (s *StructFieldNil) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this StructFieldNil as a Prestring.
-func (s *StructFieldNil) Prestring() Prestring {
-	return StructFieldNilPrestring{FieldName: s.FieldName}
+// Repr returns this StructFieldNil as a fmt.Stringer.
+func (s *StructFieldNil) Repr() fmt.Stringer {
+	return StructFieldNilRepr{FieldName: s.FieldName}
 }
 
-// StructFieldNilPrestring is a Prestring storing the information needed to compactly encode a
+// StructFieldNilRepr is a fmt.Stringer storing the information needed to compactly encode a
 // StructFieldNil.
-type StructFieldNilPrestring struct {
+type StructFieldNilRepr struct {
 	FieldName string
 }
 
-func (s StructFieldNilPrestring) String() string {
+func (s StructFieldNilRepr) String() string {
 	return fmt.Sprintf("uninitialized field `%s`", s.FieldName)
 }
 
@@ -68,6 +68,9 @@ const (
 	// StructFieldParamContext is the nilability of a field of a function's parameter/receiver,
 	// as observed on entry to the function (the value passed in by the caller).
 	StructFieldParamContext
+	// StructFieldParamOutContext is the nilability of a parameter or receiver field after the
+	// function has assigned it.
+	StructFieldParamOutContext
 )
 
 func (k StructFieldContextKind) string() string {
@@ -82,7 +85,7 @@ func (k StructFieldContextKind) string() string {
 // boundaryDesc renders the boundary descriptor used in diagnostics, e.g. "param 0 of `f`",
 // "result 0 of `g`", or "method receiver of `m`" (when the param index is the receiver index).
 func boundaryDesc(kind StructFieldContextKind, index int, funcName string) string {
-	if kind == StructFieldParamContext && index == ReceiverParamIndex {
+	if kind != StructFieldReturnContext && index == ReceiverParamIndex {
 		return fmt.Sprintf("method receiver of `%s`", funcName)
 	}
 	return fmt.Sprintf("%s %d of `%s`", kind.string(), index, funcName)
@@ -123,7 +126,10 @@ func (s *StructFieldContextSite) copy() Key {
 }
 
 func (s *StructFieldContextSite) String() string {
-	return fmt.Sprintf("field `%s` of %s", s.Path, boundaryDesc(s.Kind, s.Index, s.FuncObj.Name()))
+	// Kind value is included in String to differentiate param-in and param-out site. Without it the two
+	// would collapse into one inference site, conflating a parameter's entry value with its
+	// post-call state.
+	return fmt.Sprintf("field `%s` of kind %d %s", s.Path, s.Kind, boundaryDesc(s.Kind, s.Index, s.FuncObj.Name()))
 }
 
 // StructFieldFromContext is a producer: the value of a field (read from a boundary, e.g.
@@ -139,21 +145,21 @@ func (s *StructFieldFromContext) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this StructFieldFromContext as a Prestring.
-func (s *StructFieldFromContext) Prestring() Prestring {
+// Repr returns this StructFieldFromContext as a fmt.Stringer.
+func (s *StructFieldFromContext) Repr() fmt.Stringer {
 	site := s.Ann.(*StructFieldContextSite)
-	return StructFieldFromContextPrestring{Path: site.Path, Kind: site.Kind, Index: site.Index, FuncName: site.FuncObj.Name()}
+	return StructFieldFromContextRepr{Path: site.Path, Kind: site.Kind, Index: site.Index, FuncName: site.FuncObj.Name()}
 }
 
-// StructFieldFromContextPrestring is the compact encoding of a StructFieldFromContext.
-type StructFieldFromContextPrestring struct {
+// StructFieldFromContextRepr is the compact encoding of a StructFieldFromContext.
+type StructFieldFromContextRepr struct {
 	Path     string
 	Kind     StructFieldContextKind
 	Index    int
 	FuncName string
 }
 
-func (s StructFieldFromContextPrestring) String() string {
+func (s StructFieldFromContextRepr) String() string {
 	return fmt.Sprintf("field `%s` of %s", s.Path, boundaryDesc(s.Kind, s.Index, s.FuncName))
 }
 
@@ -178,20 +184,20 @@ func (s *StructFieldToContext) Copy() ConsumingAnnotationTrigger {
 	return &c
 }
 
-// Prestring returns this StructFieldToContext as a Prestring.
-func (s *StructFieldToContext) Prestring() Prestring {
+// Repr returns this StructFieldToContext as a fmt.Stringer.
+func (s *StructFieldToContext) Repr() fmt.Stringer {
 	site := s.Ann.(*StructFieldContextSite)
-	return StructFieldToContextPrestring{Path: site.Path, Kind: site.Kind, Index: site.Index, FuncName: site.FuncObj.Name()}
+	return StructFieldToContextRepr{Path: site.Path, Kind: site.Kind, Index: site.Index, FuncName: site.FuncObj.Name()}
 }
 
-// StructFieldToContextPrestring is the compact encoding of a StructFieldToContext.
-type StructFieldToContextPrestring struct {
+// StructFieldToContextRepr is the compact encoding of a StructFieldToContext.
+type StructFieldToContextRepr struct {
 	Path     string
 	Kind     StructFieldContextKind
 	Index    int
 	FuncName string
 }
 
-func (s StructFieldToContextPrestring) String() string {
+func (s StructFieldToContextRepr) String() string {
 	return fmt.Sprintf("field `%s` reaches %s", s.Path, boundaryDesc(s.Kind, s.Index, s.FuncName))
 }

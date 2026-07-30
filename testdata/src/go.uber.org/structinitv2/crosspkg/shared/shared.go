@@ -26,3 +26,10 @@ type A struct {
 type Leaf struct {
 	Ptr *int
 }
+
+// Get reads the Aptr field as a value without dereferencing it, so only the selector's value
+// demand exports `Aptr` in the parameter read summary. A caller in another package dereferences
+// the escaped value; without value demand the nil field never reaches the boundary site.
+func Get(a *A) *Leaf {
+	return a.Aptr
+}

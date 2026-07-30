@@ -39,7 +39,7 @@ type ConsumingAnnotationTrigger interface {
 	// for example - an `ArgPass` trigger triggers iff the corresponding function arg has
 	// nonNil type
 	CheckConsume(Map) bool
-	Prestring() Prestring
+	Repr() fmt.Stringer
 
 	// Kind returns the kind of the trigger.
 	Kind() TriggerKind
@@ -68,13 +68,6 @@ type ConsumingAnnotationTrigger interface {
 	// SetNeedsGuard sets the underlying Guard-Neediness of this ConsumerTrigger, if present.
 	// Default setting for ConsumerTriggers is that they need a guard. Override this method to set the need for a guard to false.
 	SetNeedsGuard(bool)
-}
-
-// Prestring is an interface used to encode objects that have compact on-the-wire encodings
-// (via gob) but can still be expanded into verbose string representations on demand using
-// type information. These are key for compact encoding of InferredAnnotationMaps
-type Prestring interface {
-	String() string
 }
 
 // Assignment is a struct that represents an assignment to an expression
@@ -204,19 +197,19 @@ func (t *TriggerIfNonNil) AddAssignment(e Assignment) {
 	t.addEntry(e)
 }
 
-// Prestring returns this Prestring as a Prestring
-func (t *TriggerIfNonNil) Prestring() Prestring {
-	return TriggerIfNonNilPrestring{
+// Repr returns a compact string representation.
+func (t *TriggerIfNonNil) Repr() fmt.Stringer {
+	return TriggerIfNonNilRepr{
 		AssignmentStr: t.String(),
 	}
 }
 
-// TriggerIfNonNilPrestring is a Prestring storing the needed information to compactly encode a TriggerIfNonNil
-type TriggerIfNonNilPrestring struct {
+// TriggerIfNonNilRepr is a fmt.Stringer storing the needed information to compactly encode a TriggerIfNonNil
+type TriggerIfNonNilRepr struct {
 	AssignmentStr string
 }
 
-func (t TriggerIfNonNilPrestring) String() string {
+func (t TriggerIfNonNilRepr) String() string {
 	var sb strings.Builder
 	sb.WriteString("nonnil value")
 	sb.WriteString(t.AssignmentStr)
@@ -275,19 +268,19 @@ func (t *TriggerIfDeepNonNil) AddAssignment(e Assignment) {
 	t.addEntry(e)
 }
 
-// Prestring returns this Prestring as a Prestring
-func (t *TriggerIfDeepNonNil) Prestring() Prestring {
-	return TriggerIfDeepNonNilPrestring{
+// Repr returns a compact string representation.
+func (t *TriggerIfDeepNonNil) Repr() fmt.Stringer {
+	return TriggerIfDeepNonNilRepr{
 		AssignmentStr: t.String(),
 	}
 }
 
-// TriggerIfDeepNonNilPrestring is a Prestring storing the needed information to compactly encode a TriggerIfDeepNonNil
-type TriggerIfDeepNonNilPrestring struct {
+// TriggerIfDeepNonNilRepr is a fmt.Stringer storing the needed information to compactly encode a TriggerIfDeepNonNil
+type TriggerIfDeepNonNilRepr struct {
 	AssignmentStr string
 }
 
-func (t TriggerIfDeepNonNilPrestring) String() string {
+func (t TriggerIfDeepNonNilRepr) String() string {
 	var sb strings.Builder
 	sb.WriteString("deeply nonnil value")
 	sb.WriteString(t.AssignmentStr)
@@ -341,19 +334,19 @@ func (c *ConsumeTriggerTautology) AddAssignment(e Assignment) {
 	c.addEntry(e)
 }
 
-// Prestring returns this Prestring as a Prestring
-func (c *ConsumeTriggerTautology) Prestring() Prestring {
-	return ConsumeTriggerTautologyPrestring{
+// Repr returns a compact string representation.
+func (c *ConsumeTriggerTautology) Repr() fmt.Stringer {
+	return ConsumeTriggerTautologyRepr{
 		AssignmentStr: c.String(),
 	}
 }
 
-// ConsumeTriggerTautologyPrestring is a Prestring storing the needed information to compactly encode a ConsumeTriggerTautology
-type ConsumeTriggerTautologyPrestring struct {
+// ConsumeTriggerTautologyRepr is a fmt.Stringer storing the needed information to compactly encode a ConsumeTriggerTautology
+type ConsumeTriggerTautologyRepr struct {
 	AssignmentStr string
 }
 
-func (c ConsumeTriggerTautologyPrestring) String() string {
+func (c ConsumeTriggerTautologyRepr) String() string {
 	var sb strings.Builder
 	sb.WriteString("must be nonnil")
 	sb.WriteString(c.AssignmentStr)
@@ -380,19 +373,19 @@ func (p *PtrLoad) Copy() ConsumingAnnotationTrigger {
 	return &copyConsumer
 }
 
-// Prestring returns this PtrLoad as a Prestring
-func (p *PtrLoad) Prestring() Prestring {
-	return PtrLoadPrestring{
+// Repr returns this PtrLoad as a fmt.Stringer
+func (p *PtrLoad) Repr() fmt.Stringer {
+	return PtrLoadRepr{
 		AssignmentStr: p.String(),
 	}
 }
 
-// PtrLoadPrestring is a Prestring storing the needed information to compactly encode a PtrLoad
-type PtrLoadPrestring struct {
+// PtrLoadRepr is a fmt.Stringer storing the needed information to compactly encode a PtrLoad
+type PtrLoadRepr struct {
 	AssignmentStr string
 }
 
-func (p PtrLoadPrestring) String() string {
+func (p PtrLoadRepr) String() string {
 	var sb strings.Builder
 	sb.WriteString("dereferenced")
 	sb.WriteString(p.AssignmentStr)
@@ -421,19 +414,19 @@ func (i *MapAccess) Copy() ConsumingAnnotationTrigger {
 	return &copyConsumer
 }
 
-// Prestring returns this MapAccess as a Prestring
-func (i *MapAccess) Prestring() Prestring {
-	return MapAccessPrestring{
+// Repr returns this MapAccess as a fmt.Stringer
+func (i *MapAccess) Repr() fmt.Stringer {
+	return MapAccessRepr{
 		AssignmentStr: i.String(),
 	}
 }
 
-// MapAccessPrestring is a Prestring storing the needed information to compactly encode a MapAccess
-type MapAccessPrestring struct {
+// MapAccessRepr is a fmt.Stringer storing the needed information to compactly encode a MapAccess
+type MapAccessRepr struct {
 	AssignmentStr string
 }
 
-func (i MapAccessPrestring) String() string {
+func (i MapAccessRepr) String() string {
 	var sb strings.Builder
 	sb.WriteString("keyed into")
 	sb.WriteString(i.AssignmentStr)
@@ -461,19 +454,19 @@ func (m *MapWrittenTo) Copy() ConsumingAnnotationTrigger {
 	return &copyConsumer
 }
 
-// Prestring returns this MapWrittenTo as a Prestring
-func (m *MapWrittenTo) Prestring() Prestring {
-	return MapWrittenToPrestring{
+// Repr returns this MapWrittenTo as a fmt.Stringer
+func (m *MapWrittenTo) Repr() fmt.Stringer {
+	return MapWrittenToRepr{
 		AssignmentStr: m.String(),
 	}
 }
 
-// MapWrittenToPrestring is a Prestring storing the needed information to compactly encode a MapWrittenTo
-type MapWrittenToPrestring struct {
+// MapWrittenToRepr is a fmt.Stringer storing the needed information to compactly encode a MapWrittenTo
+type MapWrittenToRepr struct {
 	AssignmentStr string
 }
 
-func (m MapWrittenToPrestring) String() string {
+func (m MapWrittenToRepr) String() string {
 	var sb strings.Builder
 	sb.WriteString("written to at an index")
 	sb.WriteString(m.AssignmentStr)
@@ -500,19 +493,19 @@ func (s *SliceAccess) Copy() ConsumingAnnotationTrigger {
 	return &copyConsumer
 }
 
-// Prestring returns this SliceAccess as a Prestring
-func (s *SliceAccess) Prestring() Prestring {
-	return SliceAccessPrestring{
+// Repr returns this SliceAccess as a fmt.Stringer
+func (s *SliceAccess) Repr() fmt.Stringer {
+	return SliceAccessRepr{
 		AssignmentStr: s.String(),
 	}
 }
 
-// SliceAccessPrestring is a Prestring storing the needed information to compactly encode a SliceAccess
-type SliceAccessPrestring struct {
+// SliceAccessRepr is a fmt.Stringer storing the needed information to compactly encode a SliceAccess
+type SliceAccessRepr struct {
 	AssignmentStr string
 }
 
-func (s SliceAccessPrestring) String() string {
+func (s SliceAccessRepr) String() string {
 	var sb strings.Builder
 	sb.WriteString("sliced into")
 	sb.WriteString(s.AssignmentStr)
@@ -541,8 +534,8 @@ func (f *FldAccess) Copy() ConsumingAnnotationTrigger {
 	return &copyConsumer
 }
 
-// Prestring returns this FldAccess as a Prestring
-func (f *FldAccess) Prestring() Prestring {
+// Repr returns this FldAccess as a fmt.Stringer
+func (f *FldAccess) Repr() fmt.Stringer {
 	fieldName, methodName := "", ""
 	switch t := f.Sel.(type) {
 	case *types.Var:
@@ -553,21 +546,21 @@ func (f *FldAccess) Prestring() Prestring {
 		panic(fmt.Sprintf("unexpected Sel type %T in FldAccess", t))
 	}
 
-	return FldAccessPrestring{
+	return FldAccessRepr{
 		FieldName:     fieldName,
 		MethodName:    methodName,
 		AssignmentStr: f.String(),
 	}
 }
 
-// FldAccessPrestring is a Prestring storing the needed information to compactly encode a FldAccess
-type FldAccessPrestring struct {
+// FldAccessRepr is a fmt.Stringer storing the needed information to compactly encode a FldAccess
+type FldAccessRepr struct {
 	FieldName     string
 	MethodName    string
 	AssignmentStr string
 }
 
-func (f FldAccessPrestring) String() string {
+func (f FldAccessRepr) String() string {
 	var sb strings.Builder
 	if f.MethodName != "" {
 		fmt.Fprintf(&sb, "called `%s()`", f.MethodName)
@@ -603,10 +596,10 @@ func (u *UseAsErrorResult) Copy() ConsumingAnnotationTrigger {
 	return &copyConsumer
 }
 
-// Prestring returns this UseAsErrorResult as a Prestring
-func (u *UseAsErrorResult) Prestring() Prestring {
+// Repr returns this UseAsErrorResult as a fmt.Stringer
+func (u *UseAsErrorResult) Repr() fmt.Stringer {
 	retAnn := u.Ann.(*RetAnnotationKey)
-	return UseAsErrorResultPrestring{
+	return UseAsErrorResultRepr{
 		Pos:              retAnn.RetNum,
 		ReturningFuncStr: retAnn.FuncDecl.Name(),
 		IsNamedReturn:    u.IsNamedReturn,
@@ -615,8 +608,8 @@ func (u *UseAsErrorResult) Prestring() Prestring {
 	}
 }
 
-// UseAsErrorResultPrestring is a Prestring storing the needed information to compactly encode a UseAsErrorResult
-type UseAsErrorResultPrestring struct {
+// UseAsErrorResultRepr is a fmt.Stringer storing the needed information to compactly encode a UseAsErrorResult
+type UseAsErrorResultRepr struct {
 	Pos              int
 	ReturningFuncStr string
 	IsNamedReturn    bool
@@ -624,7 +617,7 @@ type UseAsErrorResultPrestring struct {
 	AssignmentStr    string
 }
 
-func (u UseAsErrorResultPrestring) String() string {
+func (u UseAsErrorResultRepr) String() string {
 	var sb strings.Builder
 	if u.IsNamedReturn {
 		fmt.Fprintf(&sb, "returned as named error result `%s` of `%s()`", u.RetName, u.ReturningFuncStr)
@@ -663,22 +656,22 @@ func (f *FldAssign) Copy() ConsumingAnnotationTrigger {
 	return &copyConsumer
 }
 
-// Prestring returns this FldAssign as a Prestring
-func (f *FldAssign) Prestring() Prestring {
+// Repr returns this FldAssign as a fmt.Stringer
+func (f *FldAssign) Repr() fmt.Stringer {
 	fldAnn := f.Ann.(*FieldAnnotationKey)
-	return FldAssignPrestring{
+	return FldAssignRepr{
 		FieldName:     fldAnn.FieldDecl.Name(),
 		AssignmentStr: f.String(),
 	}
 }
 
-// FldAssignPrestring is a Prestring storing the needed information to compactly encode a FldAssign
-type FldAssignPrestring struct {
+// FldAssignRepr is a fmt.Stringer storing the needed information to compactly encode a FldAssign
+type FldAssignRepr struct {
 	FieldName     string
 	AssignmentStr string
 }
 
-func (f FldAssignPrestring) String() string {
+func (f FldAssignRepr) String() string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "assigned into field `%s`", f.FieldName)
 	sb.WriteString(f.AssignmentStr)
@@ -707,15 +700,15 @@ func (f *ArgFldPass) Copy() ConsumingAnnotationTrigger {
 	return &copyConsumer
 }
 
-// Prestring returns this ArgFldPass as a Prestring
-func (f *ArgFldPass) Prestring() Prestring {
+// Repr returns this ArgFldPass as a fmt.Stringer
+func (f *ArgFldPass) Repr() fmt.Stringer {
 	ann := f.Ann.(*ParamFieldAnnotationKey)
 	recvName := ""
 	if ann.IsReceiver() {
 		recvName = ann.FuncDecl.Type().(*types.Signature).Recv().Name()
 	}
 
-	return ArgFldPassPrestring{
+	return ArgFldPassRepr{
 		FieldName:     ann.FieldDecl.Name(),
 		FuncName:      ann.FuncDecl.Name(),
 		ParamNum:      ann.ParamNum,
@@ -725,8 +718,8 @@ func (f *ArgFldPass) Prestring() Prestring {
 	}
 }
 
-// ArgFldPassPrestring is a Prestring storing the needed information to compactly encode a ArgFldPass
-type ArgFldPassPrestring struct {
+// ArgFldPassRepr is a fmt.Stringer storing the needed information to compactly encode a ArgFldPass
+type ArgFldPassRepr struct {
 	FieldName     string
 	FuncName      string
 	ParamNum      int
@@ -735,7 +728,7 @@ type ArgFldPassPrestring struct {
 	AssignmentStr string
 }
 
-func (f ArgFldPassPrestring) String() string {
+func (f ArgFldPassRepr) String() string {
 	var sb strings.Builder
 	prefix := ""
 	if f.IsPassed {
@@ -772,22 +765,22 @@ func (g *GlobalVarAssign) Copy() ConsumingAnnotationTrigger {
 	return &copyConsumer
 }
 
-// Prestring returns this GlobalVarAssign as a Prestring
-func (g *GlobalVarAssign) Prestring() Prestring {
+// Repr returns this GlobalVarAssign as a fmt.Stringer
+func (g *GlobalVarAssign) Repr() fmt.Stringer {
 	varAnn := g.Ann.(*GlobalVarAnnotationKey)
-	return GlobalVarAssignPrestring{
+	return GlobalVarAssignRepr{
 		VarName:       varAnn.VarDecl.Name(),
 		AssignmentStr: g.String(),
 	}
 }
 
-// GlobalVarAssignPrestring is a Prestring storing the needed information to compactly encode a GlobalVarAssign
-type GlobalVarAssignPrestring struct {
+// GlobalVarAssignRepr is a fmt.Stringer storing the needed information to compactly encode a GlobalVarAssign
+type GlobalVarAssignRepr struct {
 	VarName       string
 	AssignmentStr string
 }
 
-func (g GlobalVarAssignPrestring) String() string {
+func (g GlobalVarAssignRepr) String() string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "assigned into global variable `%s`", g.VarName)
 	sb.WriteString(g.AssignmentStr)
@@ -819,18 +812,18 @@ func (a *ArgPass) Copy() ConsumingAnnotationTrigger {
 	return &copyConsumer
 }
 
-// Prestring returns this ArgPass as a Prestring
-func (a *ArgPass) Prestring() Prestring {
+// Repr returns this ArgPass as a fmt.Stringer
+func (a *ArgPass) Repr() fmt.Stringer {
 	switch key := a.Ann.(type) {
 	case *ParamAnnotationKey:
-		return ArgPassPrestring{
+		return ArgPassRepr{
 			ParamName:     key.MinimalString(),
 			FuncName:      key.FuncDecl.Name(),
 			Location:      "",
 			AssignmentStr: a.String(),
 		}
 	case *CallSiteParamAnnotationKey:
-		return ArgPassPrestring{
+		return ArgPassRepr{
 			ParamName:     key.MinimalString(),
 			FuncName:      key.FuncDecl.Name(),
 			Location:      key.Location.String(),
@@ -842,8 +835,8 @@ func (a *ArgPass) Prestring() Prestring {
 	}
 }
 
-// ArgPassPrestring is a Prestring storing the needed information to compactly encode a ArgPass
-type ArgPassPrestring struct {
+// ArgPassRepr is a fmt.Stringer storing the needed information to compactly encode a ArgPass
+type ArgPassRepr struct {
 	ParamName string
 	FuncName  string
 	// Location points to the code location of the argument pass at the call site for a ArgPass
@@ -852,7 +845,7 @@ type ArgPassPrestring struct {
 	AssignmentStr string
 }
 
-func (a ArgPassPrestring) String() string {
+func (a ArgPassRepr) String() string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "passed as %s to `%s()`", a.ParamName, a.FuncName)
 	if a.Location != "" {
@@ -882,18 +875,18 @@ func (a *ArgPassDeep) Copy() ConsumingAnnotationTrigger {
 	return &copyConsumer
 }
 
-// Prestring returns this ArgPassDeep as a Prestring
-func (a *ArgPassDeep) Prestring() Prestring {
+// Repr returns this ArgPassDeep as a fmt.Stringer
+func (a *ArgPassDeep) Repr() fmt.Stringer {
 	switch key := a.Ann.(type) {
 	case *ParamAnnotationKey:
-		return ArgPassPrestring{
+		return ArgPassRepr{
 			ParamName:     key.MinimalString(),
 			FuncName:      key.FuncDecl.Name(),
 			Location:      "",
 			AssignmentStr: a.String(),
 		}
 	case *CallSiteParamAnnotationKey:
-		return ArgPassPrestring{
+		return ArgPassRepr{
 			ParamName:     key.MinimalString(),
 			FuncName:      key.FuncDecl.Name(),
 			Location:      key.Location.String(),
@@ -905,8 +898,8 @@ func (a *ArgPassDeep) Prestring() Prestring {
 	}
 }
 
-// ArgPassDeepPrestring is a Prestring storing the needed information to compactly encode a ArgPassDeep
-type ArgPassDeepPrestring struct {
+// ArgPassDeepRepr is a fmt.Stringer storing the needed information to compactly encode a ArgPassDeep
+type ArgPassDeepRepr struct {
 	ParamName string
 	FuncName  string
 	// Location points to the code location of the argument pass at the call site for a ArgPass
@@ -915,7 +908,7 @@ type ArgPassDeepPrestring struct {
 	AssignmentStr string
 }
 
-func (a ArgPassDeepPrestring) String() string {
+func (a ArgPassDeepRepr) String() string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "passed deeply as %s to `%s()`", a.ParamName, a.FuncName)
 	if a.Location != "" {
@@ -946,22 +939,22 @@ func (a *RecvPass) Copy() ConsumingAnnotationTrigger {
 	return &copyConsumer
 }
 
-// Prestring returns this RecvPass as a Prestring
-func (a *RecvPass) Prestring() Prestring {
+// Repr returns this RecvPass as a fmt.Stringer
+func (a *RecvPass) Repr() fmt.Stringer {
 	recvAnn := a.Ann.(*RecvAnnotationKey)
-	return RecvPassPrestring{
+	return RecvPassRepr{
 		FuncName:      recvAnn.FuncDecl.Name(),
 		AssignmentStr: a.String(),
 	}
 }
 
-// RecvPassPrestring is a Prestring storing the needed information to compactly encode a RecvPass
-type RecvPassPrestring struct {
+// RecvPassRepr is a fmt.Stringer storing the needed information to compactly encode a RecvPass
+type RecvPassRepr struct {
 	FuncName      string
 	AssignmentStr string
 }
 
-func (a RecvPassPrestring) String() string {
+func (a RecvPassRepr) String() string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "used as receiver to call `%s()`", a.FuncName)
 	sb.WriteString(a.AssignmentStr)
@@ -991,10 +984,10 @@ func (i *InterfaceResultFromImplementation) Copy() ConsumingAnnotationTrigger {
 	return &copyConsumer
 }
 
-// Prestring returns this InterfaceResultFromImplementation as a Prestring
-func (i *InterfaceResultFromImplementation) Prestring() Prestring {
+// Repr returns this InterfaceResultFromImplementation as a fmt.Stringer
+func (i *InterfaceResultFromImplementation) Repr() fmt.Stringer {
 	retAnn := i.Ann.(*RetAnnotationKey)
-	return InterfaceResultFromImplementationPrestring{
+	return InterfaceResultFromImplementationRepr{
 		retAnn.RetNum,
 		typeshelper.PartiallyQualifiedFuncName(retAnn.FuncDecl),
 		typeshelper.PartiallyQualifiedFuncName(i.ImplementingMethod),
@@ -1002,15 +995,15 @@ func (i *InterfaceResultFromImplementation) Prestring() Prestring {
 	}
 }
 
-// InterfaceResultFromImplementationPrestring is a Prestring storing the needed information to compactly encode a InterfaceResultFromImplementation
-type InterfaceResultFromImplementationPrestring struct {
+// InterfaceResultFromImplementationRepr is a fmt.Stringer storing the needed information to compactly encode a InterfaceResultFromImplementation
+type InterfaceResultFromImplementationRepr struct {
 	RetNum        int
 	IntName       string
 	ImplName      string
 	AssignmentStr string
 }
 
-func (i InterfaceResultFromImplementationPrestring) String() string {
+func (i InterfaceResultFromImplementationRepr) String() string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "returned as result %d from interface method `%s()` (implemented by `%s()`)",
 		i.RetNum, i.IntName, i.ImplName)
@@ -1041,10 +1034,10 @@ func (m *MethodParamFromInterface) Copy() ConsumingAnnotationTrigger {
 	return &copyConsumer
 }
 
-// Prestring returns this MethodParamFromInterface as a Prestring
-func (m *MethodParamFromInterface) Prestring() Prestring {
+// Repr returns this MethodParamFromInterface as a fmt.Stringer
+func (m *MethodParamFromInterface) Repr() fmt.Stringer {
 	paramAnn := m.Ann.(*ParamAnnotationKey)
-	return MethodParamFromInterfacePrestring{
+	return MethodParamFromInterfaceRepr{
 		paramAnn.ParamNameString(),
 		typeshelper.PartiallyQualifiedFuncName(paramAnn.FuncDecl),
 		typeshelper.PartiallyQualifiedFuncName(m.InterfaceMethod),
@@ -1052,15 +1045,15 @@ func (m *MethodParamFromInterface) Prestring() Prestring {
 	}
 }
 
-// MethodParamFromInterfacePrestring is a Prestring storing the needed information to compactly encode a MethodParamFromInterface
-type MethodParamFromInterfacePrestring struct {
+// MethodParamFromInterfaceRepr is a fmt.Stringer storing the needed information to compactly encode a MethodParamFromInterface
+type MethodParamFromInterfaceRepr struct {
 	ParamName     string
 	ImplName      string
 	IntName       string
 	AssignmentStr string
 }
 
-func (m MethodParamFromInterfacePrestring) String() string {
+func (m MethodParamFromInterfaceRepr) String() string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "passed as parameter `%s` to `%s()` (implementing `%s()`)",
 		m.ParamName, m.ImplName, m.IntName)
@@ -1116,11 +1109,11 @@ func (u *UseAsReturn) Copy() ConsumingAnnotationTrigger {
 	return &copyConsumer
 }
 
-// Prestring returns this UseAsReturn as a Prestring
-func (u *UseAsReturn) Prestring() Prestring {
+// Repr returns this UseAsReturn as a fmt.Stringer
+func (u *UseAsReturn) Repr() fmt.Stringer {
 	switch key := u.Ann.(type) {
 	case *RetAnnotationKey:
-		return UseAsReturnPrestring{
+		return UseAsReturnRepr{
 			key.FuncDecl.Name(),
 			key.RetNum,
 			u.IsNamedReturn,
@@ -1129,7 +1122,7 @@ func (u *UseAsReturn) Prestring() Prestring {
 			u.String(),
 		}
 	case *CallSiteRetAnnotationKey:
-		return UseAsReturnPrestring{
+		return UseAsReturnRepr{
 			key.FuncDecl.Name(),
 			key.RetNum,
 			u.IsNamedReturn,
@@ -1142,8 +1135,8 @@ func (u *UseAsReturn) Prestring() Prestring {
 	}
 }
 
-// UseAsReturnPrestring is a Prestring storing the needed information to compactly encode a UseAsReturn
-type UseAsReturnPrestring struct {
+// UseAsReturnRepr is a fmt.Stringer storing the needed information to compactly encode a UseAsReturn
+type UseAsReturnRepr struct {
 	FuncName      string
 	RetNum        int
 	IsNamedReturn bool
@@ -1155,7 +1148,7 @@ type UseAsReturnPrestring struct {
 	AssignmentStr string
 }
 
-func (u UseAsReturnPrestring) String() string {
+func (u UseAsReturnRepr) String() string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "returned from `%s()`", u.FuncName)
 	if u.IsNamedReturn {
@@ -1202,10 +1195,10 @@ func (u *UseAsReturnDeep) Copy() ConsumingAnnotationTrigger {
 	return &copyConsumer
 }
 
-// Prestring returns this UseAsReturn as a Prestring
-func (u *UseAsReturnDeep) Prestring() Prestring {
+// Repr returns this UseAsReturn as a fmt.Stringer
+func (u *UseAsReturnDeep) Repr() fmt.Stringer {
 	key := u.Ann.(*RetAnnotationKey)
-	return UseAsReturnDeepPrestring{
+	return UseAsReturnDeepRepr{
 		key.FuncDecl.Name(),
 		key.RetNum,
 		key.FuncDecl.Type().(*types.Signature).Results().At(key.RetNum).Name(),
@@ -1213,15 +1206,15 @@ func (u *UseAsReturnDeep) Prestring() Prestring {
 	}
 }
 
-// UseAsReturnDeepPrestring is a Prestring storing the needed information to compactly encode a UseAsReturnDeep
-type UseAsReturnDeepPrestring struct {
+// UseAsReturnDeepRepr is a fmt.Stringer storing the needed information to compactly encode a UseAsReturnDeep
+type UseAsReturnDeepRepr struct {
 	FuncName      string
 	RetNum        int
 	RetName       string
 	AssignmentStr string
 }
 
-func (u UseAsReturnDeepPrestring) String() string {
+func (u UseAsReturnDeepRepr) String() string {
 	var sb strings.Builder
 	via := ""
 	if u.RetName != "" && u.RetName != "_" {
@@ -1261,10 +1254,10 @@ func (u *UseAsFldOfReturn) Copy() ConsumingAnnotationTrigger {
 	return &copyConsumer
 }
 
-// Prestring returns this UseAsFldOfReturn as a Prestring
-func (u *UseAsFldOfReturn) Prestring() Prestring {
+// Repr returns this UseAsFldOfReturn as a fmt.Stringer
+func (u *UseAsFldOfReturn) Repr() fmt.Stringer {
 	retAnn := u.Ann.(*RetFieldAnnotationKey)
-	return UseAsFldOfReturnPrestring{
+	return UseAsFldOfReturnRepr{
 		retAnn.FuncDecl.Name(),
 		retAnn.FieldDecl.Name(),
 		retAnn.RetNum,
@@ -1272,15 +1265,15 @@ func (u *UseAsFldOfReturn) Prestring() Prestring {
 	}
 }
 
-// UseAsFldOfReturnPrestring is a Prestring storing the needed information to compactly encode a UseAsFldOfReturn
-type UseAsFldOfReturnPrestring struct {
+// UseAsFldOfReturnRepr is a fmt.Stringer storing the needed information to compactly encode a UseAsFldOfReturn
+type UseAsFldOfReturnRepr struct {
 	FuncName      string
 	FieldName     string
 	RetNum        int
 	AssignmentStr string
 }
 
-func (u UseAsFldOfReturnPrestring) String() string {
+func (u UseAsFldOfReturnRepr) String() string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "field `%s` returned by result %d of `%s()`", u.FieldName, u.RetNum, u.FuncName)
 	sb.WriteString(u.AssignmentStr)
@@ -1343,22 +1336,22 @@ func (f *SliceAssign) Copy() ConsumingAnnotationTrigger {
 	return &copyConsumer
 }
 
-// Prestring returns this SliceAssign as a Prestring
-func (f *SliceAssign) Prestring() Prestring {
+// Repr returns this SliceAssign as a fmt.Stringer
+func (f *SliceAssign) Repr() fmt.Stringer {
 	fldAnn := f.Ann.(*TypeNameAnnotationKey)
-	return SliceAssignPrestring{
+	return SliceAssignRepr{
 		fldAnn.TypeDecl.Name(),
 		f.String(),
 	}
 }
 
-// SliceAssignPrestring is a Prestring storing the needed information to compactly encode a SliceAssign
-type SliceAssignPrestring struct {
+// SliceAssignRepr is a fmt.Stringer storing the needed information to compactly encode a SliceAssign
+type SliceAssignRepr struct {
 	TypeName      string
 	AssignmentStr string
 }
 
-func (f SliceAssignPrestring) String() string {
+func (f SliceAssignRepr) String() string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "assigned into a slice of deeply nonnil type `%s`", f.TypeName)
 	sb.WriteString(f.AssignmentStr)
@@ -1385,22 +1378,22 @@ func (a *ArrayAssign) Copy() ConsumingAnnotationTrigger {
 	return &copyConsumer
 }
 
-// Prestring returns this ArrayAssign as a Prestring
-func (a *ArrayAssign) Prestring() Prestring {
+// Repr returns this ArrayAssign as a fmt.Stringer
+func (a *ArrayAssign) Repr() fmt.Stringer {
 	fldAnn := a.Ann.(*TypeNameAnnotationKey)
-	return ArrayAssignPrestring{
+	return ArrayAssignRepr{
 		fldAnn.TypeDecl.Name(),
 		a.String(),
 	}
 }
 
-// ArrayAssignPrestring is a Prestring storing the needed information to compactly encode a SliceAssign
-type ArrayAssignPrestring struct {
+// ArrayAssignRepr is a fmt.Stringer storing the needed information to compactly encode a SliceAssign
+type ArrayAssignRepr struct {
 	TypeName      string
 	AssignmentStr string
 }
 
-func (a ArrayAssignPrestring) String() string {
+func (a ArrayAssignRepr) String() string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "assigned into an array of deeply nonnil type `%s`", a.TypeName)
 	sb.WriteString(a.AssignmentStr)
@@ -1427,22 +1420,22 @@ func (f *PtrAssign) Copy() ConsumingAnnotationTrigger {
 	return &copyConsumer
 }
 
-// Prestring returns this PtrAssign as a Prestring
-func (f *PtrAssign) Prestring() Prestring {
+// Repr returns this PtrAssign as a fmt.Stringer
+func (f *PtrAssign) Repr() fmt.Stringer {
 	fldAnn := f.Ann.(*TypeNameAnnotationKey)
-	return PtrAssignPrestring{
+	return PtrAssignRepr{
 		fldAnn.TypeDecl.Name(),
 		f.String(),
 	}
 }
 
-// PtrAssignPrestring is a Prestring storing the needed information to compactly encode a PtrAssign
-type PtrAssignPrestring struct {
+// PtrAssignRepr is a fmt.Stringer storing the needed information to compactly encode a PtrAssign
+type PtrAssignRepr struct {
 	TypeName      string
 	AssignmentStr string
 }
 
-func (f PtrAssignPrestring) String() string {
+func (f PtrAssignRepr) String() string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "assigned into a pointer of deeply nonnil type `%s`", f.TypeName)
 	sb.WriteString(f.AssignmentStr)
@@ -1469,22 +1462,22 @@ func (f *MapAssign) Copy() ConsumingAnnotationTrigger {
 	return &copyConsumer
 }
 
-// Prestring returns this MapAssign as a Prestring
-func (f *MapAssign) Prestring() Prestring {
+// Repr returns this MapAssign as a fmt.Stringer
+func (f *MapAssign) Repr() fmt.Stringer {
 	fldAnn := f.Ann.(*TypeNameAnnotationKey)
-	return MapAssignPrestring{
+	return MapAssignRepr{
 		fldAnn.TypeDecl.Name(),
 		f.String(),
 	}
 }
 
-// MapAssignPrestring is a Prestring storing the needed information to compactly encode a MapAssign
-type MapAssignPrestring struct {
+// MapAssignRepr is a fmt.Stringer storing the needed information to compactly encode a MapAssign
+type MapAssignRepr struct {
 	TypeName      string
 	AssignmentStr string
 }
 
-func (f MapAssignPrestring) String() string {
+func (f MapAssignRepr) String() string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "assigned into a map of deeply nonnil type `%s`", f.TypeName)
 	sb.WriteString(f.AssignmentStr)
@@ -1512,19 +1505,19 @@ func (d *DeepAssignPrimitive) Copy() ConsumingAnnotationTrigger {
 	return &copyConsumer
 }
 
-// Prestring returns this Prestring as a Prestring
-func (d *DeepAssignPrimitive) Prestring() Prestring {
-	return DeepAssignPrimitivePrestring{
+// Repr returns a compact string representation.
+func (d *DeepAssignPrimitive) Repr() fmt.Stringer {
+	return DeepAssignPrimitiveRepr{
 		AssignmentStr: d.String(),
 	}
 }
 
-// DeepAssignPrimitivePrestring is a Prestring storing the needed information to compactly encode a DeepAssignPrimitive
-type DeepAssignPrimitivePrestring struct {
+// DeepAssignPrimitiveRepr is a fmt.Stringer storing the needed information to compactly encode a DeepAssignPrimitive
+type DeepAssignPrimitiveRepr struct {
 	AssignmentStr string
 }
 
-func (d DeepAssignPrimitivePrestring) String() string {
+func (d DeepAssignPrimitiveRepr) String() string {
 	var sb strings.Builder
 	sb.WriteString("assigned into a deep type expecting nonnil element type")
 	sb.WriteString(d.AssignmentStr)
@@ -1551,21 +1544,21 @@ func (p *ParamAssignDeep) Copy() ConsumingAnnotationTrigger {
 	return &copyConsumer
 }
 
-// Prestring returns this ParamAssignDeep as a Prestring
-func (p *ParamAssignDeep) Prestring() Prestring {
-	return ParamAssignDeepPrestring{
+// Repr returns this ParamAssignDeep as a fmt.Stringer
+func (p *ParamAssignDeep) Repr() fmt.Stringer {
+	return ParamAssignDeepRepr{
 		p.Ann.(*ParamAnnotationKey).MinimalString(),
 		p.String(),
 	}
 }
 
-// ParamAssignDeepPrestring is a Prestring storing the needed information to compactly encode a ParamAssignDeep
-type ParamAssignDeepPrestring struct {
+// ParamAssignDeepRepr is a fmt.Stringer storing the needed information to compactly encode a ParamAssignDeep
+type ParamAssignDeepRepr struct {
 	ParamName     string
 	AssignmentStr string
 }
 
-func (p ParamAssignDeepPrestring) String() string {
+func (p ParamAssignDeepRepr) String() string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "assigned deeply into parameter %s", p.ParamName)
 	sb.WriteString(p.AssignmentStr)
@@ -1592,24 +1585,24 @@ func (f *FuncRetAssignDeep) Copy() ConsumingAnnotationTrigger {
 	return &copyConsumer
 }
 
-// Prestring returns this FuncRetAssignDeep as a Prestring
-func (f *FuncRetAssignDeep) Prestring() Prestring {
+// Repr returns this FuncRetAssignDeep as a fmt.Stringer
+func (f *FuncRetAssignDeep) Repr() fmt.Stringer {
 	retAnn := f.Ann.(*RetAnnotationKey)
-	return FuncRetAssignDeepPrestring{
+	return FuncRetAssignDeepRepr{
 		retAnn.FuncDecl.Name(),
 		retAnn.RetNum,
 		f.String(),
 	}
 }
 
-// FuncRetAssignDeepPrestring is a Prestring storing the needed information to compactly encode a FuncRetAssignDeep
-type FuncRetAssignDeepPrestring struct {
+// FuncRetAssignDeepRepr is a fmt.Stringer storing the needed information to compactly encode a FuncRetAssignDeep
+type FuncRetAssignDeepRepr struct {
 	FuncName      string
 	RetNum        int
 	AssignmentStr string
 }
 
-func (f FuncRetAssignDeepPrestring) String() string {
+func (f FuncRetAssignDeepRepr) String() string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "assigned deeply into the result %d of `%s()`", f.RetNum, f.FuncName)
 	sb.WriteString(f.AssignmentStr)
@@ -1637,22 +1630,22 @@ func (v *VariadicParamAssignDeep) Copy() ConsumingAnnotationTrigger {
 	return &copyConsumer
 }
 
-// Prestring returns this VariadicParamAssignDeep as a Prestring
-func (v *VariadicParamAssignDeep) Prestring() Prestring {
+// Repr returns this VariadicParamAssignDeep as a fmt.Stringer
+func (v *VariadicParamAssignDeep) Repr() fmt.Stringer {
 	paramAnn := v.Ann.(*ParamAnnotationKey)
-	return VariadicParamAssignDeepPrestring{
+	return VariadicParamAssignDeepRepr{
 		ParamName:     paramAnn.MinimalString(),
 		AssignmentStr: v.String(),
 	}
 }
 
-// VariadicParamAssignDeepPrestring is a Prestring storing the needed information to compactly encode a VariadicParamAssignDeep
-type VariadicParamAssignDeepPrestring struct {
+// VariadicParamAssignDeepRepr is a fmt.Stringer storing the needed information to compactly encode a VariadicParamAssignDeep
+type VariadicParamAssignDeepRepr struct {
 	ParamName     string
 	AssignmentStr string
 }
 
-func (v VariadicParamAssignDeepPrestring) String() string {
+func (v VariadicParamAssignDeepRepr) String() string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "assigned deeply into variadic parameter `%s`", v.ParamName)
 	sb.WriteString(v.AssignmentStr)
@@ -1679,22 +1672,22 @@ func (f *FieldAssignDeep) Copy() ConsumingAnnotationTrigger {
 	return &copyConsumer
 }
 
-// Prestring returns this FieldAssignDeep as a Prestring
-func (f *FieldAssignDeep) Prestring() Prestring {
+// Repr returns this FieldAssignDeep as a fmt.Stringer
+func (f *FieldAssignDeep) Repr() fmt.Stringer {
 	fldAnn := f.Ann.(*FieldAnnotationKey)
-	return FieldAssignDeepPrestring{
+	return FieldAssignDeepRepr{
 		fldAnn.FieldDecl.Name(),
 		f.String(),
 	}
 }
 
-// FieldAssignDeepPrestring is a Prestring storing the needed information to compactly encode a FieldAssignDeep
-type FieldAssignDeepPrestring struct {
+// FieldAssignDeepRepr is a fmt.Stringer storing the needed information to compactly encode a FieldAssignDeep
+type FieldAssignDeepRepr struct {
 	FldName       string
 	AssignmentStr string
 }
 
-func (f FieldAssignDeepPrestring) String() string {
+func (f FieldAssignDeepRepr) String() string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "assigned deeply into field `%s`", f.FldName)
 	sb.WriteString(f.AssignmentStr)
@@ -1721,22 +1714,22 @@ func (g *GlobalVarAssignDeep) Copy() ConsumingAnnotationTrigger {
 	return &copyConsumer
 }
 
-// Prestring returns this GlobalVarAssignDeep as a Prestring
-func (g *GlobalVarAssignDeep) Prestring() Prestring {
+// Repr returns this GlobalVarAssignDeep as a fmt.Stringer
+func (g *GlobalVarAssignDeep) Repr() fmt.Stringer {
 	varAnn := g.Ann.(*GlobalVarAnnotationKey)
-	return GlobalVarAssignDeepPrestring{
+	return GlobalVarAssignDeepRepr{
 		varAnn.VarDecl.Name(),
 		g.String(),
 	}
 }
 
-// GlobalVarAssignDeepPrestring is a Prestring storing the needed information to compactly encode a GlobalVarAssignDeep
-type GlobalVarAssignDeepPrestring struct {
+// GlobalVarAssignDeepRepr is a fmt.Stringer storing the needed information to compactly encode a GlobalVarAssignDeep
+type GlobalVarAssignDeepRepr struct {
 	VarName       string
 	AssignmentStr string
 }
 
-func (g GlobalVarAssignDeepPrestring) String() string {
+func (g GlobalVarAssignDeepRepr) String() string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "assigned deeply into global variable `%s`", g.VarName)
 	sb.WriteString(g.AssignmentStr)
@@ -1763,21 +1756,21 @@ func (l *LocalVarAssignDeep) Copy() ConsumingAnnotationTrigger {
 	return &copyConsumer
 }
 
-// Prestring returns this LocalVarAssignDeep as a Prestring
-func (l *LocalVarAssignDeep) Prestring() Prestring {
-	return LocalVarAssignDeepPrestring{
+// Repr returns this LocalVarAssignDeep as a fmt.Stringer
+func (l *LocalVarAssignDeep) Repr() fmt.Stringer {
+	return LocalVarAssignDeepRepr{
 		VarName:       l.Ann.(*LocalVarAnnotationKey).VarDecl.Name(),
 		AssignmentStr: l.String(),
 	}
 }
 
-// LocalVarAssignDeepPrestring is a Prestring storing the needed information to compactly encode a LocalVarAssignDeep
-type LocalVarAssignDeepPrestring struct {
+// LocalVarAssignDeepRepr is a fmt.Stringer storing the needed information to compactly encode a LocalVarAssignDeep
+type LocalVarAssignDeepRepr struct {
 	VarName       string
 	AssignmentStr string
 }
 
-func (l LocalVarAssignDeepPrestring) String() string {
+func (l LocalVarAssignDeepRepr) String() string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "assigned deeply into local variable `%s`", l.VarName)
 	sb.WriteString(l.AssignmentStr)
@@ -1804,22 +1797,22 @@ func (c *ChanSend) Copy() ConsumingAnnotationTrigger {
 	return &copyConsumer
 }
 
-// Prestring returns this ChanSend as a Prestring
-func (c *ChanSend) Prestring() Prestring {
+// Repr returns this ChanSend as a fmt.Stringer
+func (c *ChanSend) Repr() fmt.Stringer {
 	typeAnn := c.Ann.(*TypeNameAnnotationKey)
-	return ChanSendPrestring{
+	return ChanSendRepr{
 		typeAnn.TypeDecl.Name(),
 		c.String(),
 	}
 }
 
-// ChanSendPrestring is a Prestring storing the needed information to compactly encode a ChanSend
-type ChanSendPrestring struct {
+// ChanSendRepr is a fmt.Stringer storing the needed information to compactly encode a ChanSend
+type ChanSendRepr struct {
 	TypeName      string
 	AssignmentStr string
 }
 
-func (c ChanSendPrestring) String() string {
+func (c ChanSendRepr) String() string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "sent to channel of deeply nonnil type `%s`", c.TypeName)
 	sb.WriteString(c.AssignmentStr)
@@ -1853,22 +1846,22 @@ func (f *FldEscape) Copy() ConsumingAnnotationTrigger {
 	return &copyConsumer
 }
 
-// Prestring returns this FldEscape as a Prestring
-func (f *FldEscape) Prestring() Prestring {
+// Repr returns this FldEscape as a fmt.Stringer
+func (f *FldEscape) Repr() fmt.Stringer {
 	ann := f.Ann.(*EscapeFieldAnnotationKey)
-	return FldEscapePrestring{
+	return FldEscapeRepr{
 		FieldName:     ann.FieldDecl.Name(),
 		AssignmentStr: f.String(),
 	}
 }
 
-// FldEscapePrestring is a Prestring storing the needed information to compactly encode a FldEscape
-type FldEscapePrestring struct {
+// FldEscapeRepr is a fmt.Stringer storing the needed information to compactly encode a FldEscape
+type FldEscapeRepr struct {
 	FieldName     string
 	AssignmentStr string
 }
 
-func (f FldEscapePrestring) String() string {
+func (f FldEscapeRepr) String() string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "field `%s` escaped out of our analysis scope (presumed nilable)", f.FieldName)
 	sb.WriteString(f.AssignmentStr)
@@ -1900,10 +1893,10 @@ func (u *UseAsNonErrorRetDependentOnErrorRetNilability) Copy() ConsumingAnnotati
 	return &copyConsumer
 }
 
-// Prestring returns this UseAsNonErrorRetDependentOnErrorRetNilability as a Prestring
-func (u *UseAsNonErrorRetDependentOnErrorRetNilability) Prestring() Prestring {
+// Repr returns this UseAsNonErrorRetDependentOnErrorRetNilability as a fmt.Stringer
+func (u *UseAsNonErrorRetDependentOnErrorRetNilability) Repr() fmt.Stringer {
 	retAnn := u.Ann.(*RetAnnotationKey)
-	return UseAsNonErrorRetDependentOnErrorRetNilabilityPrestring{
+	return UseAsNonErrorRetDependentOnErrorRetNilabilityRepr{
 		retAnn.FuncDecl.Name(),
 		retAnn.RetNum,
 		retAnn.FuncDecl.Type().(*types.Signature).Results().At(retAnn.RetNum).Name(),
@@ -1913,8 +1906,8 @@ func (u *UseAsNonErrorRetDependentOnErrorRetNilability) Prestring() Prestring {
 	}
 }
 
-// UseAsNonErrorRetDependentOnErrorRetNilabilityPrestring is a Prestring storing the needed information to compactly encode a UseAsNonErrorRetDependentOnErrorRetNilability
-type UseAsNonErrorRetDependentOnErrorRetNilabilityPrestring struct {
+// UseAsNonErrorRetDependentOnErrorRetNilabilityRepr is a fmt.Stringer storing the needed information to compactly encode a UseAsNonErrorRetDependentOnErrorRetNilability
+type UseAsNonErrorRetDependentOnErrorRetNilabilityRepr struct {
 	FuncName      string
 	RetNum        int
 	RetName       string
@@ -1923,7 +1916,7 @@ type UseAsNonErrorRetDependentOnErrorRetNilabilityPrestring struct {
 	AssignmentStr string
 }
 
-func (u UseAsNonErrorRetDependentOnErrorRetNilabilityPrestring) String() string {
+func (u UseAsNonErrorRetDependentOnErrorRetNilabilityRepr) String() string {
 	via := ""
 	if u.IsNamedReturn {
 		via = fmt.Sprintf(" via named return `%s`", u.RetName)
@@ -1969,10 +1962,10 @@ func (u *UseAsErrorRetWithNilabilityUnknown) Copy() ConsumingAnnotationTrigger {
 	return &copyConsumer
 }
 
-// Prestring returns this UseAsErrorRetWithNilabilityUnknown as a Prestring
-func (u *UseAsErrorRetWithNilabilityUnknown) Prestring() Prestring {
+// Repr returns this UseAsErrorRetWithNilabilityUnknown as a fmt.Stringer
+func (u *UseAsErrorRetWithNilabilityUnknown) Repr() fmt.Stringer {
 	retAnn := u.Ann.(*RetAnnotationKey)
-	return UseAsErrorRetWithNilabilityUnknownPrestring{
+	return UseAsErrorRetWithNilabilityUnknownRepr{
 		retAnn.FuncDecl.Name(),
 		retAnn.RetNum,
 		u.IsNamedReturn,
@@ -1981,8 +1974,8 @@ func (u *UseAsErrorRetWithNilabilityUnknown) Prestring() Prestring {
 	}
 }
 
-// UseAsErrorRetWithNilabilityUnknownPrestring is a Prestring storing the needed information to compactly encode a UseAsErrorRetWithNilabilityUnknown
-type UseAsErrorRetWithNilabilityUnknownPrestring struct {
+// UseAsErrorRetWithNilabilityUnknownRepr is a fmt.Stringer storing the needed information to compactly encode a UseAsErrorRetWithNilabilityUnknown
+type UseAsErrorRetWithNilabilityUnknownRepr struct {
 	FuncName      string
 	RetNum        int
 	IsNamedReturn bool
@@ -1990,7 +1983,7 @@ type UseAsErrorRetWithNilabilityUnknownPrestring struct {
 	AssignmentStr string
 }
 
-func (u UseAsErrorRetWithNilabilityUnknownPrestring) String() string {
+func (u UseAsErrorRetWithNilabilityUnknownRepr) String() string {
 	var sb strings.Builder
 	if u.IsNamedReturn {
 		fmt.Fprintf(&sb, "found in at least one path of `%s()` for named return `%s` in position %d", u.FuncName, u.RetName, u.RetNum)

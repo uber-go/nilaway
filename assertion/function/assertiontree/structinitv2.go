@@ -16,366 +16,688 @@ package assertiontree
 
 import (
 	"go/ast"
+	"go/token"
 	"go/types"
+	"sort"
 	"strings"
 
 	"go.uber.org/nilaway/annotation"
-	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/guard"
 	"go.uber.org/nilaway/util/asthelper"
 	"go.uber.org/nilaway/util/typeshelper"
-	"golang.org/x/tools/go/types/typeutil"
 )
 
-// ParamFieldEffects is the package-level boundary summary computed once per package by
-// ComputeParamFieldEffects. Every effect set is keyed by *types.Func, then by indexedFieldPath.
-// The read sets bound the field binding at boundaries so it enumerates only the
-// field paths a boundary actually dereferences, never the full type graph.
-type ParamFieldEffects struct {
-	// ParamReads records (param idx, field path) pairs a function dereferences of that parameter —
-	// the demand a callee places on its caller's argument. Transitively closed over forwarding edges
-	// (a pure forwarder inherits its forwardees' reads), so a caller binds exactly the field paths
-	// the callee (and everything it forwards to) may dereference.
-	ParamReads fieldEffects
-	// ReturnReads records (result idx, field path) pairs that callers dereference of a function's
-	// result — the demand callers place on a returned value, so a `return <var>` binds only those
-	// paths. Collected at call sites; not transitively closed (under-report only).
-	ReturnReads fieldEffects
-}
-
-// ComputeParamFieldEffects walks every function and method in the package once and records the
-// boundary summary as ParamFieldEffects: the param fields it dereferences and the result fields
-// its callers dereference. It is a read-only, package-level pre-pass (pure
-// syntax/type inspection, no backpropagation).
+// asStructAllocation inspects expr and, if it allocates a struct value, returns the (deeply
+// resolved) struct type together with the composite-literal element expressions (nil when the
+// allocation has no explicit field initializers, e.g. `new(A)`). The boolean result reports
+// whether expr is a struct allocation.
 //
-// Reads are gathered from selector bases — to evaluate `base.Sel`, base must be non-nil, so the
-// field path of base is a read of whatever boundary value it roots at (a parameter → ParamReads,
-// or a struct-returning-call result local → ReturnReads). ast.Inspect visits nested selectors, so
-// every prefix of a deep access is recorded. Every static call also records an arg→param forwarding
-// edge (which caller parameter, possibly at a nested field prefix, is passed as which callee
-// parameter). closeParamFieldSets then runs a fixpoint over those edges so forwarders inherit their
-// forwardees' param reads.
-//
-// Cross-package and unresolvable (interface/func-value) callees contribute no edge and are treated
-// as mutating/dereferencing nothing (under-report only).
-func ComputeParamFieldEffects(pass *analysishelper.EnhancedPass) *ParamFieldEffects {
-	reads := make(fieldEffects)
-	returnReads := make(fieldEffects)
-	edges := make(map[*types.Func][]paramFieldForwardEdge)
-	for _, file := range pass.Files {
-		for _, decl := range file.Decls {
-			fd, ok := decl.(*ast.FuncDecl)
-			if !ok || fd.Body == nil {
-				continue
+// Recognized forms: `A{...}`, `&A{...}`, and `new(A)`.
+func (r *RootAssertionNode) asStructAllocation(expr ast.Expr) (*types.Struct, []ast.Expr, bool) {
+	switch e := expr.(type) {
+	case *ast.UnaryExpr:
+		if e.Op == token.AND {
+			return r.asStructAllocation(e.X)
+		}
+	case *ast.ParenExpr:
+		return r.asStructAllocation(e.X)
+	case *ast.CompositeLit:
+		if structType := typeshelper.AsDeeplyStruct(r.Pass().TypesInfo.TypeOf(e)); structType != nil {
+			return structType, e.Elts, true
+		}
+	case *ast.CallExpr:
+		if ident, ok := e.Fun.(*ast.Ident); ok && r.ObjectOf(ident) == typeshelper.BuiltinNew {
+			// new(A) yields a *A whose fields are all zero-valued (nil for nilable fields).
+			if structType := typeshelper.AsDeeplyStruct(r.Pass().TypesInfo.TypeOf(e)); structType != nil {
+				return structType, nil, true
 			}
-			funcObj, ok := pass.TypesInfo.ObjectOf(fd.Name).(*types.Func)
-			if !ok {
-				continue
-			}
-			sig, ok := funcObj.Type().(*types.Signature)
-			if !ok {
-				continue
-			}
-			paramIdx := make(map[*types.Var]int)
-			if recv := sig.Recv(); recv != nil {
-				paramIdx[recv] = annotation.ReceiverParamIndex
-			}
-			for i := range sig.Params().Len() {
-				paramIdx[sig.Params().At(i)] = i
-			}
-			// Locals bound directly to a struct-returning call, so a later dereference of the local's
-			// fields can be attributed to that callee's result (the return-read demand).
-			resultVars := collectStructResultVars(pass, fd.Body)
-			ast.Inspect(fd.Body, func(n ast.Node) bool {
-				switch n := n.(type) {
-				case *ast.CallExpr:
-					collectParamForwardEdges(pass, n, paramIdx, funcObj, edges)
-				case *ast.SelectorExpr:
-					collectFieldReadDemand(pass, n, paramIdx, resultVars, funcObj, reads, returnReads)
-				}
-				return true
-			})
 		}
 	}
-	closeParamFieldSets(reads, edges)
-	return &ParamFieldEffects{ParamReads: reads, ReturnReads: returnReads}
+	return nil, nil, false
 }
 
-// indexedFieldPath identifies a boundary value by parameter/result index and field path.
-// For example, in an access to `a.b.c` where `a` is the first parameter, {idx: 0,
-// path: "b"} represents the read demand on that parameter's `b` field.
-type indexedFieldPath struct {
-	idx  int
+// addAllocationFieldProducers attaches, for every nilable field of a struct value allocated on the
+// RHS of an assignment and bound to lhsVal, a producer describing that field's nilability at
+// this allocation site:
+//   - a field with no initializer  -> StructFieldNil (definitely nil)
+//   - a field initialized to expr e -> the (shallow) producer of e (e.g. nonnil for `&A{}` or
+//     `new(A)`, nil for an explicit `nil`)
+//
+// If the RHS is instead a call to a struct-returning function, the value's fields are bound,
+// symbolically, to that function's return context sites (see addContextFieldProducers), so
+// the nilability flows interprocedurally through inference.
+//
+// It must be called before the generic assignment handling produces lhsVal itself, because the
+// latter detaches the lhsVal subtree (including the field nodes we target) once produced.
+func (r *RootAssertionNode) addAllocationFieldProducers(lhsVal, rhsVal ast.Expr) {
+	if structType, fieldInits, ok := r.asStructAllocation(rhsVal); ok {
+		r.addFieldProducers(structType, fieldInits, lhsVal)
+		return
+	}
+
+	// `lhs := f()` where f returns a single struct value: bind lhs's fields to f's return
+	// context sites. (Multi-return calls are handled by the many-to-one assignment path.)
+	if call, ok := ast.Unparen(rhsVal).(*ast.CallExpr); ok {
+		if target, ok := typeshelper.ResolveStaticCallTarget(r.Pass().TypesInfo, call); ok && target.Signature.Results().Len() == 1 {
+			if structType := typeshelper.AsDeeplyStruct(target.Signature.Results().At(0).Type()); structType != nil {
+				r.addContextFieldProducers(structType, lhsVal, target.Origin, annotation.StructFieldReturnContext, 0)
+			}
+		}
+	}
+}
+
+// getShallowExprNilabilityProducer returns the producer encoding the nilability of the value of expr: an
+// always-nil producer for an explicit `nil`, the shallow producer of a trackable/nilable
+// expression, or Never for a value that cannot be nil (e.g. `&A{}`, `new(A)`, `&local`).
+func (r *RootAssertionNode) getShallowExprNilabilityProducer(expr ast.Expr) annotation.ProducingAnnotationTrigger {
+	if ident, ok := ast.Unparen(expr).(*ast.Ident); ok && r.isNil(ident) {
+		return &annotation.ProduceTriggerTautology{}
+	}
+	if _, _, ok := r.asStructAllocation(expr); ok {
+		return &annotation.ProduceTriggerNever{}
+	}
+	// The address of any expression is a non-nil pointer at the shallow level. ParseExprAsProducer's
+	// `&A{} ≡ A{}` rule re-parses the pointee for field tracking, so its GetShallow returns the
+	// pointee's shallow nilability — which defaults to nilable for an unannotated local. That leaks
+	// the pointee's deep concern into a shallow answer; short-circuit to Never here.
+	if u, ok := ast.Unparen(expr).(*ast.UnaryExpr); ok && u.Op == token.AND {
+		return &annotation.ProduceTriggerNever{}
+	}
+	if _, producers := r.ParseExprAsProducer(expr, true); len(producers) != 0 {
+		return producers[0].GetShallow().Annotation
+	}
+	return &annotation.ProduceTriggerNever{}
+}
+
+// getFieldInitNilabilityProducer returns the producer encoding the nilability of field i of a struct
+// allocation with the given field initializers.
+func (r *RootAssertionNode) getFieldInitNilabilityProducer(structType *types.Struct, fieldInits []ast.Expr, i int) annotation.ProducingAnnotationTrigger {
+	field := structType.Field(i)
+	fieldVal := asthelper.GetFieldVal(fieldInits, field.Name(), structType.NumFields(), i)
+	if fieldVal == nil {
+		return &annotation.StructFieldNil{
+			ProduceTriggerTautology: &annotation.ProduceTriggerTautology{},
+			FieldName:               field.Name(),
+		}
+	}
+	return r.getShallowExprNilabilityProducer(fieldVal)
+}
+
+// addFieldProducers performs the per-field producer attachment described on
+// addAllocationFieldProducers for a concrete struct allocation. fieldInits may be nil.
+func (r *RootAssertionNode) addFieldProducers(structType *types.Struct, fieldInits []ast.Expr, base ast.Expr) {
+	numFields := structType.NumFields()
+	for i := range numFields {
+		field := structType.Field(i)
+		fieldSel := r.getSelectorExpr(field, base)
+		fieldVal := asthelper.GetFieldVal(fieldInits, field.Name(), numFields, i)
+		nilable := !typeshelper.TypeBarsNilness(field.Type())
+
+		switch {
+		case fieldVal != nil:
+			if innerType, innerInits, ok := r.asStructAllocation(fieldVal); ok {
+				r.addFieldProducers(innerType, innerInits, fieldSel)
+			}
+		case !nilable:
+			if innerType := typeshelper.AsDeeplyStruct(field.Type()); innerType != nil {
+				r.addFieldProducers(innerType, nil, fieldSel)
+			}
+		}
+
+		if !nilable {
+			continue
+		}
+		r.AddProduction(&annotation.ProduceTrigger{
+			Annotation: r.getFieldInitNilabilityProducer(structType, fieldInits, i),
+			Expr:       fieldSel,
+		})
+	}
+}
+
+// isLocalRootedValue reports whether expr is a function-local variable, a field chain rooted
+// at one, or the address of either. Locals have no boundary annotation to snapshot statically, so
+// callers must resolve them through their flow-sensitive producers instead. Address-of is
+// unwrapped because even a proven-non-nil pointer snapshot carries no pointee field shape.
+func (r *RootAssertionNode) isLocalRootedValue(expr ast.Expr) bool {
+	if u, ok := ast.Unparen(expr).(*ast.UnaryExpr); ok && u.Op == token.AND {
+		expr = u.X
+	}
+	base, _ := asthelper.SplitFieldChain(expr)
+	if base == nil {
+		return false
+	}
+	v, ok := r.ObjectOf(base).(*types.Var)
+	if !ok {
+		return false
+	}
+	funcObj := r.FuncObj()
+	return !annotation.VarIsParam(funcObj, v) && !annotation.VarIsRecv(funcObj, v) && !annotation.VarIsGlobal(v)
+}
+
+// accessedFieldPath is one accessed field path under a boundary value, paired with the synthesized
+// selector expression that reaches it.
+type accessedFieldPath struct {
+	sel  ast.Expr
 	path string
 }
 
-// fieldEffects maps each function to the set of boundary field paths it reads.
-type fieldEffects map[*types.Func]map[indexedFieldPath]bool
-
-// add records key for funcObj, allocating the inner set on first use. It reports whether the key
-// was newly added.
-func (e fieldEffects) add(funcObj *types.Func, key indexedFieldPath) bool {
-	if e[funcObj] == nil {
-		e[funcObj] = make(map[indexedFieldPath]bool)
-	}
-	if e[funcObj][key] {
-		return false
-	}
-	e[funcObj][key] = true
-	return true
-}
-
-// structResultSource identifies the struct-returning callee and result index a local variable was
-// assigned from, so dereferences of that local's fields can be attributed to the callee's return.
-type structResultSource struct {
-	callee *types.Func
-	idx    int
-}
-
-// collectStructResultVars maps each local variable bound directly from a static struct-returning call
-// (`b := callee()`, `var b = callee()`, `b, err := callee()`) to the callee and result index it
-// came from. Only struct (or pointer-to-struct) results are recorded. Used to attribute return-read
-// demand to callees. A variable later reassigned is best-effort (first binding wins); a non-bare or
-// cross-package callee is skipped (under-report).
-func collectStructResultVars(pass *analysishelper.EnhancedPass, body *ast.BlockStmt) map[*types.Var]structResultSource {
-	out := make(map[*types.Var]structResultSource)
-	record := func(lhs, rhs []ast.Expr) {
-		if len(rhs) != 1 {
-			return
-		}
-		call, ok := ast.Unparen(rhs[0]).(*ast.CallExpr)
+// collectAccessedFieldPaths walks the live assertion subtree under node and collects accessed nilable
+// field paths, deepest path first. prefix is the dotted path from the boundary value to node.
+func (r *RootAssertionNode) collectAccessedFieldPaths(node AssertionNode, base ast.Expr, prefix string, seen map[*types.Struct]bool, out *[]accessedFieldPath) {
+	for _, child := range node.Children() {
+		fldNode, ok := child.(*fldAssertionNode)
 		if !ok {
-			return
+			continue
 		}
-		callee := typeutil.StaticCallee(pass.TypesInfo, call)
-		if callee == nil {
-			return
+		field := fldNode.decl
+		sel := r.getSelectorExpr(field, base)
+		path := field.Name()
+		if prefix != "" {
+			path = prefix + "." + field.Name()
 		}
-		sig, ok := callee.Type().(*types.Signature)
-		if !ok || sig.Results().Len() != len(lhs) {
-			return
-		}
-		for i, l := range lhs {
-			ident, ok := l.(*ast.Ident)
-			if !ok {
-				continue
+		if inner := typeshelper.AsDeeplyStruct(field.Type()); inner == nil || !seen[inner] {
+			if inner != nil {
+				seen[inner] = true
 			}
-			v, ok := pass.TypesInfo.ObjectOf(ident).(*types.Var)
-			if !ok {
-				continue
-			}
-			if typeshelper.AsDeeplyStruct(sig.Results().At(i).Type()) == nil {
-				continue
-			}
-			if _, seen := out[v]; !seen {
-				out[v] = structResultSource{callee: callee, idx: i}
+			r.collectAccessedFieldPaths(child, sel, path, seen, out)
+			if inner != nil {
+				delete(seen, inner)
 			}
 		}
-	}
-	ast.Inspect(body, func(n ast.Node) bool {
-		switch n := n.(type) {
-		case *ast.AssignStmt:
-			record(n.Lhs, n.Rhs)
-		case *ast.ValueSpec:
-			// `var b = callee()` / `var b1, b2 = callee()`: the names are the LHS.
-			idents := make([]ast.Expr, len(n.Names))
-			for i, nm := range n.Names {
-				idents[i] = nm
-			}
-			record(idents, n.Values)
+		if !typeshelper.TypeBarsNilness(field.Type()) {
+			*out = append(*out, accessedFieldPath{sel: sel, path: path})
 		}
-		return true
-	})
-	return out
-}
-
-// collectFieldReadDemand records the field-path dereference demand implied by a single selector
-// expression. To evaluate `base.Sel`, base must be non-nil, so the field path of base (relative to
-// the boundary value it roots at) is a read of that value. If base roots at a parameter/receiver of
-// funcObj the demand goes to reads (param-in); if it roots at a local bound from a struct-returning
-// call (resultVars) it goes to returnReads, attributed to that callee's result. A selector whose
-// base is the boundary value itself (prefix "") only requires the value's own top-level nilability,
-// handled by the ordinary annotation machinery, so it is skipped here.
-func collectFieldReadDemand(pass *analysishelper.EnhancedPass, sel *ast.SelectorExpr, paramIdx map[*types.Var]int, resultVars map[*types.Var]structResultSource, funcObj *types.Func, reads, returnReads fieldEffects) {
-	base, prefix := asthelper.SplitFieldChain(sel.X)
-	if base == nil || prefix == "" {
-		return
-	}
-	v, ok := pass.TypesInfo.ObjectOf(base).(*types.Var)
-	if !ok {
-		return
-	}
-	if idx, ok := paramIdx[v]; ok {
-		reads.add(funcObj, indexedFieldPath{idx: idx, path: prefix})
-		return
-	}
-	if src, ok := resultVars[v]; ok {
-		returnReads.add(src.callee, indexedFieldPath{idx: src.idx, path: prefix})
 	}
 }
 
-// collectParamForwardEdges records, for the forwarding phase of ComputeParamFieldEffects, an arg→param
-// edge for each argument (and the receiver) of call that resolves — through a field chain — to a
-// parameter/receiver of funcObj (the function containing the call). Unresolvable or cross-package
-// callees contribute no edge.
-func collectParamForwardEdges(pass *analysishelper.EnhancedPass, call *ast.CallExpr, paramIdx map[*types.Var]int, funcObj *types.Func, edges map[*types.Func][]paramFieldForwardEdge) {
-	callee := typeutil.StaticCallee(pass.TypesInfo, call)
-	if callee == nil {
+// addContextFieldProducers attaches, for each accessed nilable field path under base, a producer
+// making `base.<path>` nil iff the corresponding return/param context site of funcObj is inferred
+// nilable.
+func (r *RootAssertionNode) addContextFieldProducers(_ *types.Struct, base ast.Expr, funcObj *types.Func, kind annotation.StructFieldContextKind, index int) {
+	path, _ := r.ParseExprAsProducer(base, false)
+	node, _ := r.lookupPath(path)
+	if node == nil {
 		return
 	}
-	sig, ok := callee.Type().(*types.Signature)
-	if !ok {
+	var paths []accessedFieldPath
+	r.collectAccessedFieldPaths(node, base, "", make(map[*types.Struct]bool), &paths)
+	returnEffects := make(map[string]bool)
+	// Error-returning functions are skipped for now: correlating the fields with the error result to be added
+	// in the future.
+	if kind == annotation.StructFieldReturnContext && !typeshelper.FuncIsErrReturning(funcObj.Signature()) {
+		for _, fieldPath := range r.functionContext.boundaryFieldEffects.ReturnEffectPaths(funcObj, index) {
+			returnEffects[fieldPath] = true
+		}
+	}
+	for _, p := range paths {
+		site := &annotation.StructFieldContextSite{
+			FuncObj: funcObj, Kind: kind, Index: index, Path: p.path,
+		}
+		r.AddProduction(&annotation.ProduceTrigger{
+			Annotation: &annotation.StructFieldFromContext{
+				TriggerIfNilable: &annotation.TriggerIfNilable{Ann: site},
+			},
+			Expr: p.sel,
+		})
+		// If the callee's known return effects prove this path nil (e.g. `return &T{}`),
+		// additionally seed the context site with a definite nil here at the caller.
+		if returnEffects[p.path] {
+			parts := strings.Split(p.path, ".")
+			r.AddNewTriggers(annotation.FullTrigger{
+				Producer: &annotation.ProduceTrigger{
+					Annotation: &annotation.StructFieldNil{
+						ProduceTriggerTautology: &annotation.ProduceTriggerTautology{},
+						FieldName:               parts[len(parts)-1],
+					},
+					Expr: p.sel,
+				},
+				Consumer: &annotation.ConsumeTrigger{
+					Annotation: &annotation.StructFieldToContext{TriggerIfNonNil: &annotation.TriggerIfNonNil{Ann: site}},
+					Expr:       p.sel,
+					Guards:     guard.NoGuards(),
+				},
+			})
+		}
+	}
+}
+
+// bindReturnFieldsToContext binds, at a return statement, the fields of each struct-typed return
+// value to that result's return context site, so the returned value's per-field nilability
+// becomes the function's return summary.
+func (r *RootAssertionNode) bindReturnFieldsToContext(node *ast.ReturnStmt) {
+	sig := r.FuncObj().Type().(*types.Signature)
+	if len(node.Results) != sig.Results().Len() {
 		return
 	}
-	record := func(calleeIdx int, arg ast.Expr) {
-		base, prefix := asthelper.SplitFieldChain(arg)
-		if base == nil {
+	if typeshelper.FuncIsErrReturning(sig) {
+		errExpr := node.Results[sig.Results().Len()-1]
+		// We are not attaching a consumer when we are sure that the the err is definitely non-nil
+		if _, definitelyNonNil := r.getShallowExprNilabilityProducer(errExpr).(*annotation.ProduceTriggerNever); definitelyNonNil {
 			return
 		}
-		v, ok := pass.TypesInfo.ObjectOf(base).(*types.Var)
+	}
+	for retIdx, retExpr := range node.Results {
+		structType := typeshelper.AsDeeplyStruct(sig.Results().At(retIdx).Type())
+		if structType == nil {
+			continue
+		}
+		r.bindValueFieldsToContext(r.FuncObj(), retExpr, structType, annotation.StructFieldReturnContext, retIdx)
+	}
+}
+
+// bindValueFieldsToContext connects the fields of the value produced by valExpr to the context
+// site of targetFunc at (kind, index). For returns, targetFunc is the current function; for
+// arguments and receivers, it is the callee. An inline struct allocation creates full triggers
+// from its per-field shape; a struct-returning call links the destination site to the callee's
+// return site (see bindCallResultFieldsToContext); any other trackable value adds consumers on
+// `valExpr.<path>` for the field paths read at the boundary (boundaryReadPaths), matched later
+// against the value's own field producers.
+func (r *RootAssertionNode) bindValueFieldsToContext(targetFunc *types.Func, valExpr ast.Expr, structType *types.Struct, kind annotation.StructFieldContextKind, index int) {
+	funcObj := targetFunc
+
+	allocType, fieldInits, isAlloc := r.asStructAllocation(valExpr)
+	if isAlloc {
+		r.bindAllocationFieldsToContext(allocType, fieldInits, valExpr, "", funcObj, kind, index)
+		return
+	}
+
+	// A struct-returning call forwarded across the boundary (e.g. `return f()` or `g(f())`)
+	// has no local field values to inspect; instead, link this boundary site to the callee's
+	// return site so the callee's per-field summary flows through.
+	if call, ok := ast.Unparen(valExpr).(*ast.CallExpr); ok {
+		r.bindCallResultFieldsToContext(call, valExpr, funcObj, kind, index)
+		return
+	}
+
+	trackablePath, _ := r.ParseExprAsProducer(valExpr, false)
+	if trackablePath == nil {
+		return
+	}
+
+	for _, fieldPath := range r.boundaryReadPaths(funcObj, kind, index) {
+		sel, ok := r.buildFieldPathSelector(valExpr, structType, fieldPath)
 		if !ok {
-			return
+			continue
 		}
-		callerIdx, ok := paramIdx[v]
-		if !ok {
-			return
+		site := &annotation.StructFieldContextSite{
+			FuncObj: funcObj, Kind: kind, Index: index, Path: fieldPath,
 		}
-		edges[funcObj] = append(edges[funcObj], paramFieldForwardEdge{
-			callerParamIdx: callerIdx,
-			callerPrefix:   prefix,
-			callee:         callee,
-			calleeParamIdx: calleeIdx,
+		r.AddConsumption(&annotation.ConsumeTrigger{
+			Annotation: &annotation.StructFieldToContext{TriggerIfNonNil: &annotation.TriggerIfNonNil{Ann: site}},
+			Expr:       sel,
+			Guards:     guard.NoGuards(),
 		})
 	}
-	if recv := sig.Recv(); recv != nil {
-		if sel, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr); ok {
-			record(annotation.ReceiverParamIndex, sel.X)
-		}
+}
+
+// boundaryReadPaths returns the field paths that are read through the boundary context site of
+// funcObj at (kind, index): the callee's param read-set for an argument or receiver, or the
+// callers' return read-set for a return value.
+func (r *RootAssertionNode) boundaryReadPaths(funcObj *types.Func, kind annotation.StructFieldContextKind, index int) []string {
+	switch kind {
+	case annotation.StructFieldParamContext:
+		return r.functionContext.boundaryFieldEffects.ParamReadPaths(funcObj, index)
+	case annotation.StructFieldReturnContext:
+		return r.functionContext.boundaryFieldEffects.ReturnReadPaths(funcObj, index)
 	}
-	for argIdx, arg := range call.Args {
-		if argIdx >= sig.Params().Len() {
-			break
+	return nil
+}
+
+// bindCallResultFieldsToContext handles a call result that flows directly into a boundary,
+// as in `return g()` or `h(g())`. The result of g is never stored in a variable, so we have
+// no assertion-tree node to inspect for its fields. Instead, for each relevant field path,
+// we link the two context sites directly: "if g's return field is nilable, then the
+// destination site's field is nilable too". This works regardless of how g's return site was
+// populated: inline allocation triggers (bindAllocationFieldsToContext), consumers matched
+// against the returned value's field producers in the assertion tree (bindValueFieldsToContext),
+// or inferred values imported from another package via the Facts mechanism.
+//
+// The field paths linked are the union of g's known return-effect paths and the paths the
+// destination site is known to read, so `return g()` propagates nested fields as deeply as
+// g constructs them, not just top-level ones. Calls with multiple results or a non-struct
+// result are not handled here.
+func (r *RootAssertionNode) bindCallResultFieldsToContext(call *ast.CallExpr, valExpr ast.Expr, targetFunc *types.Func, kind annotation.StructFieldContextKind, index int) {
+	source, ok := typeshelper.ResolveStaticCallTarget(r.Pass().TypesInfo, call)
+	if !ok || source.Origin == nil || source.Signature.Results().Len() != 1 {
+		return
+	}
+	sourceType := typeshelper.AsDeeplyStruct(source.Signature.Results().At(0).Type())
+	if sourceType == nil {
+		return
+	}
+	pathSet := make(map[string]bool)
+	for _, path := range r.functionContext.boundaryFieldEffects.ReturnEffectPaths(source.Origin, 0) {
+		pathSet[path] = true
+	}
+	for _, path := range r.boundaryReadPaths(targetFunc, kind, index) {
+		pathSet[path] = true
+	}
+	paths := make([]string, 0, len(pathSet))
+	for path := range pathSet {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	for _, fieldPath := range paths {
+		site := &annotation.StructFieldContextSite{FuncObj: targetFunc, Kind: kind, Index: index, Path: fieldPath}
+		srcSite := &annotation.StructFieldContextSite{
+			FuncObj: source.Origin, Kind: annotation.StructFieldReturnContext, Index: 0, Path: fieldPath,
 		}
-		record(argIdx, arg)
+		r.AddNewTriggers(annotation.FullTrigger{
+			Producer: &annotation.ProduceTrigger{
+				Annotation: &annotation.StructFieldFromContext{TriggerIfNilable: &annotation.TriggerIfNilable{Ann: srcSite}},
+				Expr:       valExpr,
+			},
+			Consumer: &annotation.ConsumeTrigger{
+				Annotation: &annotation.StructFieldToContext{TriggerIfNonNil: &annotation.TriggerIfNonNil{Ann: site}},
+				Expr:       valExpr,
+				Guards:     guard.NoGuards(),
+			},
+		})
 	}
 }
 
-// paramFieldForwardEdge records that the caller passes its own parameter/receiver (callerParamIdx) — possibly
-// at a nested field prefix callerPrefix (e.g. "inner" for g(x.inner)) — as the calleeParamIdx-th
-// parameter (or receiver) of callee. It is the unit of the transitive field-effect closure: if
-// callee has effect (calleeParamIdx, p), the caller inherits effect
-// (callerParamIdx, callerPrefix+"."+p).
-type paramFieldForwardEdge struct {
-	callerParamIdx int
-	callerPrefix   string
-	callee         *types.Func
-	calleeParamIdx int
-}
-
-// closeParamFieldSets extends a field-effect set to a fixpoint over the forwarding edges:
-// whenever a callee has effect (j, p) and a caller forwards its own param i (at prefix pre) as the
-// callee's param j, the caller inherits effect (i, join(pre, p)). It is a standard worklist
-// fixpoint; a function's key set only grows and is bounded by the reachable field paths, so cycles
-// (recursion, mutual forwarding) converge. A predecessor index makes re-queueing on change cheap.
-func closeParamFieldSets(fields fieldEffects, edges map[*types.Func][]paramFieldForwardEdge) {
-	// preds[callee] lists every caller with an edge into callee, so a change to callee's field set
-	// re-queues exactly the callers that could inherit from it.
-	preds := make(map[*types.Func][]*types.Func)
-	worklist := make([]*types.Func, 0, len(edges))
-	inWork := make(map[*types.Func]bool, len(edges))
-	for caller, es := range edges {
-		worklist = append(worklist, caller)
-		inWork[caller] = true
-		for _, e := range es {
-			preds[e.callee] = append(preds[e.callee], caller)
+// bindAllocationFieldsToContext binds the per-field nilability of an inline struct allocation to
+// the boundary context site of funcObj at (kind, index).
+func (r *RootAssertionNode) bindAllocationFieldsToContext(structType *types.Struct, fieldInits []ast.Expr, valExpr ast.Expr, prefix string, funcObj *types.Func, kind annotation.StructFieldContextKind, index int) {
+	numFields := structType.NumFields()
+	for i := range numFields {
+		field := structType.Field(i)
+		fieldVal := asthelper.GetFieldVal(fieldInits, field.Name(), numFields, i)
+		nilable := !typeshelper.TypeBarsNilness(field.Type())
+		path := field.Name()
+		if prefix != "" {
+			path = prefix + "." + field.Name()
 		}
-	}
 
-	for len(worklist) > 0 {
-		f := worklist[len(worklist)-1]
-		worklist = worklist[:len(worklist)-1]
-		inWork[f] = false
-
-		changed := false
-		for _, e := range edges[f] {
-			for ck := range fields[e.callee] {
-				if ck.idx != e.calleeParamIdx {
-					continue
-				}
-				path := joinFieldPath(e.callerPrefix, ck.path)
-				// Skip recursive field paths; otherwise forwarding can keep growing paths like
-				// inner.f, inner.inner.f, ...
-				if !fieldPathIsAcyclic(f, e.callerParamIdx, path) {
-					continue
-				}
-				if fields.add(f, indexedFieldPath{idx: e.callerParamIdx, path: path}) {
-					changed = true
-				}
+		switch {
+		case fieldVal != nil:
+			if innerType, innerInits, ok := r.asStructAllocation(fieldVal); ok {
+				r.bindAllocationFieldsToContext(innerType, innerInits, valExpr, path, funcObj, kind, index)
+			}
+		case !nilable:
+			if innerType := typeshelper.AsDeeplyStruct(field.Type()); innerType != nil {
+				r.bindAllocationFieldsToContext(innerType, nil, valExpr, path, funcObj, kind, index)
 			}
 		}
-		if changed {
-			for _, pred := range preds[f] {
-				if !inWork[pred] {
-					worklist = append(worklist, pred)
-					inWork[pred] = true
-				}
-			}
+
+		if !nilable {
+			continue
 		}
+		site := &annotation.StructFieldContextSite{
+			FuncObj: funcObj, Kind: kind, Index: index, Path: path,
+		}
+		r.AddNewTriggers(annotation.FullTrigger{
+			Producer: &annotation.ProduceTrigger{Annotation: r.getFieldInitNilabilityProducer(structType, fieldInits, i), Expr: valExpr},
+			Consumer: &annotation.ConsumeTrigger{
+				Annotation: &annotation.StructFieldToContext{TriggerIfNonNil: &annotation.TriggerIfNonNil{Ann: site}},
+				Expr:       valExpr,
+				Guards:     guard.NoGuards(),
+			},
+		})
 	}
 }
 
-// joinFieldPath concatenates a (possibly empty) field-path prefix with a sub-path: join("", p) = p,
-// join("inner", "f") = "inner.f".
-func joinFieldPath(prefix, sub string) string {
-	if prefix == "" {
-		return sub
+// addZeroValueFieldProducers attaches StructFieldNil producers for the nilable fields of a struct value
+// that is the zero value.
+func (r *RootAssertionNode) addZeroValueFieldProducers(varNode AssertionNode, base ast.Expr) {
+	children := make([]AssertionNode, len(varNode.Children()))
+	copy(children, varNode.Children())
+
+	for _, child := range children {
+		fldNode, ok := child.(*fldAssertionNode)
+		if !ok || typeshelper.TypeBarsNilness(fldNode.decl.Type()) {
+			continue
+		}
+		selExpr := r.getSelectorExpr(fldNode.decl, base)
+		r.AddProduction(&annotation.ProduceTrigger{
+			Annotation: &annotation.StructFieldNil{
+				ProduceTriggerTautology: &annotation.ProduceTriggerTautology{},
+				FieldName:               fldNode.decl.Name(),
+			},
+			Expr: selExpr,
+		})
 	}
-	return prefix + "." + sub
 }
 
-// fieldPathIsAcyclic reports whether path can be followed without re-entering a struct type already
-// seen on the chain. Recursive paths are skipped so the forwarding fixpoint stays finite.
-func fieldPathIsAcyclic(fn *types.Func, paramIdx int, path string) bool {
-	sig := fn.Signature()
-	var paramType types.Type
-	if paramIdx == annotation.ReceiverParamIndex {
-		if sig.Recv() == nil {
-			return false
-		}
-		paramType = sig.Recv().Type()
-	} else {
-		if paramIdx < 0 || paramIdx >= sig.Params().Len() {
-			return false
-		}
-		paramType = sig.Params().At(paramIdx).Type()
+// getParamIndex returns the parameter index of v within the current function's signature, or the
+// receiver index for the receiver, and whether v is a parameter/receiver at all.
+func (r *RootAssertionNode) getParamIndex(v *types.Var) (int, bool) {
+	sig := r.FuncObj().Signature()
+	if recv := sig.Recv(); recv != nil && recv == v {
+		return annotation.ReceiverParamIndex, true
 	}
-	st := typeshelper.AsDeeplyStruct(paramType)
-	if st == nil {
-		return false
+	for i := range sig.Params().Len() {
+		if sig.Params().At(i) == v {
+			return i, true
+		}
 	}
-	// Seed seen with the boundary struct type so a field that points back to it (a self-recursive
-	// field such as `A.inner *A`) is treated as recursive and skipped.
-	seen := map[*types.Struct]bool{st: true}
-	segs := strings.Split(path, ".")
-	for i, name := range segs {
+	return 0, false
+}
+
+// addParamFieldProducers attaches, at function entry, producers making each nilable field of
+// a struct-typed parameter/receiver nil iff the corresponding parameter context site is inferred
+// nilable.
+func (r *RootAssertionNode) addParamFieldProducers(builtExpr ast.Expr) {
+	ident, ok := builtExpr.(*ast.Ident)
+	if !ok {
+		return
+	}
+	v, ok := r.ObjectOf(ident).(*types.Var)
+	if !ok {
+		return
+	}
+	idx, ok := r.getParamIndex(v)
+	if !ok {
+		return
+	}
+	structType := typeshelper.AsDeeplyStruct(v.Type())
+	if structType == nil {
+		return
+	}
+	r.addContextFieldProducers(structType, builtExpr, r.FuncObj(), annotation.StructFieldParamContext, idx)
+}
+
+// buildFieldPathSelector builds the selector expression reaching base.<path>, where path is a
+// dotted field path under base's struct type.
+func (r *RootAssertionNode) buildFieldPathSelector(base ast.Expr, structType *types.Struct, path string) (ast.Expr, bool) {
+	cur := base
+	curStruct := structType
+	for _, name := range strings.Split(path, ".") {
+		if curStruct == nil {
+			return nil, false
+		}
 		var field *types.Var
-		for k := range st.NumFields() {
-			if st.Field(k).Name() == name {
-				field = st.Field(k)
+		for i := range curStruct.NumFields() {
+			if curStruct.Field(i).Name() == name {
+				field = curStruct.Field(i)
 				break
 			}
 		}
 		if field == nil {
-			return false
+			return nil, false
 		}
-		if i == len(segs)-1 {
-			return true
-		}
-		inner := typeshelper.AsDeeplyStruct(field.Type())
-		if inner == nil || seen[inner] {
-			return false
-		}
-		seen[inner] = true
-		st = inner
+		cur = r.getSelectorExpr(field, cur)
+		curStruct = typeshelper.AsDeeplyStruct(field.Type())
 	}
-	return true
+	return cur, true
+}
+
+// bindArgAndReceiverFieldsToContext binds, at a function or method call, the fields of each struct-typed
+// argument to the callee's corresponding parameter context site.
+func (r *RootAssertionNode) bindArgAndReceiverFieldsToContext(call *ast.CallExpr, target typeshelper.StaticCallTarget) {
+	if recv := target.Signature.Recv(); recv != nil {
+		if sel, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr); ok {
+			if structType := typeshelper.AsDeeplyStruct(recv.Type()); structType != nil {
+				r.bindValueFieldsToContext(target.Origin, sel.X, structType, annotation.StructFieldParamContext, annotation.ReceiverParamIndex)
+			}
+		}
+	}
+
+	for argIdx, arg := range call.Args {
+		if argIdx >= target.Signature.Params().Len() {
+			break
+		}
+		structType := typeshelper.AsDeeplyStruct(target.Signature.Params().At(argIdx).Type())
+		if structType == nil {
+			continue
+		}
+		r.bindValueFieldsToContext(target.Origin, arg, structType, annotation.StructFieldParamContext, argIdx)
+	}
+}
+
+// addCallParamOutFieldProducers attaches a callee's post-call field state to its concrete arguments
+// and receiver. For `f(x)`, if f's parameter 0 may write `b.c`, it produces
+// `x.b.c <- PARAM_OUT(f, 0, "b.c")`. A post-call dereference of x.b.c then consumes f's output
+// summary, while fields absent from the write set retain their pre-call producers.
+func (r *RootAssertionNode) addCallParamOutFieldProducers(call *ast.CallExpr, target typeshelper.StaticCallTarget) {
+	produce := func(arg ast.Expr, structType *types.Struct, index int) {
+		paths := r.functionContext.boundaryFieldEffects.ParamWritePaths(target.Origin, index)
+		// AddProduction detaches a matched subtree, so nested paths must be produced first.
+		sort.SliceStable(paths, func(i, j int) bool {
+			return strings.Count(paths[i], ".") > strings.Count(paths[j], ".")
+		})
+		for _, fieldPath := range paths {
+			fieldExpr, ok := r.buildFieldPathSelector(arg, structType, fieldPath)
+			if !ok {
+				continue
+			}
+			site := &annotation.StructFieldContextSite{
+				FuncObj: target.Origin,
+				Kind:    annotation.StructFieldParamOutContext,
+				Index:   index,
+				Path:    fieldPath,
+			}
+			r.AddProduction(&annotation.ProduceTrigger{
+				Annotation: &annotation.StructFieldFromContext{
+					TriggerIfNilable: &annotation.TriggerIfNilable{Ann: site},
+				},
+				Expr: fieldExpr,
+			})
+		}
+	}
+
+	if recv := target.Signature.Recv(); recv != nil {
+		if sel, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr); ok {
+			if structType := typeshelper.AsDeeplyStruct(recv.Type()); structType != nil {
+				produce(sel.X, structType, annotation.ReceiverParamIndex)
+			}
+		}
+	}
+	for index, arg := range call.Args {
+		if index >= target.Signature.Params().Len() {
+			break
+		}
+		if structType := typeshelper.AsDeeplyStruct(target.Signature.Params().At(index).Type()); structType != nil {
+			produce(arg, structType, index)
+		}
+	}
+}
+
+// bindForwardedParamOut connects a callee's output summary to a forwarder's output summary. For
+// `func g(p *A) { f(p) }`, when f's parameter 0 may write b.c, it adds
+// `PARAM_OUT(f, 0, "b.c") -> PARAM_OUT(g, 0, "b.c")`. A field prefix is retained, so passing
+// p.inner to f instead targets `PARAM_OUT(g, 0, "inner.b.c")`. The write summary is already closed
+// over these edges; this supplies each inherited path's context value.
+func (r *RootAssertionNode) bindForwardedParamOut(call *ast.CallExpr, target typeshelper.StaticCallTarget) {
+	link := func(calleeIndex int, arg ast.Expr) {
+		base, prefix := asthelper.SplitFieldChain(arg)
+		if base == nil {
+			return
+		}
+		param, ok := r.ObjectOf(base).(*types.Var)
+		if !ok {
+			return
+		}
+		callerIndex, ok := r.getParamIndex(param)
+		if !ok {
+			return
+		}
+		for _, calleePath := range r.functionContext.boundaryFieldEffects.ParamWritePaths(target.Origin, calleeIndex) {
+			fieldPath := calleePath
+			if prefix != "" {
+				fieldPath = prefix + "." + fieldPath
+			}
+			source := &annotation.StructFieldContextSite{
+				FuncObj: target.Origin, Kind: annotation.StructFieldParamOutContext, Index: calleeIndex, Path: calleePath,
+			}
+			destination := &annotation.StructFieldContextSite{
+				FuncObj: r.FuncObj(), Kind: annotation.StructFieldParamOutContext, Index: callerIndex, Path: fieldPath,
+			}
+			r.AddNewTriggers(annotation.FullTrigger{
+				Producer: &annotation.ProduceTrigger{
+					Annotation: &annotation.StructFieldFromContext{TriggerIfNilable: &annotation.TriggerIfNilable{Ann: source}},
+					Expr:       arg,
+				},
+				Consumer: &annotation.ConsumeTrigger{
+					Annotation: &annotation.StructFieldToContext{TriggerIfNonNil: &annotation.TriggerIfNonNil{Ann: destination}},
+					Expr:       arg,
+					Guards:     guard.NoGuards(),
+				},
+			})
+		}
+	}
+
+	if recv := target.Signature.Recv(); recv != nil {
+		if sel, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr); ok {
+			link(annotation.ReceiverParamIndex, sel.X)
+		}
+	}
+	for index, arg := range call.Args {
+		if index >= target.Signature.Params().Len() {
+			break
+		}
+		link(index, arg)
+	}
+}
+
+// bindParamFieldWriteToContext records a direct parameter or receiver field write as the callee's
+// post-call output. For `func f(p *A) { p.b.c = value }`, it connects
+// `value -> PARAM_OUT(f, 0, "b.c")`. For a local value, the consumer is attached to the local so
+// ordinary intraprocedural flow supplies the context. The write-summary check excludes local field
+// assignments from this boundary.
+func (r *RootAssertionNode) bindParamFieldWriteToContext(lhs, rhs ast.Expr) {
+	base, fieldPath := asthelper.SplitFieldChain(lhs)
+	if base == nil || fieldPath == "" {
+		return
+	}
+	param, ok := r.ObjectOf(base).(*types.Var)
+	if !ok {
+		return
+	}
+	index, ok := r.getParamIndex(param)
+	if !ok {
+		return
+	}
+	for _, path := range r.functionContext.boundaryFieldEffects.ParamWritePaths(r.FuncObj(), index) {
+		if path != fieldPath {
+			continue
+		}
+		site := &annotation.StructFieldContextSite{
+			FuncObj: r.FuncObj(),
+			Kind:    annotation.StructFieldParamOutContext,
+			Index:   index,
+			Path:    fieldPath,
+		}
+		consumer := &annotation.ConsumeTrigger{
+			Annotation: &annotation.StructFieldToContext{TriggerIfNonNil: &annotation.TriggerIfNonNil{Ann: site}},
+			Expr:       lhs,
+			Guards:     guard.NoGuards(),
+		}
+		// A local-rooted RHS has no boundary annotation to snapshot; attach the param-out
+		// supply as a consumption so backpropagation resolves its flow-sensitive producer.
+		// Any other RHS snapshots to its provable boundary nilability below.
+		if r.isLocalRootedValue(rhs) {
+			consumer.Expr = rhs
+			r.AddConsumption(consumer)
+			return
+		}
+		r.AddNewTriggers(annotation.FullTrigger{
+			Producer: &annotation.ProduceTrigger{
+				Annotation: r.getShallowExprNilabilityProducer(rhs),
+				Expr:       rhs,
+			},
+			Consumer: consumer,
+		})
+		return
+	}
 }

@@ -15,7 +15,6 @@
 /*
 This is a test for checking support for chained dependencies of witnessed affiliations through caching
 
-<nilaway no inference>
 */
 package chainedDependencies
 

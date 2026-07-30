@@ -13,18 +13,11 @@
 // limitations under the License.
 
 // Package mid is the middle hop of the transitive cross-package return-shape test: it forwards a
-// constructor and a param-forwarder defined in lib, re-exporting their shapes so the app package (two
-// hops away) still sees the deep nil field.
+// param-forwarder defined in lib so the app package (two hops away) can tie the result to its own
+// argument.
 package mid
 
 import "go.uber.org/structinitv2/returnshape/lib"
-
-// ForwardImportedResult forwards lib.ReturnDeepNil's result, re-exporting the deep shape so a caller
-// two packages away inherits it.
-func ForwardImportedResult() *lib.Outer {
-	x := lib.ReturnDeepNil()
-	return x
-}
 
 // ForwardParamCrossPkg returns a call to lib.ForwardParam (a param-forwarder in another package), so
 // it forwards its own param 0 to result 0; a caller in app ties the result to its own argument across

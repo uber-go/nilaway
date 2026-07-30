@@ -29,17 +29,14 @@ import (
 // InferredMap for importation/exportation via the Facts mechanism. This reduction step must
 // be performed because FullTriggers themselves contain `types.Object`s, which have no exported fields
 // and thus cannot be present in Facts-communicated data structures. PrimitiveFullTriggers encode
-// only that information that will be relevant for formatting error messages: a prestring
-// representation  of their production, a prestring representation of their consumption, and the
-// position in the source.
-// See annotation.Prestring for more info, but in short prestrings are structs that store some
-// minimal information that will vary between string representations meant to be passed with the
-// static type information necessary to format that minimal information into a full string
-// representation without needing to encode it all when using Gob encodings through the Facts mechanism
+// only the information relevant for formatting error messages: compact representations of their
+// production and consumption, plus the position in the source.
+// Reprs are fmt.Stringer implementations that store the minimal information needed to format
+// full string representations without encoding all of that information through the Facts mechanism.
 type primitiveFullTrigger struct {
 	Position     token.Position
-	ProducerRepr annotation.Prestring
-	ConsumerRepr annotation.Prestring
+	ProducerRepr fmt.Stringer
+	ConsumerRepr fmt.Stringer
 }
 
 // A primitiveSite represents an atomic choice that may be made about annotations. It is
@@ -186,7 +183,7 @@ func (p *primitivizer) fullTrigger(trigger annotation.FullTrigger) primitiveFull
 		panic(fmt.Sprintf("consume trigger %v has a nil Expr", trigger.Consumer))
 	}
 
-	producer, consumer := trigger.Prestrings(p.pass)
+	producer, consumer := trigger.Reprs(p.pass)
 	return primitiveFullTrigger{
 		Position:     p.toPosition(trigger.Consumer.Expr.Pos()),
 		ProducerRepr: producer,

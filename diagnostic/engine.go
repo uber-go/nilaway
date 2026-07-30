@@ -133,7 +133,7 @@ func (e *Engine) Diagnostics(grouping bool) []analysis.Diagnostic {
 
 // AddSingleAssertionConflict adds a new single assertion conflict to the engine.
 func (e *Engine) AddSingleAssertionConflict(trigger annotation.FullTrigger) {
-	producer, consumer := trigger.Prestrings(e.pass)
+	producer, consumer := trigger.Reprs(e.pass)
 	flow := nilFlow{}
 	flow.addNonNilPathNode(producer, consumer)
 
@@ -161,7 +161,7 @@ func (e *Engine) AddOverconstraintConflict(nilReason, nonnilReason inference.Exp
 		if producer != nil && consumer != nil {
 			flow.addNilPathNode(producer, consumer)
 		} else {
-			flow.addNilPathNode(annotation.LocatedPrestring{
+			flow.addNilPathNode(annotation.LocatedRepr{
 				Contained: r,
 				Location:  e.pass.HumanReadablePosition(r.Position()),
 			}, nil)
@@ -185,7 +185,7 @@ func (e *Engine) AddOverconstraintConflict(nilReason, nonnilReason inference.Exp
 			flow.addNonNilPathNode(producer, consumer)
 			reportPosition = position
 		} else {
-			flow.addNonNilPathNode(annotation.LocatedPrestring{
+			flow.addNonNilPathNode(annotation.LocatedRepr{
 				Contained: r,
 				Location:  e.pass.HumanReadablePosition(r.Position()),
 			}, nil)

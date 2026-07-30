@@ -53,7 +53,7 @@ type ProducingAnnotationTrigger interface {
 	// Default setting for ProduceTriggers is to not need a guard.
 	SetNeedsGuard(bool)
 
-	Prestring() Prestring
+	Repr() fmt.Stringer
 
 	// Kind returns the kind of the trigger.
 	Kind() TriggerKind
@@ -73,15 +73,15 @@ type TriggerIfNilable struct {
 	NeedsGuard bool
 }
 
-// Prestring returns this Prestring as a Prestring
-func (*TriggerIfNilable) Prestring() Prestring {
-	return TriggerIfNilablePrestring{}
+// Repr returns a compact string representation.
+func (*TriggerIfNilable) Repr() fmt.Stringer {
+	return TriggerIfNilableRepr{}
 }
 
-// TriggerIfNilablePrestring is a Prestring storing the needed information to compactly encode a TriggerIfNilable
-type TriggerIfNilablePrestring struct{}
+// TriggerIfNilableRepr is a fmt.Stringer storing the needed information to compactly encode a TriggerIfNilable
+type TriggerIfNilableRepr struct{}
 
-func (TriggerIfNilablePrestring) String() string {
+func (TriggerIfNilableRepr) String() string {
 	return "nilable value"
 }
 
@@ -118,15 +118,15 @@ type TriggerIfDeepNilable struct {
 	NeedsGuard bool
 }
 
-// Prestring returns this Prestring as a Prestring
-func (*TriggerIfDeepNilable) Prestring() Prestring {
-	return TriggerIfDeepNilablePrestring{}
+// Repr returns a compact string representation.
+func (*TriggerIfDeepNilable) Repr() fmt.Stringer {
+	return TriggerIfDeepNilableRepr{}
 }
 
-// TriggerIfDeepNilablePrestring is a Prestring storing the needed information to compactly encode a TriggerIfDeepNilable
-type TriggerIfDeepNilablePrestring struct{}
+// TriggerIfDeepNilableRepr is a fmt.Stringer storing the needed information to compactly encode a TriggerIfDeepNilable
+type TriggerIfDeepNilableRepr struct{}
 
-func (TriggerIfDeepNilablePrestring) String() string {
+func (TriggerIfDeepNilableRepr) String() string {
 	return "deeply nilable value"
 }
 
@@ -174,15 +174,15 @@ func (p *ProduceTriggerTautology) NeedsGuardMatch() bool {
 // SetNeedsGuard sets the underlying Guard-Neediness of this ProduceTrigger, if present
 func (p *ProduceTriggerTautology) SetNeedsGuard(b bool) { p.NeedsGuard = b }
 
-// Prestring returns this Prestring as a Prestring
-func (*ProduceTriggerTautology) Prestring() Prestring {
-	return ProduceTriggerTautologyPrestring{}
+// Repr returns a compact string representation.
+func (*ProduceTriggerTautology) Repr() fmt.Stringer {
+	return ProduceTriggerTautologyRepr{}
 }
 
-// ProduceTriggerTautologyPrestring is a Prestring storing the needed information to compactly encode a ProduceTriggerTautology
-type ProduceTriggerTautologyPrestring struct{}
+// ProduceTriggerTautologyRepr is a fmt.Stringer storing the needed information to compactly encode a ProduceTriggerTautology
+type ProduceTriggerTautologyRepr struct{}
 
-func (ProduceTriggerTautologyPrestring) String() string {
+func (ProduceTriggerTautologyRepr) String() string {
 	return "nilable value"
 }
 
@@ -205,15 +205,15 @@ type ProduceTriggerNever struct {
 	NeedsGuard bool
 }
 
-// Prestring returns this Prestring as a Prestring
-func (*ProduceTriggerNever) Prestring() Prestring {
-	return ProduceTriggerNeverPrestring{}
+// Repr returns a compact string representation.
+func (*ProduceTriggerNever) Repr() fmt.Stringer {
+	return ProduceTriggerNeverRepr{}
 }
 
-// ProduceTriggerNeverPrestring is a Prestring storing the needed information to compactly encode a ProduceTriggerNever
-type ProduceTriggerNeverPrestring struct{}
+// ProduceTriggerNeverRepr is a fmt.Stringer storing the needed information to compactly encode a ProduceTriggerNever
+type ProduceTriggerNeverRepr struct{}
 
-func (ProduceTriggerNeverPrestring) String() string {
+func (ProduceTriggerNeverRepr) String() string {
 	return "is not nilable"
 }
 
@@ -287,15 +287,15 @@ func (p *PositiveNilCheck) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this Prestring as a Prestring
-func (*PositiveNilCheck) Prestring() Prestring {
-	return PositiveNilCheckPrestring{}
+// Repr returns a compact string representation.
+func (*PositiveNilCheck) Repr() fmt.Stringer {
+	return PositiveNilCheckRepr{}
 }
 
-// PositiveNilCheckPrestring is a Prestring storing the needed information to compactly encode a PositiveNilCheck
-type PositiveNilCheckPrestring struct{}
+// PositiveNilCheckRepr is a fmt.Stringer storing the needed information to compactly encode a PositiveNilCheck
+type PositiveNilCheckRepr struct{}
 
-func (PositiveNilCheckPrestring) String() string {
+func (PositiveNilCheckRepr) String() string {
 	return "determined nil via conditional check"
 }
 
@@ -312,15 +312,15 @@ func (n *NegativeNilCheck) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this Prestring as a Prestring
-func (*NegativeNilCheck) Prestring() Prestring {
-	return NegativeNilCheckPrestring{}
+// Repr returns a compact string representation.
+func (*NegativeNilCheck) Repr() fmt.Stringer {
+	return NegativeNilCheckRepr{}
 }
 
-// NegativeNilCheckPrestring is a Prestring storing the needed information to compactly encode a NegativeNilCheck
-type NegativeNilCheckPrestring struct{}
+// NegativeNilCheckRepr is a fmt.Stringer storing the needed information to compactly encode a NegativeNilCheck
+type NegativeNilCheckRepr struct{}
 
-func (NegativeNilCheckPrestring) String() string {
+func (NegativeNilCheckRepr) String() string {
 	return "determined nonnil via conditional check"
 }
 
@@ -365,15 +365,15 @@ func (c *ConstNil) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this Prestring as a Prestring
-func (*ConstNil) Prestring() Prestring {
-	return ConstNilPrestring{}
+// Repr returns a compact string representation.
+func (*ConstNil) Repr() fmt.Stringer {
+	return ConstNilRepr{}
 }
 
-// ConstNilPrestring is a Prestring storing the needed information to compactly encode a ConstNil
-type ConstNilPrestring struct{}
+// ConstNilRepr is a fmt.Stringer storing the needed information to compactly encode a ConstNil
+type ConstNilRepr struct{}
 
-func (ConstNilPrestring) String() string {
+func (ConstNilRepr) String() string {
 	return "literal `nil`"
 }
 
@@ -390,15 +390,15 @@ func (u *UnassignedFld) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this Prestring as a Prestring
-func (*UnassignedFld) Prestring() Prestring {
-	return UnassignedFldPrestring{}
+// Repr returns a compact string representation.
+func (*UnassignedFld) Repr() fmt.Stringer {
+	return UnassignedFldRepr{}
 }
 
-// UnassignedFldPrestring is a Prestring storing the needed information to compactly encode a UnassignedFld
-type UnassignedFldPrestring struct{}
+// UnassignedFldRepr is a fmt.Stringer storing the needed information to compactly encode a UnassignedFld
+type UnassignedFldRepr struct{}
 
-func (UnassignedFldPrestring) String() string {
+func (UnassignedFldRepr) String() string {
 	return "uninitialized"
 }
 
@@ -416,19 +416,19 @@ func (n *NoVarAssign) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this Prestring as a Prestring
-func (n *NoVarAssign) Prestring() Prestring {
-	return NoVarAssignPrestring{
+// Repr returns a compact string representation.
+func (n *NoVarAssign) Repr() fmt.Stringer {
+	return NoVarAssignRepr{
 		VarName: n.VarObj.Name(),
 	}
 }
 
-// NoVarAssignPrestring is a Prestring storing the needed information to compactly encode a NoVarAssign
-type NoVarAssignPrestring struct {
+// NoVarAssignRepr is a fmt.Stringer storing the needed information to compactly encode a NoVarAssign
+type NoVarAssignRepr struct {
 	VarName string
 }
 
-func (n NoVarAssignPrestring) String() string {
+func (n NoVarAssignRepr) String() string {
 	return fmt.Sprintf("unassigned variable `%s`", n.VarName)
 }
 
@@ -445,15 +445,15 @@ func (b *BlankVarReturn) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this Prestring as a Prestring
-func (*BlankVarReturn) Prestring() Prestring {
-	return BlankVarReturnPrestring{}
+// Repr returns a compact string representation.
+func (*BlankVarReturn) Repr() fmt.Stringer {
+	return BlankVarReturnRepr{}
 }
 
-// BlankVarReturnPrestring is a Prestring storing the needed information to compactly encode a BlankVarReturn
-type BlankVarReturnPrestring struct{}
+// BlankVarReturnRepr is a fmt.Stringer storing the needed information to compactly encode a BlankVarReturn
+type BlankVarReturnRepr struct{}
 
-func (BlankVarReturnPrestring) String() string {
+func (BlankVarReturnRepr) String() string {
 	return "return via a blank variable `_`"
 }
 
@@ -487,20 +487,20 @@ func (f *FuncParam) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this FuncParam as a Prestring
-func (f *FuncParam) Prestring() Prestring {
+// Repr returns this FuncParam as a fmt.Stringer
+func (f *FuncParam) Repr() fmt.Stringer {
 	switch key := f.Ann.(type) {
 	case *ParamAnnotationKey:
-		return FuncParamPrestring{key.ParamNameString(), key.FuncDecl.Name(), ""}
+		return FuncParamRepr{key.ParamNameString(), key.FuncDecl.Name(), ""}
 	case *CallSiteParamAnnotationKey:
-		return FuncParamPrestring{key.ParamNameString(), key.FuncDecl.Name(), key.Location.String()}
+		return FuncParamRepr{key.ParamNameString(), key.FuncDecl.Name(), key.Location.String()}
 	default:
 		panic(fmt.Sprintf("Expected ParamAnnotationKey or CallSiteParamAnnotationKey but got: %T", key))
 	}
 }
 
-// FuncParamPrestring is a Prestring storing the needed information to compactly encode a FuncParam
-type FuncParamPrestring struct {
+// FuncParamRepr is a fmt.Stringer storing the needed information to compactly encode a FuncParam
+type FuncParamRepr struct {
 	ParamName string
 	FuncName  string
 	// Location is empty for a FuncParam enclosing ParamAnnotationKey. Location points to the
@@ -508,7 +508,7 @@ type FuncParamPrestring struct {
 	Location string
 }
 
-func (f FuncParamPrestring) String() string {
+func (f FuncParamRepr) String() string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "function parameter `%s`", f.ParamName)
 	if f.Location != "" {
@@ -531,17 +531,17 @@ func (m *MethodRecv) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this MethodRecv as a Prestring
-func (m *MethodRecv) Prestring() Prestring {
-	return MethodRecvPrestring{m.VarDecl.Name()}
+// Repr returns this MethodRecv as a fmt.Stringer
+func (m *MethodRecv) Repr() fmt.Stringer {
+	return MethodRecvRepr{m.VarDecl.Name()}
 }
 
-// MethodRecvPrestring is a Prestring storing the needed information to compactly encode a MethodRecv
-type MethodRecvPrestring struct {
+// MethodRecvRepr is a fmt.Stringer storing the needed information to compactly encode a MethodRecv
+type MethodRecvRepr struct {
 	RecvName string
 }
 
-func (m MethodRecvPrestring) String() string {
+func (m MethodRecvRepr) String() string {
 	return fmt.Sprintf("read by method receiver `%s`", m.RecvName)
 }
 
@@ -559,17 +559,17 @@ func (m *MethodRecvDeep) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this MethodRecv as a Prestring
-func (m *MethodRecvDeep) Prestring() Prestring {
-	return MethodRecvDeepPrestring{m.VarDecl.Name()}
+// Repr returns this MethodRecv as a fmt.Stringer
+func (m *MethodRecvDeep) Repr() fmt.Stringer {
+	return MethodRecvDeepRepr{m.VarDecl.Name()}
 }
 
-// MethodRecvDeepPrestring is a Prestring storing the needed information to compactly encode a MethodRecv
-type MethodRecvDeepPrestring struct {
+// MethodRecvDeepRepr is a fmt.Stringer storing the needed information to compactly encode a MethodRecv
+type MethodRecvDeepRepr struct {
 	RecvName string
 }
 
-func (m MethodRecvDeepPrestring) String() string {
+func (m MethodRecvDeepRepr) String() string {
 	return fmt.Sprintf("deep read by method receiver `%s`", m.RecvName)
 }
 
@@ -588,17 +588,17 @@ func (v *VariadicFuncParam) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this Prestring as a Prestring
-func (v *VariadicFuncParam) Prestring() Prestring {
-	return VariadicFuncParamPrestring{v.VarDecl.Name()}
+// Repr returns a compact string representation.
+func (v *VariadicFuncParam) Repr() fmt.Stringer {
+	return VariadicFuncParamRepr{v.VarDecl.Name()}
 }
 
-// VariadicFuncParamPrestring is a Prestring storing the needed information to compactly encode a VariadicFuncParam
-type VariadicFuncParamPrestring struct {
+// VariadicFuncParamRepr is a fmt.Stringer storing the needed information to compactly encode a VariadicFuncParam
+type VariadicFuncParamRepr struct {
 	ParamName string
 }
 
-func (v VariadicFuncParamPrestring) String() string {
+func (v VariadicFuncParamRepr) String() string {
 	return fmt.Sprintf("read directly from variadic parameter `%s`", v.ParamName)
 }
 
@@ -615,15 +615,15 @@ func (t *TrustedFuncNilable) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this Prestring as a Prestring
-func (*TrustedFuncNilable) Prestring() Prestring {
-	return TrustedFuncNilablePrestring{}
+// Repr returns a compact string representation.
+func (*TrustedFuncNilable) Repr() fmt.Stringer {
+	return TrustedFuncNilableRepr{}
 }
 
-// TrustedFuncNilablePrestring is a Prestring storing the needed information to compactly encode a TrustedFuncNilable
-type TrustedFuncNilablePrestring struct{}
+// TrustedFuncNilableRepr is a fmt.Stringer storing the needed information to compactly encode a TrustedFuncNilable
+type TrustedFuncNilableRepr struct{}
 
-func (TrustedFuncNilablePrestring) String() string {
+func (TrustedFuncNilableRepr) String() string {
 	return "determined to be nilable by a trusted function"
 }
 
@@ -640,15 +640,15 @@ func (t *TrustedFuncNonnil) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this Prestring as a Prestring
-func (*TrustedFuncNonnil) Prestring() Prestring {
-	return TrustedFuncNonnilPrestring{}
+// Repr returns a compact string representation.
+func (*TrustedFuncNonnil) Repr() fmt.Stringer {
+	return TrustedFuncNonnilRepr{}
 }
 
-// TrustedFuncNonnilPrestring is a Prestring storing the needed information to compactly encode a TrustedFuncNonnil
-type TrustedFuncNonnilPrestring struct{}
+// TrustedFuncNonnilRepr is a fmt.Stringer storing the needed information to compactly encode a TrustedFuncNonnil
+type TrustedFuncNonnilRepr struct{}
 
-func (TrustedFuncNonnilPrestring) String() string {
+func (TrustedFuncNonnilRepr) String() string {
 	return "determined to be nonnil by a trusted function"
 }
 
@@ -665,20 +665,20 @@ func (f *FldRead) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this FldRead as a Prestring
-func (f *FldRead) Prestring() Prestring {
+// Repr returns this FldRead as a fmt.Stringer
+func (f *FldRead) Repr() fmt.Stringer {
 	if ek, ok := f.Ann.(*EscapeFieldAnnotationKey); ok {
-		return FldReadPrestring{ek.FieldDecl.Name()}
+		return FldReadRepr{ek.FieldDecl.Name()}
 	}
-	return FldReadPrestring{f.Ann.(*FieldAnnotationKey).FieldDecl.Name()}
+	return FldReadRepr{f.Ann.(*FieldAnnotationKey).FieldDecl.Name()}
 }
 
-// FldReadPrestring is a Prestring storing the needed information to compactly encode a FldRead
-type FldReadPrestring struct {
+// FldReadRepr is a fmt.Stringer storing the needed information to compactly encode a FldRead
+type FldReadRepr struct {
 	FieldName string
 }
 
-func (f FldReadPrestring) String() string {
+func (f FldReadRepr) String() string {
 	return fmt.Sprintf("field `%s`", f.FieldName)
 }
 
@@ -696,20 +696,20 @@ func (f *ParamFldRead) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this ParamFldRead as a Prestring
-func (f *ParamFldRead) Prestring() Prestring {
+// Repr returns this ParamFldRead as a fmt.Stringer
+func (f *ParamFldRead) Repr() fmt.Stringer {
 	ann := f.Ann.(*ParamFieldAnnotationKey)
-	return ParamFldReadPrestring{
+	return ParamFldReadRepr{
 		FieldName: ann.FieldDecl.Name(),
 	}
 }
 
-// ParamFldReadPrestring is a Prestring storing the needed information to compactly encode a ParamFldRead
-type ParamFldReadPrestring struct {
+// ParamFldReadRepr is a fmt.Stringer storing the needed information to compactly encode a ParamFldRead
+type ParamFldReadRepr struct {
 	FieldName string
 }
 
-func (f ParamFldReadPrestring) String() string {
+func (f ParamFldReadRepr) String() string {
 	return fmt.Sprintf("field `%s`", f.FieldName)
 }
 
@@ -727,23 +727,23 @@ func (f *FldReturn) equals(other ProducingAnnotationTrigger) bool {
 }
 
 func (f FldReturn) String() string {
-	return f.Prestring().String()
+	return f.Repr().String()
 }
 
-// Prestring returns this FldReturn as a Prestring
-func (f *FldReturn) Prestring() Prestring {
+// Repr returns this FldReturn as a fmt.Stringer
+func (f *FldReturn) Repr() fmt.Stringer {
 	key := f.Ann.(*RetFieldAnnotationKey)
-	return FldReturnPrestring{key.RetNum, key.FuncDecl.Name(), key.FieldDecl.Name()}
+	return FldReturnRepr{key.RetNum, key.FuncDecl.Name(), key.FieldDecl.Name()}
 }
 
-// FldReturnPrestring is a Prestring storing the needed information to compactly encode a FldReturn
-type FldReturnPrestring struct {
+// FldReturnRepr is a fmt.Stringer storing the needed information to compactly encode a FldReturn
+type FldReturnRepr struct {
 	RetNum    int
 	FuncName  string
 	FieldName string
 }
 
-func (f FldReturnPrestring) String() string {
+func (f FldReturnRepr) String() string {
 	return fmt.Sprintf("field `%s` of result %d of `%s()`", f.FieldName, f.RetNum, f.FuncName)
 }
 
@@ -768,20 +768,20 @@ func (f *FuncReturn) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this FuncReturn as a Prestring
-func (f *FuncReturn) Prestring() Prestring {
+// Repr returns this FuncReturn as a fmt.Stringer
+func (f *FuncReturn) Repr() fmt.Stringer {
 	switch key := f.Ann.(type) {
 	case *RetAnnotationKey:
-		return FuncReturnPrestring{key.RetNum, key.FuncDecl.Name(), ""}
+		return FuncReturnRepr{key.RetNum, key.FuncDecl.Name(), ""}
 	case *CallSiteRetAnnotationKey:
-		return FuncReturnPrestring{key.RetNum, key.FuncDecl.Name(), key.Location.String()}
+		return FuncReturnRepr{key.RetNum, key.FuncDecl.Name(), key.Location.String()}
 	default:
 		panic(fmt.Sprintf("Expected RetAnnotationKey or CallSiteRetAnnotationKey but got: %T", key))
 	}
 }
 
-// FuncReturnPrestring is a Prestring storing the needed information to compactly encode a FuncReturn
-type FuncReturnPrestring struct {
+// FuncReturnRepr is a fmt.Stringer storing the needed information to compactly encode a FuncReturn
+type FuncReturnRepr struct {
 	RetNum   int
 	FuncName string
 	// Location is empty for a FuncReturn enclosing RetAnnotationKey. Location points to the
@@ -789,7 +789,7 @@ type FuncReturnPrestring struct {
 	Location string
 }
 
-func (f FuncReturnPrestring) String() string {
+func (f FuncReturnRepr) String() string {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "result %d of `%s()`", f.RetNum, f.FuncName)
 	if f.Location != "" {
@@ -811,19 +811,19 @@ func (m *MethodReturn) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this MethodReturn as a Prestring
-func (m *MethodReturn) Prestring() Prestring {
+// Repr returns this MethodReturn as a fmt.Stringer
+func (m *MethodReturn) Repr() fmt.Stringer {
 	retKey := m.Ann.(*RetAnnotationKey)
-	return MethodReturnPrestring{retKey.RetNum, retKey.FuncDecl.Name()}
+	return MethodReturnRepr{retKey.RetNum, retKey.FuncDecl.Name()}
 }
 
-// MethodReturnPrestring is a Prestring storing the needed information to compactly encode a MethodReturn
-type MethodReturnPrestring struct {
+// MethodReturnRepr is a fmt.Stringer storing the needed information to compactly encode a MethodReturn
+type MethodReturnRepr struct {
 	RetNum   int
 	FuncName string
 }
 
-func (m MethodReturnPrestring) String() string {
+func (m MethodReturnRepr) String() string {
 	return fmt.Sprintf("result %d of `%s()`", m.RetNum, m.FuncName)
 }
 
@@ -843,24 +843,24 @@ func (m *MethodResultReachesInterface) equals(other ProducingAnnotationTrigger) 
 	return false
 }
 
-// Prestring returns this MethodResultReachesInterface as a Prestring
-func (m *MethodResultReachesInterface) Prestring() Prestring {
+// Repr returns this MethodResultReachesInterface as a fmt.Stringer
+func (m *MethodResultReachesInterface) Repr() fmt.Stringer {
 	retAnn := m.Ann.(*RetAnnotationKey)
-	return MethodResultReachesInterfacePrestring{
+	return MethodResultReachesInterfaceRepr{
 		retAnn.RetNum,
 		typeshelper.PartiallyQualifiedFuncName(retAnn.FuncDecl),
 		typeshelper.PartiallyQualifiedFuncName(m.InterfaceMethod),
 	}
 }
 
-// MethodResultReachesInterfacePrestring is a Prestring storing the needed information to compactly encode a MethodResultReachesInterface
-type MethodResultReachesInterfacePrestring struct {
+// MethodResultReachesInterfaceRepr is a fmt.Stringer storing the needed information to compactly encode a MethodResultReachesInterface
+type MethodResultReachesInterfaceRepr struct {
 	RetNum   int
 	ImplName string
 	IntName  string
 }
 
-func (m MethodResultReachesInterfacePrestring) String() string {
+func (m MethodResultReachesInterfaceRepr) String() string {
 	return ""
 }
 
@@ -880,24 +880,24 @@ func (i *InterfaceParamReachesImplementation) equals(other ProducingAnnotationTr
 	return false
 }
 
-// Prestring returns this InterfaceParamReachesImplementation as a Prestring
-func (i *InterfaceParamReachesImplementation) Prestring() Prestring {
+// Repr returns this InterfaceParamReachesImplementation as a fmt.Stringer
+func (i *InterfaceParamReachesImplementation) Repr() fmt.Stringer {
 	paramAnn := i.Ann.(*ParamAnnotationKey)
-	return InterfaceParamReachesImplementationPrestring{
+	return InterfaceParamReachesImplementationRepr{
 		paramAnn.ParamNameString(),
 		typeshelper.PartiallyQualifiedFuncName(paramAnn.FuncDecl),
 		typeshelper.PartiallyQualifiedFuncName(i.ImplementingMethod),
 	}
 }
 
-// InterfaceParamReachesImplementationPrestring is a Prestring storing the needed information to compactly encode a InterfaceParamReachesImplementation
-type InterfaceParamReachesImplementationPrestring struct {
+// InterfaceParamReachesImplementationRepr is a fmt.Stringer storing the needed information to compactly encode a InterfaceParamReachesImplementation
+type InterfaceParamReachesImplementationRepr struct {
 	ParamName string
 	IntName   string
 	ImplName  string
 }
 
-func (i InterfaceParamReachesImplementationPrestring) String() string {
+func (i InterfaceParamReachesImplementationRepr) String() string {
 	return ""
 }
 
@@ -914,20 +914,20 @@ func (g *GlobalVarRead) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this GlobalVarRead as a Prestring
-func (g *GlobalVarRead) Prestring() Prestring {
+// Repr returns this GlobalVarRead as a fmt.Stringer
+func (g *GlobalVarRead) Repr() fmt.Stringer {
 	key := g.Ann.(*GlobalVarAnnotationKey)
-	return GlobalVarReadPrestring{
+	return GlobalVarReadRepr{
 		key.VarDecl.Name(),
 	}
 }
 
-// GlobalVarReadPrestring is a Prestring storing the needed information to compactly encode a GlobalVarRead
-type GlobalVarReadPrestring struct {
+// GlobalVarReadRepr is a fmt.Stringer storing the needed information to compactly encode a GlobalVarRead
+type GlobalVarReadRepr struct {
 	VarName string
 }
 
-func (g GlobalVarReadPrestring) String() string {
+func (g GlobalVarReadRepr) String() string {
 	return fmt.Sprintf("global variable `%s`", g.VarName)
 }
 
@@ -945,18 +945,18 @@ func (m *MapRead) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this MapRead as a Prestring
-func (m *MapRead) Prestring() Prestring {
+// Repr returns this MapRead as a fmt.Stringer
+func (m *MapRead) Repr() fmt.Stringer {
 	key := m.Ann.(*TypeNameAnnotationKey)
-	return MapReadPrestring{key.TypeDecl.Name()}
+	return MapReadRepr{key.TypeDecl.Name()}
 }
 
-// MapReadPrestring is a Prestring storing the needed information to compactly encode a MapRead
-type MapReadPrestring struct {
+// MapReadRepr is a fmt.Stringer storing the needed information to compactly encode a MapRead
+type MapReadRepr struct {
 	TypeName string
 }
 
-func (m MapReadPrestring) String() string {
+func (m MapReadRepr) String() string {
 	return fmt.Sprintf("index of a map of type `%s`", m.TypeName)
 }
 
@@ -973,18 +973,18 @@ func (a *ArrayRead) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this ArrayRead as a Prestring
-func (a *ArrayRead) Prestring() Prestring {
+// Repr returns this ArrayRead as a fmt.Stringer
+func (a *ArrayRead) Repr() fmt.Stringer {
 	key := a.Ann.(*TypeNameAnnotationKey)
-	return ArrayReadPrestring{key.TypeDecl.Name()}
+	return ArrayReadRepr{key.TypeDecl.Name()}
 }
 
-// ArrayReadPrestring is a Prestring storing the needed information to compactly encode a ArrayRead
-type ArrayReadPrestring struct {
+// ArrayReadRepr is a fmt.Stringer storing the needed information to compactly encode a ArrayRead
+type ArrayReadRepr struct {
 	TypeName string
 }
 
-func (a ArrayReadPrestring) String() string {
+func (a ArrayReadRepr) String() string {
 	return fmt.Sprintf("index of an array of type `%s`", a.TypeName)
 }
 
@@ -1001,18 +1001,18 @@ func (s *SliceRead) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this SliceRead as a Prestring
-func (s *SliceRead) Prestring() Prestring {
+// Repr returns this SliceRead as a fmt.Stringer
+func (s *SliceRead) Repr() fmt.Stringer {
 	key := s.Ann.(*TypeNameAnnotationKey)
-	return SliceReadPrestring{key.TypeDecl.Name()}
+	return SliceReadRepr{key.TypeDecl.Name()}
 }
 
-// SliceReadPrestring is a Prestring storing the needed information to compactly encode a SliceRead
-type SliceReadPrestring struct {
+// SliceReadRepr is a fmt.Stringer storing the needed information to compactly encode a SliceRead
+type SliceReadRepr struct {
 	TypeName string
 }
 
-func (s SliceReadPrestring) String() string {
+func (s SliceReadRepr) String() string {
 	return fmt.Sprintf("index of a slice of type `%s`", s.TypeName)
 }
 
@@ -1021,10 +1021,10 @@ type PtrRead struct {
 	*TriggerIfDeepNilable
 }
 
-// Prestring returns this PtrRead as a Prestring
-func (p *PtrRead) Prestring() Prestring {
+// Repr returns this PtrRead as a fmt.Stringer
+func (p *PtrRead) Repr() fmt.Stringer {
 	key := p.Ann.(*TypeNameAnnotationKey)
-	return PtrReadPrestring{key.TypeDecl.Name()}
+	return PtrReadRepr{key.TypeDecl.Name()}
 }
 
 // equals returns true if the passed ProducingAnnotationTrigger is equal to this one
@@ -1035,12 +1035,12 @@ func (p *PtrRead) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// PtrReadPrestring is a Prestring storing the needed information to compactly encode a PtrRead
-type PtrReadPrestring struct {
+// PtrReadRepr is a fmt.Stringer storing the needed information to compactly encode a PtrRead
+type PtrReadRepr struct {
 	TypeName string
 }
 
-func (p PtrReadPrestring) String() string {
+func (p PtrReadRepr) String() string {
 	return fmt.Sprintf("value of a pointer of type `%s`", p.TypeName)
 }
 
@@ -1057,18 +1057,18 @@ func (c *ChanRecv) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this ChanRecv as a Prestring
-func (c *ChanRecv) Prestring() Prestring {
+// Repr returns this ChanRecv as a fmt.Stringer
+func (c *ChanRecv) Repr() fmt.Stringer {
 	key := c.Ann.(*TypeNameAnnotationKey)
-	return ChanRecvPrestring{key.TypeDecl.Name()}
+	return ChanRecvRepr{key.TypeDecl.Name()}
 }
 
-// ChanRecvPrestring is a Prestring storing the needed information to compactly encode a ChanRecv
-type ChanRecvPrestring struct {
+// ChanRecvRepr is a fmt.Stringer storing the needed information to compactly encode a ChanRecv
+type ChanRecvRepr struct {
 	TypeName string
 }
 
-func (c ChanRecvPrestring) String() string {
+func (c ChanRecvRepr) String() string {
 	return fmt.Sprintf("received from a channel of type `%s`", c.TypeName)
 }
 
@@ -1085,18 +1085,18 @@ func (f *FuncParamDeep) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this FuncParamDeep as a Prestring
-func (f *FuncParamDeep) Prestring() Prestring {
+// Repr returns this FuncParamDeep as a fmt.Stringer
+func (f *FuncParamDeep) Repr() fmt.Stringer {
 	key := f.Ann.(*ParamAnnotationKey)
-	return FuncParamDeepPrestring{key.ParamNameString()}
+	return FuncParamDeepRepr{key.ParamNameString()}
 }
 
-// FuncParamDeepPrestring is a Prestring storing the needed information to compactly encode a FuncParamDeep
-type FuncParamDeepPrestring struct {
+// FuncParamDeepRepr is a fmt.Stringer storing the needed information to compactly encode a FuncParamDeep
+type FuncParamDeepRepr struct {
 	ParamName string
 }
 
-func (f FuncParamDeepPrestring) String() string {
+func (f FuncParamDeepRepr) String() string {
 	return fmt.Sprintf("deep read from parameter `%s`", f.ParamName)
 }
 
@@ -1114,17 +1114,17 @@ func (v *VariadicFuncParamDeep) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this VariadicFuncParamDeep as a Prestring
-func (v *VariadicFuncParamDeep) Prestring() Prestring {
-	return VariadicFuncParamDeepPrestring{v.Ann.(*ParamAnnotationKey).ParamNameString()}
+// Repr returns this VariadicFuncParamDeep as a fmt.Stringer
+func (v *VariadicFuncParamDeep) Repr() fmt.Stringer {
+	return VariadicFuncParamDeepRepr{v.Ann.(*ParamAnnotationKey).ParamNameString()}
 }
 
-// VariadicFuncParamDeepPrestring is a Prestring storing the needed information to compactly encode a VariadicFuncParamDeep
-type VariadicFuncParamDeepPrestring struct {
+// VariadicFuncParamDeepRepr is a fmt.Stringer storing the needed information to compactly encode a VariadicFuncParamDeep
+type VariadicFuncParamDeepRepr struct {
 	ParamName string
 }
 
-func (v VariadicFuncParamDeepPrestring) String() string {
+func (v VariadicFuncParamDeepRepr) String() string {
 	return fmt.Sprintf("index of variadic parameter `%s`", v.ParamName)
 }
 
@@ -1142,19 +1142,19 @@ func (f *FuncReturnDeep) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this FuncReturnDeep as a Prestring
-func (f *FuncReturnDeep) Prestring() Prestring {
+// Repr returns this FuncReturnDeep as a fmt.Stringer
+func (f *FuncReturnDeep) Repr() fmt.Stringer {
 	key := f.Ann.(*RetAnnotationKey)
-	return FuncReturnDeepPrestring{key.RetNum, key.FuncDecl.Name()}
+	return FuncReturnDeepRepr{key.RetNum, key.FuncDecl.Name()}
 }
 
-// FuncReturnDeepPrestring is a Prestring storing the needed information to compactly encode a FuncReturnDeep
-type FuncReturnDeepPrestring struct {
+// FuncReturnDeepRepr is a fmt.Stringer storing the needed information to compactly encode a FuncReturnDeep
+type FuncReturnDeepRepr struct {
 	RetNum   int
 	FuncName string
 }
 
-func (f FuncReturnDeepPrestring) String() string {
+func (f FuncReturnDeepRepr) String() string {
 	return fmt.Sprintf("deep read from result %d of `%s()`", f.RetNum, f.FuncName)
 }
 
@@ -1172,18 +1172,18 @@ func (f *FldReadDeep) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this FldReadDeep as a Prestring
-func (f *FldReadDeep) Prestring() Prestring {
+// Repr returns this FldReadDeep as a fmt.Stringer
+func (f *FldReadDeep) Repr() fmt.Stringer {
 	key := f.Ann.(*FieldAnnotationKey)
-	return FldReadDeepPrestring{key.FieldDecl.Name()}
+	return FldReadDeepRepr{key.FieldDecl.Name()}
 }
 
-// FldReadDeepPrestring is a Prestring storing the needed information to compactly encode a FldReadDeep
-type FldReadDeepPrestring struct {
+// FldReadDeepRepr is a fmt.Stringer storing the needed information to compactly encode a FldReadDeep
+type FldReadDeepRepr struct {
 	FieldName string
 }
 
-func (f FldReadDeepPrestring) String() string {
+func (f FldReadDeepRepr) String() string {
 	return fmt.Sprintf("deep read from field `%s`", f.FieldName)
 }
 
@@ -1200,18 +1200,18 @@ func (v *LocalVarReadDeep) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this LocalVarReadDeep as a Prestring
-func (v LocalVarReadDeep) Prestring() Prestring {
+// Repr returns this LocalVarReadDeep as a fmt.Stringer
+func (v LocalVarReadDeep) Repr() fmt.Stringer {
 	varAnn := v.Ann.(*LocalVarAnnotationKey)
-	return LocalVarReadDeepPrestring{varAnn.VarDecl.Name()}
+	return LocalVarReadDeepRepr{varAnn.VarDecl.Name()}
 }
 
-// LocalVarReadDeepPrestring is a Prestring storing the needed information to compactly encode a LocalVarReadDeep
-type LocalVarReadDeepPrestring struct {
+// LocalVarReadDeepRepr is a fmt.Stringer storing the needed information to compactly encode a LocalVarReadDeep
+type LocalVarReadDeepRepr struct {
 	VarName string
 }
 
-func (v LocalVarReadDeepPrestring) String() string {
+func (v LocalVarReadDeepRepr) String() string {
 	return fmt.Sprintf("deep read from local variable `%s`", v.VarName)
 }
 
@@ -1229,18 +1229,18 @@ func (g *GlobalVarReadDeep) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this GlobalVarReadDeep as a Prestring
-func (g *GlobalVarReadDeep) Prestring() Prestring {
+// Repr returns this GlobalVarReadDeep as a fmt.Stringer
+func (g *GlobalVarReadDeep) Repr() fmt.Stringer {
 	key := g.Ann.(*GlobalVarAnnotationKey)
-	return GlobalVarReadDeepPrestring{key.VarDecl.Name()}
+	return GlobalVarReadDeepRepr{key.VarDecl.Name()}
 }
 
-// GlobalVarReadDeepPrestring is a Prestring storing the needed information to compactly encode a GlobalVarReadDeep
-type GlobalVarReadDeepPrestring struct {
+// GlobalVarReadDeepRepr is a fmt.Stringer storing the needed information to compactly encode a GlobalVarReadDeep
+type GlobalVarReadDeepRepr struct {
 	VarName string
 }
 
-func (g GlobalVarReadDeepPrestring) String() string {
+func (g GlobalVarReadDeepRepr) String() string {
 	return fmt.Sprintf("deep read from global variable `%s`", g.VarName)
 }
 
@@ -1267,17 +1267,18 @@ func (g *GuardMissing) equals(other ProducingAnnotationTrigger) bool {
 	return false
 }
 
-// Prestring returns this GuardMissing as a Prestring
-func (g *GuardMissing) Prestring() Prestring {
-	return GuardMissingPrestring{g.OldAnnotation.Prestring()}
+// Repr returns this GuardMissing as a fmt.Stringer
+func (g *GuardMissing) Repr() fmt.Stringer {
+	return GuardMissingRepr{g.OldAnnotation.Repr()}
 }
 
-// GuardMissingPrestring is a Prestring storing the needed information to compactly encode a GuardMissing
-type GuardMissingPrestring struct {
-	OldPrestring Prestring
+// GuardMissingRepr is a fmt.Stringer storing the needed information to compactly encode a GuardMissing
+type GuardMissingRepr struct {
+	// OldPrestring retains the existing gob field name for fact encoding compatibility.
+	OldPrestring fmt.Stringer
 }
 
-func (g GuardMissingPrestring) String() string {
+func (g GuardMissingRepr) String() string {
 	return fmt.Sprintf("%s lacking guarding;", g.OldPrestring.String())
 }
 

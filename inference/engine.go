@@ -548,6 +548,98 @@ func (e *Engine) observeImplication(
 	e.inferredMap.StoreImplication(producerSite, consumerSite, assertion)
 }
 
+// gobRegisteredTypes lists, in registration order, the concrete types that may be stored in the
+// interface-typed slots of the gob-encoded InferredMap fact (e.g., InferredVal, ExplainedBool,
+// and fmt.Stringer values).
+//
+// The gob type names are assigned sequentially from this slice (see GobRegister). The encoder
+// and decoder of the exported facts always run the same binary in supported setups (drivers key
+// their fact caches on the analyzer binary), so the exact order is not load-bearing; still,
+// prefer appending new entries at the end to keep names stable across versions.
+var gobRegisteredTypes = []any{
+	&DeterminedVal{},
+	&UndeterminedVal{},
+	FalseBecauseShallowConstraint{},
+	FalseBecauseDeepConstraint{},
+	FalseBecauseAnnotation{},
+	TrueBecauseShallowConstraint{},
+	TrueBecauseDeepConstraint{},
+	TrueBecauseAnnotation{},
+
+	annotation.PtrLoadRepr{},
+	annotation.MapAccessRepr{},
+	annotation.MapWrittenToRepr{},
+	annotation.SliceAccessRepr{},
+	annotation.FldAccessRepr{},
+	annotation.UseAsErrorResultRepr{},
+	annotation.FldAssignRepr{},
+	annotation.GlobalVarAssignRepr{},
+	annotation.ArgPassRepr{},
+	annotation.InterfaceResultFromImplementationRepr{},
+	annotation.MethodParamFromInterfaceRepr{},
+	annotation.UseAsReturnRepr{},
+	annotation.SliceAssignRepr{},
+	annotation.ArrayAssignRepr{},
+	annotation.PtrAssignRepr{},
+	annotation.MapAssignRepr{},
+	annotation.DeepAssignPrimitiveRepr{},
+	annotation.ParamAssignDeepRepr{},
+	annotation.FuncRetAssignDeepRepr{},
+	annotation.VariadicParamAssignDeepRepr{},
+	annotation.FieldAssignDeepRepr{},
+	annotation.GlobalVarAssignDeepRepr{},
+	annotation.LocalVarAssignDeepRepr{},
+	annotation.ChanSendRepr{},
+	annotation.ArgPassDeepRepr{},
+	annotation.UseAsReturnDeepRepr{},
+
+	annotation.TriggerIfNilableRepr{},
+	annotation.TriggerIfDeepNilableRepr{},
+	annotation.ProduceTriggerTautologyRepr{},
+	annotation.ProduceTriggerNeverRepr{},
+	annotation.PositiveNilCheckRepr{},
+	annotation.NegativeNilCheckRepr{},
+	annotation.ConstNilRepr{},
+	annotation.NoVarAssignRepr{},
+	annotation.FuncParamRepr{},
+	annotation.VariadicFuncParamRepr{},
+	annotation.TrustedFuncNilableRepr{},
+	annotation.TrustedFuncNonnilRepr{},
+	annotation.FldReadRepr{},
+	annotation.FuncReturnRepr{},
+	annotation.MethodReturnRepr{},
+	annotation.MethodResultReachesInterfaceRepr{},
+	annotation.InterfaceParamReachesImplementationRepr{},
+	annotation.GlobalVarReadRepr{},
+	annotation.MapReadRepr{},
+	annotation.SliceReadRepr{},
+	annotation.ArrayReadRepr{},
+	annotation.PtrReadRepr{},
+	annotation.ChanRecvRepr{},
+	annotation.FuncParamDeepRepr{},
+	annotation.VariadicFuncParamDeepRepr{},
+	annotation.FuncReturnDeepRepr{},
+	annotation.FldReadDeepRepr{},
+	annotation.LocalVarReadDeepRepr{},
+	annotation.GlobalVarReadDeepRepr{},
+	annotation.GuardMissingRepr{},
+	annotation.UseAsFldOfReturnRepr{},
+	annotation.ArgFldPassRepr{},
+	annotation.ParamFldReadRepr{},
+	annotation.UnassignedFldRepr{},
+	annotation.FldEscapeRepr{},
+	annotation.LocatedRepr{},
+	annotation.UseAsErrorRetWithNilabilityUnknownRepr{},
+	annotation.UseAsNonErrorRetDependentOnErrorRetNilabilityRepr{},
+	annotation.MethodRecvRepr{},
+	annotation.RecvPassRepr{},
+	annotation.MethodRecvDeepRepr{},
+	annotation.FldReturnRepr{},
+	annotation.StructFieldNilRepr{},
+	annotation.StructFieldFromContextRepr{},
+	annotation.StructFieldToContextRepr{},
+}
+
 // GobRegister must be called in an `init` function before attempting to run any procedure that can
 // deal with InferredAnnotationMaps as Facts. If not, gob encoding/decoding will be unable to handle
 // the data structures.
@@ -564,85 +656,7 @@ func GobRegister() {
 		return out
 	}
 
-	gob.RegisterName(nextStr(), &DeterminedVal{})
-	gob.RegisterName(nextStr(), &UndeterminedVal{})
-	gob.RegisterName(nextStr(), FalseBecauseShallowConstraint{})
-	gob.RegisterName(nextStr(), FalseBecauseDeepConstraint{})
-	gob.RegisterName(nextStr(), FalseBecauseAnnotation{})
-	gob.RegisterName(nextStr(), TrueBecauseShallowConstraint{})
-	gob.RegisterName(nextStr(), TrueBecauseDeepConstraint{})
-	gob.RegisterName(nextStr(), TrueBecauseAnnotation{})
-
-	gob.RegisterName(nextStr(), annotation.PtrLoadPrestring{})
-	gob.RegisterName(nextStr(), annotation.MapAccessPrestring{})
-	gob.RegisterName(nextStr(), annotation.MapWrittenToPrestring{})
-	gob.RegisterName(nextStr(), annotation.SliceAccessPrestring{})
-	gob.RegisterName(nextStr(), annotation.FldAccessPrestring{})
-	gob.RegisterName(nextStr(), annotation.UseAsErrorResultPrestring{})
-	gob.RegisterName(nextStr(), annotation.FldAssignPrestring{})
-	gob.RegisterName(nextStr(), annotation.GlobalVarAssignPrestring{})
-	gob.RegisterName(nextStr(), annotation.ArgPassPrestring{})
-	gob.RegisterName(nextStr(), annotation.InterfaceResultFromImplementationPrestring{})
-	gob.RegisterName(nextStr(), annotation.MethodParamFromInterfacePrestring{})
-	gob.RegisterName(nextStr(), annotation.UseAsReturnPrestring{})
-	gob.RegisterName(nextStr(), annotation.SliceAssignPrestring{})
-	gob.RegisterName(nextStr(), annotation.ArrayAssignPrestring{})
-	gob.RegisterName(nextStr(), annotation.PtrAssignPrestring{})
-	gob.RegisterName(nextStr(), annotation.MapAssignPrestring{})
-	gob.RegisterName(nextStr(), annotation.DeepAssignPrimitivePrestring{})
-	gob.RegisterName(nextStr(), annotation.ParamAssignDeepPrestring{})
-	gob.RegisterName(nextStr(), annotation.FuncRetAssignDeepPrestring{})
-	gob.RegisterName(nextStr(), annotation.VariadicParamAssignDeepPrestring{})
-	gob.RegisterName(nextStr(), annotation.FieldAssignDeepPrestring{})
-	gob.RegisterName(nextStr(), annotation.GlobalVarAssignDeepPrestring{})
-	gob.RegisterName(nextStr(), annotation.LocalVarAssignDeepPrestring{})
-	gob.RegisterName(nextStr(), annotation.ChanSendPrestring{})
-	gob.RegisterName(nextStr(), annotation.ArgPassDeepPrestring{})
-	gob.RegisterName(nextStr(), annotation.UseAsReturnDeepPrestring{})
-
-	gob.RegisterName(nextStr(), annotation.TriggerIfNilablePrestring{})
-	gob.RegisterName(nextStr(), annotation.TriggerIfDeepNilablePrestring{})
-	gob.RegisterName(nextStr(), annotation.ProduceTriggerTautologyPrestring{})
-	gob.RegisterName(nextStr(), annotation.ProduceTriggerNeverPrestring{})
-	gob.RegisterName(nextStr(), annotation.PositiveNilCheckPrestring{})
-	gob.RegisterName(nextStr(), annotation.NegativeNilCheckPrestring{})
-	gob.RegisterName(nextStr(), annotation.ConstNilPrestring{})
-	gob.RegisterName(nextStr(), annotation.NoVarAssignPrestring{})
-	gob.RegisterName(nextStr(), annotation.FuncParamPrestring{})
-	gob.RegisterName(nextStr(), annotation.VariadicFuncParamPrestring{})
-	gob.RegisterName(nextStr(), annotation.TrustedFuncNilablePrestring{})
-	gob.RegisterName(nextStr(), annotation.TrustedFuncNonnilPrestring{})
-	gob.RegisterName(nextStr(), annotation.FldReadPrestring{})
-	gob.RegisterName(nextStr(), annotation.FuncReturnPrestring{})
-	gob.RegisterName(nextStr(), annotation.MethodReturnPrestring{})
-	gob.RegisterName(nextStr(), annotation.MethodResultReachesInterfacePrestring{})
-	gob.RegisterName(nextStr(), annotation.InterfaceParamReachesImplementationPrestring{})
-	gob.RegisterName(nextStr(), annotation.GlobalVarReadPrestring{})
-	gob.RegisterName(nextStr(), annotation.MapReadPrestring{})
-	gob.RegisterName(nextStr(), annotation.SliceReadPrestring{})
-	gob.RegisterName(nextStr(), annotation.ArrayReadPrestring{})
-	gob.RegisterName(nextStr(), annotation.PtrReadPrestring{})
-	gob.RegisterName(nextStr(), annotation.ChanRecvPrestring{})
-	gob.RegisterName(nextStr(), annotation.FuncParamDeepPrestring{})
-	gob.RegisterName(nextStr(), annotation.VariadicFuncParamDeepPrestring{})
-	gob.RegisterName(nextStr(), annotation.FuncReturnDeepPrestring{})
-	gob.RegisterName(nextStr(), annotation.FldReadDeepPrestring{})
-	gob.RegisterName(nextStr(), annotation.LocalVarReadDeepPrestring{})
-	gob.RegisterName(nextStr(), annotation.GlobalVarReadDeepPrestring{})
-	gob.RegisterName(nextStr(), annotation.GuardMissingPrestring{})
-	gob.RegisterName(nextStr(), annotation.UseAsFldOfReturnPrestring{})
-	gob.RegisterName(nextStr(), annotation.ArgFldPassPrestring{})
-	gob.RegisterName(nextStr(), annotation.ParamFldReadPrestring{})
-	gob.RegisterName(nextStr(), annotation.UnassignedFldPrestring{})
-	gob.RegisterName(nextStr(), annotation.FldEscapePrestring{})
-	gob.RegisterName(nextStr(), annotation.LocatedPrestring{})
-	gob.RegisterName(nextStr(), annotation.UseAsErrorRetWithNilabilityUnknownPrestring{})
-	gob.RegisterName(nextStr(), annotation.UseAsNonErrorRetDependentOnErrorRetNilabilityPrestring{})
-	gob.RegisterName(nextStr(), annotation.MethodRecvPrestring{})
-	gob.RegisterName(nextStr(), annotation.RecvPassPrestring{})
-	gob.RegisterName(nextStr(), annotation.MethodRecvDeepPrestring{})
-	gob.RegisterName(nextStr(), annotation.FldReturnPrestring{})
-	gob.RegisterName(nextStr(), annotation.StructFieldNilPrestring{})
-	gob.RegisterName(nextStr(), annotation.StructFieldFromContextPrestring{})
-	gob.RegisterName(nextStr(), annotation.StructFieldToContextPrestring{})
+	for _, v := range gobRegisteredTypes {
+		gob.RegisterName(nextStr(), v)
+	}
 }
