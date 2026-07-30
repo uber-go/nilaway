@@ -14,8 +14,6 @@
 
 /*
 This package aims to test nilability behavior surrounding arrays
-
-<nilaway no inference>
 */
 package arrays
 
@@ -30,42 +28,60 @@ func testArrayRet() [2]*int {
 	return globalArr
 }
 
-// nilable(v)
-// nonnil(a[])
 func testParamArrayWrite(a [4]*int, v *int, b bool) (*int, *int) {
+	a[0] = new(int)
+	v = nil
 	if b {
-		a[0] = v //want "assigned deeply into parameter arg `a`"
+		a[0] = v
+		print(*a[0]) //want "dereferenced"
 	}
-	return a[0], a[1] //want "returned from `testParamArrayWrite.*` in position 0"
+	print(*a[0]) //want "dereferenced"
+	return a[0], a[1]
 }
 
 func testGlobalArrayWrite(v *int, b bool) *int {
+	globalArr[0] = new(int)
+	v = nil
 	if b {
 		globalArr[0] = v
 	}
-	return globalArr[0] //want "returned"
+	print(*globalArr[0]) //want "dereferenced"
+	return globalArr[0]
 }
 
 func testLocalArrayWrite() *int {
+	globalArr[0] = nil
 	var a [4]*int
 	a[0] = globalArr[0]
-	return a[0] //want "returned"
+	print(*a[0]) //want "dereferenced"
+	return a[0]
 }
 
-// nilable(v)
 func testParamNilableArrayWrite(a [4]*int, v *int, b bool) (*int, *int) {
+	a[0] = new(int)
+	v = nil
 	if b {
 		a[0] = v
 	}
 	i := 0
 	a[1] = &i
-	return a[0], a[1] //want "deep read from parameter `a`" "returned from `testParamNilableArrayWrite.*` in position 0"
+	print(*a[0]) //want "dereferenced"
+	return a[0], a[1]
 }
 
-// nonnil(a[])
+func testParamNilableArrayWriteCall() {
+	v, _ := testParamNilableArrayWrite([4]*int{}, new(int), true)
+	print(*v) //want "dereferenced"
+}
+
 func testArrayWriteNil(a [4]*int) *int {
-	a[0] = nil  //want "assigned deeply into parameter arg `a`"
-	return a[0] //want "returned"
+	a[0] = nil
+	print(*a[0]) //want "dereferenced"
+	return a[0]
+}
+
+func testArrayWriteNilCall() {
+	print(*testArrayWriteNil([4]*int{})) //want "dereferenced"
 }
 
 func testArrayWriteInit(a [2]int) *int {
@@ -76,7 +92,9 @@ func testArrayWriteInit(a [2]int) *int {
 func testGlobals(i int) *int {
 	switch i {
 	case 1:
-		return globalArr[0] //want "returned"
+		globalArr[0] = nil
+		print(*globalArr[0]) //want "dereferenced"
+		return globalArr[0]
 	case 3:
 		return twodArr[0][0]
 	case 4:
@@ -94,20 +112,22 @@ func dummyBool() bool {
 }
 
 func testArrayCopy(a [2]*int) *int {
+	a[1] = nil
 	var b [2]*int
 	b = a
-	return b[1] //want "returned"
+	print(*b[1]) //want "dereferenced"
+	return b[1]
 }
 
-// nonnil(i[])
 type t struct {
 	i [2]*int
 }
 
-// nonnil(a[])
 func testArrayMultiLevelAssign(a [2]*t) {
+	a[0] = &t{}
 	var x *int
-	a[0].i[0] = x //want "assigned deeply into field `i`"
+	a[0].i[0] = x
+	print(*a[0].i[0]) //want "dereferenced"
 }
 
 func testEmptyArrayReturn(a [0]*int) [0]*int {
@@ -131,7 +151,8 @@ func test2dArrayAssignment() *int {
 	var nilableTwodArr [5][5]*int
 	nilableTwodArr[0][0] = nil
 	twodArr = nilableTwodArr // TODO: an error should be reported here since we are assigning a (default) deeply nilable array 'nilableTwodArr' into a declared deeply nonnil array 'twodArr'
-	return twodArr[0][0]     //want "returned"
+	print(*twodArr[0][0])    //want "dereferenced"
+	return twodArr[0][0]
 }
 
 // Test a case where we declare a type alias for an array and then range over it.
