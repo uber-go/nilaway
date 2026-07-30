@@ -275,6 +275,7 @@ func testChainedAccesses(x *X, i int) bool {
 
 // ---- test len checks ----
 func testLenChecks(s []int, i int) bool {
+	s = nil
 	var t []int
 
 	switch i {
