@@ -94,7 +94,7 @@ var boolOrErrorExpr splitBlockOnAction = func(pass *analysishelper.EnhancedPass,
 	if argIndex < 0 || argIndex >= len(call.Args) {
 		return nil
 	}
-	if isBoolExpr(pass, call.Args[argIndex]) {
+	if pass.IsBoolExpr(call.Args[argIndex]) {
 		return selfExpr(pass, call, argIndex)
 	}
 	t := pass.TypesInfo.TypeOf(call.Args[argIndex])
@@ -147,25 +147,15 @@ var goconveySoExpr splitBlockOnAction = func(pass *analysishelper.EnhancedPass, 
 	case "ShouldNotBeNil", "ShouldBeError":
 		return nonnilBinaryExpr(pass, call, argIndex)
 	case "ShouldBeTrue":
-		if isBoolExpr(pass, call.Args[argIndex]) {
+		if pass.IsBoolExpr(call.Args[argIndex]) {
 			return selfExpr(pass, call, argIndex)
 		}
 	case "ShouldBeFalse":
-		if isBoolExpr(pass, call.Args[argIndex]) {
+		if pass.IsBoolExpr(call.Args[argIndex]) {
 			return negatedSelfExpr(pass, call, argIndex)
 		}
 	}
 	return nil
-}
-
-// isBoolExpr reports whether the expression is statically of boolean type.
-func isBoolExpr(pass *analysishelper.EnhancedPass, expr ast.Expr) bool {
-	t := pass.TypesInfo.TypeOf(expr)
-	if t == nil {
-		return false
-	}
-	basic, ok := t.Underlying().(*types.Basic)
-	return ok && basic.Kind() == types.Bool
 }
 
 // The constant (enum) values below represent the possible values of an expected expression in a comparison
