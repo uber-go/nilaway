@@ -13,7 +13,6 @@
 
 // This package aims to test nilability behavior for `range` in loops.
 
-// <nilaway no inference>
 package looprange
 
 import (
@@ -28,6 +27,8 @@ func dummyBool() bool          { return true }
 // The below tests ensure that all forms of range loops correctly produce their ranging expression
 // as non-nil - including limiting the scope of that production to within their loop bodies
 func testRangeForSlices(a []*int) *int {
+	a = nil
+
 	for range a {
 		// here and in following similar cases:
 		// check that a can be indexed into (since it's nonnil)
@@ -138,7 +139,8 @@ func testRangeOverMaps(a, b, c, d map[int]*int) *int {
 		}
 	case 2:
 		for _, b_elem := range b {
-			return b_elem //want "returned"
+			print(*b_elem) //want "dereferenced"
+			return b_elem
 		}
 	case 3:
 		for _, c_elem := range c {
@@ -146,7 +148,8 @@ func testRangeOverMaps(a, b, c, d map[int]*int) *int {
 		}
 	case 4:
 		for _, d_elem := range d {
-			return d_elem //want "returned"
+			print(*d_elem) //want "dereferenced"
+			return d_elem
 		}
 	}
 	i := 0
@@ -163,7 +166,8 @@ func testRangeOverChannels(a, b, c, d chan *int) *int {
 		}
 	case 2:
 		for b_elem := range b {
-			return b_elem //want "returned"
+			print(*b_elem) //want "dereferenced"
+			return b_elem
 		}
 	case 3:
 		for c_elem := range c {
@@ -171,7 +175,8 @@ func testRangeOverChannels(a, b, c, d chan *int) *int {
 		}
 	case 4:
 		for d_elem := range d {
-			return d_elem //want "returned"
+			print(*d_elem) //want "dereferenced"
+			return d_elem
 		}
 	}
 	i := 0
@@ -218,7 +223,7 @@ type Set map[string]bool
 
 type MyAlias = Set
 
-//nilable(s)
+// nilable(s)
 func testAlias(s MyAlias) {
 	for myStr := range s {
 		print(myStr)
