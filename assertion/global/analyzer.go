@@ -89,8 +89,14 @@ func getInitFuncDecls(file *ast.File) []*ast.FuncDecl {
 		if _, visited := visitedFuncs[funcDecl.Name.Name]; visited {
 			return
 		}
-		initFuncDecls = append(initFuncDecls, funcDecl)
 		visitedFuncs[funcDecl.Name.Name] = struct{}{}
+		// Some functions are implemented outside Go (for example, in assembly or through
+		// go:linkname) and therefore have no body. They cannot contain assignments for us to
+		// inspect, and passing their typed-nil body to ast.Inspect causes a panic.
+		if funcDecl.Body == nil {
+			return
+		}
+		initFuncDecls = append(initFuncDecls, funcDecl)
 		ast.Inspect(funcDecl.Body, func(n ast.Node) bool {
 			if callExpr, ok := n.(*ast.CallExpr); ok {
 				if ident, ok := callExpr.Fun.(*ast.Ident); ok {
