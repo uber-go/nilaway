@@ -30,8 +30,8 @@ import (
 // an error
 //
 // All ConsumingAnnotationTriggers must embed one of the following 3 structs:
-// -TriggerIfNonnil
-// -TriggerIfDeepNonnil
+// -TriggerIfNonNil
+// -TriggerIfDeepNonNil
 // -ConsumeTriggerTautology
 type ConsumingAnnotationTrigger interface {
 	// CheckConsume can be called to determined whether this trigger should be triggered

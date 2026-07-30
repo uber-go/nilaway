@@ -18,12 +18,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/nilaway/nilawaytest"
 )
 
 const _interfaceNameConsumingAnnotationTrigger = "ConsumingAnnotationTrigger"
 
 // initStructsConsumingAnnotationTrigger initializes all structs that implement the ConsumingAnnotationTrigger interface
-var initStructsConsumingAnnotationTrigger = []any{
+var initStructsConsumingAnnotationTrigger = []ConsumingAnnotationTrigger{
 	&TriggerIfNonNil{Ann: newMockKey()},
 	&TriggerIfDeepNonNil{Ann: newMockKey()},
 	&ConsumeTriggerTautology{},
@@ -62,33 +63,26 @@ var initStructsConsumingAnnotationTrigger = []any{
 	&StructFieldToContext{TriggerIfNonNil: &TriggerIfNonNil{Ann: newMockKey()}},
 }
 
-// ConsumingAnnotationTriggerEqualsTestSuite tests for the `equals` method of all the structs that implement
+// TestConsumingAnnotationTriggerEqualsSuite tests the `equals` method of all structs implementing
 // the `ConsumingAnnotationTrigger` interface.
-type ConsumingAnnotationTriggerEqualsTestSuite struct {
-	EqualsTestSuite
-}
-
-func (s *ConsumingAnnotationTriggerEqualsTestSuite) SetupTest() {
-	s.interfaceName = _interfaceNameConsumingAnnotationTrigger
-	s.initStructs = initStructsConsumingAnnotationTrigger
-}
-
 func TestConsumingAnnotationTriggerEqualsSuite(t *testing.T) {
 	t.Parallel()
-	suite.Run(t, new(ConsumingAnnotationTriggerEqualsTestSuite))
+	suite.Run(t, nilawaytest.NewEqualsTestSuite(
+		_interfaceNameConsumingAnnotationTrigger,
+		".",
+		initStructsConsumingAnnotationTrigger,
+		func(c1, c2 ConsumingAnnotationTrigger) bool { return c1.equals(c2) },
+	))
 }
 
-// ConsumingAnnotationTriggerCopyTestSuite tests for the `copy` method of all the structs that implement
+// TestConsumingAnnotationTriggerCopySuite tests the `Copy` method of all structs implementing
 // the `ConsumingAnnotationTrigger` interface.
-type ConsumingAnnotationTriggerCopyTestSuite struct {
-	CopyTestSuite
-}
-
-func (s *ConsumingAnnotationTriggerCopyTestSuite) SetupTest() {
-	s.interfaceName = _interfaceNameConsumingAnnotationTrigger
-	s.initStructs = initStructsConsumingAnnotationTrigger
-}
 func TestConsumingAnnotationTriggerCopySuite(t *testing.T) {
 	t.Parallel()
-	suite.Run(t, new(ConsumingAnnotationTriggerCopyTestSuite))
+	suite.Run(t, nilawaytest.NewCopyTestSuite(
+		_interfaceNameConsumingAnnotationTrigger,
+		".",
+		initStructsConsumingAnnotationTrigger,
+		func(c ConsumingAnnotationTrigger) ConsumingAnnotationTrigger { return c.Copy() },
+	))
 }
