@@ -51,7 +51,7 @@ func run(p *analysis.Pass) (*BoundaryFieldEffects, error) {
 	}
 
 	collected := computeBoundaryFieldEffects(pass)
-	if err := importUsedParamEffects(pass, collected.summary, collected.callees); err != nil {
+	if err := importUsedParamEffects(pass, collected.summary, collected.calledFunctions); err != nil {
 		return nil, err
 	}
 
@@ -103,9 +103,9 @@ func run(p *analysis.Pass) (*BoundaryFieldEffects, error) {
 	return packageSummary, nil
 }
 
-func importUsedParamEffects(pass *analysishelper.EnhancedPass, effects *BoundaryFieldEffects, callees map[*types.Func]bool) error {
+func importUsedParamEffects(pass *analysishelper.EnhancedPass, effects *BoundaryFieldEffects, calledFunctions map[*types.Func]bool) error {
 	calleesByPackage := make(map[*types.Package][]*types.Func)
-	for callee := range callees {
+	for callee := range calledFunctions {
 		if callee.Pkg() != nil && callee.Pkg() != pass.Pkg {
 			calleesByPackage[callee.Pkg()] = append(calleesByPackage[callee.Pkg()], callee)
 		}
