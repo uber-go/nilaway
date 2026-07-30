@@ -69,7 +69,7 @@ func TestNilAway(t *testing.T) {
 		{name: "IgnorePackage", patterns: []string{"ignoredpkg1", "ignoredpkg2"}},
 		{name: "Receivers", patterns: []string{"go.uber.org/receivers", "go.uber.org/receivers/inference"}},
 		{name: "Generics", patterns: []string{"go.uber.org/generics"}},
-		{name: "FunctionContracts", patterns: []string{"go.uber.org/functioncontracts", "go.uber.org/functioncontracts/inference"}},
+		{name: "FunctionContracts", patterns: []string{"go.uber.org/functioncontracts"}},
 		{name: "Constants", patterns: []string{"go.uber.org/consts"}},
 		{name: "LoopRange", patterns: []string{"go.uber.org/looprange"}},
 		{name: "AbnormalFlow", patterns: []string{"go.uber.org/abnormalflow"}},

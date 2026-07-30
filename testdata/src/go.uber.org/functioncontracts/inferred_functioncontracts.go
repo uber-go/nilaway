@@ -12,15 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// This file tests automatically inferred function contracts.
 
-// This package aims to test automated inferred function contracts in full inference mode.
-
-package inference
+package functioncontracts
 
 import "math/rand"
 
 // Test the contracted function contains a full trigger nilable -> return 0.
-func fooReturn(x *int) *int {
+func inferredFooReturn(x *int) *int {
 	if x != nil {
 		// Return nonnil
 		return new(int)
@@ -33,21 +32,21 @@ func fooReturn(x *int) *int {
 	}
 }
 
-func barReturn1() {
+func inferredBarReturn1() {
 	n := 1
 	a1 := &n
-	b1 := fooReturn(a1)
+	b1 := inferredFooReturn(a1)
 	print(*b1) // No error due to the contract.
 }
 
-func barReturn2() {
+func inferredBarReturn2() {
 	var a2 *int
-	b2 := fooReturn(a2)
-	print(*b2) // want "result 0 of `fooReturn.*` .* dereferenced"
+	b2 := inferredFooReturn(a2)
+	print(*b2) // want "result 0 of `inferredFooReturn.*` .* dereferenced"
 }
 
 // Test the contracted function contains a full trigger param 0 -> nonnil.
-func fooParam(x *int) *int {
+func inferredFooParam(x *int) *int {
 	if x != nil {
 		return new(int)
 	}
@@ -59,29 +58,27 @@ func fooParam(x *int) *int {
 	}
 }
 
-func barParam1() {
+func inferredBarParam1() {
 	n := 1
 	a1 := &n
-	b1 := fooParam(a1)
+	b1 := inferredFooParam(a1)
 	print(*b1)
 }
 
-func barParam2() {
+func inferredBarParam2() {
 	var a2 *int
-	b2 := fooParam(a2)
-	print(*b2) // want "result 0 of `fooParam.*` .* dereferenced"
+	b2 := inferredFooParam(a2)
+	print(*b2) // want "result 0 of `inferredFooParam.*` .* dereferenced"
 }
-
-func sink(v int) {}
 
 // Test the contracted function contains another contracted function.
 // TODO: remove the contract here when we can automatically infer the contract for this function.
 // contract(nonnil -> nonnil)
-func fooNested(x *int) *int {
-	return fooBase(x)
+func inferredFooNested(x *int) *int {
+	return inferredFooBase(x)
 }
 
-func fooBase(x *int) *int {
+func inferredFooBase(x *int) *int {
 	if x != nil {
 		return new(int)
 	}
@@ -92,17 +89,17 @@ func fooBase(x *int) *int {
 	}
 }
 
-func barNested1() {
+func inferredBarNested1() {
 	n := 1
 	a1 := &n
-	b1 := fooNested(a1)
+	b1 := inferredFooNested(a1)
 	print(*b1) // No error here due to the contract.
 }
 
-func barNested2() {
+func inferredBarNested2() {
 	var a2 *int
-	b2 := fooNested(a2)
-	print(*b2) // want "result 0 of `fooNested.*` .* dereferenced"
+	b2 := inferredFooNested(a2)
+	print(*b2) // want "result 0 of `inferredFooNested.*` .* dereferenced"
 }
 
 // Test the contracted function is called by another function.
@@ -126,7 +123,7 @@ func barParamCalledInAnotherFunction() {
 func call(x *int) {}
 
 // Test a contracted function is called multiple times in another function.
-func fooReturnCalledMultipleTimesInTheSameFunction(x *int) *int {
+func inferredFooReturnCalledMultipleTimesInTheSameFunction(x *int) *int {
 	if x != nil {
 		return new(int)
 	}
@@ -137,22 +134,22 @@ func fooReturnCalledMultipleTimesInTheSameFunction(x *int) *int {
 	}
 }
 
-func barReturnCalledMultipleTimesInTheSameFunction() {
+func inferredBarReturnCalledMultipleTimesInTheSameFunction() {
 	n := 1
 	a1 := &n
-	b1 := fooReturnCalledMultipleTimesInTheSameFunction(a1)
+	b1 := inferredFooReturnCalledMultipleTimesInTheSameFunction(a1)
 	print(*b1) // No error here due to the contract.
 
 	var a2 *int
-	b2 := fooReturnCalledMultipleTimesInTheSameFunction(a2)
-	print(*b2) // want "result 0 of `fooReturnCalledMultipleTimesInTheSameFunction.*` .* dereferenced"
+	b2 := inferredFooReturnCalledMultipleTimesInTheSameFunction(a2)
+	print(*b2) // want "result 0 of `inferredFooReturnCalledMultipleTimesInTheSameFunction.*` .* dereferenced"
 
 	m := 2
 	a3 := &m
-	b3 := fooReturnCalledMultipleTimesInTheSameFunction(a3)
+	b3 := inferredFooReturnCalledMultipleTimesInTheSameFunction(a3)
 	print(*b3) // No error here due to the contract.
 
 	var a4 *int
-	b4 := fooReturnCalledMultipleTimesInTheSameFunction(a4)
-	print(*b4) // want "result 0 of `fooReturnCalledMultipleTimesInTheSameFunction.*` .* dereferenced"
+	b4 := inferredFooReturnCalledMultipleTimesInTheSameFunction(a4)
+	print(*b4) // want "result 0 of `inferredFooReturnCalledMultipleTimesInTheSameFunction.*` .* dereferenced"
 }

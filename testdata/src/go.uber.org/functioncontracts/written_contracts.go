@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package inference
+package functioncontracts
 
-// This file tests if NilAway's capability to respect the written contracts in full inference mode.
+// This file tests NilAway's capability to respect written contracts alongside inference.
 
 import "math/rand"
 
@@ -50,20 +50,13 @@ func useIncorrectContract2() {
 	print(*b2) // want "result 0 of `incorrectContract.*` .* dereferenced" "result 0 of `incorrectContract.*` .* dereferenced"
 }
 
-// Contract below isn't useful, since return is always nonnil and argument is ignored, but added to
-// check we don't crash on unnamed parameters.
-// contract(nonnil -> nonnil)
-func fooUnnamedParam(_ *int) *int {
-	return new(int)
-}
-
-func barUnnamedParam1() {
+func inferredBarUnnamedParam1() {
 	var a1 *int
 	b1 := fooUnnamedParam(a1)
 	print(*b1) // No error here.
 }
 
-func barUnnamedParam2() {
+func inferredBarUnnamedParam2() {
 	var a2 *int
 	b2 := fooUnnamedParam(a2)
 	print(*b2) // No error here.
