@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This package aims to test hand-written function contracts in no inference mode.
-// <nilaway no inference>
+// This file tests hand-written function contracts.
 package functioncontracts
 
 import "math/rand"
@@ -57,7 +56,7 @@ func fooParam(x *int) *int {
 	if rand.Float64() > 0.5 {
 		return new(int)
 	} else {
-		sink(*x) // want "dereferenced"
+		sink(*x) //want "dereferenced" "function parameter `x`.*dereferenced"
 		return nil
 	}
 }
@@ -147,7 +146,7 @@ func barReturnCalledMultipleTimesInTheSameFunction() {
 // Test call site annotations are wrongly written.
 // nilable(x, result 0)
 // contract(nonnil -> nonnil)
-func fooWrongCallSiteAnnotation(x *int) *int {
+func fooWrongCallSiteAnnotation(x *int) *int { //want "unassigned variable `a`" "literal `nil` returned"
 	if x != nil {
 		// Return nonnil
 		return new(int)
@@ -162,7 +161,7 @@ func fooWrongCallSiteAnnotation(x *int) *int {
 
 func barWrongCallSiteAnnotation() {
 	var a *int
-	b := fooWrongCallSiteAnnotation(a) // nonnil(param 0, result 0) // want "unassigned variable `a`"
+	b := fooWrongCallSiteAnnotation(a) // nonnil(param 0, result 0)
 	print(*b)                          // safe because the call site annotation is used
 }
 
@@ -185,8 +184,9 @@ func barNoCallSiteAnnoatation() {
 	var a *int
 	// We should rely on the function header annotations if we do not find any call site
 	// annotations.
-	v := fooNoCallSiteAnnoatation(a) // want "passed"
-	print(*v)                        // want "dereferenced"
+	print(*a) //want "dereferenced"
+	v := fooNoCallSiteAnnoatation(a)
+	print(*v) // want "dereferenced"
 }
 
 // Contract below isn't useful, since return is always nonnil and argument is ignored, but added to
@@ -199,11 +199,11 @@ func fooUnnamedParam(_ *int) *int {
 func barUnnamedParam1() {
 	var a1 *int
 	b1 := fooUnnamedParam(a1) // nilable(param 0) nonnil(result 0)
-	print(*b1) // No error here.
+	print(*b1)                // No error here.
 }
 
 func barUnnamedParam2() {
 	var a2 *int
 	b2 := fooUnnamedParam(a2) // nilable(param 0) nonnil(result 0)
-	print(*b2) // No error here.
+	print(*b2)                // No error here.
 }

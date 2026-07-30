@@ -14,8 +14,6 @@
 
 /*
 These tests check if the nonnil global variables are initialized
-
-<nilaway no inference>
 */
 package globalvars
 
@@ -23,8 +21,6 @@ import "go.uber.org/globalvars/upstream"
 
 var x = 3
 
-// This should throw an error since it is not initialized
-var noInit *int //want "assigned into global variable"
 var _init *int
 var _initMult1, _initMult2 *int
 
@@ -65,12 +61,24 @@ func init() {
 
 // nilable(nilableVar)
 var nilableVar *int
-var assignedNilable = nilableVar //want "assigned"
+var assignedNilable = nilableVar
 
-var initMult, noInitMult *int = &x, nil //want "assigned"
+func testAssignedNilable() {
+	print(*assignedNilable) //want "dereferenced"
+}
+
+var initMult, noInitMult *int = &x, nil
+
+func testNoInitMult() {
+	print(*noInitMult) //want "dereferenced"
+}
 
 // Use of 1-1 assignment and a function call
-var initNew, noInitAgain = new(*int), nilableFun() //want "assigned"
+var initNew, noInitAgain = new(*int), nilableFun()
+
+func testNoInitAgain() {
+	print(*noInitAgain) //want "dereferenced"
+}
 
 // nilable(result 0)
 func nilableFun() *string {
@@ -103,7 +111,11 @@ type structA struct {
 }
 
 var stA = &structA{}
-var nilableField = stA.A //want "assigned"
+var nilableField = stA.A
+
+func testNilableField() {
+	print(*nilableField) //want "dereferenced"
+}
 
 // nilable(result 0)
 func (structA) methA() *int {
@@ -114,7 +126,11 @@ func (structA) methB() *int {
 	return new(int)
 }
 
-var nilableMethod, nonnilMethod = stA.methA(), stA.methB() //want "assigned"
+var nilableMethod, nonnilMethod = stA.methA(), stA.methB()
+
+func testNilableMethod() {
+	print(*nilableMethod) //want "dereferenced"
+}
 
 // Function with multiple returns
 
@@ -123,12 +139,16 @@ func funMulti() (int, *int) {
 	return 2, new(int)
 }
 
-var multiNonNil, multiNil = funMulti() //want "assigned"
+var multiNonNil, multiNil = funMulti()
+
+func testMultiNil() {
+	print(*multiNil) //want "dereferenced"
+}
 
 // nilable(result 0)
 func foo() *int {
 	// Just arbitrary use of all the vars to avoid unused var errors
-	print(noInit, primitive, prim1, prim2, noInitButNilable, nilableMethod)
+	print(primitive, prim1, prim2, noInitButNilable, nilableMethod)
 	print(noInitMult, initMult, initNew, noInitAgain, nilableField)
 	print(multiNonNil, multiNil, nonnilMethod, assignedNilable)
 	return nil

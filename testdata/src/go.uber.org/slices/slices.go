@@ -14,8 +14,6 @@
 
 /*
 This package aims to test nilability behavior surrounding slices
-
-<nilaway no inference>
 */
 package slices
 
@@ -39,19 +37,33 @@ var nilablenonNilSl [][]int
 var nonNilnonNilSl [][]int = [][]int{{1, 2}}
 
 func testGlobals() int {
+	nilableSl = nil
+	nilablenonNilSl = nil
+
 	switch 0 {
 	case 1:
 		return nilableSl[0] //want "sliced into"
 	case 2:
 		return nonNilSl[0]
 	case 3:
-		return nilablenilableSl[0][0] //want "sliced into" "sliced into"
+		_ = nilablenilableSl[0] //want "sliced into"
+		nilablenilableSl = make([][]int, 1)
+		nilablenilableSl[0] = nil
+		return nilablenilableSl[0][0] //want "sliced into"
 	case 4:
-		local := nilablenilableSl[0] //want "sliced into"
-		return local[0]              //want "sliced into"
+		nilablenilableSl = nil
+		_ = nilablenilableSl[0] //want "sliced into"
+		nilablenilableSl = make([][]int, 1)
+		nilablenilableSl[0] = nil
+		local := nilablenilableSl[0]
+		return local[0] //want "sliced into"
 	case 5:
+		nonNilnilableSl = make([][]int, 1)
+		nonNilnilableSl[0] = nil
 		return nonNilnilableSl[0][0] //want "sliced into"
 	case 6:
+		nonNilnilableSl = make([][]int, 1)
+		nonNilnilableSl[0] = nil
 		local := nonNilnilableSl[0]
 		return local[0] //want "sliced into"
 	case 7:
@@ -71,7 +83,9 @@ func testGlobals() int {
 type simpleWrap []int
 
 // nonnil(nonNilWrap)
-func testSimpleWrap(nilableWrap, nonNilWrap simpleWrap) int {
+func testSimpleWrap(nonNilWrap simpleWrap) int {
+	var nilableWrap simpleWrap
+
 	if aBool {
 		return nilableWrap[0] //want "sliced into"
 	} else {
@@ -86,25 +100,39 @@ type wrappednonNilSl [][]int
 
 // nonnil(nonNilSl, nonNilnilableSl, nonNilnonNilSl)
 func testTypedParams(
-	nilableSl, nonNilSl []int,
+	nonNilSl []int,
 	nilablenilableSl wrappednilableSl,
 	nonNilnilableSl wrappednilableSl,
-	nilablenonNilSl wrappednonNilSl,
 	nonNilnonNilSl wrappednonNilSl,
 ) int {
+	var nilableSl []int
+	var nilablenonNilSl wrappednonNilSl
+
 	switch 0 {
 	case 1:
 		return nilableSl[0] //want "sliced into"
 	case 2:
 		return nonNilSl[0]
 	case 3:
-		return nilablenilableSl[0][0] //want "sliced into" "sliced into"
+		nilablenilableSl = nil
+		_ = nilablenilableSl[0] //want "sliced into"
+		nilablenilableSl = make(wrappednilableSl, 1)
+		nilablenilableSl[0] = nil
+		return nilablenilableSl[0][0] //want "sliced into"
 	case 4:
-		local := nilablenilableSl[0] //want "sliced into"
-		return local[0]              //want "sliced into"
+		nilablenilableSl = nil
+		_ = nilablenilableSl[0] //want "sliced into"
+		nilablenilableSl = make(wrappednilableSl, 1)
+		nilablenilableSl[0] = nil
+		local := nilablenilableSl[0]
+		return local[0] //want "sliced into"
 	case 5:
+		nonNilnilableSl = make(wrappednilableSl, 1)
+		nonNilnilableSl[0] = nil
 		return nonNilnilableSl[0][0] //want "sliced into"
 	case 6:
+		nonNilnilableSl = make(wrappednilableSl, 1)
+		nonNilnilableSl[0] = nil
 		local := nonNilnilableSl[0]
 		return local[0] //want "sliced into"
 	case 7:
@@ -121,7 +149,9 @@ func testTypedParams(
 	return 0
 }
 
-func lengthCheckAsNilCheckTest(a []int) int {
+func lengthCheckAsNilCheckTest() int {
+	var a []int
+
 	switch 0 {
 	case 1:
 		return a[0] //want "sliced into"
@@ -254,76 +284,78 @@ func lengthCheckAsNilCheckTest(a []int) int {
 		}
 	case 32:
 		var b int
-		for i := 0; i < len(a) + 2 + b; i ++ {
+		for i := 0; i < len(a)+2+b; i++ {
 			_ = a[i]
 		}
 	case 33:
 		var b int
-		for i := 0; i + 1 < len(a) + 2 + b; i ++ {
+		for i := 0; i+1 < len(a)+2+b; i++ {
 			_ = a[i]
 		}
 	case 34:
 		var b int
-		for i := 0; i <= len(a) + 2 + b; i ++ {
+		for i := 0; i <= len(a)+2+b; i++ {
 			_ = a[i]
 		}
 
 	// `len(a) - 1 >= 0` implies `len(a) >= 1`, so `a` is non-nil. The same holds for any
 	// `len(a) - positive >= 0` or `len(a) + negative >= 0`.
 	case 35:
-		if len(a) - 1 >= 0 {
+		if len(a)-1 >= 0 {
 			return a[0]
 		}
 	case 36:
-		if 0 <= len(a) - 1 {
+		if 0 <= len(a)-1 {
 			return a[0]
 		}
 	case 37:
-		if len(a) - 1 < 0 {
+		if len(a)-1 < 0 {
 			return 0
 		}
 		return a[0]
 	case 38:
-		if 0 > len(a) - 1 {
+		if 0 > len(a)-1 {
 			return 0
 		}
 		return a[0]
 	case 39:
-		if len(a) - 5 >= 0 {
+		if len(a)-5 >= 0 {
 			return a[0]
 		}
 	case 40:
-		if len(a) + (-1) >= 0 {
+		if len(a)+(-1) >= 0 {
 			return a[0]
 		}
 	case 41:
-		if len(a) + (-3) >= 0 {
+		if len(a)+(-3) >= 0 {
 			return a[0]
 		}
 	case 42:
-		if 0 <= len(a) + (-2) {
+		if 0 <= len(a)+(-2) {
 			return a[0]
 		}
 	case 43:
 		// `len(a) - 0 >= 0` is always true, so it tells us nothing: `a` may be nil.
-		if len(a) - 0 >= 0 {
+		if len(a)-0 >= 0 {
 			return a[0] //want "sliced into"
 		}
 	case 44:
 		// `len(a) + 1 >= 0` is always true, so it tells us nothing: `a` may be nil.
-		if len(a) + 1 >= 0 {
+		if len(a)+1 >= 0 {
 			return a[0] //want "sliced into"
 		}
 	case 45:
 		// `5 - len(a) >= 0` means `len(a) <= 5`, which tells us nothing: `a` may be nil.
-		if 5 - len(a) >= 0 {
+		if 5-len(a) >= 0 {
 			return a[0] //want "sliced into"
 		}
 	}
 	return 0
 }
 
-func lengthCheckByIntExprTest(a []int, i int) int {
+func lengthCheckByIntExprTest(i int) int {
+	var a []int
+
 	var j int
 	k := 7
 	switch 0 {
@@ -404,23 +436,23 @@ func lengthCheckByIntExprTest(a []int, i int) int {
 		}
 	case 20:
 		var b int
-		if len(a) + 2 + b > j {
+		if len(a)+2+b > j {
 			return a[0]
 		}
 	case 21:
 		var b int
-		if len(a) + 2 + b <= j {
+		if len(a)+2+b <= j {
 			return 0
 		}
 		_ = a[0]
 	case 22:
 		var b int
-		if j < len(a) + 2 + b {
+		if j < len(a)+2+b {
 			return a[0]
 		}
 	case 23:
 		var b int
-		if j >= len(a) + 2 + b {
+		if j >= len(a)+2+b {
 			return 0
 		}
 		_ = a[0]
@@ -434,7 +466,9 @@ func dummyBool() bool          { return true }
 // this function tests whether we properly interpret double len equality checks
 // as producing non-nil - this is technically unsound, but used so often in practice
 // that we support it
-func testDoubleLenCheck(a, b, c, d []int) int {
+func testDoubleLenCheck() int {
+	var a, b, c, d []int
+
 	switch 0 {
 	case 1:
 		if dummyBool() {
@@ -462,11 +496,11 @@ func testDoubleLenCheck(a, b, c, d []int) int {
 		return b[0]
 	case 5:
 		// We will optimistically assume all slices are non-nil.
-		if len(a) - len(c) == len(b) * len(d) {
+		if len(a)-len(c) == len(b)*len(d) {
 			_, _, _, _ = a[0], b[0], c[0], d[0]
 		}
 	case 6:
-		if len(a) - len(c) != len(b) * len(d) {
+		if len(a)-len(c) != len(b)*len(d) {
 			return 0
 		}
 		// We will optimistically assume all slices are non-nil.
@@ -475,7 +509,9 @@ func testDoubleLenCheck(a, b, c, d []int) int {
 	return 0
 }
 
-func testSwitchAsLenCheck(a []int) int {
+func testSwitchAsLenCheck() int {
+	var a []int
+
 	var i int
 	switch len(a) {
 	case -1:
@@ -977,38 +1013,53 @@ func helperReturnNonZeroSlicingNonNilProducerForNonNilParam(b []int) []int {
 	}
 } */
 
-// nonnil(a, a[])
-func testAppendNil(a []*int) {
-	a[0] = nil //want "assigned deeply into parameter arg `a`"
+func testSliceAssignNil(a []*int) {
+	a[0] = nil
+	print(*a[0]) //want "dereferenced"
+}
+
+func testAppendNil() {
 	// Now, we append a literal nil into a deeply nonnil slice.
-	a = append(a, nil) //want "assigned deeply into parameter arg `a`"
+	a := []*int{new(int)}
+	a = append(a, nil)
+	_ = a[len(a)-1] //want "sliced into"
 }
 
 type namedPtrSlice []*int
 
 // Named slice types (and aliases) must get the same append handling as plain slices.
-// nonnil(a, a[])
-func testAppendNilNamedSlice(a namedPtrSlice) {
-	a = append(a, nil) //want "assigned into a slice of deeply nonnil type `namedPtrSlice`"
+func testAppendNilNamedSlice() {
+	a := namedPtrSlice{new(int)}
+	a = append(a, nil)
+	_ = a[len(a)-1] //want "sliced into"
 }
 
-// nonnil(a, a[], b)
-// nilable(c, result 0)
-func testAppend(a []*int, b, c *int) {
-	b = c
-	a = append(a, b) //want "assigned deeply into parameter arg `a`"
-	a = append(a, c) //want "assigned deeply into parameter arg `a`"
+func testAppend() {
+	var c *int
+	b := c
+	a := []*int{new(int)}
+	a = append(a, b)
+	print(*a[len(a)-1]) //want "sliced into"
+	c = nil
+	a = []*int{new(int)}
+	a = append(a, c)
+	print(*a[len(a)-1]) //want "sliced into"
 }
 
-// nilable(result 0)
 func nilableFun() *int {
 	return nil
 }
 
-// nonnil(a, a[], b)
+func nilableFun2() *int {
+	return nil
+}
+
 func testAppendNilableFunc(a []*int) {
-	a[0] = nilableFun()         //want "assigned deeply into parameter arg `a`"
-	a = append(a, nilableFun()) //want "assigned deeply into parameter arg `a`"
+	a[0] = nilableFun()
+	print(*a[0]) //want "dereferenced"
+	a = []*int{new(int)}
+	a = append(a, nilableFun2())
+	print(*a[len(a)-1]) //want "sliced into"
 }
 
 // nonnil(a, a[])
@@ -1019,10 +1070,12 @@ func testTheFirstArgumentOfAppend(a, b []*int) {
 	print(*a[0])
 }
 
-// nonnil(a, a[])
-// nilable(b, b[])
-func testVariadicArgs(a, b []*int) {
-	a = append(a, b...) //want "assigned deeply into parameter arg `a`"
+func testVariadicArgs() {
+	b := make([]*int, 1)
+	b[0] = nil
+	print(*b[0]) //want "dereferenced"
+	a := []*int{new(int)}
+	a = append(a, b...)
 	b = append(b, a...)
 }
 
@@ -1041,8 +1094,11 @@ func testAppendNilableForLocalVar() {
 var a = make([]*int, 0)
 
 func testAppendNilableForGlobalVar() {
-	a = append(a, nil) //want "literal `nil` assigned into global variable `a`"
-	print(*a[0])       //want "literal `nil` sliced into"
+	a = append(a, nil)
+	print(*a[0]) //want "literal `nil` sliced into"
+
+	a = nil
+	print(*a[0]) //want "literal `nil` sliced into"
 }
 
 func testShadowAppend() {
