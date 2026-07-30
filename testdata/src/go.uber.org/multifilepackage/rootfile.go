@@ -15,8 +15,6 @@
 /*
 This test functions as a sanity check for multi-file handling, just making sure that in the
 case of linked files no errors are thrown
-
-<nilaway no inference>
 */
 package multifilepackage
 
@@ -41,8 +39,12 @@ func safeBoxManipulations() {
 func unsafeBoxManipulations() *secondpackage.C {
 	c := secondpackage.CBox{}
 	if true {
-		return c.Unbox() //want "returned"
+		result := c.Unbox()
+		_ = result.B //want "accessed field"
+		return result
 	} else {
-		return c.Ptr //want "returned"
+		result := c.Ptr
+		_ = result.B //want "accessed field"
+		return result
 	}
 }
