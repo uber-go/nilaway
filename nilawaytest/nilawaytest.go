@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package nilawaytest Test helper utilities shared across NilAway packages.
+// Package nilawaytest contains test helper utilities shared across NilAway packages.
 package nilawaytest
 
 import (

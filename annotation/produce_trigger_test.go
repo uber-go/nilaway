@@ -19,6 +19,7 @@ import (
 
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/nilaway/nilawaytest"
 )
 
 const _interfaceNameProducingAnnotationTrigger = "ProducingAnnotationTrigger"
@@ -81,5 +82,10 @@ func initStructsProducingAnnotationTrigger() []ProducingAnnotationTrigger {
 // the `ProducingAnnotationTrigger` interface.
 func TestProducingAnnotationTriggerEqualsSuite(t *testing.T) {
 	t.Parallel()
-	suite.Run(t, NewEqualsTestSuite(_interfaceNameProducingAnnotationTrigger, initStructsProducingAnnotationTrigger()))
+	suite.Run(t, nilawaytest.NewEqualsTestSuite(
+		_interfaceNameProducingAnnotationTrigger,
+		".",
+		initStructsProducingAnnotationTrigger(),
+		func(p1, p2 ProducingAnnotationTrigger) bool { return p1.equals(p2) },
+	))
 }

@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/nilaway/nilawaytest"
 )
 
 const _interfaceNameConsumingAnnotationTrigger = "ConsumingAnnotationTrigger"
@@ -66,15 +67,21 @@ var initStructsConsumingAnnotationTrigger = []ConsumingAnnotationTrigger{
 // the `ConsumingAnnotationTrigger` interface.
 func TestConsumingAnnotationTriggerEqualsSuite(t *testing.T) {
 	t.Parallel()
-	suite.Run(t, NewEqualsTestSuite(_interfaceNameConsumingAnnotationTrigger, initStructsConsumingAnnotationTrigger))
+	suite.Run(t, nilawaytest.NewEqualsTestSuite(
+		_interfaceNameConsumingAnnotationTrigger,
+		".",
+		initStructsConsumingAnnotationTrigger,
+		func(c1, c2 ConsumingAnnotationTrigger) bool { return c1.equals(c2) },
+	))
 }
 
 // TestConsumingAnnotationTriggerCopySuite tests the `Copy` method of all structs implementing
 // the `ConsumingAnnotationTrigger` interface.
 func TestConsumingAnnotationTriggerCopySuite(t *testing.T) {
 	t.Parallel()
-	suite.Run(t, NewCopyTestSuite(
+	suite.Run(t, nilawaytest.NewCopyTestSuite(
 		_interfaceNameConsumingAnnotationTrigger,
+		".",
 		initStructsConsumingAnnotationTrigger,
 		func(c ConsumingAnnotationTrigger) ConsumingAnnotationTrigger { return c.Copy() },
 	))

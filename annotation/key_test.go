@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/suite"
+	"go.uber.org/nilaway/nilawaytest"
 )
 
 const _interfaceNameKey = "Key"
@@ -43,11 +44,16 @@ var initStructsKey = []Key{
 // the `Key` interface.
 func TestKeyEqualsSuite(t *testing.T) {
 	t.Parallel()
-	suite.Run(t, NewEqualsTestSuite(_interfaceNameKey, initStructsKey))
+	suite.Run(t, nilawaytest.NewEqualsTestSuite(
+		_interfaceNameKey,
+		".",
+		initStructsKey,
+		func(k1, k2 Key) bool { return k1.equals(k2) },
+	))
 }
 
 // TestKeyCopySuite runs the test suite for the `copy` method of all the structs that implement the `Key` interface.
 func TestKeyCopySuite(t *testing.T) {
 	t.Parallel()
-	suite.Run(t, NewCopyTestSuite(_interfaceNameKey, initStructsKey, func(k Key) Key { return k.copy() }))
+	suite.Run(t, nilawaytest.NewCopyTestSuite(_interfaceNameKey, ".", initStructsKey, func(k Key) Key { return k.copy() }))
 }
