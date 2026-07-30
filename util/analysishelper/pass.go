@@ -79,6 +79,16 @@ func (p *EnhancedPass) IsNil(expr ast.Expr) bool {
 	return asthelper.IsLiteral(expr, "nil")
 }
 
+// IsBoolExpr reports whether the expression is statically of boolean type.
+func (p *EnhancedPass) IsBoolExpr(expr ast.Expr) bool {
+	t := p.TypesInfo.TypeOf(expr)
+	if t == nil {
+		return false
+	}
+	basic, ok := t.Underlying().(*types.Basic)
+	return ok && basic.Kind() == types.Bool
+}
+
 // HumanReadablePosition modifies the Position's filename to be more human-friendly (truncated or relative to cwd).
 func (p *EnhancedPass) HumanReadablePosition(position token.Position) token.Position {
 	conf := p.ResultOf[config.Analyzer].(*config.Config)

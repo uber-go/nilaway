@@ -25,6 +25,7 @@ import (
 	"regexp"
 
 	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/asthelper"
 	"go.uber.org/nilaway/util/typeshelper"
 )
 
@@ -54,18 +55,24 @@ type trustedSig struct {
 //   - _func:   match enclosing "<pkg path>". E.g., for `assert.Error(err)`, path = github.com/stretchr/testify/assert
 //   - _method: match "<pkg path>.<struct name>". E.g., for `u.Require().Error(err)`, path = github.com/stretchr/testify/require.Assertions
 //
+// Functions of dot-imported packages are also matched: for `Error(err)` with
+// `import . "github.com/stretchr/testify/assert"`, the called identifier still resolves to the
+// function object in the imported package, so the path matching is identical. Function values
+// (e.g., `f := assert.Error; f(t, err)`) resolve to variables rather than functions and are
+// hence never matched.
+//
 // Trusted package-level variables (kind _var) are matched separately via matchSel, since they are
 // read as bare selectors rather than calls.
 func (t *trustedSig) matchCall(pass *analysishelper.EnhancedPass, call *ast.CallExpr) bool {
 	if t.kind != _func && t.kind != _method {
 		return false
 	}
-	sel, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok || !t.nameRegex.MatchString(sel.Sel.Name) {
+	ident := asthelper.FuncIdentFromCallExpr(call)
+	if ident == nil || !token.IsExported(ident.Name) || !t.nameRegex.MatchString(ident.Name) {
 		return false
 	}
 
-	funcObj, ok := pass.TypesInfo.ObjectOf(sel.Sel).(*types.Func)
+	funcObj, ok := pass.TypesInfo.ObjectOf(ident).(*types.Func)
 	if !ok || funcObj.Pkg() == nil {
 		return false
 	}
@@ -99,6 +106,10 @@ func (t *trustedSig) matchCall(pass *analysishelper.EnhancedPass, call *ast.Call
 // This is intentionally independent of how the variable is later used: a read like `os.Stdout`,
 // `os.Stdout.Write(...)` (as a method receiver), or `os.Args[0]` (as an index operand) all parse the
 // bare selector as a producer, so all are covered here without involving matchCall.
+//
+// Unlike matchCall, dot-imported variable reads (a bare `Stdout` under `import . "os"`) are
+// intentionally out of scope: they parse as bare identifiers, which are routed elsewhere by the
+// assertion tree and never reach this matcher.
 func (t *trustedSig) matchSel(pass *analysishelper.EnhancedPass, sel *ast.SelectorExpr) bool {
 	if t.kind != _var || !t.nameRegex.MatchString(sel.Sel.Name) {
 		return false
