@@ -154,14 +154,9 @@ func (r *RootAssertionNode) addFieldProducers(structType *types.Struct, fieldIni
 	}
 }
 
-// isLocalRootedValue reports whether expr is a function-local variable, a field chain rooted
-// at one, or the address of either. Locals have no boundary annotation to snapshot statically, so
-// callers must resolve them through their flow-sensitive producers instead. Address-of is
-// unwrapped because even a proven-non-nil pointer snapshot carries no pointee field shape.
+// isLocalRootedValue reports whether expr is a function-local variable or a field chain rooted
+// at one. Locals have no boundary annotation and must be resolved through flow-sensitive producers.
 func (r *RootAssertionNode) isLocalRootedValue(expr ast.Expr) bool {
-	if u, ok := ast.Unparen(expr).(*ast.UnaryExpr); ok && u.Op == token.AND {
-		expr = u.X
-	}
 	base, _ := asthelper.SplitFieldChain(expr)
 	if base == nil {
 		return false
