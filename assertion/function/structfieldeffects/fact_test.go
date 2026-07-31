@@ -46,12 +46,12 @@ func TestFact(t *testing.T) { //nolint:paralleltest
 
 		localReads := make(fieldEffects)
 		localWrites := make(fieldEffects)
-		for funcObj, reads := range effects.Res.ParamReads {
+		for funcObj, reads := range effects.Res.paramReads {
 			if funcObj.Pkg() == pass.Pkg {
 				localReads[funcObj] = reads
 			}
 		}
-		for funcObj, writes := range effects.Res.ParamWrites {
+		for funcObj, writes := range effects.Res.paramWrites {
 			if funcObj.Pkg() == pass.Pkg {
 				localWrites[funcObj] = writes
 			}

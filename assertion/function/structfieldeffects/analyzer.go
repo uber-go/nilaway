@@ -58,14 +58,14 @@ func run(p *analysis.Pass) (*BoundaryFieldEffects, error) {
 	packageSummary := collected.close()
 	fact := &BoundaryFieldEffectsPackageFact{}
 	encoder := &objectpath.Encoder{}
-	funcs := make(map[*types.Func]bool, len(packageSummary.ParamReads)+len(packageSummary.ParamWrites)+len(packageSummary.ReturnEffects))
-	for funcObj := range packageSummary.ParamReads {
+	funcs := make(map[*types.Func]bool, len(packageSummary.paramReads)+len(packageSummary.paramWrites)+len(packageSummary.returnEffects))
+	for funcObj := range packageSummary.paramReads {
 		funcs[funcObj] = true
 	}
-	for funcObj := range packageSummary.ParamWrites {
+	for funcObj := range packageSummary.paramWrites {
 		funcs[funcObj] = true
 	}
-	for funcObj := range packageSummary.ReturnEffects {
+	for funcObj := range packageSummary.returnEffects {
 		funcs[funcObj] = true
 	}
 	for funcObj := range funcs {
@@ -74,9 +74,9 @@ func run(p *analysis.Pass) (*BoundaryFieldEffects, error) {
 		}
 		// Return reads remain local because callers infer them
 		// from their dereferences of results, opposite the direction of fact propagation.
-		reads := packageSummary.ParamReads.sortedPaths(funcObj)
-		writes := packageSummary.ParamWrites.sortedPaths(funcObj)
-		returnEffects := packageSummary.ReturnEffects.sortedPaths(funcObj)
+		reads := packageSummary.paramReads.sortedPaths(funcObj)
+		writes := packageSummary.paramWrites.sortedPaths(funcObj)
+		returnEffects := packageSummary.returnEffects.sortedPaths(funcObj)
 		if len(reads) == 0 && len(writes) == 0 && len(returnEffects) == 0 {
 			continue
 		}
@@ -131,9 +131,9 @@ func importUsedParamEffects(pass *analysishelper.EnhancedPass, effects *Boundary
 				return cmp.Compare(entry.FunctionObjectPath, path)
 			})
 			if found {
-				seedImportedParamEffects(effects.ParamReads, callee, fact.Functions[index].ParamReads)
-				seedImportedParamEffects(effects.ParamWrites, callee, fact.Functions[index].ParamWrites)
-				seedImportedParamEffects(effects.ReturnEffects, callee, fact.Functions[index].ReturnEffects)
+				seedImportedParamEffects(effects.paramReads, callee, fact.Functions[index].ParamReads)
+				seedImportedParamEffects(effects.paramWrites, callee, fact.Functions[index].ParamWrites)
+				seedImportedParamEffects(effects.returnEffects, callee, fact.Functions[index].ReturnEffects)
 			}
 		}
 	}

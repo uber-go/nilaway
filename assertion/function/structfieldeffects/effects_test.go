@@ -88,10 +88,10 @@ func TestComputeBoundaryFieldEffects(t *testing.T) {
 			}
 		}
 
-		requireEffects(t, effects.ParamReads, wantParam)
-		requireEffects(t, effects.ReturnReads, wantReturn)
-		requireEffects(t, effects.ParamWrites, wantWrites)
-		requireEffects(t, effects.ReturnEffects, wantReturnEffects)
+		requireEffects(t, effects.paramReads, wantParam)
+		requireEffects(t, effects.returnReads, wantReturn)
+		requireEffects(t, effects.paramWrites, wantWrites)
+		requireEffects(t, effects.returnEffects, wantReturnEffects)
 		requireParamSources(t, effects, wantSources)
 	}
 }

@@ -42,10 +42,10 @@ type collectedFieldEffects struct {
 func newCollectedFieldEffects() *collectedFieldEffects {
 	return &collectedFieldEffects{
 		summary: &BoundaryFieldEffects{
-			ParamReads:         make(fieldEffects),
-			ReturnReads:        make(fieldEffects),
-			ParamWrites:        make(fieldEffects),
-			ReturnEffects:      make(fieldEffects),
+			paramReads:         make(fieldEffects),
+			returnReads:        make(fieldEffects),
+			paramWrites:        make(fieldEffects),
+			returnEffects:      make(fieldEffects),
 			returnParamSources: make(returnParamSourceSet),
 		},
 		paramForwardingEdges:     make(map[*types.Func][]paramFieldForwardEdge),
@@ -57,24 +57,24 @@ func newCollectedFieldEffects() *collectedFieldEffects {
 
 // addParamRead records that fn reads path from its parameter or receiver at fn's boundary.
 func (c *collectedFieldEffects) addParamRead(fn *types.Func, p IndexedFieldPath) {
-	c.summary.ParamReads.add(fn, p)
+	c.summary.paramReads.add(fn, p)
 }
 
 // addReturnRead records read demand on callee's result — callee is the function whose returned
 // value is dereferenced, not the function being collected.
 func (c *collectedFieldEffects) addReturnRead(callee *types.Func, p IndexedFieldPath) {
-	c.summary.ReturnReads.add(callee, p)
+	c.summary.returnReads.add(callee, p)
 }
 
 // addParamWrite records that fn writes path through its parameter or receiver.
 func (c *collectedFieldEffects) addParamWrite(fn *types.Func, p IndexedFieldPath) {
-	c.summary.ParamWrites.add(fn, p)
+	c.summary.paramWrites.add(fn, p)
 }
 
 // addReturnEffect records that fn's result field at p is provably nil at a construction return
 // site.
 func (c *collectedFieldEffects) addReturnEffect(fn *types.Func, p IndexedFieldPath) {
-	c.summary.ReturnEffects.add(fn, p)
+	c.summary.returnEffects.add(fn, p)
 }
 
 // addReturnParamSource records a source relating fn's result (or result field) to the parameter
