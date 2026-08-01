@@ -29,7 +29,6 @@ import (
 
 // FactCodecStats contains aggregate statistics for facts checked by RequireFactCodecs.
 type FactCodecStats struct {
-	TotalCount int
 	TotalBytes int
 }
 
@@ -106,7 +105,6 @@ func RequireFactCodecs(t *testing.T, results []*analysistest.Result) FactCodecSt
 			require.NotEmptyf(t, current, "encoding %T exported by %s", fact, action)
 			if encoded == nil {
 				encoded = current
-				stats.TotalCount += 1
 				stats.TotalBytes += len(encoded)
 				continue
 			}
