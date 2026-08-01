@@ -99,6 +99,8 @@ func RequireFactCodecs(t *testing.T, results []*analysistest.Result) FactCodecSt
 			return buf.Bytes()
 		}
 
+		// Encode it multiple times, all encoded facts must be byte-identical.
+		// We also collect stats in the first round of encoding.
 		var encoded []byte
 		for range 10 {
 			current := encode(fact)
