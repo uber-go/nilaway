@@ -31,21 +31,21 @@ import (
 // The read sets bound the field binding at boundaries so it enumerates only the
 // field paths a boundary actually dereferences, never the full type graph.
 type BoundaryFieldEffects struct {
-	// ParamReads records (param idx, field path) pairs a function dereferences of that parameter —
+	// paramReads records (param idx, field path) pairs a function dereferences of that parameter —
 	// the demand a callee places on its caller's argument. Transitively closed over forwarding edges
 	// (a pure forwarder inherits its forwardees' reads), so a caller binds exactly the field paths
 	// the callee (and everything it forwards to) may dereference.
-	ParamReads fieldEffects
-	// ReturnReads records (result idx, field path) pairs that callers dereference of a function's
+	paramReads fieldEffects
+	// returnReads records (result idx, field path) pairs that callers dereference of a function's
 	// result — the demand callers place on a returned value, so a `return <var>` binds only those
 	// paths. Collected at call sites; not transitively closed (under-report only).
-	ReturnReads fieldEffects
-	// ParamWrites records (param idx, field path) pairs a function assigns through a parameter or
+	returnReads fieldEffects
+	// paramWrites records (param idx, field path) pairs a function assigns through a parameter or
 	// receiver. Transitively closed over forwarding edges.
-	ParamWrites fieldEffects
-	// ReturnEffects records (result idx, field path) pairs that are provably nil at a concrete
+	paramWrites fieldEffects
+	// returnEffects records (result idx, field path) pairs that are provably nil at a concrete
 	// construction return site. Closed over return forwarding edges.
-	ReturnEffects fieldEffects
+	returnEffects fieldEffects
 	// returnParamSources records, per function, the sources relating a result (or result field)
 	// to the parameter that supplies it. See ReturnParamSource for the collection rules.
 	returnParamSources returnParamSourceSet
@@ -56,7 +56,7 @@ func (e *BoundaryFieldEffects) ParamReadPaths(funcObj *types.Func, idx int) []st
 	if e == nil {
 		return nil
 	}
-	return fieldPathsForIndex(e.ParamReads, funcObj, idx)
+	return fieldPathsForIndex(e.paramReads, funcObj, idx)
 }
 
 // ReturnReadPaths returns the field paths read from funcObj's result at idx.
@@ -64,7 +64,7 @@ func (e *BoundaryFieldEffects) ReturnReadPaths(funcObj *types.Func, idx int) []s
 	if e == nil {
 		return nil
 	}
-	return fieldPathsForIndex(e.ReturnReads, funcObj, idx)
+	return fieldPathsForIndex(e.returnReads, funcObj, idx)
 }
 
 // ReturnEffectPaths returns the field paths that are provably nil in funcObj's result at idx.
@@ -72,7 +72,7 @@ func (e *BoundaryFieldEffects) ReturnEffectPaths(funcObj *types.Func, idx int) [
 	if e == nil {
 		return nil
 	}
-	return fieldPathsForIndex(e.ReturnEffects, funcObj, idx)
+	return fieldPathsForIndex(e.returnEffects, funcObj, idx)
 }
 
 // ParamWritePaths returns the field paths written through funcObj's parameter or receiver at idx.
@@ -80,7 +80,7 @@ func (e *BoundaryFieldEffects) ParamWritePaths(funcObj *types.Func, idx int) []s
 	if e == nil {
 		return nil
 	}
-	return fieldPathsForIndex(e.ParamWrites, funcObj, idx)
+	return fieldPathsForIndex(e.paramWrites, funcObj, idx)
 }
 
 func fieldPathsForIndex(effects fieldEffects, funcObj *types.Func, idx int) []string {
@@ -98,9 +98,9 @@ func fieldPathsForIndex(effects fieldEffects, funcObj *types.Func, idx int) []st
 }
 
 func (c *collectedFieldEffects) close() *BoundaryFieldEffects {
-	closeParamFieldSets(c.summary.ParamWrites, c.paramForwardingEdges)
-	closeParamFieldSets(c.summary.ParamReads, c.paramForwardingEdges)
-	closeReturnEffects(c.summary.ReturnEffects, c.returnForwardingEdges)
+	closeParamFieldSets(c.summary.paramWrites, c.paramForwardingEdges)
+	closeParamFieldSets(c.summary.paramReads, c.paramForwardingEdges)
+	closeReturnEffects(c.summary.returnEffects, c.returnForwardingEdges)
 	c.dropMixedResultParamSources()
 	return c.summary
 }
