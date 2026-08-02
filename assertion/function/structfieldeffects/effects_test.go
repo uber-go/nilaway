@@ -30,7 +30,9 @@ import (
 
 // _expectEffectsPrefix precedes a fixture function's expected boundary effects. Each trailing token
 // is "<kind>:<idx>:<path>", where kind identifies parameter writes, parameter reads, return reads,
-// or concrete return effects. A function with no effects carries an empty comment.
+// or concrete return effects; return param sources use the five-part
+// "return_param_source:<resultIdx>:<resultPath>:<paramIdx>:<paramPath>". A function with no effects
+// carries an empty comment.
 const _expectEffectsPrefix = "expect_effects:"
 
 func TestComputeBoundaryFieldEffects(t *testing.T) {
@@ -59,12 +61,17 @@ func TestComputeBoundaryFieldEffects(t *testing.T) {
 		wantReturn := make(map[*types.Func][]IndexedFieldPath)
 		wantWrites := make(map[*types.Func][]IndexedFieldPath)
 		wantReturnEffects := make(map[*types.Func][]IndexedFieldPath)
+		wantSources := make(map[*types.Func][]ReturnParamSource)
 		for node, tokens := range nilawaytest.FindExpectedValues(pass, _expectEffectsPrefix) {
 			fd, ok := node.(*ast.FuncDecl)
 			require.True(t, ok)
 			funcObj, ok := pass.TypesInfo.ObjectOf(fd.Name).(*types.Func)
 			require.True(t, ok)
 			for _, token := range tokens {
+				if source, ok := parseExpectedParamSource(t, token); ok {
+					wantSources[funcObj] = append(wantSources[funcObj], source)
+					continue
+				}
 				kind, key := parseExpectedEffect(t, token)
 				switch kind {
 				case "param_writes":
@@ -85,7 +92,27 @@ func TestComputeBoundaryFieldEffects(t *testing.T) {
 		requireEffects(t, effects.ReturnReads, wantReturn)
 		requireEffects(t, effects.ParamWrites, wantWrites)
 		requireEffects(t, effects.ReturnEffects, wantReturnEffects)
+		requireParamSources(t, effects, wantSources)
 	}
+}
+
+// parseExpectedParamSource parses a "return_param_source:<resultIdx>:<resultPath>:<paramIdx>:<paramPath>"
+// token, reporting ok=false for tokens of any other kind.
+func parseExpectedParamSource(t *testing.T, token string) (ReturnParamSource, bool) {
+	t.Helper()
+	parts := strings.Split(token, ":")
+	if parts[0] != "return_param_source" {
+		return ReturnParamSource{}, false
+	}
+	require.Lenf(t, parts, 5, "malformed return_param_source token %q", token)
+	resultIdx, err := strconv.Atoi(parts[1])
+	require.NoErrorf(t, err, "malformed result index in return_param_source token %q", token)
+	paramIdx, err := strconv.Atoi(parts[3])
+	require.NoErrorf(t, err, "malformed param index in return_param_source token %q", token)
+	return ReturnParamSource{
+		Result: IndexedFieldPath{Idx: resultIdx, Path: parts[2]},
+		Param:  IndexedFieldPath{Idx: paramIdx, Path: parts[4]},
+	}, true
 }
 
 // parseExpectedEffect splits a "<kind>:<idx>:<path>" expect_effects token into its kind and boundary key.
@@ -113,5 +140,22 @@ func requireEffects(t *testing.T, got fieldEffects, want map[*types.Func][]Index
 			gotKeys = append(gotKeys, key)
 		}
 		require.ElementsMatchf(t, want[funcObj], gotKeys, "effects mismatch for %s", funcObj.Name())
+	}
+}
+
+// requireParamSources asserts the collected return param sources match want for every function in either
+// set, so both missing and unexpected sources fail the test.
+func requireParamSources(t *testing.T, got *BoundaryFieldEffects, want map[*types.Func][]ReturnParamSource) {
+	t.Helper()
+	funcs := make(map[*types.Func]bool)
+	for funcObj := range got.returnParamSources {
+		funcs[funcObj] = true
+	}
+	for funcObj := range want {
+		funcs[funcObj] = true
+	}
+	for funcObj := range funcs {
+		require.ElementsMatchf(t, want[funcObj], got.ReturnParamSources(funcObj),
+			"return param sources mismatch for %s", funcObj.Name())
 	}
 }
