@@ -18,10 +18,12 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"slices"
 	"sort"
 	"strings"
 
 	"go.uber.org/nilaway/annotation"
+	"go.uber.org/nilaway/assertion/function/structfieldeffects"
 	"go.uber.org/nilaway/guard"
 	"go.uber.org/nilaway/util/asthelper"
 	"go.uber.org/nilaway/util/typeshelper"
@@ -84,6 +86,22 @@ func (r *RootAssertionNode) addAllocationFieldProducers(lhsVal, rhsVal ast.Expr)
 			}
 		}
 	}
+}
+
+// resultPathHasParamSource reports whether funcObj's (resultIdx, resultPath) is supplied by a
+// caller argument.
+func (r *RootAssertionNode) resultPathHasParamSource(funcObj *types.Func, resultIdx int, resultPath string) bool {
+	sources := r.functionContext.boundaryFieldEffects.ReturnParamSources(funcObj)
+	return slices.ContainsFunc(sources, func(src structfieldeffects.ReturnParamSource) bool {
+		return src.SuppliesResultPath(resultIdx, resultPath)
+	})
+}
+
+// resultValueHasParamSource reports whether funcObj's resultIdx-th result value itself (not a
+// field of it) is supplied by a caller argument — a whole-result source from `return p` or
+// `return p.x`.
+func (r *RootAssertionNode) resultValueHasParamSource(funcObj *types.Func, resultIdx int) bool {
+	return r.resultPathHasParamSource(funcObj, resultIdx, "")
 }
 
 // getShallowExprNilabilityProducer returns the producer encoding the nilability of the value of expr: an
@@ -225,6 +243,11 @@ func (r *RootAssertionNode) addContextFieldProducers(_ *types.Struct, base ast.E
 		}
 	}
 	for _, p := range paths {
+		// A param-sourced return path is caller-dependent and is never solved on the shared
+		// return sites
+		if kind == annotation.StructFieldReturnContext && r.resultPathHasParamSource(funcObj, index, p.path) {
+			continue
+		}
 		site := &annotation.StructFieldContextSite{
 			FuncObj: funcObj, Kind: kind, Index: index, Path: p.path,
 		}
@@ -274,6 +297,11 @@ func (r *RootAssertionNode) bindReturnFieldsToContext(node *ast.ReturnStmt) {
 	for retIdx, retExpr := range node.Results {
 		structType := typeshelper.AsDeeplyStruct(sig.Results().At(retIdx).Type())
 		if structType == nil {
+			continue
+		}
+		// A result value supplied by a caller argument is resolved at each call site from that
+		// argument.
+		if r.resultValueHasParamSource(r.FuncObj(), retIdx) {
 			continue
 		}
 		r.bindValueFieldsToContext(r.FuncObj(), retExpr, structType, annotation.StructFieldReturnContext, retIdx)
@@ -373,6 +401,11 @@ func (r *RootAssertionNode) bindCallResultFieldsToContext(call *ast.CallExpr, va
 	}
 	sort.Strings(paths)
 	for _, fieldPath := range paths {
+		// Param-sourced paths of the callee are caller-dependent: forwarding them
+		// through the shared return sites would merge callers.
+		if r.resultPathHasParamSource(source.Origin, 0, fieldPath) {
+			continue
+		}
 		site := &annotation.StructFieldContextSite{FuncObj: targetFunc, Kind: kind, Index: index, Path: fieldPath}
 		srcSite := &annotation.StructFieldContextSite{
 			FuncObj: source.Origin, Kind: annotation.StructFieldReturnContext, Index: 0, Path: fieldPath,

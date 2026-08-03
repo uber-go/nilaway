@@ -125,6 +125,8 @@ func TestStructInitV2(t *testing.T) { //nolint:paralleltest
 		"go.uber.org/structinitv2/paramsideeffect",
 		"go.uber.org/structinitv2/returnlocal",
 		"go.uber.org/structinitv2/returnzerovalue/app",
+		// go.uber.org/structinitv2/returnshape/app asserts the per-call resolution of
+		// param-sourced results; enable it when call-site sensitivity of param-sourced results lands.
 	)
 }
 

@@ -35,7 +35,11 @@ func escapeDirect(b *escapeBox) *escapeLeaf {
 
 func useEscapeDirectUnsafe() {
 	b := &escapeBox{}
-	print(escapeDirect(b).ptr) //want "uninitialized field `inner`"
+	// Temporarily silent: `return b.inner` is a whole-result param source, so the result is
+	// severed from the shared return summary (which would merge this nil flow into
+	// useEscapeDirectSafe below). Flips back to a per-call report when call-site resolution
+	// lands.
+	print(escapeDirect(b).ptr)
 }
 
 func useEscapeDirectSafe() {
@@ -60,13 +64,15 @@ func useEscapeSnapshotSafe() {
 }
 
 // The same value demand applies to a method receiver boundary. No safe negative control here:
-// the method's shared return site currently merges all callers, so a safe caller of innerValue
-// would inherit this caller's nil flow (context-insensitive return merge).
+// before the param-source sever, the method's shared return site merged all callers, so a safe
+// caller of innerValue would have inherited this caller's nil flow.
 func (b *escapeBox) innerValue() *escapeLeaf {
 	return b.inner
 }
 
 func useReceiverEscapeUnsafe() {
 	b := &escapeBox{}
-	print(b.innerValue().ptr) //want "uninitialized field `inner`"
+	// Temporarily silent: receiver-projection param sources sever the result from the shared summary;
+	// flips back to a per-call report when call-site resolution lands.
+	print(b.innerValue().ptr)
 }

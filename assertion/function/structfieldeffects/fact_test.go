@@ -71,7 +71,7 @@ func TestBoundaryFieldEffectsPackageFactCodec(t *testing.T) {
 		require.NoError(t, gob.NewEncoder(&buf).Encode(fact))
 		encoded := append([]byte(nil), buf.Bytes()...)
 		require.NotEmpty(t, encoded)
-		require.Less(t, len(encoded), 15_000,
+		require.Less(t, len(encoded), 20_000,
 			"encoded facts contribute to artifact size; increase this cap only with justification")
 
 		var decoded BoundaryFieldEffectsPackageFact
@@ -178,6 +178,12 @@ func newFact(functionCount int) *BoundaryFieldEffectsPackageFact {
 			},
 			ReturnEffects: []IndexedFieldPath{
 				{Idx: 0, Path: "Result"},
+			},
+			ReturnParamSources: []ReturnParamSource{
+				{
+					Result: IndexedFieldPath{Idx: 0, Path: "Result.Child"},
+					Param:  IndexedFieldPath{Idx: 1, Path: "Child"},
+				},
 			},
 		}
 	}
