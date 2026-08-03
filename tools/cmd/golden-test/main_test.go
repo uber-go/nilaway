@@ -17,7 +17,6 @@ package main
 import (
 	"bytes"
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -70,7 +69,7 @@ func TestWriteDiff(t *testing.T) {
 	require.Contains(t, buf.String(), "## Golden Test") // Must contain the title.
 	require.Contains(t, buf.String(), "are **identical**")
 
-	// Add two different diagnostics to base and test and check that they are reported.
+	// Add different diagnostics to base and test and check that they are reported.
 	base[Diagnostic{Posn: "src/file2:10:2", Message: "nil pointer dereference"}] = true
 	base[Diagnostic{Posn: "src/z:10:2", Message: config.InternalPanicPrefix + ": boom"}] = true
 	test[Diagnostic{Posn: "src/file4:10:2", Message: "bar error"}] = true
@@ -81,11 +80,7 @@ func TestWriteDiff(t *testing.T) {
 	require.Contains(t, s, "are **different**")
 	require.Contains(t, s, "- src/file2:10:2: nil pointer dereference")
 	require.Contains(t, s, "+ src/file4:10:2: bar error")
-	panicIndex := strings.Index(s, "- src/z:10:2: "+config.InternalPanicPrefix+": boom")
-	normalIndex := strings.Index(s, "+ src/file4:10:2: bar error")
-	require.NotEqual(t, -1, panicIndex)
-	require.NotEqual(t, -1, normalIndex)
-	require.Less(t, panicIndex, normalIndex)
+	require.Contains(t, s, "- src/z:10:2: "+config.InternalPanicPrefix+": boom")
 }
 
 func TestDiff(t *testing.T) {

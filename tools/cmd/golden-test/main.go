@@ -261,27 +261,20 @@ func WriteDiff(writer io.Writer, branches [2]*BranchResult) {
 	MustFprint(fmt.Fprintf(writer, "\n<details>\n"))
 	MustFprint(fmt.Fprintf(writer, "<summary>Diffs</summary>\n\n"))
 	MustFprint(fmt.Fprintf(writer, "```diff\n"))
-	// Print internal panics before other diagnostics so they remain visible if the output is
-	// truncated. Preserve the usual additions-before-removals ordering within each group.
-	for _, printInternalPanics := range [...]bool{true, false} {
-		for i, diff := range [...][]Diagnostic{pluses, minuses} {
-			prefix, c := "+", color.FgGreen
-			if i == 1 {
-				prefix, c = "-", color.FgRed
+	for i, diff := range [...][]Diagnostic{pluses, minuses} {
+		prefix, c := "+", color.FgGreen
+		if i == 1 {
+			prefix, c = "-", color.FgRed
+		}
+		for _, d := range diff {
+			lines := strings.Split(strings.TrimSpace(d.Message), "\n")
+			// Add Posn to the first line and prefix to each line for diff formatting.
+			lines[0] = d.Posn + ": " + lines[0]
+			for i := range lines {
+				lines[i] = prefix + " " + lines[i]
 			}
-			for _, d := range diff {
-				if d.IsInternalPanic() != printInternalPanics {
-					continue
-				}
-				lines := strings.Split(strings.TrimSpace(d.Message), "\n")
-				// Add Posn to the first line and prefix to each line for diff formatting.
-				lines[0] = d.Posn + ": " + lines[0]
-				for i := range lines {
-					lines[i] = prefix + " " + lines[i]
-				}
-				output := strings.Join(lines, "\n") + "\n"
-				MustFprint(color.New(c).Fprint(writer, output))
-			}
+			output := strings.Join(lines, "\n") + "\n"
+			MustFprint(color.New(c).Fprint(writer, output))
 		}
 	}
 	MustFprint(fmt.Fprintf(writer, "```\n\n"))
