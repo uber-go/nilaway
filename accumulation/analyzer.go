@@ -83,7 +83,10 @@ func run(p *analysis.Pass) (result interface{}, _ error) {
 			// Deferred functions are executed after a result is generated, so here we modify the
 			// return value `result` in-place.
 			// Diagnostics with invalid positions (<= 0) will be silently suppressed, so here we use 1.
-			d := analysis.Diagnostic{Pos: 1, Message: fmt.Sprintf("INTERNAL PANIC: %s\n%s", r, string(debug.Stack()))}
+			d := analysis.Diagnostic{
+				Pos:     1,
+				Message: fmt.Sprintf("%s: %s\n%s", config.InternalPanicPrefix, r, string(debug.Stack())),
+			}
 			if diagnostics, ok := result.([]analysis.Diagnostic); ok {
 				result = append(diagnostics, d)
 			} else {

@@ -39,7 +39,7 @@ func TestAnalyzer(t *testing.T) {
 	// and convert it to an error via the result struct.
 	r, err := Analyzer.Run(nil /* pass */)
 	require.NoError(t, err)
-	require.ErrorContains(t, r.(*analysishelper.Result[map[*ast.FuncLit]*FuncLitInfo]).Err, "INTERNAL PANIC")
+	require.ErrorContains(t, r.(*analysishelper.Result[map[*ast.FuncLit]*FuncLitInfo]).Err, config.InternalPanicPrefix)
 }
 
 func TestClosureCollection(t *testing.T) {

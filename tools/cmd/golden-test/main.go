@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"go.uber.org/nilaway/config"
 )
 
 // Diagnostic is the diagnostic reported by NilAway.
@@ -41,6 +42,11 @@ type Diagnostic struct {
 	Posn string `json:"posn"`
 	// Message is the message reported by NilAway.
 	Message string `json:"message"`
+}
+
+// IsInternalPanic returns whether this diagnostic is an internal panic.
+func (d *Diagnostic) IsInternalPanic() bool {
+	return strings.Contains(d.Message, config.InternalPanicPrefix)
 }
 
 // BranchResult stores the information about a branch, and the diagnostics reported on that branch.
@@ -154,7 +160,7 @@ func Run(writer io.Writer, baseBranch, testBranch string) error {
 	}
 
 	WriteDiff(writer, branches)
-	return nil
+	return CheckInternalPanics(branches)
 }
 
 // ParseDiagnostics parses the diagnostics from the raw JSON output of NilAway and returns the
@@ -178,6 +184,28 @@ func ParseDiagnostics(reader io.Reader) (map[Diagnostic]bool, error) {
 	}
 
 	return allDiagnostics, nil
+}
+
+// CheckInternalPanics returns an error if NilAway reported an internal panic on either branch.
+func CheckInternalPanics(branches [2]*BranchResult) error {
+	var affectedBranches []string
+	for _, branch := range branches {
+		count := 0
+		for diagnostic := range branch.Result {
+			if diagnostic.IsInternalPanic() {
+				count++
+			}
+		}
+		if count > 0 {
+			affectedBranches = append(affectedBranches,
+				fmt.Sprintf("%s (%s): %d", branch.Name, branch.ShortSHA, count))
+		}
+	}
+	if len(affectedBranches) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%s diagnostic(s) reported on %s",
+		config.InternalPanicPrefix, strings.Join(affectedBranches, ", "))
 }
 
 // WriteDiff writes the summary and the diff (if the base and test are different) between the base
@@ -264,6 +292,12 @@ func Diff(first, second map[Diagnostic]bool) []Diagnostic {
 	}
 	// Sort the diff such that we have stable ordering for the same runs.
 	slices.SortFunc(diff, func(i, j Diagnostic) int {
+		if iPanic, jPanic := i.IsInternalPanic(), j.IsInternalPanic(); iPanic != jPanic {
+			if iPanic {
+				return -1
+			}
+			return 1
+		}
 		if n := cmp.Compare(i.Posn, j.Posn); n != 0 {
 			return n
 		}
