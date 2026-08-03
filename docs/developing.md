@@ -18,6 +18,10 @@ make cover                    # Run tests with coverage reports
 make integration-test         # Run integration tests (using real drivers)
 ```
 
+Test packages under `testdata/src/go.uber.org` must use the default configuration and should be
+safe to run in parallel. Tests that require special flags must run serially, with their packages
+placed directly under `testdata/src` instead.
+
 The following golden tests are available, which run NilAway on a base (usually `main`) and test (usually `HEAD`) branches
 on stdlib and compare the differences of NilAway violations. This is mostly run in CI to catch unexpected breakages.
 
