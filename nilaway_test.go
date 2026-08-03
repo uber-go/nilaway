@@ -91,6 +91,21 @@ func TestNilAway(t *testing.T) {
 	}
 }
 
+func TestFacts(t *testing.T) {
+	t.Parallel()
+	testdata := analysistest.TestData()
+
+	results := analysistest.Run(t, testdata, Analyzer, "go.uber.org/...")
+	factStats := nilawaytest.RequireFactCodecs(t, results)
+
+	t.Logf("Total fact bytes: %.2f KB", float32(factStats.TotalBytes)/1024)
+	require.Positive(t, factStats.TotalBytes, "expected NilAway tests to export some facts")
+	require.Less(t, factStats.TotalBytes, 3000*1024,
+		"The gob encoded NilAway facts for all test code is too large (%.2f KB). "+
+			"We expect the total to be less than 3000 KB. This heavily affects the artifact sizes of the facts NilAway "+
+			"produces, so the cap should only be increased with justification and thorough testing.", float32(factStats.TotalBytes)/1024)
+}
+
 func TestStructInit(t *testing.T) { //nolint:paralleltest
 	// We specifically do not set this test to be parallel since we need to enable the
 	// experimental support for struct initialization to test this feature.
@@ -125,8 +140,6 @@ func TestStructInitV2(t *testing.T) { //nolint:paralleltest
 		"structinitv2/paramsideeffect",
 		"structinitv2/returnlocal",
 		"structinitv2/returnzerovalue/app",
-		// structinitv2/returnshape/app asserts the per-call resolution of param-sourced results;
-		// enable it when call-site sensitivity of param-sourced results lands.
 	)
 }
 
