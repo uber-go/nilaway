@@ -66,7 +66,7 @@ func (r *RootAssertionNode) asStructAllocation(expr ast.Expr) (*types.Struct, []
 //     `new(A)`, nil for an explicit `nil`)
 //
 // If the RHS is instead a call to a struct-returning function, the value's fields are bound,
-// symbolically, to that function's return context sites (see addContextFieldProducers), so
+// symbolically, to that function's return context sites (see addCallResultFieldProducers), so
 // the nilability flows interprocedurally through inference.
 //
 // It must be called before the generic assignment handling produces lhsVal itself, because the
@@ -81,8 +81,8 @@ func (r *RootAssertionNode) addAllocationFieldProducers(lhsVal, rhsVal ast.Expr)
 	// context sites. (Multi-return calls are handled by the many-to-one assignment path.)
 	if call, ok := ast.Unparen(rhsVal).(*ast.CallExpr); ok {
 		if target, ok := typeshelper.ResolveStaticCallTarget(r.Pass().TypesInfo, call); ok && target.Signature.Results().Len() == 1 {
-			if structType := typeshelper.AsDeeplyStruct(target.Signature.Results().At(0).Type()); structType != nil {
-				r.addContextFieldProducers(structType, lhsVal, target.Origin, annotation.StructFieldReturnContext, 0)
+			if typeshelper.AsDeeplyStruct(target.Signature.Results().At(0).Type()) != nil {
+				r.addCallResultFieldProducers(lhsVal, target.Origin, 0)
 			}
 		}
 	}
@@ -102,6 +102,64 @@ func (r *RootAssertionNode) resultPathHasParamSource(funcObj *types.Func, result
 // `return p.x`.
 func (r *RootAssertionNode) resultValueHasParamSource(funcObj *types.Func, resultIdx int) bool {
 	return r.resultPathHasParamSource(funcObj, resultIdx, "")
+}
+
+// addCallResultFieldProducers attaches producers for the accessed fields of a call result bound
+// to base: each path reads the shared return context site of funcObj's resultIdx-th result,
+// seeded with the callee's concrete return effects.
+func (r *RootAssertionNode) addCallResultFieldProducers(base ast.Expr, funcObj *types.Func, resultIdx int) {
+	path, _ := r.ParseExprAsProducer(base, false)
+	node, _ := r.lookupPath(path)
+	if node == nil {
+		return
+	}
+	var paths []accessedFieldPath
+	r.collectAccessedFieldPaths(node, base, "", make(map[*types.Struct]bool), &paths)
+
+	returnEffects := make(map[string]bool)
+	// Error-returning functions are skipped for now: correlating the fields with the error result
+	// to be added in the future.
+	if !typeshelper.FuncIsErrReturning(funcObj.Signature()) {
+		for _, fieldPath := range r.functionContext.boundaryFieldEffects.ReturnEffectPaths(funcObj, resultIdx) {
+			returnEffects[fieldPath] = true
+		}
+	}
+
+	for _, p := range paths {
+		// A param-sourced return path is caller-dependent and is never solved on the shared
+		// return sites
+		if r.resultPathHasParamSource(funcObj, resultIdx, p.path) {
+			continue
+		}
+		site := &annotation.StructFieldContextSite{
+			FuncObj: funcObj, Kind: annotation.StructFieldReturnContext, Index: resultIdx, Path: p.path,
+		}
+		r.AddProduction(&annotation.ProduceTrigger{
+			Annotation: &annotation.StructFieldFromContext{
+				TriggerIfNilable: &annotation.TriggerIfNilable{Ann: site},
+			},
+			Expr: p.sel,
+		})
+		// If the callee's known return effects prove this path nil (e.g. `return &T{}`),
+		// additionally seed the context site with a definite nil here at the caller.
+		if returnEffects[p.path] {
+			parts := strings.Split(p.path, ".")
+			r.AddNewTriggers(annotation.FullTrigger{
+				Producer: &annotation.ProduceTrigger{
+					Annotation: &annotation.StructFieldNil{
+						ProduceTriggerTautology: &annotation.ProduceTriggerTautology{},
+						FieldName:               parts[len(parts)-1],
+					},
+					Expr: p.sel,
+				},
+				Consumer: &annotation.ConsumeTrigger{
+					Annotation: &annotation.StructFieldToContext{TriggerIfNonNil: &annotation.TriggerIfNonNil{Ann: site}},
+					Expr:       p.sel,
+					Guards:     guard.NoGuards(),
+				},
+			})
+		}
+	}
 }
 
 // getShallowExprNilabilityProducer returns the producer encoding the nilability of the value of expr: an
@@ -219,62 +277,6 @@ func (r *RootAssertionNode) collectAccessedFieldPaths(node AssertionNode, base a
 		}
 		if !typeshelper.TypeBarsNilness(field.Type()) {
 			*out = append(*out, accessedFieldPath{sel: sel, path: path})
-		}
-	}
-}
-
-// addContextFieldProducers attaches, for each accessed nilable field path under base, a producer
-// making `base.<path>` nil iff the corresponding return/param context site of funcObj is inferred
-// nilable.
-func (r *RootAssertionNode) addContextFieldProducers(_ *types.Struct, base ast.Expr, funcObj *types.Func, kind annotation.StructFieldContextKind, index int) {
-	path, _ := r.ParseExprAsProducer(base, false)
-	node, _ := r.lookupPath(path)
-	if node == nil {
-		return
-	}
-	var paths []accessedFieldPath
-	r.collectAccessedFieldPaths(node, base, "", make(map[*types.Struct]bool), &paths)
-	returnEffects := make(map[string]bool)
-	// Error-returning functions are skipped for now: correlating the fields with the error result to be added
-	// in the future.
-	if kind == annotation.StructFieldReturnContext && !typeshelper.FuncIsErrReturning(funcObj.Signature()) {
-		for _, fieldPath := range r.functionContext.boundaryFieldEffects.ReturnEffectPaths(funcObj, index) {
-			returnEffects[fieldPath] = true
-		}
-	}
-	for _, p := range paths {
-		// A param-sourced return path is caller-dependent and is never solved on the shared
-		// return sites
-		if kind == annotation.StructFieldReturnContext && r.resultPathHasParamSource(funcObj, index, p.path) {
-			continue
-		}
-		site := &annotation.StructFieldContextSite{
-			FuncObj: funcObj, Kind: kind, Index: index, Path: p.path,
-		}
-		r.AddProduction(&annotation.ProduceTrigger{
-			Annotation: &annotation.StructFieldFromContext{
-				TriggerIfNilable: &annotation.TriggerIfNilable{Ann: site},
-			},
-			Expr: p.sel,
-		})
-		// If the callee's known return effects prove this path nil (e.g. `return &T{}`),
-		// additionally seed the context site with a definite nil here at the caller.
-		if returnEffects[p.path] {
-			parts := strings.Split(p.path, ".")
-			r.AddNewTriggers(annotation.FullTrigger{
-				Producer: &annotation.ProduceTrigger{
-					Annotation: &annotation.StructFieldNil{
-						ProduceTriggerTautology: &annotation.ProduceTriggerTautology{},
-						FieldName:               parts[len(parts)-1],
-					},
-					Expr: p.sel,
-				},
-				Consumer: &annotation.ConsumeTrigger{
-					Annotation: &annotation.StructFieldToContext{TriggerIfNonNil: &annotation.TriggerIfNonNil{Ann: site}},
-					Expr:       p.sel,
-					Guards:     guard.NoGuards(),
-				},
-			})
 		}
 	}
 }
@@ -518,11 +520,27 @@ func (r *RootAssertionNode) addParamFieldProducers(builtExpr ast.Expr) {
 	if !ok {
 		return
 	}
-	structType := typeshelper.AsDeeplyStruct(v.Type())
-	if structType == nil {
+	if typeshelper.AsDeeplyStruct(v.Type()) == nil {
 		return
 	}
-	r.addContextFieldProducers(structType, builtExpr, r.FuncObj(), annotation.StructFieldParamContext, idx)
+	path, _ := r.ParseExprAsProducer(builtExpr, false)
+	node, _ := r.lookupPath(path)
+	if node == nil {
+		return
+	}
+	var paths []accessedFieldPath
+	r.collectAccessedFieldPaths(node, builtExpr, "", make(map[*types.Struct]bool), &paths)
+	for _, p := range paths {
+		site := &annotation.StructFieldContextSite{
+			FuncObj: r.FuncObj(), Kind: annotation.StructFieldParamContext, Index: idx, Path: p.path,
+		}
+		r.AddProduction(&annotation.ProduceTrigger{
+			Annotation: &annotation.StructFieldFromContext{
+				TriggerIfNilable: &annotation.TriggerIfNilable{Ann: site},
+			},
+			Expr: p.sel,
+		})
+	}
 }
 
 // buildFieldPathSelector builds the selector expression reaching base.<path>, where path is a
