@@ -726,6 +726,23 @@ buildShadowMask:
 							}
 						}
 
+						if rootNode.functionContext.functionConfig.EnableStructInitV2 {
+							if u, ok := ast.Unparen(rhsVal).(*ast.UnaryExpr); ok && u.Op == token.AND {
+								// The address is non-nil, while its fields still land on the pointee below.
+								producer := &annotation.ProduceTrigger{
+									Annotation: &annotation.ProduceTriggerNever{},
+									Expr:       rhsVal,
+								}
+								for _, consumer := range lhsNode.ConsumeTriggers() {
+									rootNode.AddNewTriggers(annotation.FullTrigger{
+										Producer: producer,
+										Consumer: consumer,
+									})
+								}
+								lhsNode.SetConsumeTriggers(nil)
+							}
+						}
+
 						// If the lhsVal path is not only trackable but tracked, we add it as
 						// a deferred landing
 						landings = append(landings, deferredLanding{
@@ -841,8 +858,8 @@ func backpropAcrossManyToOneAssignment(rootNode *RootAssertionNode, lhs, rhs []a
 			if funcObj := typeutil.StaticCallee(rootNode.Pass().TypesInfo, rhsVal); funcObj != nil {
 				sig := funcObj.Type().(*types.Signature)
 				if i < sig.Results().Len() {
-					if st := typeshelper.AsDeeplyStruct(sig.Results().At(i).Type()); st != nil {
-						rootNode.addContextFieldProducers(st, lhsVal, funcObj, annotation.StructFieldReturnContext, i)
+					if typeshelper.AsDeeplyStruct(sig.Results().At(i).Type()) != nil {
+						rootNode.addCallResultFieldProducers(lhsVal, funcObj, i)
 					}
 				}
 			}

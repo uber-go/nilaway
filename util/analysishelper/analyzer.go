@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"runtime/debug"
 
+	"go.uber.org/nilaway/config"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -47,7 +48,8 @@ func WrapRun[T any](f func(*analysis.Pass) (T, error)) func(*analysis.Pass) (any
 		}
 		defer func() {
 			if r := recover(); r != nil {
-				result.(*Result[T]).Err = fmt.Errorf("INTERNAL PANIC from %q: %s\n%s", analyzerName, r, string(debug.Stack()))
+				result.(*Result[T]).Err = fmt.Errorf("%s from %q: %s\n%s",
+					config.InternalPanicPrefix, analyzerName, r, string(debug.Stack()))
 			}
 		}()
 

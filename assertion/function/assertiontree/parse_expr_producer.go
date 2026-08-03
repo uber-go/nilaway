@@ -573,20 +573,29 @@ func (r *RootAssertionNode) getFuncReturnProducers(ident *ast.Ident, expr *ast.C
 			fieldProducers = r.getFieldProducersForFuncReturns(funcObj, i)
 		}
 
+		var shallowAnnotation annotation.ProducingAnnotationTrigger = &annotation.FuncReturn{
+			TriggerIfNilable: &annotation.TriggerIfNilable{
+				Ann: retKey,
+
+				// for an error-returning function, all but the last result are guarded
+				// TODO: add an annotation that allows more results to escape from guarding
+				// such as "error-nonnil" or "always-nonnil"
+				NeedsGuard: (isErrReturning || isOkReturning) && i != numResults-1,
+			},
+			IsFromRichCheckEffectFunc: isErrReturning || isOkReturning,
+		}
+		// A result value supplied by a caller argument must not be read from the shared
+		// declaration return, which merges unrelated callers. This revision produces
+		// "no evidence of nil" instead (a documented under-report; the per-call resolution lands
+		// in the following revisions).
+		if r.functionContext.functionConfig.EnableStructInitV2 && r.resultValueHasParamSource(funcObj, i) {
+			shallowAnnotation = &annotation.ProduceTriggerNever{}
+		}
+
 		producers[i] = producer.DeepParsedProducer{
 			ShallowProducer: &annotation.ProduceTrigger{
-				Annotation: &annotation.FuncReturn{
-					TriggerIfNilable: &annotation.TriggerIfNilable{
-						Ann: retKey,
-
-						// for an error-returning function, all but the last result are guarded
-						// TODO: add an annotation that allows more results to escape from guarding
-						// such as "error-nonnil" or "always-nonnil"
-						NeedsGuard: (isErrReturning || isOkReturning) && i != numResults-1,
-					},
-					IsFromRichCheckEffectFunc: isErrReturning || isOkReturning,
-				},
-				Expr: expr,
+				Annotation: shallowAnnotation,
+				Expr:       expr,
 			},
 			DeepProducer: &annotation.ProduceTrigger{
 				Annotation: annotation.DeepNilabilityOfFuncRet(funcObj, i),

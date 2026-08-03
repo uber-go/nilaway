@@ -16,6 +16,7 @@ package annotation
 
 import (
 	"fmt"
+	"go/token"
 	"go/types"
 )
 
@@ -99,7 +100,13 @@ type StructFieldContextSite struct {
 	Kind    StructFieldContextKind
 	Index   int
 	// Path is the dotted field path from the boundary value to the tracked field (e.g. "aptr").
+	// Empty for a site describing the boundary value itself.
 	Path string
+	// Location is set for a call-site-scoped field site: return param sources are instantiated per call
+	// site, so each call gets its own site and one caller's argument cannot poison another
+	// caller's result. The zero value denotes the ordinary formal function-boundary site shared
+	// by all callers.
+	Location token.Position
 }
 
 // Lookup always returns the non-annotated default: these sites carry no syntactic annotation, so
@@ -128,8 +135,16 @@ func (s *StructFieldContextSite) copy() Key {
 func (s *StructFieldContextSite) String() string {
 	// Kind value is included in String to differentiate param-in and param-out site. Without it the two
 	// would collapse into one inference site, conflating a parameter's entry value with its
-	// post-call state.
-	return fmt.Sprintf("field `%s` of kind %d %s", s.Path, s.Kind, boundaryDesc(s.Kind, s.Index, s.FuncObj.Name()))
+	// post-call state. The call-site location keeps call-site-scoped sites of different calls
+	// distinct.
+	subject := fmt.Sprintf("field `%s`", s.Path)
+	if s.Path == "" {
+		subject = "value"
+	}
+	if s.Location.IsValid() {
+		return fmt.Sprintf("%s of kind %d %s at %s", subject, s.Kind, boundaryDesc(s.Kind, s.Index, s.FuncObj.Name()), s.Location.String())
+	}
+	return fmt.Sprintf("%s of kind %d %s", subject, s.Kind, boundaryDesc(s.Kind, s.Index, s.FuncObj.Name()))
 }
 
 // StructFieldFromContext is a producer: the value of a field (read from a boundary, e.g.
@@ -160,6 +175,9 @@ type StructFieldFromContextRepr struct {
 }
 
 func (s StructFieldFromContextRepr) String() string {
+	if s.Path == "" {
+		return boundaryDesc(s.Kind, s.Index, s.FuncName)
+	}
 	return fmt.Sprintf("field `%s` of %s", s.Path, boundaryDesc(s.Kind, s.Index, s.FuncName))
 }
 
@@ -199,5 +217,8 @@ type StructFieldToContextRepr struct {
 }
 
 func (s StructFieldToContextRepr) String() string {
+	if s.Path == "" {
+		return fmt.Sprintf("reaches %s", boundaryDesc(s.Kind, s.Index, s.FuncName))
+	}
 	return fmt.Sprintf("field `%s` reaches %s", s.Path, boundaryDesc(s.Kind, s.Index, s.FuncName))
 }

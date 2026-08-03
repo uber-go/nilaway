@@ -23,6 +23,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util/analysishelper"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
@@ -35,7 +36,7 @@ func TestAnalyzer(t *testing.T) {
 	// and convert it to an error via the result struct.
 	r, err := Analyzer.Run(nil /* pass */)
 	require.NoError(t, err)
-	require.ErrorContains(t, r.(*analysishelper.Result[Map]).Err, "INTERNAL PANIC")
+	require.ErrorContains(t, r.(*analysishelper.Result[Map]).Err, config.InternalPanicPrefix)
 }
 
 func TestContractCollection(t *testing.T) {

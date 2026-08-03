@@ -46,12 +46,12 @@ func TestFact(t *testing.T) { //nolint:paralleltest
 
 		localReads := make(fieldEffects)
 		localWrites := make(fieldEffects)
-		for funcObj, reads := range effects.Res.ParamReads {
+		for funcObj, reads := range effects.Res.paramReads {
 			if funcObj.Pkg() == pass.Pkg {
 				localReads[funcObj] = reads
 			}
 		}
-		for funcObj, writes := range effects.Res.ParamWrites {
+		for funcObj, writes := range effects.Res.paramWrites {
 			if funcObj.Pkg() == pass.Pkg {
 				localWrites[funcObj] = writes
 			}
@@ -71,7 +71,7 @@ func TestBoundaryFieldEffectsPackageFactCodec(t *testing.T) {
 		require.NoError(t, gob.NewEncoder(&buf).Encode(fact))
 		encoded := append([]byte(nil), buf.Bytes()...)
 		require.NotEmpty(t, encoded)
-		require.Less(t, len(encoded), 15_000,
+		require.Less(t, len(encoded), 20_000,
 			"encoded facts contribute to artifact size; increase this cap only with justification")
 
 		var decoded BoundaryFieldEffectsPackageFact
@@ -178,6 +178,12 @@ func newFact(functionCount int) *BoundaryFieldEffectsPackageFact {
 			},
 			ReturnEffects: []IndexedFieldPath{
 				{Idx: 0, Path: "Result"},
+			},
+			ReturnParamSources: []ReturnParamSource{
+				{
+					Result: IndexedFieldPath{Idx: 0, Path: "Result.Child"},
+					Param:  IndexedFieldPath{Idx: 1, Path: "Child"},
+				},
 			},
 		}
 	}

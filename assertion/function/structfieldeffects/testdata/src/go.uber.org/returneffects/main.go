@@ -56,7 +56,7 @@ func nestedAllocation() *Outer { // expect_effects: return_effects:0:Mid.Child r
 	return &Outer{Mid: &Node{}}
 }
 
-func unknownInitializer(mid *Node) *Outer { // expect_effects: return_effects:0:Value.Child
+func unknownInitializer(mid *Node) *Outer { // expect_effects: return_effects:0:Value.Child return_param_source:0:Mid:0:
 	return &Outer{
 		Mid:   mid,
 		Value: Node{},

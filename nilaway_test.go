@@ -24,11 +24,13 @@ package nilaway
 import (
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"go.uber.org/nilaway/config"
+	"go.uber.org/nilaway/nilawaytest"
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
@@ -63,7 +65,7 @@ func TestNilAway(t *testing.T) {
 		{name: "NilCheck", patterns: []string{"go.uber.org/nilcheck"}},
 		{name: "SimpleFlow", patterns: []string{"go.uber.org/simpleflow"}},
 		{name: "LoopFlow", patterns: []string{"go.uber.org/loopflow"}},
-		{name: "MethodImplementation", patterns: []string{"go.uber.org/methodimplementation", "go.uber.org/methodimplementation/mergedDependencies", "go.uber.org/methodimplementation/chainedDependencies", "go.uber.org/methodimplementation/multipackage", "go.uber.org/methodimplementation/embedding"}},
+		{name: "MethodImplementation", patterns: []string{"go.uber.org/methodimplementation/..."}},
 		{name: "NamedReturn", patterns: []string{"go.uber.org/namedreturn"}},
 		{name: "IgnoreGenerated", patterns: []string{"go.uber.org/ignoregenerated"}},
 		{name: "IgnorePackage", patterns: []string{"ignoredpkg1", "ignoredpkg2"}},
@@ -89,6 +91,21 @@ func TestNilAway(t *testing.T) {
 	}
 }
 
+func TestFacts(t *testing.T) {
+	t.Parallel()
+	testdata := analysistest.TestData()
+
+	results := analysistest.Run(t, testdata, Analyzer, "go.uber.org/...")
+	factStats := nilawaytest.RequireFactCodecs(t, results)
+
+	t.Logf("Total fact bytes: %.2f KB", float32(factStats.TotalBytes)/1024)
+	require.Positive(t, factStats.TotalBytes, "expected NilAway tests to export some facts")
+	require.Less(t, factStats.TotalBytes, 750*1024,
+		"The gob encoded NilAway facts for all test code is too large (%.2f KB). "+
+			"We expect the total to be less than 750 KB. This heavily affects the artifact sizes of the facts NilAway "+
+			"produces, so the cap should only be increased with justification and thorough testing.", float32(factStats.TotalBytes)/1024)
+}
+
 func TestStructInit(t *testing.T) { //nolint:paralleltest
 	// We specifically do not set this test to be parallel since we need to enable the
 	// experimental support for struct initialization to test this feature.
@@ -100,7 +117,7 @@ func TestStructInit(t *testing.T) { //nolint:paralleltest
 	}()
 
 	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/structinit/funcreturnfields", "go.uber.org/structinit/local", "go.uber.org/structinit/global", "go.uber.org/structinit/paramfield", "go.uber.org/structinit/paramsideeffect", "go.uber.org/structinit/defaultfield")
+	analysistest.Run(t, testdata, Analyzer, "structinit/funcreturnfields", "structinit/local", "structinit/global", "structinit/paramfield", "structinit/paramsideeffect", "structinit/defaultfield")
 }
 
 func TestStructInitV2(t *testing.T) { //nolint:paralleltest
@@ -113,16 +130,18 @@ func TestStructInitV2(t *testing.T) { //nolint:paralleltest
 
 	testdata := analysistest.TestData()
 	analysistest.Run(t, testdata, Analyzer,
-		"go.uber.org/structinitv2/local",
-		"go.uber.org/structinitv2/defaultfield",
-		"go.uber.org/structinitv2/deep",
-		"go.uber.org/structinitv2/crosspkg/app",
-		"go.uber.org/structinitv2/returncrosspkg/app",
-		"go.uber.org/structinitv2/crosspkgside/app",
-		"go.uber.org/structinitv2/paramfield",
-		"go.uber.org/structinitv2/paramsideeffect",
-		"go.uber.org/structinitv2/returnlocal",
-		"go.uber.org/structinitv2/returnzerovalue/app",
+		"structinitv2/local",
+		"structinitv2/defaultfield",
+		"structinitv2/deep",
+		"structinitv2/crosspkg/app",
+		"structinitv2/returncrosspkg/app",
+		"structinitv2/crosspkgside/app",
+		"structinitv2/paramfield",
+		"structinitv2/paramsideeffect",
+		"structinitv2/returnlocal",
+		"structinitv2/returnzerovalue/app",
+		// structinitv2/returnshape/app asserts the per-call resolution of param-sourced results;
+		// enable it when call-site sensitivity of param-sourced results lands.
 	)
 }
 
@@ -137,7 +156,7 @@ func TestAnonymousFunction(t *testing.T) { //nolint:paralleltest
 	}()
 
 	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/anonymousfunction")
+	analysistest.Run(t, testdata, Analyzer, "anonymousfunction")
 }
 
 func TestPrettyPrint(t *testing.T) { //nolint:paralleltest
@@ -188,18 +207,18 @@ func TestExcludeTestFiles(t *testing.T) { //nolint:paralleltest
 	// Restrict analysis to the test package only, since the _test.go file pulls in the testing
 	// infrastructure and its transitive dependencies, which would otherwise produce unrelated
 	// diagnostics from stdlib.
-	err := config.Analyzer.Flags.Set(config.IncludePkgsFlag, "go.uber.org/excludetestfiles")
+	err := config.Analyzer.Flags.Set(config.IncludePkgsFlag, "excludetestfiles")
 	require.NoError(t, err)
 
 	// First, verify that diagnostics ARE produced for test files when flag is disabled.
 	err = config.Analyzer.Flags.Set(config.ExcludeTestFilesFlag, "false")
 	require.NoError(t, err)
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/excludetestfilesbaseline")
+	analysistest.Run(t, testdata, Analyzer, "excludetestfilesbaseline")
 
 	// Then verify diagnostics are filtered when flag is enabled.
 	err = config.Analyzer.Flags.Set(config.ExcludeTestFilesFlag, "true")
 	require.NoError(t, err)
-	analysistest.Run(t, testdata, Analyzer, "go.uber.org/excludetestfiles")
+	analysistest.Run(t, testdata, Analyzer, "excludetestfiles")
 
 	// Reset flags to their default values.
 	defer func() {
@@ -223,6 +242,17 @@ func TestPrintFullFilePath(t *testing.T) { //nolint:paralleltest
 
 	testdata := analysistest.TestData()
 	analysistest.Run(t, testdata, Analyzer, "printfullfilepath")
+}
+
+func TestAnalyzerNames(t *testing.T) {
+	t.Parallel()
+
+	analyzers := nilawaytest.AllAnalyzers(t, Analyzer)
+	require.Greater(t, len(analyzers), 1, "expected to find more than 1 analyzer")
+
+	for _, a := range analyzers {
+		require.True(t, strings.HasPrefix(a.Name, "nilaway"), "expected analyzer name %q to start with 'nilaway'", a.Name)
+	}
 }
 
 func TestMain(m *testing.M) {

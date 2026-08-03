@@ -15,7 +15,7 @@
 package packageB
 
 type I2 interface {
-	Bar() *string //want "returned as result"
+	Bar() *string
 }
 
 type S2 struct{}

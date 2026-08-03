@@ -51,21 +51,24 @@ func run(p *analysis.Pass) (*BoundaryFieldEffects, error) {
 	}
 
 	collected := computeBoundaryFieldEffects(pass)
-	if err := importUsedParamEffects(pass, collected.summary, collected.callees); err != nil {
+	if err := importUsedParamEffects(pass, collected.summary, collected.calledFunctions); err != nil {
 		return nil, err
 	}
 
 	packageSummary := collected.close()
 	fact := &BoundaryFieldEffectsPackageFact{}
 	encoder := &objectpath.Encoder{}
-	funcs := make(map[*types.Func]bool, len(packageSummary.ParamReads)+len(packageSummary.ParamWrites)+len(packageSummary.ReturnEffects))
-	for funcObj := range packageSummary.ParamReads {
+	funcs := make(map[*types.Func]bool, len(packageSummary.paramReads)+len(packageSummary.paramWrites)+len(packageSummary.returnEffects))
+	for funcObj := range packageSummary.paramReads {
 		funcs[funcObj] = true
 	}
-	for funcObj := range packageSummary.ParamWrites {
+	for funcObj := range packageSummary.paramWrites {
 		funcs[funcObj] = true
 	}
-	for funcObj := range packageSummary.ReturnEffects {
+	for funcObj := range packageSummary.returnEffects {
+		funcs[funcObj] = true
+	}
+	for funcObj := range packageSummary.returnParamSources {
 		funcs[funcObj] = true
 	}
 	for funcObj := range funcs {
@@ -74,10 +77,11 @@ func run(p *analysis.Pass) (*BoundaryFieldEffects, error) {
 		}
 		// Return reads remain local because callers infer them
 		// from their dereferences of results, opposite the direction of fact propagation.
-		reads := packageSummary.ParamReads.sortedPaths(funcObj)
-		writes := packageSummary.ParamWrites.sortedPaths(funcObj)
-		returnEffects := packageSummary.ReturnEffects.sortedPaths(funcObj)
-		if len(reads) == 0 && len(writes) == 0 && len(returnEffects) == 0 {
+		reads := packageSummary.paramReads.sortedPaths(funcObj)
+		writes := packageSummary.paramWrites.sortedPaths(funcObj)
+		returnEffects := packageSummary.returnEffects.sortedPaths(funcObj)
+		sources := packageSummary.returnParamSources.sortedSources(funcObj)
+		if len(reads) == 0 && len(writes) == 0 && len(returnEffects) == 0 && len(sources) == 0 {
 			continue
 		}
 		path, err := encoder.For(funcObj)
@@ -89,6 +93,7 @@ func run(p *analysis.Pass) (*BoundaryFieldEffects, error) {
 			ParamReads:         reads,
 			ParamWrites:        writes,
 			ReturnEffects:      returnEffects,
+			ReturnParamSources: sources,
 		})
 	}
 	if len(fact.Functions) > 0 {
@@ -103,9 +108,9 @@ func run(p *analysis.Pass) (*BoundaryFieldEffects, error) {
 	return packageSummary, nil
 }
 
-func importUsedParamEffects(pass *analysishelper.EnhancedPass, effects *BoundaryFieldEffects, callees map[*types.Func]bool) error {
+func importUsedParamEffects(pass *analysishelper.EnhancedPass, effects *BoundaryFieldEffects, calledFunctions map[*types.Func]bool) error {
 	calleesByPackage := make(map[*types.Package][]*types.Func)
-	for callee := range callees {
+	for callee := range calledFunctions {
 		if callee.Pkg() != nil && callee.Pkg() != pass.Pkg {
 			calleesByPackage[callee.Pkg()] = append(calleesByPackage[callee.Pkg()], callee)
 		}
@@ -131,9 +136,12 @@ func importUsedParamEffects(pass *analysishelper.EnhancedPass, effects *Boundary
 				return cmp.Compare(entry.FunctionObjectPath, path)
 			})
 			if found {
-				seedImportedParamEffects(effects.ParamReads, callee, fact.Functions[index].ParamReads)
-				seedImportedParamEffects(effects.ParamWrites, callee, fact.Functions[index].ParamWrites)
-				seedImportedParamEffects(effects.ReturnEffects, callee, fact.Functions[index].ReturnEffects)
+				seedImportedParamEffects(effects.paramReads, callee, fact.Functions[index].ParamReads)
+				seedImportedParamEffects(effects.paramWrites, callee, fact.Functions[index].ParamWrites)
+				seedImportedParamEffects(effects.returnEffects, callee, fact.Functions[index].ReturnEffects)
+				for _, source := range fact.Functions[index].ReturnParamSources {
+					effects.returnParamSources.add(callee, source)
+				}
 			}
 		}
 	}
