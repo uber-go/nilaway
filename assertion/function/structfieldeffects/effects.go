@@ -277,13 +277,32 @@ func closeReturnEffects(effects fieldEffects, edges map[*types.Func][]returnForw
 	}
 }
 
-// joinFieldPath concatenates a (possibly empty) field-path prefix with a sub-path: join("", p) = p,
-// join("inner", "f") = "inner.f".
+// joinFieldPath concatenates two (possibly empty) dotted field paths: join("", p) = p,
+// join("inner", "f") = "inner.f", join("inner", "") = "inner".
 func joinFieldPath(prefix, sub string) string {
 	if prefix == "" {
 		return sub
 	}
+	if sub == "" {
+		return prefix
+	}
 	return prefix + "." + sub
+}
+
+// trimFieldPathPrefix is joinFieldPath's inverse: it returns the remainder of path below prefix —
+// trim("Mid.Child", "Mid") = "Child", trim(p, "") = p, trim(p, p) = "". The match is per segment,
+// so ok is false when prefix does not cover path (`Middle` is not below `Mid`).
+func trimFieldPathPrefix(path, prefix string) (sub string, ok bool) {
+	switch {
+	case prefix == "":
+		return path, true
+	case path == prefix:
+		return "", true
+	case strings.HasPrefix(path, prefix+"."):
+		return path[len(prefix)+1:], true
+	default:
+		return "", false
+	}
 }
 
 func paramFieldPathIsAcyclic(fn *types.Func, paramIdx int, path string) bool {

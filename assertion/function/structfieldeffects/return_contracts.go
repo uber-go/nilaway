@@ -26,7 +26,6 @@ import (
 	"go/token"
 	"go/types"
 	"slices"
-	"strings"
 
 	"go.uber.org/nilaway/util/asthelper"
 )
@@ -49,13 +48,24 @@ type ReturnParamSource struct {
 // source supplies its exact path and everything beneath it. The prefix match is per segment —
 // source `Mid` supplies `Mid.Child` but not the sibling field `Middle`.
 func (s ReturnParamSource) SuppliesResultPath(resultIdx int, resultPath string) bool {
+	_, ok := s.ResolveResultPath(resultIdx, resultPath)
+	return ok
+}
+
+// ResolveResultPath resolves the param endpoint supplying (resultIdx, resultPath) through s: the
+// remainder of resultPath below s's result path is re-rooted under s's param path — source
+// `Mid <- p.inner` resolves result path `Mid.Child` to param path `inner.Child`, and a
+// whole-result source re-roots the full path. ok reports whether s supplies the path at all
+// (see SuppliesResultPath).
+func (s ReturnParamSource) ResolveResultPath(resultIdx int, resultPath string) (param IndexedFieldPath, ok bool) {
 	if s.Result.Idx != resultIdx {
-		return false
+		return IndexedFieldPath{}, false
 	}
-	if s.Result.Path == "" {
-		return true
+	suffix, ok := trimFieldPathPrefix(resultPath, s.Result.Path)
+	if !ok {
+		return IndexedFieldPath{}, false
 	}
-	return resultPath == s.Result.Path || strings.HasPrefix(resultPath, s.Result.Path+".")
+	return IndexedFieldPath{Idx: s.Param.Idx, Path: joinFieldPath(s.Param.Path, suffix)}, true
 }
 
 // returnParamSourceSet maps each function to its set of return param sources.
