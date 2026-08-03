@@ -23,3 +23,8 @@ func M9() packageA.I9 {
 	var v packageA.I9 = &packageB.A9{"abc"}
 	return v
 }
+
+// The diagnostic is reported while analyzing this package, but its position is in packageB.
+// Use a line directive so analysistest can associate this expectation with that position.
+//line ../packageB/structfile.go:24
+// want "function parameter `x` accessed field `S`"
