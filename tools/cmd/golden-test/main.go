@@ -43,6 +43,8 @@ type Diagnostic struct {
 	Message string `json:"message"`
 }
 
+const internalPanicDiagnostic = "INTERNAL PANIC"
+
 // BranchResult stores the information about a branch, and the diagnostics reported on that branch.
 type BranchResult struct {
 	// Name is the friendly name of the branch (if available and not "HEAD", otherwise it is equal
@@ -154,7 +156,7 @@ func Run(writer io.Writer, baseBranch, testBranch string) error {
 	}
 
 	WriteDiff(writer, branches)
-	return nil
+	return checkInternalPanics(branches)
 }
 
 // ParseDiagnostics parses the diagnostics from the raw JSON output of NilAway and returns the
@@ -178,6 +180,32 @@ func ParseDiagnostics(reader io.Reader) (map[Diagnostic]bool, error) {
 	}
 
 	return allDiagnostics, nil
+}
+
+// checkInternalPanics returns an error if NilAway reported an internal panic on either branch.
+func checkInternalPanics(branches [2]*BranchResult) error {
+	var affectedBranches []string
+	for _, branch := range branches {
+		count := 0
+		for diagnostic := range branch.Result {
+			if isInternalPanic(diagnostic) {
+				count++
+			}
+		}
+		if count > 0 {
+			affectedBranches = append(affectedBranches,
+				fmt.Sprintf("%s (%s): %d", branch.Name, branch.ShortSHA, count))
+		}
+	}
+	if len(affectedBranches) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%s diagnostic(s) reported on %s",
+		internalPanicDiagnostic, strings.Join(affectedBranches, ", "))
+}
+
+func isInternalPanic(diagnostic Diagnostic) bool {
+	return strings.Contains(diagnostic.Message, internalPanicDiagnostic)
 }
 
 // WriteDiff writes the summary and the diff (if the base and test are different) between the base
@@ -233,20 +261,27 @@ func WriteDiff(writer io.Writer, branches [2]*BranchResult) {
 	MustFprint(fmt.Fprintf(writer, "\n<details>\n"))
 	MustFprint(fmt.Fprintf(writer, "<summary>Diffs</summary>\n\n"))
 	MustFprint(fmt.Fprintf(writer, "```diff\n"))
-	for i, diff := range [...][]Diagnostic{pluses, minuses} {
-		prefix, c := "+", color.FgGreen
-		if i == 1 {
-			prefix, c = "-", color.FgRed
-		}
-		for _, d := range diff {
-			lines := strings.Split(strings.TrimSpace(d.Message), "\n")
-			// Add Posn to the first line and prefix to each line for diff formatting.
-			lines[0] = d.Posn + ": " + lines[0]
-			for i := range lines {
-				lines[i] = prefix + " " + lines[i]
+	// Print internal panics before other diagnostics so they remain visible if the output is
+	// truncated. Preserve the usual additions-before-removals ordering within each group.
+	for _, printInternalPanics := range [...]bool{true, false} {
+		for i, diff := range [...][]Diagnostic{pluses, minuses} {
+			prefix, c := "+", color.FgGreen
+			if i == 1 {
+				prefix, c = "-", color.FgRed
 			}
-			output := strings.Join(lines, "\n") + "\n"
-			MustFprint(color.New(c).Fprint(writer, output))
+			for _, d := range diff {
+				if isInternalPanic(d) != printInternalPanics {
+					continue
+				}
+				lines := strings.Split(strings.TrimSpace(d.Message), "\n")
+				// Add Posn to the first line and prefix to each line for diff formatting.
+				lines[0] = d.Posn + ": " + lines[0]
+				for i := range lines {
+					lines[i] = prefix + " " + lines[i]
+				}
+				output := strings.Join(lines, "\n") + "\n"
+				MustFprint(color.New(c).Fprint(writer, output))
+			}
 		}
 	}
 	MustFprint(fmt.Fprintf(writer, "```\n\n"))
@@ -264,6 +299,12 @@ func Diff(first, second map[Diagnostic]bool) []Diagnostic {
 	}
 	// Sort the diff such that we have stable ordering for the same runs.
 	slices.SortFunc(diff, func(i, j Diagnostic) int {
+		if iPanic, jPanic := isInternalPanic(i), isInternalPanic(j); iPanic != jPanic {
+			if iPanic {
+				return -1
+			}
+			return 1
+		}
 		if n := cmp.Compare(i.Posn, j.Posn); n != 0 {
 			return n
 		}

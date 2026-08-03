@@ -17,6 +17,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -70,6 +71,7 @@ func TestWriteDiff(t *testing.T) {
 
 	// Add two different diagnostics to base and test and check that they are reported.
 	base[Diagnostic{Posn: "src/file2:10:2", Message: "nil pointer dereference"}] = true
+	base[Diagnostic{Posn: "src/z:10:2", Message: "INTERNAL PANIC: boom"}] = true
 	test[Diagnostic{Posn: "src/file4:10:2", Message: "bar error"}] = true
 	buf.Reset()
 	WriteDiff(&buf, branches)
@@ -78,6 +80,11 @@ func TestWriteDiff(t *testing.T) {
 	require.Contains(t, s, "are **different**")
 	require.Contains(t, s, "- src/file2:10:2: nil pointer dereference")
 	require.Contains(t, s, "+ src/file4:10:2: bar error")
+	panicIndex := strings.Index(s, "- src/z:10:2: INTERNAL PANIC: boom")
+	normalIndex := strings.Index(s, "+ src/file4:10:2: bar error")
+	require.NotEqual(t, -1, panicIndex)
+	require.NotEqual(t, -1, normalIndex)
+	require.Less(t, panicIndex, normalIndex)
 }
 
 func TestDiff(t *testing.T) {
@@ -86,6 +93,8 @@ func TestDiff(t *testing.T) {
 	base := map[Diagnostic]bool{
 		// Same in both.
 		{Posn: "src/file1:10:2", Message: "nil pointer dereference"}: true,
+		// Internal panics must be ordered first regardless of position.
+		{Posn: "src/z:10:2", Message: "INTERNAL PANIC: boom"}: true,
 		// Differs in position.
 		{Posn: "src/file2:10:2", Message: "nil pointer dereference"}: true,
 		// Differs in message.
@@ -102,6 +111,8 @@ func TestDiff(t *testing.T) {
 
 	minuses := Diff(base, test)
 	require.Equal(t, []Diagnostic{
+		// Internal panic.
+		{Posn: "src/z:10:2", Message: "INTERNAL PANIC: boom"},
 		// Differs in position.
 		{Posn: "src/file2:10:2", Message: "nil pointer dereference"},
 		// Differs in message.
@@ -115,6 +126,23 @@ func TestDiff(t *testing.T) {
 		// Differs in message.
 		{Posn: "src/file4:10:2", Message: "bar error"},
 	}, pluses)
+}
+
+func TestCheckInternalPanics(t *testing.T) {
+	t.Parallel()
+
+	branches := [2]*BranchResult{
+		{Name: "base", ShortSHA: "123456", Result: map[Diagnostic]bool{
+			{Message: "nil pointer dereference"}: true,
+		}},
+		{Name: "test", ShortSHA: "456789", Result: map[Diagnostic]bool{}},
+	}
+	require.NoError(t, checkInternalPanics(branches))
+
+	branches[1].Result[Diagnostic{Message: "INTERNAL ERROR(s):\nINTERNAL PANIC from analyzer"}] = true
+	err := checkInternalPanics(branches)
+	require.ErrorContains(t, err, "INTERNAL PANIC diagnostic(s)")
+	require.ErrorContains(t, err, "test (456789): 1")
 }
 
 func TestMustFprint(t *testing.T) {
