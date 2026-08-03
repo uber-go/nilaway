@@ -104,12 +104,9 @@ func (r *RootAssertionNode) resultValueHasParamSource(funcObj *types.Func, resul
 	return r.resultPathHasParamSource(funcObj, resultIdx, "")
 }
 
-// addCallResultFieldProducers attaches producers for the accessed fields of a single call result
-// bound to base: each accessed path reads the shared return context site of funcObj's
-// resultIdx-th result, seeded with the callee's concrete return effects, and param-sourced paths
-// stay severed (never solved on the shared sites). It is the single entry point for both the
-// one-result and the many-result assignment paths, so per-call resolution of param-sourced paths
-// can land in one place.
+// addCallResultFieldProducers attaches producers for the accessed fields of a call result bound
+// to base: each path reads the shared return context site of funcObj's resultIdx-th result,
+// seeded with the callee's concrete return effects.
 func (r *RootAssertionNode) addCallResultFieldProducers(base ast.Expr, funcObj *types.Func, resultIdx int) {
 	path, _ := r.ParseExprAsProducer(base, false)
 	node, _ := r.lookupPath(path)
@@ -281,30 +278,6 @@ func (r *RootAssertionNode) collectAccessedFieldPaths(node AssertionNode, base a
 		if !typeshelper.TypeBarsNilness(field.Type()) {
 			*out = append(*out, accessedFieldPath{sel: sel, path: path})
 		}
-	}
-}
-
-// addParamContextFieldProducers attaches, for each accessed nilable field path under base, a
-// producer making `base.<path>` nil iff the corresponding parameter context site of funcObj is
-// inferred nilable.
-func (r *RootAssertionNode) addParamContextFieldProducers(base ast.Expr, funcObj *types.Func, paramIdx int) {
-	path, _ := r.ParseExprAsProducer(base, false)
-	node, _ := r.lookupPath(path)
-	if node == nil {
-		return
-	}
-	var paths []accessedFieldPath
-	r.collectAccessedFieldPaths(node, base, "", make(map[*types.Struct]bool), &paths)
-	for _, p := range paths {
-		site := &annotation.StructFieldContextSite{
-			FuncObj: funcObj, Kind: annotation.StructFieldParamContext, Index: paramIdx, Path: p.path,
-		}
-		r.AddProduction(&annotation.ProduceTrigger{
-			Annotation: &annotation.StructFieldFromContext{
-				TriggerIfNilable: &annotation.TriggerIfNilable{Ann: site},
-			},
-			Expr: p.sel,
-		})
 	}
 }
 
@@ -550,7 +523,24 @@ func (r *RootAssertionNode) addParamFieldProducers(builtExpr ast.Expr) {
 	if typeshelper.AsDeeplyStruct(v.Type()) == nil {
 		return
 	}
-	r.addParamContextFieldProducers(builtExpr, r.FuncObj(), idx)
+	path, _ := r.ParseExprAsProducer(builtExpr, false)
+	node, _ := r.lookupPath(path)
+	if node == nil {
+		return
+	}
+	var paths []accessedFieldPath
+	r.collectAccessedFieldPaths(node, builtExpr, "", make(map[*types.Struct]bool), &paths)
+	for _, p := range paths {
+		site := &annotation.StructFieldContextSite{
+			FuncObj: r.FuncObj(), Kind: annotation.StructFieldParamContext, Index: idx, Path: p.path,
+		}
+		r.AddProduction(&annotation.ProduceTrigger{
+			Annotation: &annotation.StructFieldFromContext{
+				TriggerIfNilable: &annotation.TriggerIfNilable{Ann: site},
+			},
+			Expr: p.sel,
+		})
+	}
 }
 
 // buildFieldPathSelector builds the selector expression reaching base.<path>, where path is a
