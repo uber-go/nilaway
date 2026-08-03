@@ -24,11 +24,13 @@ package nilaway
 import (
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"go.uber.org/nilaway/config"
+	"go.uber.org/nilaway/nilawaytest"
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
@@ -223,6 +225,17 @@ func TestPrintFullFilePath(t *testing.T) { //nolint:paralleltest
 
 	testdata := analysistest.TestData()
 	analysistest.Run(t, testdata, Analyzer, "printfullfilepath")
+}
+
+func TestAnalyzerNames(t *testing.T) {
+	t.Parallel()
+
+	analyzers := nilawaytest.AllAnalyzers(t, Analyzer)
+	require.Greater(t, len(analyzers), 1, "expected to find more than 1 analyzer")
+
+	for _, a := range analyzers {
+		require.True(t, strings.HasPrefix(a.Name, "nilaway"), "expected analyzer name %q to start with 'nilaway'", a.Name)
+	}
 }
 
 func TestMain(m *testing.M) {
