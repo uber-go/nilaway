@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/nilawaytest"
 	"go.uber.org/nilaway/util/analysishelper"
@@ -165,24 +166,24 @@ func newFact(functionCount int) *BoundaryFieldEffectsPackageFact {
 		functions[i] = FunctionFieldEffects{
 			FunctionObjectPath: objectpath.Path(fmt.Sprintf("Function%03d", i)),
 			ParamReads: []IndexedFieldPath{
-				{Idx: -1, Path: "Receiver"},
-				{Idx: 0, Path: "Child"},
-				{Idx: 0, Path: "Child.Leaf"},
-				{Idx: 1, Path: fmt.Sprintf("Argument%d.Field", i)},
+				{Idx: -1, Path: annotation.NewFieldPath("Receiver")},
+				{Idx: 0, Path: annotation.NewFieldPath("Child")},
+				{Idx: 0, Path: annotation.NewFieldPath("Child", "Leaf")},
+				{Idx: 1, Path: annotation.NewFieldPath(fmt.Sprintf("Argument%d", i), "Field")},
 			},
 			ParamWrites: []IndexedFieldPath{
-				{Idx: -1, Path: "Receiver.Child"},
-				{Idx: 0, Path: "Child"},
-				{Idx: 0, Path: "Child.Leaf"},
-				{Idx: 1, Path: fmt.Sprintf("Argument%d.Field", i)},
+				{Idx: -1, Path: annotation.NewFieldPath("Receiver", "Child")},
+				{Idx: 0, Path: annotation.NewFieldPath("Child")},
+				{Idx: 0, Path: annotation.NewFieldPath("Child", "Leaf")},
+				{Idx: 1, Path: annotation.NewFieldPath(fmt.Sprintf("Argument%d", i), "Field")},
 			},
 			ReturnEffects: []IndexedFieldPath{
-				{Idx: 0, Path: "Result"},
+				{Idx: 0, Path: annotation.NewFieldPath("Result")},
 			},
 			ReturnParamSources: []ReturnParamSource{
 				{
-					Result: IndexedFieldPath{Idx: 0, Path: "Result.Child"},
-					Param:  IndexedFieldPath{Idx: 1, Path: "Child"},
+					Result: IndexedFieldPath{Idx: 0, Path: annotation.NewFieldPath("Result", "Child")},
+					Param:  IndexedFieldPath{Idx: 1, Path: annotation.NewFieldPath("Child")},
 				},
 			},
 		}

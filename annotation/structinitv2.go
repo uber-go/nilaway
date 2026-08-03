@@ -99,9 +99,9 @@ type StructFieldContextSite struct {
 	FuncObj *types.Func
 	Kind    StructFieldContextKind
 	Index   int
-	// Path is the dotted field path from the boundary value to the tracked field (e.g. "aptr").
-	// Empty for a site describing the boundary value itself.
-	Path string
+	// Path is the field path from the boundary value to the tracked field. The zero value
+	// denotes a site describing the boundary value itself.
+	Path FieldPath
 	// Location is set for a call-site-scoped field site: return param sources are instantiated per call
 	// site, so each call gets its own site and one caller's argument cannot poison another
 	// caller's result. The zero value denotes the ordinary formal function-boundary site shared
@@ -138,7 +138,7 @@ func (s *StructFieldContextSite) String() string {
 	// post-call state. The call-site location keeps call-site-scoped sites of different calls
 	// distinct.
 	subject := fmt.Sprintf("field `%s`", s.Path)
-	if s.Path == "" {
+	if s.Path.IsRoot() {
 		subject = "value"
 	}
 	if s.Location.IsValid() {
@@ -163,7 +163,7 @@ func (s *StructFieldFromContext) equals(other ProducingAnnotationTrigger) bool {
 // Repr returns this StructFieldFromContext as a fmt.Stringer.
 func (s *StructFieldFromContext) Repr() fmt.Stringer {
 	site := s.Ann.(*StructFieldContextSite)
-	return StructFieldFromContextRepr{Path: site.Path, Kind: site.Kind, Index: site.Index, FuncName: site.FuncObj.Name()}
+	return StructFieldFromContextRepr{Path: site.Path.String(), Kind: site.Kind, Index: site.Index, FuncName: site.FuncObj.Name()}
 }
 
 // StructFieldFromContextRepr is the compact encoding of a StructFieldFromContext.
@@ -205,7 +205,7 @@ func (s *StructFieldToContext) Copy() ConsumingAnnotationTrigger {
 // Repr returns this StructFieldToContext as a fmt.Stringer.
 func (s *StructFieldToContext) Repr() fmt.Stringer {
 	site := s.Ann.(*StructFieldContextSite)
-	return StructFieldToContextRepr{Path: site.Path, Kind: site.Kind, Index: site.Index, FuncName: site.FuncObj.Name()}
+	return StructFieldToContextRepr{Path: site.Path.String(), Kind: site.Kind, Index: site.Index, FuncName: site.FuncObj.Name()}
 }
 
 // StructFieldToContextRepr is the compact encoding of a StructFieldToContext.

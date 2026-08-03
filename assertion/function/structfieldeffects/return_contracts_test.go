@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/nilaway/annotation"
 )
 
 func TestResolveResultPath(t *testing.T) {
@@ -27,62 +28,62 @@ func TestResolveResultPath(t *testing.T) {
 		name       string
 		source     ReturnParamSource
 		resultIdx  int
-		resultPath string
+		resultPath annotation.FieldPath
 		wantParam  IndexedFieldPath
 		wantOK     bool
 	}{
 		{
 			name:       "field-level source at its exact path",
-			source:     ReturnParamSource{Result: IndexedFieldPath{Idx: 0, Path: "Mid"}, Param: IndexedFieldPath{Idx: 1, Path: "inner"}},
+			source:     ReturnParamSource{Result: IndexedFieldPath{Idx: 0, Path: annotation.NewFieldPath("Mid")}, Param: IndexedFieldPath{Idx: 1, Path: annotation.NewFieldPath("inner")}},
 			resultIdx:  0,
-			resultPath: "Mid",
-			wantParam:  IndexedFieldPath{Idx: 1, Path: "inner"},
+			resultPath: annotation.NewFieldPath("Mid"),
+			wantParam:  IndexedFieldPath{Idx: 1, Path: annotation.NewFieldPath("inner")},
 			wantOK:     true,
 		},
 		{
 			name:       "field-level source re-roots a deeper path",
-			source:     ReturnParamSource{Result: IndexedFieldPath{Idx: 0, Path: "Mid"}, Param: IndexedFieldPath{Idx: 1, Path: "inner"}},
+			source:     ReturnParamSource{Result: IndexedFieldPath{Idx: 0, Path: annotation.NewFieldPath("Mid")}, Param: IndexedFieldPath{Idx: 1, Path: annotation.NewFieldPath("inner")}},
 			resultIdx:  0,
-			resultPath: "Mid.Child",
-			wantParam:  IndexedFieldPath{Idx: 1, Path: "inner.Child"},
+			resultPath: annotation.NewFieldPath("Mid", "Child"),
+			wantParam:  IndexedFieldPath{Idx: 1, Path: annotation.NewFieldPath("inner", "Child")},
 			wantOK:     true,
 		},
 		{
 			name:       "bare-param source keeps the bare param at the exact path",
-			source:     ReturnParamSource{Result: IndexedFieldPath{Idx: 0, Path: "Existing"}, Param: IndexedFieldPath{Idx: 0}},
+			source:     ReturnParamSource{Result: IndexedFieldPath{Idx: 0, Path: annotation.NewFieldPath("Existing")}, Param: IndexedFieldPath{Idx: 0}},
 			resultIdx:  0,
-			resultPath: "Existing",
+			resultPath: annotation.NewFieldPath("Existing"),
 			wantParam:  IndexedFieldPath{Idx: 0},
 			wantOK:     true,
 		},
 		{
 			name:       "whole-result source re-roots the full path",
-			source:     ReturnParamSource{Result: IndexedFieldPath{Idx: 0}, Param: IndexedFieldPath{Idx: 0, Path: "inner"}},
+			source:     ReturnParamSource{Result: IndexedFieldPath{Idx: 0}, Param: IndexedFieldPath{Idx: 0, Path: annotation.NewFieldPath("inner")}},
 			resultIdx:  0,
-			resultPath: "Mid.Child",
-			wantParam:  IndexedFieldPath{Idx: 0, Path: "inner.Mid.Child"},
+			resultPath: annotation.NewFieldPath("Mid", "Child"),
+			wantParam:  IndexedFieldPath{Idx: 0, Path: annotation.NewFieldPath("inner", "Mid", "Child")},
 			wantOK:     true,
 		},
 		{
 			name:       "whole-result source at the result value itself",
-			source:     ReturnParamSource{Result: IndexedFieldPath{Idx: 0}, Param: IndexedFieldPath{Idx: 0, Path: "inner"}},
+			source:     ReturnParamSource{Result: IndexedFieldPath{Idx: 0}, Param: IndexedFieldPath{Idx: 0, Path: annotation.NewFieldPath("inner")}},
 			resultIdx:  0,
-			resultPath: "",
-			wantParam:  IndexedFieldPath{Idx: 0, Path: "inner"},
+			resultPath: annotation.FieldPath{},
+			wantParam:  IndexedFieldPath{Idx: 0, Path: annotation.NewFieldPath("inner")},
 			wantOK:     true,
 		},
 		{
 			name:       "sibling field sharing the source prefix is not supplied",
-			source:     ReturnParamSource{Result: IndexedFieldPath{Idx: 0, Path: "Mid"}, Param: IndexedFieldPath{Idx: 1, Path: "inner"}},
+			source:     ReturnParamSource{Result: IndexedFieldPath{Idx: 0, Path: annotation.NewFieldPath("Mid")}, Param: IndexedFieldPath{Idx: 1, Path: annotation.NewFieldPath("inner")}},
 			resultIdx:  0,
-			resultPath: "Middle",
+			resultPath: annotation.NewFieldPath("Middle"),
 			wantOK:     false,
 		},
 		{
 			name:       "different result index is not supplied",
-			source:     ReturnParamSource{Result: IndexedFieldPath{Idx: 0, Path: "Mid"}, Param: IndexedFieldPath{Idx: 1, Path: "inner"}},
+			source:     ReturnParamSource{Result: IndexedFieldPath{Idx: 0, Path: annotation.NewFieldPath("Mid")}, Param: IndexedFieldPath{Idx: 1, Path: annotation.NewFieldPath("inner")}},
 			resultIdx:  1,
-			resultPath: "Mid",
+			resultPath: annotation.NewFieldPath("Mid"),
 			wantOK:     false,
 		},
 	}

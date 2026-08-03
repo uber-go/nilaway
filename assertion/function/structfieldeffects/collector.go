@@ -509,7 +509,7 @@ func (fc *functionCollector) collectStableStructVars() map[*types.Var]bool {
 func (fc *functionCollector) collectReturnSiteEffect(resultIdx int, resultExpr ast.Expr) {
 	if source, ok := staticStructAllocation(fc.pass, resultExpr); ok {
 		fc.collected.markResultWithConstructSite(fc.funcObj, resultIdx)
-		fc.enumerateConcreteReturnEffects(resultIdx, source.structType, source.fieldInits, "")
+		fc.enumerateConcreteReturnEffects(resultIdx, source.structType, source.fieldInits, annotation.FieldPath{})
 		return
 	}
 	if call, ok := ast.Unparen(resultExpr).(*ast.CallExpr); ok {
@@ -529,7 +529,7 @@ func (fc *functionCollector) collectReturnSiteEffect(resultIdx int, resultExpr a
 	}
 	if source, ok := fc.allocationVars[v]; ok {
 		fc.collected.markResultWithConstructSite(fc.funcObj, resultIdx)
-		fc.enumerateConcreteReturnEffects(resultIdx, source.structType, source.fieldInits, "")
+		fc.enumerateConcreteReturnEffects(resultIdx, source.structType, source.fieldInits, annotation.FieldPath{})
 		return
 	}
 	if source, ok := fc.resultVars[v]; ok {
@@ -556,10 +556,10 @@ func (fc *functionCollector) addReturnEdge(callerResultIdx int, target typeshelp
 
 // enumerateConcreteReturnEffects records omitted and explicitly nil fields from one allocation,
 // and the field-level param sources of fields initialized from parameters (recordFieldParamSource).
-func (fc *functionCollector) enumerateConcreteReturnEffects(resultIdx int, structType *types.Struct, fieldInits []ast.Expr, prefix string) {
+func (fc *functionCollector) enumerateConcreteReturnEffects(resultIdx int, structType *types.Struct, fieldInits []ast.Expr, prefix annotation.FieldPath) {
 	for i := range structType.NumFields() {
 		field := structType.Field(i)
-		path := joinFieldPath(prefix, field.Name())
+		path := prefix.Child(field.Name())
 		fieldVal := asthelper.GetFieldVal(fieldInits, field.Name(), structType.NumFields(), i)
 		nilable := !typeshelper.TypeBarsNilness(field.Type())
 		switch {
@@ -597,10 +597,11 @@ func (fc *functionCollector) enumerateConcreteReturnEffects(resultIdx int, struc
 // roots at a local bound from a struct-returning call (resultVars) it goes to ReturnReads,
 // attributed to that callee's result.
 func (fc *functionCollector) collectFieldReadDemand(sel *ast.SelectorExpr, skipValueDemand bool) {
-	record := func(base *ast.Ident, path string) {
-		if base == nil || path == "" {
+	record := func(base *ast.Ident, segments []string) {
+		if base == nil || len(segments) == 0 {
 			return
 		}
+		path := annotation.NewFieldPath(segments...)
 		v, ok := fc.pass.TypesInfo.ObjectOf(base).(*types.Var)
 		if !ok {
 			return
@@ -642,10 +643,11 @@ func (fc *functionCollector) collectParamFieldWrites(assign *ast.AssignStmt) {
 		if !ok || typeshelper.TypeBarsNilness(field.Type()) {
 			continue
 		}
-		base, path := asthelper.SplitFieldChain(lhs)
-		if base == nil || path == "" {
+		base, segments := asthelper.SplitFieldChain(lhs)
+		if base == nil || len(segments) == 0 {
 			continue
 		}
+		path := annotation.NewFieldPath(segments...)
 		param, ok := fc.pass.TypesInfo.ObjectOf(base).(*types.Var)
 		if !ok {
 			continue
@@ -688,7 +690,7 @@ func (fc *functionCollector) collectParamForwardEdges(call *ast.CallExpr) *types
 		}
 		fc.collected.addParamForwardEdge(fc.funcObj, paramFieldForwardEdge{
 			callerParamIdx: callerIdx,
-			callerPrefix:   prefix,
+			callerPrefix:   annotation.NewFieldPath(prefix...),
 			callee:         target.Origin,
 			calleeParamIdx: calleeIdx,
 		})

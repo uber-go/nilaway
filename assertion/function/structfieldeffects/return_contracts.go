@@ -27,13 +27,14 @@ import (
 	"go/types"
 	"slices"
 
+	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/util/asthelper"
 )
 
 // ReturnParamSource records a result (or result field) whose value is the caller's own argument:
 // the Result endpoint is supplied by the Param endpoint (the receiver uses
-// annotation.ReceiverParamIndex). An empty Result path denotes the whole result value
-// (`return p`, `return p.x`); an empty Param path the bare parameter. Collection is syntactic
+// annotation.ReceiverParamIndex). A root Result path denotes the whole result value
+// (`return p`, `return p.x`); a root Param path the bare parameter. Collection is syntactic
 // and conservative: a source is recorded only when the relation holds on every path to the return
 // (see the drops in collectUnstableParamVars and dropMixedResultParamSources). Collected so later
 // revisions can resolve param-sourced results from the actual argument at each call site instead of the
@@ -44,10 +45,10 @@ type ReturnParamSource struct {
 }
 
 // SuppliesResultPath reports whether s supplies the value at (resultIdx, resultPath): a
-// whole-result source (empty result path) supplies every path of that result, and a field-level
+// whole-result source (root result path) supplies every path of that result, and a field-level
 // source supplies its exact path and everything beneath it. The prefix match is per segment —
 // source `Mid` supplies `Mid.Child` but not the sibling field `Middle`.
-func (s ReturnParamSource) SuppliesResultPath(resultIdx int, resultPath string) bool {
+func (s ReturnParamSource) SuppliesResultPath(resultIdx int, resultPath annotation.FieldPath) bool {
 	_, ok := s.ResolveResultPath(resultIdx, resultPath)
 	return ok
 }
@@ -57,15 +58,15 @@ func (s ReturnParamSource) SuppliesResultPath(resultIdx int, resultPath string) 
 // `Mid <- p.inner` resolves result path `Mid.Child` to param path `inner.Child`, and a
 // whole-result source re-roots the full path. ok reports whether s supplies the path at all
 // (see SuppliesResultPath).
-func (s ReturnParamSource) ResolveResultPath(resultIdx int, resultPath string) (param IndexedFieldPath, ok bool) {
+func (s ReturnParamSource) ResolveResultPath(resultIdx int, resultPath annotation.FieldPath) (param IndexedFieldPath, ok bool) {
 	if s.Result.Idx != resultIdx {
 		return IndexedFieldPath{}, false
 	}
-	suffix, ok := trimFieldPathPrefix(resultPath, s.Result.Path)
+	suffix, ok := resultPath.TrimPrefix(s.Result.Path)
 	if !ok {
 		return IndexedFieldPath{}, false
 	}
-	return IndexedFieldPath{Idx: s.Param.Idx, Path: joinFieldPath(s.Param.Path, suffix)}, true
+	return IndexedFieldPath{Idx: s.Param.Idx, Path: s.Param.Path.Join(suffix)}, true
 }
 
 // returnParamSourceSet maps each function to its set of return param sources.
@@ -130,13 +131,13 @@ func (fc *functionCollector) collectWholeResultParamSource(resultIdx int, expr a
 // (`return &T{f: p.x}` records result field `f` as supplied by param field `x`). Sources are
 // recorded for any field, not just nilable ones: a source on a value-struct field re-roots deeper
 // accesses (`result.V.Child` under source `V <- p.node` resolves to `p.node.Child`).
-func (fc *functionCollector) recordFieldParamSource(resultIdx int, path string, fieldVal ast.Expr) {
+func (fc *functionCollector) recordFieldParamSource(resultIdx int, path annotation.FieldPath, fieldVal ast.Expr) {
 	source, ok := fc.resolveReturnParamSource(fieldVal)
 	if !ok {
 		return
 	}
 	if !resultFieldPathIsAcyclic(fc.funcObj, resultIdx, path) ||
-		(source.Path != "" && !paramFieldPathIsAcyclic(fc.funcObj, source.Idx, source.Path)) {
+		(!source.Path.IsRoot() && !paramFieldPathIsAcyclic(fc.funcObj, source.Idx, source.Path)) {
 		return
 	}
 	fc.collected.addReturnParamSource(fc.funcObj, ReturnParamSource{
@@ -154,7 +155,7 @@ func (c *collectedFieldEffects) dropMixedResultParamSources() {
 		for idx := range results {
 			mixed := false
 			for source := range c.summary.returnParamSources[fn] {
-				if source.Result.Idx == idx && source.Result.Path == "" {
+				if source.Result.Idx == idx && source.Result.Path.IsRoot() {
 					mixed = true
 					break
 				}
@@ -175,11 +176,11 @@ func (c *collectedFieldEffects) dropReturnParamSources(fn *types.Func, result in
 }
 
 // resolveReturnParamSource resolves expr as a stable parameter or a field chain rooted at one,
-// yielding the parameter (or receiver) endpoint: the parameter index and the dotted path within
-// it ("" for the bare parameter). An unstable parameter (reassigned or address-taken) resolves
-// to nothing: its value at the return may not be the caller's argument.
+// yielding the parameter (or receiver) endpoint: the parameter index and the field path within
+// it (the root path for the bare parameter). An unstable parameter (reassigned or address-taken)
+// resolves to nothing: its value at the return may not be the caller's argument.
 func (fc *functionCollector) resolveReturnParamSource(expr ast.Expr) (IndexedFieldPath, bool) {
-	base, path := asthelper.SplitFieldChain(expr)
+	base, segments := asthelper.SplitFieldChain(expr)
 	if base == nil {
 		return IndexedFieldPath{}, false
 	}
@@ -191,7 +192,7 @@ func (fc *functionCollector) resolveReturnParamSource(expr ast.Expr) (IndexedFie
 	if !ok || fc.unstableParams[v] {
 		return IndexedFieldPath{}, false
 	}
-	return IndexedFieldPath{Idx: idx, Path: path}, true
+	return IndexedFieldPath{Idx: idx, Path: annotation.NewFieldPath(segments...)}, true
 }
 
 // collectUnstableParamVars returns the parameters (and receiver) whose value at a return
