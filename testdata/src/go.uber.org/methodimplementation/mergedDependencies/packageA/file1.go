@@ -15,7 +15,7 @@
 package packageA
 
 type I1 interface {
-	Foo1() *int //want "returned as result"
+	Foo1() *int
 
 	// nilable(n)
 	Foo2(n *int) bool
@@ -29,7 +29,7 @@ func (*S1) Foo1() *int {
 	return v
 }
 
-func (*S1) Foo2(n *int) bool { //want "passed as param"
+func (*S1) Foo2(n *int) bool {
 	v := &n
 	return v != nil
 }
