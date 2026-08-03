@@ -41,6 +41,13 @@ func (f *funcAssertionNode) DefaultTrigger() annotation.ProducingAnnotationTrigg
 		panic("only functions with singular result should be entered into the assertion tree")
 	}
 
+	// A result value supplied by a caller argument must not be read from the shared declaration
+	// return, which merges unrelated callers (see getFuncReturnProducers).
+	if root := f.Root(); root != nil && root.functionContext.functionConfig.EnableStructInitV2 &&
+		root.resultValueHasParamSource(f.decl, 0) {
+		return &annotation.ProduceTriggerNever{}
+	}
+
 	if f.decl.Type().(*types.Signature).Recv() != nil {
 		return &annotation.MethodReturn{
 			TriggerIfNilable: &annotation.TriggerIfNilable{
