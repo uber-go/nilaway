@@ -29,6 +29,7 @@ import (
 	"go.uber.org/nilaway/assertion/anonymousfunc"
 	"go.uber.org/nilaway/assertion/function/assertiontree"
 	"go.uber.org/nilaway/assertion/function/functioncontracts"
+	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/nilawaytest"
 	"go.uber.org/nilaway/util/analysishelper"
 	"golang.org/x/tools/go/analysis"
@@ -48,7 +49,7 @@ func TestAnalyzer(t *testing.T) {
 	// and convert it to an error via the result struct.
 	r, err := Analyzer.Run(nil /* pass */)
 	require.NoError(t, err)
-	require.ErrorContains(t, r.(*analysishelper.Result[[]annotation.FullTrigger]).Err, "INTERNAL PANIC")
+	require.ErrorContains(t, r.(*analysishelper.Result[[]annotation.FullTrigger]).Err, config.InternalPanicString)
 }
 
 func TestCancelledContext(t *testing.T) {

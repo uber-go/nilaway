@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"go.uber.org/nilaway/config"
 )
 
 // Diagnostic is the diagnostic reported by NilAway.
@@ -42,8 +43,6 @@ type Diagnostic struct {
 	// Message is the message reported by NilAway.
 	Message string `json:"message"`
 }
-
-const internalPanicDiagnostic = "INTERNAL PANIC"
 
 // BranchResult stores the information about a branch, and the diagnostics reported on that branch.
 type BranchResult struct {
@@ -201,11 +200,11 @@ func checkInternalPanics(branches [2]*BranchResult) error {
 		return nil
 	}
 	return fmt.Errorf("%s diagnostic(s) reported on %s",
-		internalPanicDiagnostic, strings.Join(affectedBranches, ", "))
+		config.InternalPanicString, strings.Join(affectedBranches, ", "))
 }
 
 func isInternalPanic(diagnostic Diagnostic) bool {
-	return strings.Contains(diagnostic.Message, internalPanicDiagnostic)
+	return strings.Contains(diagnostic.Message, config.InternalPanicString)
 }
 
 // WriteDiff writes the summary and the diff (if the base and test are different) between the base

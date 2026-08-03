@@ -29,6 +29,9 @@ const StableRoundLimit = 5
 // NilAway from inferring the annotations for that package - this is useful for unit tests
 const NilAwayNoInferString = "<nilaway no inference>"
 
+// InternalPanicString identifies diagnostics emitted when NilAway recovers from an internal panic.
+const InternalPanicString = "INTERNAL PANIC"
+
 const uberPkgPathPrefix = "go.uber.org"
 
 // NilAwayPkgPathPrefix is the package prefix for NilAway.

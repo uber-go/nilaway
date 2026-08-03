@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/nilaway/config"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -35,7 +36,7 @@ func TestWrapPanic_Panic(t *testing.T) {
 
 	require.IsType(t, &Result[int]{}, r)
 	require.Empty(t, r.(*Result[int]).Res)
-	require.ErrorContains(t, r.(*Result[int]).Err, "INTERNAL PANIC")
+	require.ErrorContains(t, r.(*Result[int]).Err, config.InternalPanicString)
 }
 
 func TestWrapPanic_Error(t *testing.T) {

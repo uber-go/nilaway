@@ -19,6 +19,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/util/analysishelper"
 )
 
@@ -29,7 +30,7 @@ func TestAnalyzer(t *testing.T) {
 	// and convert it to an error via the result struct.
 	r, err := Analyzer.Run(nil /* pass */)
 	require.NoError(t, err)
-	require.ErrorContains(t, r.(*analysishelper.Result[*ObservedMap]).Err, "INTERNAL PANIC")
+	require.ErrorContains(t, r.(*analysishelper.Result[*ObservedMap]).Err, config.InternalPanicString)
 }
 
 func TestMain(m *testing.M) {

@@ -204,7 +204,7 @@ func collectFunctionContracts(pass *analysishelper.EnhancedPass) (Map, error) {
 				// As a last resort, convert the panics into errors and return.
 				defer func() {
 					if r := recover(); r != nil {
-						e := fmt.Errorf("INTERNAL PANIC: %s\n%s", r, string(debug.Stack()))
+						e := fmt.Errorf("%s: %s\n%s", config.InternalPanicString, r, string(debug.Stack()))
 						funcChan <- functionResult{err: e, funcObj: funcObj}
 					}
 				}()
