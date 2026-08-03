@@ -21,77 +21,103 @@ import (
 	"go.uber.org/nilaway/annotation"
 )
 
-func TestResolveResultPath(t *testing.T) {
+func TestReturnParamSources(t *testing.T) {
 	t.Parallel()
+
+	field := func(idx int, path ...string) IndexedFieldPath {
+		return IndexedFieldPath{Idx: idx, Path: annotation.NewFieldPath(path...)}
+	}
+	source := func(result, param IndexedFieldPath) ReturnParamSource {
+		return ReturnParamSource{Result: result, Param: param}
+	}
 
 	tests := []struct {
 		name       string
-		source     ReturnParamSource
+		sources    ReturnParamSources
 		resultIdx  int
 		resultPath annotation.FieldPath
 		wantParam  IndexedFieldPath
-		wantOK     bool
+		wantSource bool
+		wantPath   bool
 	}{
 		{
-			name:       "field-level source at its exact path",
-			source:     ReturnParamSource{Result: IndexedFieldPath{Idx: 0, Path: annotation.NewFieldPath("Mid")}, Param: IndexedFieldPath{Idx: 1, Path: annotation.NewFieldPath("inner")}},
-			resultIdx:  0,
+			name:       "no source",
 			resultPath: annotation.NewFieldPath("Mid"),
-			wantParam:  IndexedFieldPath{Idx: 1, Path: annotation.NewFieldPath("inner")},
-			wantOK:     true,
 		},
 		{
-			name:       "field-level source re-roots a deeper path",
-			source:     ReturnParamSource{Result: IndexedFieldPath{Idx: 0, Path: annotation.NewFieldPath("Mid")}, Param: IndexedFieldPath{Idx: 1, Path: annotation.NewFieldPath("inner")}},
-			resultIdx:  0,
+			name:       "field source at exact path",
+			sources:    ReturnParamSources{source(field(0, "Mid"), field(1, "inner"))},
+			resultPath: annotation.NewFieldPath("Mid"),
+			wantParam:  field(1, "inner"),
+			wantSource: true,
+			wantPath:   true,
+		},
+		{
+			name:       "field source maps descendant",
+			sources:    ReturnParamSources{source(field(0, "Mid"), field(1, "inner"))},
 			resultPath: annotation.NewFieldPath("Mid", "Child"),
-			wantParam:  IndexedFieldPath{Idx: 1, Path: annotation.NewFieldPath("inner", "Child")},
-			wantOK:     true,
+			wantParam:  field(1, "inner", "Child"),
+			wantSource: true,
+			wantPath:   true,
 		},
 		{
-			name:       "bare-param source keeps the bare param at the exact path",
-			source:     ReturnParamSource{Result: IndexedFieldPath{Idx: 0, Path: annotation.NewFieldPath("Existing")}, Param: IndexedFieldPath{Idx: 0}},
-			resultIdx:  0,
-			resultPath: annotation.NewFieldPath("Existing"),
-			wantParam:  IndexedFieldPath{Idx: 0},
-			wantOK:     true,
-		},
-		{
-			name:       "whole-result source re-roots the full path",
-			source:     ReturnParamSource{Result: IndexedFieldPath{Idx: 0}, Param: IndexedFieldPath{Idx: 0, Path: annotation.NewFieldPath("inner")}},
-			resultIdx:  0,
+			name: "covering sources agree",
+			sources: ReturnParamSources{
+				source(field(0, "Mid"), field(1, "inner")),
+				source(field(0, "Mid", "Child"), field(1, "inner", "Child")),
+			},
 			resultPath: annotation.NewFieldPath("Mid", "Child"),
-			wantParam:  IndexedFieldPath{Idx: 0, Path: annotation.NewFieldPath("inner", "Mid", "Child")},
-			wantOK:     true,
+			wantParam:  field(1, "inner", "Child"),
+			wantSource: true,
+			wantPath:   true,
 		},
 		{
-			name:       "whole-result source at the result value itself",
-			source:     ReturnParamSource{Result: IndexedFieldPath{Idx: 0}, Param: IndexedFieldPath{Idx: 0, Path: annotation.NewFieldPath("inner")}},
-			resultIdx:  0,
-			resultPath: annotation.FieldPath{},
-			wantParam:  IndexedFieldPath{Idx: 0, Path: annotation.NewFieldPath("inner")},
-			wantOK:     true,
+			name: "covering sources disagree",
+			sources: ReturnParamSources{
+				source(field(0, "Mid"), field(1, "other")),
+				source(field(0, "Mid", "Child"), field(1, "inner", "Child")),
+			},
+			resultPath: annotation.NewFieldPath("Mid", "Child"),
+			wantSource: true,
 		},
 		{
-			name:       "sibling field sharing the source prefix is not supplied",
-			source:     ReturnParamSource{Result: IndexedFieldPath{Idx: 0, Path: annotation.NewFieldPath("Mid")}, Param: IndexedFieldPath{Idx: 1, Path: annotation.NewFieldPath("inner")}},
-			resultIdx:  0,
+			name:       "root source maps descendant",
+			sources:    ReturnParamSources{source(field(0), field(1, "whole"))},
+			resultPath: annotation.NewFieldPath("Mid", "Child"),
+			wantParam:  field(1, "whole", "Mid", "Child"),
+			wantSource: true,
+			wantPath:   true,
+		},
+		{
+			name:       "root source maps root",
+			sources:    ReturnParamSources{source(field(0), field(1, "whole"))},
+			wantParam:  field(1, "whole"),
+			wantSource: true,
+			wantPath:   true,
+		},
+		{
+			name:    "field source does not cover root",
+			sources: ReturnParamSources{source(field(0, "Mid"), field(1, "inner"))},
+		},
+		{
+			name:       "sibling field is not covered",
+			sources:    ReturnParamSources{source(field(0, "Mid"), field(1, "inner"))},
 			resultPath: annotation.NewFieldPath("Middle"),
-			wantOK:     false,
 		},
 		{
-			name:       "different result index is not supplied",
-			source:     ReturnParamSource{Result: IndexedFieldPath{Idx: 0, Path: annotation.NewFieldPath("Mid")}, Param: IndexedFieldPath{Idx: 1, Path: annotation.NewFieldPath("inner")}},
+			name:       "different result is not covered",
+			sources:    ReturnParamSources{source(field(0, "Mid"), field(1, "inner"))},
 			resultIdx:  1,
 			resultPath: annotation.NewFieldPath("Mid"),
-			wantOK:     false,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			param, ok := tt.source.ResolveResultPath(tt.resultIdx, tt.resultPath)
-			require.Equal(t, tt.wantOK, ok)
+			require.Equal(t, tt.wantSource, tt.sources.HasSource(tt.resultIdx, tt.resultPath))
+			param, ok := tt.sources.ParamPathFromResultPath(tt.resultIdx, tt.resultPath)
+			require.Equal(t, tt.wantPath, ok)
 			require.Equal(t, tt.wantParam, param)
 		})
 	}

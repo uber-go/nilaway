@@ -44,21 +44,12 @@ type ReturnParamSource struct {
 	Param  IndexedFieldPath
 }
 
-// SuppliesResultPath reports whether s supplies the value at (resultIdx, resultPath): a
-// whole-result source (root result path) supplies every path of that result, and a field-level
-// source supplies its exact path and everything beneath it. The prefix match is per segment —
-// source `Mid` supplies `Mid.Child` but not the sibling field `Middle`.
-func (s ReturnParamSource) SuppliesResultPath(resultIdx int, resultPath annotation.FieldPath) bool {
-	_, ok := s.ResolveResultPath(resultIdx, resultPath)
-	return ok
-}
+// ReturnParamSources is the set of return parameter sources for a function.
+type ReturnParamSources []ReturnParamSource
 
-// ResolveResultPath resolves the param endpoint supplying (resultIdx, resultPath) through s: the
-// remainder of resultPath below s's result path is re-rooted under s's param path — source
-// `Mid <- p.inner` resolves result path `Mid.Child` to param path `inner.Child`, and a
-// whole-result source re-roots the full path. ok reports whether s supplies the path at all
-// (see SuppliesResultPath).
-func (s ReturnParamSource) ResolveResultPath(resultIdx int, resultPath annotation.FieldPath) (param IndexedFieldPath, ok bool) {
+// paramPathFromResultPath maps a result path covered by s to the corresponding parameter path. For example,
+// `Mid <- p.inner` maps result path `Mid.Child` to parameter path `inner.Child`.
+func (s ReturnParamSource) paramPathFromResultPath(resultIdx int, resultPath annotation.FieldPath) (IndexedFieldPath, bool) {
 	if s.Result.Idx != resultIdx {
 		return IndexedFieldPath{}, false
 	}
@@ -101,11 +92,45 @@ func (s returnParamSourceSet) sortedSources(funcObj *types.Func) []ReturnParamSo
 }
 
 // ReturnParamSources returns funcObj's return param sources in the sortedSources order.
-func (e *BoundaryFieldEffects) ReturnParamSources(funcObj *types.Func) []ReturnParamSource {
+func (e *BoundaryFieldEffects) ReturnParamSources(funcObj *types.Func) ReturnParamSources {
 	if e == nil {
 		return nil
 	}
 	return e.returnParamSources.sortedSources(funcObj)
+}
+
+// HasSource reports whether any parameter source covers resultPath of resultIdx. A root source
+// covers the whole result, while a field source covers its field and descendants.
+func (s ReturnParamSources) HasSource(resultIdx int, resultPath annotation.FieldPath) bool {
+	for _, source := range s {
+		if source.Result.Idx != resultIdx {
+			continue
+		}
+		if _, ok := resultPath.TrimPrefix(source.Result.Path); ok {
+			return true
+		}
+	}
+	return false
+}
+
+// ParamPathFromResultPath maps resultPath of resultIdx to its parameter endpoint. It returns false
+// when no source covers the result path or when the covering sources map it to different endpoints;
+// HasSource distinguishes those cases when a caller needs to keep a sourced path severed.
+func (s ReturnParamSources) ParamPathFromResultPath(resultIdx int, resultPath annotation.FieldPath) (IndexedFieldPath, bool) {
+	var param IndexedFieldPath
+	found := false
+	for _, source := range s {
+		candidate, ok := source.paramPathFromResultPath(resultIdx, resultPath)
+		if !ok {
+			continue
+		}
+		if found && candidate != param {
+			return IndexedFieldPath{}, false
+		}
+		param = candidate
+		found = true
+	}
+	return param, found
 }
 
 // collectWholeResultParamSource records the whole-result param source of one return operand: a
