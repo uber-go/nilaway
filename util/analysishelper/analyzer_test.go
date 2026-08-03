@@ -36,7 +36,7 @@ func TestWrapPanic_Panic(t *testing.T) {
 
 	require.IsType(t, &Result[int]{}, r)
 	require.Empty(t, r.(*Result[int]).Res)
-	require.ErrorContains(t, r.(*Result[int]).Err, config.InternalPanicString)
+	require.ErrorContains(t, r.(*Result[int]).Err, config.InternalPanicPrefix)
 }
 
 func TestWrapPanic_Error(t *testing.T) {

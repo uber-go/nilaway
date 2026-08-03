@@ -200,11 +200,11 @@ func checkInternalPanics(branches [2]*BranchResult) error {
 		return nil
 	}
 	return fmt.Errorf("%s diagnostic(s) reported on %s",
-		config.InternalPanicString, strings.Join(affectedBranches, ", "))
+		config.InternalPanicPrefix, strings.Join(affectedBranches, ", "))
 }
 
 func isInternalPanic(diagnostic Diagnostic) bool {
-	return strings.Contains(diagnostic.Message, config.InternalPanicString)
+	return strings.Contains(diagnostic.Message, config.InternalPanicPrefix)
 }
 
 // WriteDiff writes the summary and the diff (if the base and test are different) between the base

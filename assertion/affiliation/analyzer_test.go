@@ -35,7 +35,7 @@ func TestAnalyzer(t *testing.T) {
 	// and convert it to an error via the result struct.
 	r, err := Analyzer.Run(nil /* pass */)
 	require.NoError(t, err)
-	require.ErrorContains(t, r.(*analysishelper.Result[[]annotation.FullTrigger]).Err, config.InternalPanicString)
+	require.ErrorContains(t, r.(*analysishelper.Result[[]annotation.FullTrigger]).Err, config.InternalPanicPrefix)
 }
 
 func TestFact_Codec(t *testing.T) {

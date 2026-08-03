@@ -36,7 +36,7 @@ func TestAnalyzer(t *testing.T) {
 	// and convert it to an error via the result struct.
 	r, err := Analyzer.Run(nil /* pass */)
 	require.NoError(t, err)
-	require.ErrorContains(t, r.(*analysishelper.Result[Map]).Err, config.InternalPanicString)
+	require.ErrorContains(t, r.(*analysishelper.Result[Map]).Err, config.InternalPanicPrefix)
 }
 
 func TestContractCollection(t *testing.T) {

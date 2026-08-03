@@ -72,7 +72,7 @@ func TestWriteDiff(t *testing.T) {
 
 	// Add two different diagnostics to base and test and check that they are reported.
 	base[Diagnostic{Posn: "src/file2:10:2", Message: "nil pointer dereference"}] = true
-	base[Diagnostic{Posn: "src/z:10:2", Message: config.InternalPanicString + ": boom"}] = true
+	base[Diagnostic{Posn: "src/z:10:2", Message: config.InternalPanicPrefix + ": boom"}] = true
 	test[Diagnostic{Posn: "src/file4:10:2", Message: "bar error"}] = true
 	buf.Reset()
 	WriteDiff(&buf, branches)
@@ -81,7 +81,7 @@ func TestWriteDiff(t *testing.T) {
 	require.Contains(t, s, "are **different**")
 	require.Contains(t, s, "- src/file2:10:2: nil pointer dereference")
 	require.Contains(t, s, "+ src/file4:10:2: bar error")
-	panicIndex := strings.Index(s, "- src/z:10:2: "+config.InternalPanicString+": boom")
+	panicIndex := strings.Index(s, "- src/z:10:2: "+config.InternalPanicPrefix+": boom")
 	normalIndex := strings.Index(s, "+ src/file4:10:2: bar error")
 	require.NotEqual(t, -1, panicIndex)
 	require.NotEqual(t, -1, normalIndex)
@@ -95,7 +95,7 @@ func TestDiff(t *testing.T) {
 		// Same in both.
 		{Posn: "src/file1:10:2", Message: "nil pointer dereference"}: true,
 		// Internal panics must be ordered first regardless of position.
-		{Posn: "src/z:10:2", Message: config.InternalPanicString + ": boom"}: true,
+		{Posn: "src/z:10:2", Message: config.InternalPanicPrefix + ": boom"}: true,
 		// Differs in position.
 		{Posn: "src/file2:10:2", Message: "nil pointer dereference"}: true,
 		// Differs in message.
@@ -113,7 +113,7 @@ func TestDiff(t *testing.T) {
 	minuses := Diff(base, test)
 	require.Equal(t, []Diagnostic{
 		// Internal panic.
-		{Posn: "src/z:10:2", Message: config.InternalPanicString + ": boom"},
+		{Posn: "src/z:10:2", Message: config.InternalPanicPrefix + ": boom"},
 		// Differs in position.
 		{Posn: "src/file2:10:2", Message: "nil pointer dereference"},
 		// Differs in message.
@@ -141,10 +141,10 @@ func TestCheckInternalPanics(t *testing.T) {
 	require.NoError(t, checkInternalPanics(branches))
 
 	branches[1].Result[Diagnostic{
-		Message: "INTERNAL ERROR(s):\n" + config.InternalPanicString + " from analyzer",
+		Message: "INTERNAL ERROR(s):\n" + config.InternalPanicPrefix + " from analyzer",
 	}] = true
 	err := checkInternalPanics(branches)
-	require.ErrorContains(t, err, config.InternalPanicString+" diagnostic(s)")
+	require.ErrorContains(t, err, config.InternalPanicPrefix+" diagnostic(s)")
 	require.ErrorContains(t, err, "test (456789): 1")
 }
 

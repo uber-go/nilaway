@@ -85,7 +85,7 @@ func run(p *analysis.Pass) (result interface{}, _ error) {
 			// Diagnostics with invalid positions (<= 0) will be silently suppressed, so here we use 1.
 			d := analysis.Diagnostic{
 				Pos:     1,
-				Message: fmt.Sprintf("%s: %s\n%s", config.InternalPanicString, r, string(debug.Stack())),
+				Message: fmt.Sprintf("%s: %s\n%s", config.InternalPanicPrefix, r, string(debug.Stack())),
 			}
 			if diagnostics, ok := result.([]analysis.Diagnostic); ok {
 				result = append(diagnostics, d)

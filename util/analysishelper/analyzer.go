@@ -49,7 +49,7 @@ func WrapRun[T any](f func(*analysis.Pass) (T, error)) func(*analysis.Pass) (any
 		defer func() {
 			if r := recover(); r != nil {
 				result.(*Result[T]).Err = fmt.Errorf("%s from %q: %s\n%s",
-					config.InternalPanicString, analyzerName, r, string(debug.Stack()))
+					config.InternalPanicPrefix, analyzerName, r, string(debug.Stack()))
 			}
 		}()
 
