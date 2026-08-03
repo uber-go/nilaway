@@ -138,12 +138,12 @@ func TestCheckInternalPanics(t *testing.T) {
 		}},
 		{Name: "test", ShortSHA: "456789", Result: map[Diagnostic]bool{}},
 	}
-	require.NoError(t, checkInternalPanics(branches))
+	require.NoError(t, CheckInternalPanics(branches))
 
 	branches[1].Result[Diagnostic{
 		Message: "INTERNAL ERROR(s):\n" + config.InternalPanicPrefix + " from analyzer",
 	}] = true
-	err := checkInternalPanics(branches)
+	err := CheckInternalPanics(branches)
 	require.ErrorContains(t, err, config.InternalPanicPrefix+" diagnostic(s)")
 	require.ErrorContains(t, err, "test (456789): 1")
 }
