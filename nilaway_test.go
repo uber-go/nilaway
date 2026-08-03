@@ -140,8 +140,7 @@ func TestStructInitV2(t *testing.T) { //nolint:paralleltest
 		"structinitv2/paramsideeffect",
 		"structinitv2/returnlocal",
 		"structinitv2/returnzerovalue/app",
-		// structinitv2/returnshape/app asserts the per-call resolution of param-sourced results;
-		// enable it when call-site sensitivity of param-sourced results lands.
+		"structinitv2/returnshape/app",
 	)
 }
 

@@ -112,3 +112,20 @@ func TwoOut() (*Outer, bool) {
 func ForwardFirstParam(x *Outer, ok bool) *Outer {
 	return x
 }
+
+// Pair contains values copied from NewPair's arguments.
+type Pair struct {
+	Existing  *Leaf
+	Requested *Leaf
+}
+
+// NewPair returns a Pair containing its arguments.
+func NewPair(existing, requested *Leaf) *Pair {
+	return &Pair{Existing: existing, Requested: requested}
+}
+
+// NewPairAfterNil clears existing.Ptr before copying existing into the result.
+func NewPairAfterNil(existing, requested *Leaf) *Pair {
+	existing.Ptr = nil
+	return &Pair{Existing: existing, Requested: requested}
+}

@@ -56,11 +56,11 @@ func useForwardParamProjection() {
 	print(b.Child.Ptr) //want "uninitialized field `Child`"
 }
 
-// Transitive param tie: the tie reaches back to the caller's argument t, whose Mid.Child is nil.
+// Transitive parameter sources are not resolved.
 func useForwardParamTransitive() {
 	t := &lib.Outer{Mid: &lib.Node{}}
 	b := lib.ForwardParamTransitive(t)
-	print(b.Mid.Child.Ptr) //want "uninitialized field `Child`"
+	print(b.Mid.Child.Ptr)
 }
 
 // The transitive tie carries t's real (non-nil) shape; no flag.
@@ -79,11 +79,11 @@ func useForwardParamAmbiguous() {
 	print(b.Mid.Child.Ptr)
 }
 
-// Cross-package transitive tie: the tie reaches the caller's argument t two package hops away.
+// Cross-package transitive parameter sources are not resolved.
 func useForwardParamCrossPkg() {
 	t := &lib.Outer{Mid: &lib.Node{}}
 	b := mid.ForwardParamCrossPkg(t)
-	print(b.Mid.Child.Ptr) //want "uninitialized field `Child`"
+	print(b.Mid.Child.Ptr)
 }
 
 // Mixed sometimes constructs (Mid.Child nil) and sometimes forwards its param. The forwarding
@@ -107,4 +107,40 @@ func useMixedSafe() {
 func useForwardFirstParamSpread() {
 	b := lib.ForwardFirstParam(lib.TwoOut())
 	print(b.Mid.Child.Ptr)
+}
+
+// A nil argument at one call must not affect another call's result.
+func usePairNoPoison() {
+	ptr := 1
+	requested := &lib.Leaf{Ptr: &ptr}
+	create := lib.NewPair(nil, requested)
+	print(*create.Requested.Ptr)
+	existing := &lib.Leaf{Ptr: &ptr}
+	update := lib.NewPair(existing, requested)
+	print(*update.Existing.Ptr)
+}
+
+// A nil argument affects its own call result.
+func usePairBad() {
+	ptr := 1
+	requested := &lib.Leaf{Ptr: &ptr}
+	bad := lib.NewPair(nil, requested)
+	print(*bad.Existing.Ptr) //want "field `Existing` of result 0"
+}
+
+// A copied field's descendants map to the argument's descendants.
+func usePairDeepBad() {
+	requested := &lib.Leaf{}
+	existing := &lib.Leaf{}
+	bad := lib.NewPair(existing, requested)
+	print(*bad.Existing.Ptr) //want "uninitialized field `Ptr`"
+}
+
+// A copied field observes the argument's post-call value.
+func usePairDeepPostCallBad() {
+	ptr := 1
+	requested := &lib.Leaf{Ptr: &ptr}
+	existing := &lib.Leaf{Ptr: &ptr}
+	bad := lib.NewPairAfterNil(existing, requested)
+	print(*bad.Existing.Ptr) //want "field `Ptr` of param 0 of `NewPairAfterNil`"
 }
