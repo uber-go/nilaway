@@ -1,20 +1,18 @@
 /*
 This is a test for checking affiliations anlysis for struct fields (embedded or explicit) declared as interfaces,
 and instantiated with structs that implement the interface.
-
-<nilaway no inference>
 */
 package embedding
 
 type I interface {
-	// nilable(x)
 	foo(x *int) *int
 }
 
 // below test checks struct embedding at depth 1 (T embeds S)
 type A1 struct{}
 
-func (A1) foo(x *int) *int { //want "passed as parameter"
+func (A1) foo(x *int) *int {
+	_ = *x //want "passed as parameter"
 	return x
 }
 
@@ -25,7 +23,7 @@ type B1 struct {
 func testEmbeddingDepth1() *int {
 	var i I
 	i = B1{}
-	return i.foo(nil) // (error reported at A1.foo() definition)
+	return i.foo(nil) // (error reported at the deref inside A1.foo())
 }
 
 // below test checks struct embedding at arbitrary depth (e.g., depth = 5, A2 embeds B2 embeds C2 embeds D2 embeds E2)
@@ -49,16 +47,17 @@ type E2 struct {
 	f *int
 }
 
-func (e *E2) foo(x *int) *int { //want "passed as parameter"
+func (e *E2) foo(x *int) *int {
 	if e.f != nil {
 		return e.f
 	}
+	_ = *x //want "passed as parameter"
 	return x
 }
 
 func testEmbeddingDepth5() {
 	var i I = &A2{}
-	_ = i.foo(nil) // (error reported at E2.foo() definition)
+	_ = i.foo(nil) // (error reported at the deref inside E2.foo())
 }
 
 // below test checks overriding of struct methods. A3 implements I.foo() violating the contravariance property of parameters.
@@ -68,7 +67,8 @@ type A3 struct {
 	f *int
 }
 
-func (A3) foo(x *int) *int { //want "passed as parameter"
+func (A3) foo(x *int) *int {
+	_ = *x //want "passed as parameter"
 	return x
 }
 
@@ -76,7 +76,6 @@ type B3 struct {
 	A3
 }
 
-// nilable(x)
 func (B3) foo(x *int) *int {
 	if x == nil {
 		z := 0
@@ -87,16 +86,17 @@ func (B3) foo(x *int) *int {
 
 func testOverridding() {
 	var i1 I = &B3{}
-	i1.foo(nil) // safe, since B3.foo() accepts a nilable parameter
+	i1.foo(nil) // safe, since B3.foo() guards its parameter against nil
 
 	var i2 I = &A3{}
-	i2.foo(nil) // (error reported at A3.foo() definition)
+	i2.foo(nil) // (error reported at the deref inside A3.foo())
 }
 
 // below test checks anonymous fields in structs
 type A4 struct{}
 
 func (A4) foo(x *int) *int {
+	_ = *x //want "passed as arg"
 	return x
 }
 
@@ -105,7 +105,6 @@ type B4 struct {
 	A4
 }
 
-// nilable(x)
 func (b *B4) foo(x *int) *int {
 	if x == nil {
 		return &b.f
@@ -116,9 +115,9 @@ func (b *B4) foo(x *int) *int {
 func testAnonymousFields(cond bool) *int {
 	b := B4{}
 	if cond {
-		return b.A4.foo(nil) //want "passed as arg"
+		return b.A4.foo(nil) // (error reported at the deref inside A4.foo())
 	}
-	return b.foo(nil) // safe, since B4.foo() accepts a nilable parameter
+	return b.foo(nil) // safe, since B4.foo() guards its parameter against nil
 }
 
 // below test checks embedding of multiple structs
@@ -130,25 +129,28 @@ type A5 struct {
 type B5 struct{}
 
 func (B5) foo(x *int) *int {
+	_ = *x //want "passed as arg"
 	return x
 }
 
 type C5 struct{}
 
 func (C5) foo(x *int) *int {
+	_ = *x //want "passed as arg"
 	return x
 }
 
 func testEmbeddingMultipleStructs() {
 	a := &A5{}
-	_ = a.B5.foo(nil) //want "passed as arg"
-	_ = a.C5.foo(nil) //want "passed as arg"
+	_ = a.B5.foo(nil) // (error reported at the deref inside B5.foo())
+	_ = a.C5.foo(nil) // (error reported at the deref inside C5.foo())
 }
 
 // below test checks for recursive embedding of structs
 type A6 struct{}
 
-func (A6) foo(x *int) *int { //want "passed as parameter"
+func (A6) foo(x *int) *int {
+	_ = *x //want "passed as parameter"
 	return x
 }
 
@@ -160,12 +162,12 @@ type B6 struct {
 func testRecursion() *int {
 	var i I
 	i = B6{}
-	return i.foo(nil) // (error reported at A6.foo() definition)
+	return i.foo(nil) // (error reported at the deref inside A6.foo())
 }
 
 // below test checks embedding of multiple interfaces within a struct, and embedding of interfaces within an interface
 type J interface {
-	bar() *int //want "returned" "returned"
+	bar() *int
 }
 
 type A9 struct {
@@ -175,21 +177,23 @@ type A9 struct {
 
 type B9 struct{}
 
-func (B9) foo(x *int) *int { //want "passed as parameter"
+func (B9) foo(x *int) *int {
+	_ = *x //want "passed as parameter"
 	return x
 }
 
 type C9 struct{}
 
-// nilable(result 0)
 func (*C9) bar() *int {
 	return nil
 }
 
 func testMultipleEmbeddedInterfaces() {
 	a9 := &A9{I: &B9{}, J: &C9{}}
-	_ = a9.foo(nil) // (error reported at B9.foo() definition)
-	_ = a9.bar()    // (error reported at J.bar() declaration)
+	_ = a9.foo(nil) // (error reported at the deref inside B9.foo())
+	// Both nil flows into J.bar()'s result (from C9.bar() and A7.bar() below) are reported at
+	// this first dereference of the interface method result.
+	_ = *a9.bar() //want "returned" "returned"
 }
 
 type IandJ interface {
@@ -199,25 +203,26 @@ type IandJ interface {
 
 type A7 struct{}
 
-func (*A7) foo(x *int) *int { //want "passed as parameter"
+func (*A7) foo(x *int) *int {
+	_ = *x //want "passed as parameter"
 	return x
 }
 
-// nilable(result 0)
 func (*A7) bar() *int {
 	return nil
 }
 
 func testEmbeddingInterfaceInInterface() {
 	var i IandJ = &A7{}
-	_ = i.foo(nil) // (error reported at A7.foo() definition)
-	_ = i.bar()    // (error reported at J.bar() declaration)
+	_ = i.foo(nil) // (error reported at the deref inside A7.foo())
+	_ = *i.bar()   // (the A7.bar() nil flow through J.bar() is reported at the deref in testMultipleEmbeddedInterfaces() above)
 }
 
 // below test checks embedding of interface within a struct
 type A8 struct{}
 
-func (*A8) foo(x *int) *int { //want "passed as parameter"
+func (*A8) foo(x *int) *int {
+	_ = *x //want "passed as parameter"
 	return x
 }
 
@@ -231,7 +236,8 @@ type C8 struct {
 	I
 }
 
-func (*C8) foo(x *int) *int { //want "passed as parameter"
+func (*C8) foo(x *int) *int {
+	_ = *x //want "passed as parameter"
 	return x
 }
 
@@ -242,7 +248,8 @@ type D8 struct {
 
 type E8 struct{}
 
-func (*E8) foo(x *int) *int { //want "passed as parameter"
+func (*E8) foo(x *int) *int {
+	_ = *x //want "passed as parameter"
 	return x
 }
 
@@ -255,13 +262,13 @@ func testEmbeddingInterfaceInStruct(x int) *int {
 		return i1.foo(nil)
 	case 2:
 		var i2 I = &B8{&A8{}}
-		return i2.foo(nil) // (error reported at A8.foo() definition)
+		return i2.foo(nil) // (error reported at the deref inside A8.foo())
 	case 3:
 		var i3 I = &C8{}
-		return i3.foo(nil) // (error reported at C8.foo() definition)
+		return i3.foo(nil) // (error reported at the deref inside C8.foo())
 	case 4:
 		d8 := &D8{g: &E8{}}
-		return d8.g.foo(nil) // (error reported at E8.foo() definition)
+		return d8.g.foo(nil) // (error reported at the deref inside E8.foo())
 	}
 	return &x
 }
@@ -281,18 +288,19 @@ type C10 struct {
 
 type D10 struct{}
 
-func (*D10) foo(x *int) *int { //want "passed as parameter"
+func (*D10) foo(x *int) *int {
+	_ = *x //want "passed as parameter"
 	return x
 }
 
 func testNestedStructs() {
 	a := &A10{&B10{&C10{D10: D10{}}}}
-	_ = a.foo(nil) // (error reported at D10.foo() definition)
+	_ = a.foo(nil) // (error reported at the deref inside D10.foo())
 }
 
 // below test checks a non-trivial case simulated from https://github.com/golang/go/pull/60823
 type Conn interface {
-	RemoteAddr() Addr //want "returned"
+	RemoteAddr() Addr
 }
 
 type Addr interface {
@@ -304,12 +312,11 @@ type httpConn struct {
 }
 
 func (c *httpConn) serve() {
-	_ = c.rwc.RemoteAddr().String()
+	_ = c.rwc.RemoteAddr().String() //want "returned"
 }
 
 type netConn struct{}
 
-// nilable(result 0)
 func (c *netConn) RemoteAddr() Addr {
 	if true {
 		return nil

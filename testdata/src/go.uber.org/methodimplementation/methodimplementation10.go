@@ -31,11 +31,11 @@ type i3 interface {
 }
 
 type i4 interface {
-	foo() (x *int) //want "returned as result"
+	foo() (x *int)
 }
 
 type i5 interface {
-	foo() (x *int) //want "returned as result"
+	foo() (x *int)
 }
 
 type i6 interface {
@@ -43,41 +43,16 @@ type i6 interface {
 }
 
 type i7 interface {
-	foo() (x *int) //want "returned as result"
+	foo() (x *int)
 }
 
 type i8 interface {
-	foo() (x *int) //want "returned as result"
+	foo() (x *int)
 }
 
-type s1 struct{}
-
-func (*s1) foo() (x *int) {
-	i := 0
-	return &i
-}
-
-type s2 struct{}
-
-// nilable(x)
-func (*s2) foo() (x *int) { return nil }
-
-func rets11() (*s1, *s1) {
-	return &s1{}, &s1{}
-}
-
-func rets12() (*s1, *s2) {
-	return &s1{}, &s2{}
-}
-
-func rets21() (*s2, *s1) {
-	return &s2{}, &s1{}
-}
-
-func rets22() (*s2, *s2) {
-	return &s2{}, &s2{}
-}
-
+// NOTE: mainbody (which consumes the interface method results) is intentionally declared before
+// the implementing structs and the producer functions below, such that each unsafe flow out of
+// s2.foo reports its own diagnostic at its consuming dereference here.
 func mainbody() {
 	var x1 i1
 	var x2 i2
@@ -94,5 +69,40 @@ func mainbody() {
 	x3, x4 = rets12()
 	x5, x6 = rets21()
 	x7, x8 = rets22()
-	func(...any) {}(x1, x2, x3, x4, x5, x6, x7, x8)
+
+	_ = *x1.foo() // safe: only s1 (which returns nonnil) flows into i1
+	_ = *x2.foo() // safe: only s1 flows into i2
+	_ = *x3.foo() // safe: only s1 flows into i3
+	_ = *x4.foo() //want "returned as result"
+	_ = *x5.foo() //want "returned as result"
+	_ = *x6.foo() // safe: only s1 flows into i6
+	_ = *x7.foo() //want "returned as result"
+	_ = *x8.foo() //want "returned as result"
+}
+
+type s1 struct{}
+
+func (*s1) foo() (x *int) {
+	i := 0
+	return &i
+}
+
+type s2 struct{}
+
+func (*s2) foo() (x *int) { return nil }
+
+func rets11() (*s1, *s1) {
+	return &s1{}, &s1{}
+}
+
+func rets12() (*s1, *s2) {
+	return &s1{}, &s2{}
+}
+
+func rets21() (*s2, *s1) {
+	return &s2{}, &s1{}
+}
+
+func rets22() (*s2, *s2) {
+	return &s2{}, &s2{}
 }

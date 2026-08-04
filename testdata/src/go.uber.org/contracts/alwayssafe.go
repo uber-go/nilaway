@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package contracts: This file tests the contract of "ok" form for user defined and standard library functions in
-// full inference mode.
+// Package contracts: This file tests the contract of "ok" form for user-defined and standard
+// library functions, focusing on the "always safe" cases and their variants.
 
-package inference
+package contracts
 
-var dummy bool
+var inferenceDummy bool
 
-const falseVal = false
-const trueVal = true
+const inferenceFalseVal = false
+const inferenceTrueVal = true
 
 // ***** below tests check the handling for "always safe" cases and their variants *****
 
@@ -29,9 +29,9 @@ func retAlwaysNonnilPtrBool(i int) (*int, bool) {
 	case 0:
 		return new(int), false
 	case 1:
-		return &i, trueVal
+		return &i, inferenceTrueVal
 	case 2:
-		return new(int), falseVal
+		return new(int), inferenceFalseVal
 	}
 	return new(int), true
 }
@@ -41,9 +41,9 @@ func retAlwaysNilPtrBool(i int) (*int, bool) {
 	case 0:
 		return nil, false
 	case 1:
-		return nil, trueVal
+		return nil, inferenceTrueVal
 	case 2:
-		return nil, falseVal
+		return nil, inferenceFalseVal
 	}
 	return nil, true
 }
@@ -53,9 +53,9 @@ func retSometimesNilPtrBool(i int) (*int, bool) {
 	case 0:
 		return nil, false
 	case 1:
-		return nil, falseVal
+		return nil, inferenceFalseVal
 	case 2:
-		return new(int), trueVal
+		return new(int), inferenceTrueVal
 	}
 	return new(int), true
 }
@@ -129,7 +129,7 @@ func m2() (*int, bool) {
 }
 
 func m3() (*int, bool) {
-	if dummy {
+	if inferenceDummy {
 		return nil, false
 	}
 	return new(int), true
@@ -266,7 +266,7 @@ func TestAssignmentToNonPointerTypes(i int, v Value[V]) {
 
 func GenericFunc[T any]() (*T, bool) {
 	var resp T
-	if dummy {
+	if inferenceDummy {
 		return nil, false
 	}
 	return &resp, true

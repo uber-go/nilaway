@@ -23,4 +23,13 @@ func RetErr() error {
 	return errors.New("some exported error message")
 }
 
+// Wrapf is an error wrapper defined in a separate package, used to test that the error wrapper
+// heuristic works across package boundaries (via the facts mechanism).
+func Wrapf(e error) error {
+	if e == nil {
+		return nil
+	}
+	return fmt.Errorf("wrapped: %w", e)
+}
+
 var GlobalErrorFromOtherPkg = fmt.Errorf("some other exported error message")

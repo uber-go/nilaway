@@ -18,26 +18,21 @@ multiply-returning functions. Multiple assignments such as x, y, z = a, b, c hav
 regarding ordering and shadowing which are tested below. Multiply-returning functions must track
 nilability for each return separately, at the sites of assignments, calls, and returns, which are
 all tested below.
-
-<nilaway no inference>
 */
 package multipleassignment
 
-// nilable(f)
 type T struct {
 	f *T
 }
 
 // each of the following two functions is safe, and nilaway should realize that
 
-// nilable(x)
 func swapToSafety1(x *T) *T {
 	y := &T{}
 	x, y = y, x
 	return x
 }
 
-// nilable(x)
 func swapToSafety2(x *T) *T {
 	y := &T{}
 	y, x = x, y
@@ -65,7 +60,7 @@ func swapField2(x *T) *T {
 
 func unsafeRedundantSwap(x *T) *T {
 	x, x = x, nil
-	return x //want "returned"
+	return x
 }
 
 func safeRedundantSwap(x *T) *T {
@@ -83,7 +78,7 @@ func slightlyDeeperSwap(x *T) *T {
 	case 2:
 		return x.f
 	default:
-		return x.f.f //want "returned"
+		return x.f.f // (error is reported at the deref of the result)
 	}
 }
 
@@ -95,68 +90,96 @@ func slightlyDeeperSwap2(x *T) *T {
 	case 1:
 		return x
 	default:
-		return x.f //want "returned"
+		return x.f // (error is reported at the deref of the result)
 	}
+}
+
+// testSwaps derefs the results of the swap functions above. The swaps returning provably non-nil
+// values remain safe; unsafeRedundantSwap's nil return is reported at the deref here.
+// NOTE: the nil flows through swapped *fields* in slightlyDeeperSwap and slightlyDeeperSwap2
+// (originally errors under explicit annotations) are not tracked under full inference (field
+// assignment conflicts are suppressed without the experimental struct-init support), so their
+// derefs below are (unsoundly) considered safe.
+func testSwaps() {
+	print(*swapToSafety1(nil))
+	print(*swapToSafety2(nil))
+	print(*swapField1(&T{}))
+	print(*swapField2(&T{}))
+	print(*unsafeRedundantSwap(&T{})) //want "returned from `unsafeRedundantSwap.*` in position 0"
+	print(*safeRedundantSwap(&T{}))
+	print(*slightlyDeeperSwap(&T{}))
+	print(*slightlyDeeperSwap2(&T{}))
 }
 
 func twoNonNil() (*T, *T) {
 	return &T{}, &T{}
 }
 
-// nilable(b, c)
 func leftNonNil() (a *T, b *T, c *T) {
 	return &T{}, nil, nil
 }
 
-// nilable(a, c)
 func centerNonNil() (a *T, b *T, c *T) {
 	return nil, &T{}, nil
 }
 
-// nilable(a, b)
 func rightNonNil() (a *T, b *T, c *T) {
 	return nil, nil, &T{}
 }
 
-// nilable(b)
+// testTestThreeRets derefs the first and third results of testThreeRets, so every return path of
+// testThreeRets yielding nil in position 0 or 2 is reported here (one diagnostic per unsafe
+// path). The second result is not consumed, so its nil paths remain safe.
+// NOTE: this caller is intentionally declared BEFORE testThreeRets: inference processes
+// declarations in source order, so the derefs here determine the result sites non-nil first, and
+// then each unsafe return path of testThreeRets creates its own conflict.
+func testTestThreeRets() {
+	a, b, c := testThreeRets()
+	print(*a) //want "returned from `testThreeRets.*` in position 0" "returned from `testThreeRets.*` in position 0" "returned from `testThreeRets.*` in position 0"
+	print(*c) //want "returned from `testThreeRets.*` in position 2" "returned from `testThreeRets.*` in position 2" "returned from `testThreeRets.*` in position 2"
+	_ = b
+}
+
 func testThreeRets() (a *T, b *T, c *T) {
 	switch 0 {
 	case 1:
-		return leftNonNil() //want "returned from `testThreeRets.*` in position 2"
+		return leftNonNil()
 	case 2:
-		return centerNonNil() //want "returned from `testThreeRets.*` in position 2" "returned from `testThreeRets.*` in position 0"
+		return centerNonNil()
 	case 3:
-		return rightNonNil() //want "returned from `testThreeRets.*` in position 0"
+		return rightNonNil()
 	case 4:
-		return nil, nil, nil //want "returned from `testThreeRets.*` in position 2" "returned from `testThreeRets.*` in position 0"
+		return nil, nil, nil
 	default:
 		return &T{}, &T{}, &T{}
 	}
 }
 
-// nilable(b, c)
-func takesLeftNonNil(a *T, b *T, c *T) {}
+func takesLeftNonNil(a *T, b *T, c *T) {
+	print(*a) //want "dereferenced" "dereferenced"
+}
 
-// nilable(a, c)
-func takesCenterNonNil(a *T, b *T, c *T) {}
+func takesCenterNonNil(a *T, b *T, c *T) {
+	print(*b) //want "dereferenced" "dereferenced"
+}
 
-// nilable(a, b)
-func takesRightNonNil(a *T, b *T, c *T) {}
+func takesRightNonNil(a *T, b *T, c *T) {
+	print(*c) //want "dereferenced" "dereferenced"
+}
 
 // multiple returners can be passed directly to multiple param funcs - test that here
 func testMultiToMultiCalls() {
 	takesLeftNonNil(leftNonNil())
-	takesLeftNonNil(centerNonNil()) //want "passed as arg `a`"
-	takesLeftNonNil(rightNonNil())  //want "passed as arg `a`"
-	takesCenterNonNil(leftNonNil()) //want "passed as arg `b`"
+	takesLeftNonNil(centerNonNil())
+	takesLeftNonNil(rightNonNil())
+	takesCenterNonNil(leftNonNil())
 	takesCenterNonNil(centerNonNil())
-	takesCenterNonNil(rightNonNil()) //want "passed as arg `b`"
-	takesRightNonNil(leftNonNil())   //want "passed as arg `c`"
-	takesRightNonNil(centerNonNil()) //want "passed as arg `c`"
+	takesCenterNonNil(rightNonNil())
+	takesRightNonNil(leftNonNil())
+	takesRightNonNil(centerNonNil())
 	takesRightNonNil(rightNonNil())
 }
 
-// nilable(first)
 type twoTs struct {
 	first  *T
 	second *T
@@ -171,16 +194,54 @@ func returnTwoNonNil() *T {
 	}
 }
 
+func testReturnTwoNonNil() {
+	print(*returnTwoNonNil())
+}
+
 func assignThreeNonNil(tt *twoTs) {
-	tt.second, tt.second, tt.second = rightNonNil()  //want "assigned into field" "assigned into field"
-	tt.second, tt.second, tt.second = centerNonNil() //want "assigned into field" "assigned into field"
-	tt.second, tt.second, tt.second = leftNonNil()   //want "assigned into field" "assigned into field"
+	// Full inference suppresses field-assignment conflicts, and each repeated assignment leaves
+	// tt.second with the final nonnil result. Keep the original assignments, then separately
+	// consume the same nilable result positions so both patterns remain covered.
+	{
+		tt.second, tt.second, tt.second = rightNonNil()
+		a, b, c := rightNonNil()
+		print(*a) //want "dereferenced"
+		print(*b) //want "dereferenced"
+		_ = c
+	}
+	{
+		tt.second, tt.second, tt.second = centerNonNil()
+		a, b, c := centerNonNil()
+		print(*a) //want "dereferenced"
+		print(*c) //want "dereferenced"
+		_ = b
+	}
+	{
+		tt.second, tt.second, tt.second = leftNonNil()
+		a, b, c := leftNonNil()
+		print(*b) //want "dereferenced"
+		print(*c) //want "dereferenced"
+		_ = a
+	}
 	tt.first, tt.first, tt.second = rightNonNil()
 	tt.first, tt.second, tt.first = centerNonNil()
 	tt.second, tt.first, tt.first = leftNonNil()
 }
 
-func oneTrueNonNil() *T {
+// oneTrueNonNil originally returned either `a`, `b` (each nil under all three swapped
+// assignments below), or `c` (the one true non-nil variable). It is split into two siblings by
+// returned variable - keeping the exact same multiple-assignment block - so that the three
+// (nil source, return) flows of each are reported on separate caller lines while every flow is
+// still consumed as a caller deref of the function's result.
+// NOTE: each caller is intentionally declared BEFORE its producer so that the deref determines
+// the result site non-nil first, and then each unsafe flow creates its own conflict (see the
+// NOTE on testTestThreeRets).
+
+func testOneTrueNonNilReturnsA() {
+	print(*oneTrueNonNilReturnsA()) //want "returned from `oneTrueNonNilReturnsA.*` in position 0" "returned from `oneTrueNonNilReturnsA.*` in position 0" "returned from `oneTrueNonNilReturnsA.*` in position 0"
+}
+
+func oneTrueNonNilReturnsA() *T {
 	var a, b, c *T
 	switch 0 {
 	case 1:
@@ -190,11 +251,33 @@ func oneTrueNonNil() *T {
 	default:
 		c, a, b = leftNonNil()
 	}
+	_ = b
 	switch 0 {
 	case 1:
-		return a //want "returned" "returned" "returned"
+		return a // (each of the three nil sources for `a` is reported at the deref of the result)
+	default:
+		return c
+	}
+}
+
+func testOneTrueNonNilReturnsB() {
+	print(*oneTrueNonNilReturnsB()) //want "returned from `oneTrueNonNilReturnsB.*` in position 0" "returned from `oneTrueNonNilReturnsB.*` in position 0" "returned from `oneTrueNonNilReturnsB.*` in position 0"
+}
+
+func oneTrueNonNilReturnsB() *T {
+	var a, b, c *T
+	switch 0 {
+	case 1:
+		a, b, c = rightNonNil()
 	case 2:
-		return b //want "returned" "returned" "returned"
+		b, c, a = centerNonNil()
+	default:
+		c, a, b = leftNonNil()
+	}
+	_ = a
+	switch 0 {
+	case 1:
+		return b // (each of the three nil sources for `b` is reported at the deref of the result)
 	default:
 		return c
 	}

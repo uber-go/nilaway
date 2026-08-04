@@ -22,18 +22,16 @@ interface method param2 nil, implementing method param2 non-nil --> contravarian
 package methodimplementation
 
 type I3 interface {
-	// nilable(x)
-	foo(x *A3) (*A3, string) //want "returned as result"
+	foo(x *A3) (*A3, string)
 }
 
 type A3 struct {
 	s string
 }
 
-// nilable(result 0)
-func (A3) foo(x *A3) (*A3, string) { //want "passed as param"
+func (A3) foo(x *A3) (*A3, string) {
 	var b *A3
-	return b, x.s
+	return b, x.s //want "passed as param"
 }
 
 func ret3() *A3 {
@@ -45,5 +43,6 @@ func m3() {
 
 	// site 3: assignment of return of a function to a variable of interface type
 	var v3 I3 = ret3()
-	v3.foo(nilV)
+	r, _ := v3.foo(nilV)
+	_ = r.s //want "returned as result"
 }

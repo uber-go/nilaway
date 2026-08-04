@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package inference
+package receivers
 
 import (
 	"os"
@@ -83,11 +83,11 @@ type I interface {
 	foo()
 }
 
-type S struct {
+type affiliationS struct {
 	f int
 }
 
-func (s *S) foo() {
+func (s *affiliationS) foo() {
 	if s == nil {
 		print(-1)
 	} else {
@@ -100,7 +100,7 @@ func newI1() I {
 }
 
 func newI2() I {
-	var s *S
+	var s *affiliationS
 	return s
 }
 
@@ -132,23 +132,23 @@ func (A) nonNamedNonPointer() {}
 func (_ *A) blankPointer()   {}
 func (_ A) blankNonPointer() {}
 
-type myInt int
+type inferredMyInt int
 
-func (*myInt) String() string {
+func (*inferredMyInt) String() string {
 	return ""
 }
 
-func (m *myInt) namedPointer() {
+func (m *inferredMyInt) namedPointer() {
 	_ = *m //want "dereferenced"
 }
 
-func (m myInt) namedNonPointer() {
+func (m inferredMyInt) namedNonPointer() {
 	_ = m.String()
 }
 
-func (*myInt) blankPointer() {}
+func (*inferredMyInt) blankPointer() {}
 
-func (myInt) blankNonPointer() {}
+func (inferredMyInt) blankNonPointer() {}
 
 func testBlankAndNonPointerReceivers() {
 	var s1, s2, s3, s4, s5, s6 *A
@@ -162,7 +162,7 @@ func testBlankAndNonPointerReceivers() {
 	s6.blankNonPointer()    //want "unassigned variable"
 
 	// same tests as above, but user-defined named types
-	var m1, m2, m3, m4 *myInt
+	var m1, m2, m3, m4 *inferredMyInt
 	m1.namedPointer() // safe at call site
 	m2.blankPointer() // safe at call site
 
@@ -171,23 +171,23 @@ func testBlankAndNonPointerReceivers() {
 	m4.blankNonPointer() //want "unassigned variable"
 }
 
-type myErr struct{}
+type inferredMyErr struct{}
 
-func (myErr) Error() string { return "myErr message" }
+func (inferredMyErr) Error() string { return "myErr message" }
 
-type E struct {
+type inferredE struct {
 	errField error
 }
 
 func testBlankAndNonPointerReceiversForLibraryMethods() {
-	var err *myErr
+	var err *inferredMyErr
 	print(err.Error()) //want "unassigned variable"
 
-	var e E
+	var e inferredE
 	var err2 error
 	e.errField = err2
 	print(e.errField.Error()) //want "unassigned variable"
 
-	e.errField = &myErr{}
+	e.errField = &inferredMyErr{}
 	print(e.errField.Error()) // safe
 }

@@ -13,17 +13,17 @@
 // limitations under the License.
 
 /*
-These tests are for checking inter-procedural error return in full inference mode
+These tests check inter-procedural error returns, complementing errorreturn.go with error values
+flowing through variables, multiple hops, globals, other packages, and error wrappers.
 */
 
-package inference
+package errorreturn
 
 import (
 	"errors"
 	"fmt"
 
-	"go.uber.org/errorreturn"
-	"go.uber.org/errorreturn/inference/otherPkg"
+	"go.uber.org/errorreturn/otherPkg"
 )
 
 var dummy2 bool
@@ -140,14 +140,14 @@ func callFoo5() {
 }
 
 // ***** the below test case checks mixed nilability in the presence of a nil error return expression *****
-func retPtrPtrErr(i, j int) (*int, *int, error) {
+func retPtrPtrErrInferred(i, j int) (*int, *int, error) {
 	var e = retNilErr2()
 	switch i {
 	case 0:
 		return nil, nil, retNonNilErr2()
 	case 1:
 		// This constrains result 1 to be nilable, because it's returned as nilable without a nonnil error,
-		// which conflicts with the usage of the result in callRetPtrPtrErr() below, even after checking
+		// which conflicts with the usage of the result in callRetPtrPtrErrInferred() below, even after checking
 		// for err
 		return &i, nil, e
 	case 2:
@@ -157,12 +157,12 @@ func retPtrPtrErr(i, j int) (*int, *int, error) {
 	return &i, &j, nil
 }
 
-func callRetPtrPtrErr() {
-	a, b, err := retPtrPtrErr(0, 1)
+func callRetPtrPtrErrInferred() {
+	a, b, err := retPtrPtrErrInferred(0, 1)
 	if err != nil {
 		print(err.Error())
 	} else {
-		// Even with error checking, these are nilable pointers (see retPtrPtrErr above)!
+		// Even with error checking, these are nilable pointers (see retPtrPtrErrInferred above)!
 		_, _ = *a, *b //want "error return in position 2 is not guaranteed to be non-nil through all paths" "error return in position 2 is not guaranteed to be non-nil through all paths"
 	}
 }
@@ -233,9 +233,14 @@ func testMixedReturns() {
 	}
 }
 
-// nonnil(result 1)
-func testMixedReturnsPassToAnotherFunc() (string, *int, error) { //want "returned"
+func testMixedReturnsPassToAnotherFunc() (string, *int, error) {
 	return retStrNilErr()
+}
+
+func callTestMixedReturnsPassToAnotherFunc() {
+	if _, x, err := testMixedReturnsPassToAnotherFunc(); err == nil {
+		print(*x) //want "returned from `testMixedReturnsPassToAnotherFunc.*` in position 1"
+	}
 }
 
 type myPointer *int
@@ -401,7 +406,7 @@ func testAlwaysSafeMultipleHops() {
 func testErrorWrapper1() (*int, error) {
 	err := &myErr2{}
 	if err != nil {
-		return nil, errorreturn.Wrapf(err)
+		return nil, Wrapf(err)
 	}
 	return new(int), nil
 }
@@ -409,7 +414,7 @@ func testErrorWrapper1() (*int, error) {
 func testErrorWrapper2() (*int, error) {
 	err := &myErr2{}
 	if err == nil {
-		return nil, errorreturn.Wrapf(errors.New("some error"))
+		return nil, Wrapf(errors.New("some error"))
 	}
 	return new(int), nil
 }
@@ -510,13 +515,6 @@ func testErrorWrapper6() (*int, error) {
 	return new(int), nil
 }
 
-func Wrapf(e error) error {
-	if e == nil {
-		return nil
-	}
-	return &myErr2{}
-}
-
 func testErrorWrapper7() (*int, error) {
 	if dummy2 {
 		return nil, Wrapf(Wrapf(Wrapf(&myErr2{})))
@@ -524,9 +522,12 @@ func testErrorWrapper7() (*int, error) {
 	return new(int), nil
 }
 
+// testErrorWrapper8 is the cross-package twin of testErrorWrapper7: it uses an error wrapper
+// defined in another package (otherPkg) to check that the error wrapper heuristic also works
+// across package boundaries (via the facts mechanism).
 func testErrorWrapper8() (*int, error) {
 	if dummy2 {
-		return nil, errorreturn.Wrapf(errorreturn.Wrapf(errorreturn.Wrapf(&myErr2{})))
+		return nil, otherPkg.Wrapf(otherPkg.Wrapf(otherPkg.Wrapf(&myErr2{})))
 	}
 	return new(int), nil
 }
@@ -824,12 +825,12 @@ func testTypeAliasErrReturningFunc(i int) {
 	}
 }
 
-type A struct {
+type inferredA struct {
 	f func() (*int, error)
 }
 
-func newAConditional() *A {
-	return &A{
+func newAConditional() *inferredA {
+	return &inferredA{
 		f: func() (*int, error) {
 			if dummy2 {
 				return nil, &myErr2{}
@@ -839,8 +840,8 @@ func newAConditional() *A {
 	}
 }
 
-func newAAlwaysSafe() *A {
-	return &A{
+func newAAlwaysSafe() *inferredA {
+	return &inferredA{
 		f: func() (*int, error) {
 			if dummy2 {
 				return new(int), &myErr2{}
@@ -850,8 +851,8 @@ func newAAlwaysSafe() *A {
 	}
 }
 
-func newAAlwaysUnsafe() *A {
-	return &A{
+func newAAlwaysUnsafe() *inferredA {
+	return &inferredA{
 		f: func() (*int, error) {
 			return nil, nil
 		},

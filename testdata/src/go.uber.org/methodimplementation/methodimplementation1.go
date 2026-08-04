@@ -15,20 +15,16 @@
 /*
 This is a test for checking nilability-type variance. Covariance for return types and contravariance for parameter
 types of methods implementing an interface.
-interface method returns non-nil, implementing method returns nil --> covariance violation
-interface method param nil, implementing method param non-nil --> contravariance violation
-
-<nilaway no inference>
+interface method returns non-nil (caller derefs the result), implementing method returns nil --> covariance violation
+interface method param nil (caller passes nil), implementing method param non-nil (body derefs it) --> contravariance violation
 */
 package methodimplementation
 
 type I interface {
-	// nilable(x)
-	foo(x *A) (*A, string) //want "returned as result"
+	foo(x *A) (*A, string)
 }
 
 type J interface {
-	// nilable(x, result 0)
 	bar(x *A, y *B) *string
 }
 
@@ -40,13 +36,11 @@ type B struct {
 	i int
 }
 
-// nilable(result 0)
-func (A) foo(x *A) (*A, string) { //want "passed as param"
+func (A) foo(x *A) (*A, string) {
 	var b *A
-	return b, x.s
+	return b, x.s //want "passed as param"
 }
 
-// nilable(x)
 func (a A) bar(x *A, y *B) *string {
 	if x != nil {
 		return &x.s
@@ -58,21 +52,28 @@ func (b B) foo(x *A) (*A, string) {
 	return x, x.s // this is safe because struct of type B is never used as the interface type I
 }
 
-// nilable(y, result 0)
-func (b *B) bar(x *A, y *B) *string { //want "passed as param"
+func (b *B) bar(x *A, y *B) *string {
 	if b.i+y.i > 5 { //want "accessed field `i`"
 		return nil
 	}
-	return &x.s
+	return &x.s //want "passed as param"
 }
 
 func m() {
 	// site 1: assignment of a concrete implementation to an interface type
 	var v1 I
 	v1 = &A{}
-	v1.foo(new(A))
+	// nil flows into the interface param, making the deref of x inside A.foo unsafe.
+	r, _ := v1.foo(nil)
+	// A.foo returns a nil result, making this deref of the interface result unsafe.
+	_ = r.s //want "returned as result"
 
 	var v2 J
 	v2 = &B{}
-	v2.bar(new(A), new(B))
+	// nil flows into the interface param x, making the deref of x inside B.bar unsafe.
+	v2.bar(nil, new(B))
+
+	// a direct call passing nil as y makes the deref of y inside B.bar unsafe.
+	b := &B{}
+	b.bar(new(A), nil)
 }
