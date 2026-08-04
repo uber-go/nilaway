@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -31,14 +32,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/tools/go/analysis"
+	"go.uber.org/nilaway/config"
 	"golang.org/x/tools/go/analysis/analysistest"
-	"golang.org/x/tools/go/analysis/unitchecker"
 )
 
-// _asVettoolEnvVar, when set, makes the test binary behave as a `go vet -vettool`
-// worker instead of running the test suite.
-const _asVettoolEnvVar = "NILAWAY_AS_VETTOOL"
+const _vettoolPackage = "go.uber.org/nilaway/nilawaytest/cmd/nilawaytestvettool"
 
 var _sourceColumnRegexp = regexp.MustCompile(`(\.go:[0-9]+):[0-9]+`)
 
@@ -46,17 +44,10 @@ var _sourceColumnRegexp = regexp.MustCompile(`(\.go:[0-9]+):[0-9]+`)
 // source positions loaded from export data may not retain accurate column information under
 // modular drivers.
 type Diagnostic struct {
+	Package string
 	File    string
 	Line    int
 	Message string
-}
-
-// RunAsModularDriver calls analyzer as a unitchecker worker when the current test binary was
-// invoked by RunModularAnalysis. It must be called from TestMain before running the test suite.
-func RunAsModularDriver(analyzer *analysis.Analyzer) {
-	if os.Getenv(_asVettoolEnvVar) != "" {
-		unitchecker.Main(analyzer) // calls os.Exit and never returns
-	}
 }
 
 // Diagnostics returns the diagnostics reported by an analysistest run in a stable order.
@@ -64,10 +55,11 @@ func Diagnostics(gopath string, results []*analysistest.Result) []Diagnostic {
 	var diagnostics []Diagnostic
 	for _, result := range results {
 		fset := result.Action.Package.Fset
+		packagePath := result.Action.Package.Types.Path()
 		for _, diag := range result.Action.Diagnostics {
 			position := fset.Position(diag.Pos)
 			diagnostics = append(diagnostics,
-				normalizeDiagnostic(gopath, position.Filename, position.Line, diag.Message))
+				normalizeDiagnostic(gopath, packagePath, position.Filename, position.Line, diag.Message))
 		}
 	}
 	sortDiagnostics(diagnostics)
@@ -77,19 +69,27 @@ func Diagnostics(gopath string, results []*analysistest.Result) []Diagnostic {
 // RunModularAnalysis runs analyzer diagnostics on patterns using `go vet -vettool`. Unlike
 // analysistest, this analyzes each package in a separate process and exchanges facts between
 // packages through serialized fact files, matching modular drivers such as bazel/nogo.
-//
-// The vettool is the current test binary. The package's TestMain must call RunAsModularDriver
-// with the analyzer under test to handle worker invocations.
 func RunModularAnalysis(t *testing.T, gopath string, patterns ...string) []Diagnostic {
 	t.Helper()
 
-	exe, err := os.Executable()
-	require.NoError(t, err)
+	// Build a dedicated worker instead of re-executing the test binary. In particular, this keeps
+	// the many per-package unitchecker processes free of the test binary's race and coverage
+	// instrumentation.
+	vettool := filepath.Join(t.TempDir(), "nilawaytestvettool")
+	build := exec.Command("go", "build", "-o", vettool, _vettoolPackage)
+	var buildOutput bytes.Buffer
+	build.Stdout, build.Stderr = &buildOutput, &buildOutput
+	require.NoErrorf(t, build.Run(), "build modular vettool: %s", buildOutput.String())
 
-	cmd := exec.Command("go", append([]string{"vet", "-vettool=" + exe, "-json"}, patterns...)...)
+	args := []string{"vet", "-vettool=" + vettool, "-json"}
+	config.Analyzer.Flags.VisitAll(func(f *flag.Flag) {
+		args = append(args, "-"+f.Name+"="+f.Value.String())
+	})
+	args = append(args, patterns...)
+
+	cmd := exec.Command("go", args...)
 	// Mirror analysistest's environment for loading packages from testdata.
 	cmd.Env = append(os.Environ(),
-		_asVettoolEnvVar+"=1",
 		"GOPATH="+gopath,
 		"GO111MODULE=off",
 		"GOPROXY=off",
@@ -116,13 +116,13 @@ func RunModularAnalysis(t *testing.T, gopath string, patterns ...string) []Diagn
 		} else if err != nil {
 			t.Fatalf("decode go vet output: %s\noutput: %s", err, output)
 		}
-		for _, analyzers := range result {
+		for packagePath, analyzers := range result {
 			for _, diags := range analyzers {
 				for _, diag := range diags {
 					file, line, err := parseVetPosition(diag.Posn)
 					require.NoError(t, err)
 					diagnostics = append(diagnostics,
-						normalizeDiagnostic(gopath, file, line, diag.Message))
+						normalizeDiagnostic(gopath, packagePath, file, line, diag.Message))
 				}
 			}
 		}
@@ -139,8 +139,9 @@ func stripVetPackageHeadings(output string) string {
 	return strings.Join(lines, "\n")
 }
 
-func normalizeDiagnostic(gopath, file string, line int, message string) Diagnostic {
+func normalizeDiagnostic(gopath, packagePath, file string, line int, message string) Diagnostic {
 	return Diagnostic{
+		Package: packagePath,
 		File:    normalizeFile(gopath, file),
 		Line:    line,
 		Message: _sourceColumnRegexp.ReplaceAllString(message, "$1"),
@@ -200,6 +201,9 @@ func parseVetPosition(position string) (string, int, error) {
 func sortDiagnostics(diagnostics []Diagnostic) {
 	sort.Slice(diagnostics, func(i, j int) bool {
 		left, right := diagnostics[i], diagnostics[j]
+		if left.Package != right.Package {
+			return left.Package < right.Package
+		}
 		if left.File != right.File {
 			return left.File < right.File
 		}

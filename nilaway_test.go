@@ -82,6 +82,14 @@ func TestNilAway(t *testing.T) {
 		{name: "TransitiveFacts", patterns: []string{"go.uber.org/transitivefacts/..."}},
 	}
 
+	var modularPatterns []string
+	for _, tt := range tests {
+		if tt.name != "TransitiveFacts" {
+			modularPatterns = append(modularPatterns, tt.patterns...)
+		}
+	}
+	modularDiagnostics := nilawaytest.RunModularAnalysis(t, testdata, modularPatterns...)
+
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
@@ -94,8 +102,19 @@ func TestNilAway(t *testing.T) {
 			if tt.name == "TransitiveFacts" {
 				return
 			}
+
+			packagePaths := make(map[string]struct{}, len(results))
+			for _, result := range results {
+				packagePaths[result.Action.Package.Types.Path()] = struct{}{}
+			}
+			var modular []nilawaytest.Diagnostic
+			for _, diagnostic := range modularDiagnostics {
+				if _, ok := packagePaths[diagnostic.Package]; ok {
+					modular = append(modular, diagnostic)
+				}
+			}
+
 			inProcess := nilawaytest.Diagnostics(testdata, results)
-			modular := nilawaytest.RunModularAnalysis(t, testdata, tt.patterns...)
 			if diff := cmp.Diff(inProcess, modular); diff != "" {
 				t.Errorf("modular driver diagnostics differ from analysistest (-analysistest +modular):\n%s", diff)
 			}
@@ -283,6 +302,5 @@ func TestMain(m *testing.M) {
 		}
 	}
 
-	nilawaytest.RunAsModularDriver(Analyzer)
 	goleak.VerifyTestMain(m)
 }
