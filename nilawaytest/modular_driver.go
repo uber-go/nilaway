@@ -76,7 +76,9 @@ func RunModularAnalysis(t *testing.T, gopath string, patterns ...string) []Diagn
 	// the many per-package unitchecker processes free of the test binary's race and coverage
 	// instrumentation.
 	vettool := filepath.Join(t.TempDir(), "nilawaytestvettool")
-	build := exec.Command("go", "build", "-o", vettool, _vettoolPackage)
+	goTool, err := exec.LookPath("go")
+	require.NoError(t, err, "locate the Go tool used to run the tests")
+	build := exec.Command(goTool, "build", "-o", vettool, _vettoolPackage)
 	var buildOutput bytes.Buffer
 	build.Stdout, build.Stderr = &buildOutput, &buildOutput
 	require.NoErrorf(t, build.Run(), "build modular vettool: %s", buildOutput.String())
@@ -87,7 +89,7 @@ func RunModularAnalysis(t *testing.T, gopath string, patterns ...string) []Diagn
 	})
 	args = append(args, patterns...)
 
-	cmd := exec.Command("go", args...)
+	cmd := exec.Command(goTool, args...)
 	// Mirror analysistest's environment for loading packages from testdata.
 	cmd.Env = append(os.Environ(),
 		"GOPATH="+gopath,
