@@ -253,11 +253,17 @@ func (fc *functionCollector) collectReturnSites() {
 	statements := returnStatements(fc.fd.Body)
 	allowParamForwarding := len(statements) == 1
 	directSourceSites := make([]int, fc.sig.Results().Len())
+	sourceSiteCount := len(statements)
 	for _, stmt := range statements {
 		// A bare spreading return such as `return f()` is one expression that yields every
 		// result, so len(stmt.Results) is 1 while the signature may have many; we bail out
 		// rather than try to split it, so such multi-result call returns are unsupported.
 		if len(stmt.Results) != fc.sig.Results().Len() {
+			continue
+		}
+		// Error paths do not describe the value observed by a checked caller.
+		if typeshelper.FuncIsErrReturning(fc.sig) && !fc.pass.IsNil(stmt.Results[len(stmt.Results)-1]) {
+			sourceSiteCount--
 			continue
 		}
 		for resultIdx, resultExpr := range stmt.Results {
@@ -279,7 +285,7 @@ func (fc *functionCollector) collectReturnSites() {
 	}
 	for resultIdx, sourceSites := range directSourceSites {
 		if typeshelper.AsDeeplyStruct(fc.sig.Results().At(resultIdx).Type()) == nil ||
-			sourceSites == len(statements) {
+			sourceSites == sourceSiteCount {
 			continue
 		}
 		if fc.collected.resultsWithConstructSite[fc.funcObj][resultIdx] {
