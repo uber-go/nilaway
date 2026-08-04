@@ -24,6 +24,7 @@ package nilaway
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -82,43 +83,41 @@ func TestNilAway(t *testing.T) {
 		{name: "TransitiveFacts", patterns: []string{"go.uber.org/transitivefacts/..."}},
 	}
 
-	var modularPatterns []string
-	for _, tt := range tests {
-		if tt.name != "TransitiveFacts" {
-			modularPatterns = append(modularPatterns, tt.patterns...)
-		}
-	}
-	modularDiagnostics := nilawaytest.RunModularAnalysis(t, testdata, modularPatterns...)
-
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			t.Logf("Running test for packages %s", tt.patterns)
 
-			results := analysistest.Run(t, testdata, Analyzer, tt.patterns...)
-			// TODO: Enable modular parity once transitive package facts are propagated across
-			// more than one import hop.
-			if tt.name == "TransitiveFacts" {
-				return
-			}
-
-			packagePaths := make(map[string]struct{}, len(results))
-			for _, result := range results {
-				packagePaths[result.Action.Package.Types.Path()] = struct{}{}
-			}
-			var modular []nilawaytest.Diagnostic
-			for _, diagnostic := range modularDiagnostics {
-				if _, ok := packagePaths[diagnostic.Package]; ok {
-					modular = append(modular, diagnostic)
-				}
-			}
-
-			inProcess := nilawaytest.Diagnostics(testdata, results)
-			if diff := cmp.Diff(inProcess, modular); diff != "" {
-				t.Errorf("modular driver diagnostics differ from analysistest (-analysistest +modular):\n%s", diff)
-			}
+			analysistest.Run(t, testdata, Analyzer, tt.patterns...)
 		})
+	}
+}
+
+func TestModularDriverParity(t *testing.T) {
+	t.Parallel()
+
+	testdata := analysistest.TestData()
+	const pattern = "go.uber.org/..."
+
+	inProcess := nilawaytest.Diagnostics(
+		testdata,
+		analysistest.Run(t, testdata, Analyzer, pattern),
+	)
+	modular := nilawaytest.RunModularAnalysis(t, testdata, pattern)
+
+	// TODO: Enable modular parity for this package once transitive package facts are propagated
+	// across more than one import hop.
+	const transitiveFactsPackage = "go.uber.org/transitivefacts/"
+	inProcess = slices.DeleteFunc(inProcess, func(diagnostic nilawaytest.Diagnostic) bool {
+		return strings.HasPrefix(diagnostic.Package, transitiveFactsPackage)
+	})
+	modular = slices.DeleteFunc(modular, func(diagnostic nilawaytest.Diagnostic) bool {
+		return strings.HasPrefix(diagnostic.Package, transitiveFactsPackage)
+	})
+
+	if diff := cmp.Diff(inProcess, modular); diff != "" {
+		t.Errorf("modular driver diagnostics differ from analysistest (-analysistest +modular):\n%s", diff)
 	}
 }
 
