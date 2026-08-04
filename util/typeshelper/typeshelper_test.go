@@ -111,6 +111,40 @@ func Generic[A ~[8]int, E ArrayConstraint, U ~[8]int | ~[16]int, X ~[8]int | ~[]
 	}
 }
 
+func TestIsDeeplyTypeWithNilableElement(t *testing.T) {
+	t.Parallel()
+
+	intType := types.Typ[types.Int]
+	ptrType := types.NewPointer(intType)
+	namedMap := types.NewNamed(
+		types.NewTypeName(token.NoPos, types.NewPackage("testpkg", "testpkg"), "NamedMap", nil),
+		types.NewMap(intType, ptrType),
+		nil,
+	)
+
+	tests := []struct {
+		name      string
+		typ       types.Type
+		wantMap   bool
+		wantSlice bool
+	}{
+		{name: "Nil", typ: nil},
+		{name: "MapWithNonNilableElement", typ: types.NewMap(intType, intType)},
+		{name: "MapWithNilableElement", typ: types.NewMap(intType, ptrType), wantMap: true},
+		{name: "NamedMapWithNilableElement", typ: namedMap, wantMap: true},
+		{name: "SliceWithNonNilableElement", typ: types.NewSlice(intType)},
+		{name: "SliceWithNilableElement", typ: types.NewSlice(ptrType), wantSlice: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.wantMap, IsDeeplyTypeWithNilableElement[*types.Map](tt.typ))
+			require.Equal(t, tt.wantSlice, IsDeeplyTypeWithNilableElement[*types.Slice](tt.typ))
+		})
+	}
+}
+
 func TestResolveStaticCallTarget(t *testing.T) {
 	t.Parallel()
 
