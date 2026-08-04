@@ -325,10 +325,78 @@ func (r *RootAssertionNode) bindExprNilabilityToContext(expr ast.Expr, site anno
 		r.AddConsumption(consumer)
 		return
 	}
+	if producer, ok := r.inlineAllocationFieldProducer(expr); ok {
+		r.AddNewTriggers(annotation.FullTrigger{
+			Producer: &annotation.ProduceTrigger{Annotation: producer, Expr: expr},
+			Consumer: consumer,
+		})
+		return
+	}
 	r.AddNewTriggers(annotation.FullTrigger{
 		Producer: &annotation.ProduceTrigger{Annotation: r.getShallowExprNilabilityProducer(expr), Expr: expr},
 		Consumer: consumer,
 	})
+}
+
+// inlineAllocationFieldProducer resolves an inline allocation's selected field initializer.
+func (r *RootAssertionNode) inlineAllocationFieldProducer(expr ast.Expr) (annotation.ProducingAnnotationTrigger, bool) {
+	var fields []*types.Var
+	base := ast.Unparen(expr)
+	for {
+		sel, ok := ast.Unparen(base).(*ast.SelectorExpr)
+		if !ok {
+			break
+		}
+		field, ok := r.ObjectOf(sel.Sel).(*types.Var)
+		if !ok {
+			return nil, false
+		}
+		fields = append(fields, field)
+		base = sel.X
+	}
+	if len(fields) == 0 {
+		return nil, false
+	}
+	slices.Reverse(fields)
+
+	structType, fieldInits, ok := r.asStructAllocation(base)
+	if !ok {
+		return nil, false
+	}
+	for i, field := range fields {
+		fieldIdx := -1
+		for j := range structType.NumFields() {
+			if structType.Field(j) == field {
+				fieldIdx = j
+				break
+			}
+		}
+		if fieldIdx < 0 {
+			return nil, false
+		}
+		fieldVal := asthelper.GetFieldVal(fieldInits, field.Name(), structType.NumFields(), fieldIdx)
+		if fieldVal == nil {
+			if !typeshelper.TypeBarsNilness(field.Type()) {
+				return &annotation.StructFieldNil{
+					ProduceTriggerTautology: &annotation.ProduceTriggerTautology{},
+					FieldName:               field.Name(),
+				}, true
+			}
+			structType = typeshelper.AsDeeplyStruct(field.Type())
+			fieldInits = nil
+		} else if i == len(fields)-1 {
+			return r.getShallowExprNilabilityProducer(fieldVal), true
+		} else {
+			structType, fieldInits, ok = r.asStructAllocation(fieldVal)
+			if !ok {
+				return nil, false
+			}
+		}
+		if structType == nil && i != len(fields)-1 {
+			return nil, false
+		}
+	}
+	return &annotation.ProduceTriggerNever{}, true
 }
 
 // getShallowExprNilabilityProducer returns the producer encoding the nilability of the value of expr: an
