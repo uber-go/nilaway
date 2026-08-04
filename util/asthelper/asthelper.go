@@ -186,30 +186,27 @@ func IsFieldSelectorChain(expr ast.Expr) bool {
 	}
 }
 
-// SplitFieldChain decomposes a field-chain expression into its base identifier and the dotted
-// field prefix from that base: `x` -> (x, ""), `x.a` -> (x, "a"), `x.a.b` -> (x, "a.b"). Pointer
-// dereferences are transparent, so `(*x).a` -> (x, "a") and `*x` -> (x, ""). It returns (nil, "")
-// for anything whose innermost base is not a bare identifier, such as `f().a`.
-func SplitFieldChain(expr ast.Expr) (*ast.Ident, string) {
+// SplitFieldChain decomposes a field-chain expression into its base identifier and the field-name
+// segments selected from that base: `x` -> (x, nil), `x.a` -> (x, [a]), `x.a.b` -> (x, [a, b]).
+// Pointer dereferences are transparent, so `(*x).a` -> (x, [a]) and `*x` -> (x, nil). It returns
+// (nil, nil) for anything whose innermost base is not a bare identifier, such as `f().a`.
+func SplitFieldChain(expr ast.Expr) (*ast.Ident, []string) {
 	expr = ast.Unparen(expr)
 	var parts []string
 	for {
 		switch e := expr.(type) {
 		case *ast.Ident:
-			if len(parts) == 0 {
-				return e, ""
-			}
 			for i, j := 0, len(parts)-1; i < j; i, j = i+1, j-1 {
 				parts[i], parts[j] = parts[j], parts[i]
 			}
-			return e, strings.Join(parts, ".")
+			return e, parts
 		case *ast.SelectorExpr:
 			parts = append(parts, e.Sel.Name)
 			expr = ast.Unparen(e.X)
 		case *ast.StarExpr:
 			expr = ast.Unparen(e.X)
 		default:
-			return nil, ""
+			return nil, nil
 		}
 	}
 }

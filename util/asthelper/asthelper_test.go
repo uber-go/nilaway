@@ -107,19 +107,19 @@ func TestSplitFieldChain(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name       string
-		expr       string
-		wantBase   string
-		wantPrefix string
+		name     string
+		expr     string
+		wantBase string
+		wantSegs []string
 	}{
-		{name: "Ident", expr: "x", wantBase: "x", wantPrefix: ""},
-		{name: "SingleSelector", expr: "x.a", wantBase: "x", wantPrefix: "a"},
-		{name: "NestedSelector", expr: "x.a.b", wantBase: "x", wantPrefix: "a.b"},
-		{name: "ParenthesizedSelector", expr: "(x.a).b", wantBase: "x", wantPrefix: "a.b"},
-		{name: "PointerBase", expr: "(*x).a", wantBase: "x", wantPrefix: "a"},
-		{name: "PointerBaseNested", expr: "(*x).a.b", wantBase: "x", wantPrefix: "a.b"},
-		{name: "TopLevelDeref", expr: "*x", wantBase: "x", wantPrefix: ""},
-		{name: "CallBase", expr: "f().a", wantBase: "", wantPrefix: ""},
+		{name: "Ident", expr: "x", wantBase: "x"},
+		{name: "SingleSelector", expr: "x.a", wantBase: "x", wantSegs: []string{"a"}},
+		{name: "NestedSelector", expr: "x.a.b", wantBase: "x", wantSegs: []string{"a", "b"}},
+		{name: "ParenthesizedSelector", expr: "(x.a).b", wantBase: "x", wantSegs: []string{"a", "b"}},
+		{name: "PointerBase", expr: "(*x).a", wantBase: "x", wantSegs: []string{"a"}},
+		{name: "PointerBaseNested", expr: "(*x).a.b", wantBase: "x", wantSegs: []string{"a", "b"}},
+		{name: "TopLevelDeref", expr: "*x", wantBase: "x"},
+		{name: "CallBase", expr: "f().a", wantBase: ""},
 	}
 
 	for _, tt := range tests {
@@ -130,13 +130,13 @@ func TestSplitFieldChain(t *testing.T) {
 			expr, err := parser.ParseExpr(tt.expr)
 			require.NoError(t, err)
 
-			gotBase, gotPrefix := SplitFieldChain(expr)
+			gotBase, gotSegs := SplitFieldChain(expr)
 			if tt.wantBase == "" {
 				require.Nil(t, gotBase)
 			} else {
 				require.Equal(t, tt.wantBase, gotBase.Name)
 			}
-			require.Equal(t, tt.wantPrefix, gotPrefix)
+			require.Equal(t, tt.wantSegs, gotSegs)
 		})
 	}
 }

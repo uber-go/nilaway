@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/nilawaytest"
 	"go.uber.org/nilaway/util/analysishelper"
@@ -110,8 +111,8 @@ func parseExpectedParamSource(t *testing.T, token string) (ReturnParamSource, bo
 	paramIdx, err := strconv.Atoi(parts[3])
 	require.NoErrorf(t, err, "malformed param index in return_param_source token %q", token)
 	return ReturnParamSource{
-		Result: IndexedFieldPath{Idx: resultIdx, Path: parts[2]},
-		Param:  IndexedFieldPath{Idx: paramIdx, Path: parts[4]},
+		Result: IndexedFieldPath{Idx: resultIdx, Path: fieldPathFromDotted(parts[2])},
+		Param:  IndexedFieldPath{Idx: paramIdx, Path: fieldPathFromDotted(parts[4])},
 	}, true
 }
 
@@ -121,7 +122,16 @@ func parseExpectedEffect(t *testing.T, token string) (string, IndexedFieldPath) 
 	require.Lenf(t, parts, 3, "malformed expect_effects token %q", token)
 	idx, err := strconv.Atoi(parts[1])
 	require.NoErrorf(t, err, "malformed index in expect_effects token %q", token)
-	return parts[0], IndexedFieldPath{Idx: idx, Path: parts[2]}
+	return parts[0], IndexedFieldPath{Idx: idx, Path: fieldPathFromDotted(parts[2])}
+}
+
+// fieldPathFromDotted converts a fixture token's dotted path into a FieldPath; the empty token
+// denotes the boundary value itself.
+func fieldPathFromDotted(dotted string) annotation.FieldPath {
+	if dotted == "" {
+		return annotation.FieldPath{}
+	}
+	return annotation.NewFieldPath(strings.Split(dotted, ".")...)
 }
 
 // requireEffects asserts the computed effect set matches want for every function in either map. so
