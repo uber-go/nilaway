@@ -98,13 +98,11 @@ func TestModularDriverParity(t *testing.T) {
 	t.Parallel()
 
 	testdata := analysistest.TestData()
-	const pattern = "go.uber.org/..."
 
-	inProcess := nilawaytest.Diagnostics(
-		testdata,
-		analysistest.Run(t, testdata, Analyzer, pattern),
-	)
-	modular := nilawaytest.RunModularAnalysis(t, testdata, pattern)
+	inProcess := nilawaytest.Diagnostics(testdata, analysistest.Run(t, testdata, Analyzer, "go.uber.org/..."))
+	modular := nilawaytest.RunModularAnalysis(t, testdata, "go.uber.org/...")
+	t.Logf("Total diagnostics from in-process driver: %d", len(inProcess))
+	t.Logf("Total diagnostics from modular driver: %d", len(modular))
 
 	// TODO: Enable modular parity for this package once transitive package facts are propagated
 	// across more than one import hop.
