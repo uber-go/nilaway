@@ -27,6 +27,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"go.uber.org/nilaway/config"
@@ -78,6 +79,7 @@ func TestNilAway(t *testing.T) {
 		{name: "NoLint", patterns: []string{"go.uber.org/nolint"}},
 		{name: "Templ", patterns: []string{"go.uber.org/templ"}},
 		{name: "CtrlflowIntrinsic", patterns: []string{"go.uber.org/zap"}},
+		{name: "TransitiveFacts", patterns: []string{"go.uber.org/transitivefacts/..."}},
 	}
 
 	for _, tt := range tests {
@@ -86,7 +88,17 @@ func TestNilAway(t *testing.T) {
 			t.Parallel()
 			t.Logf("Running test for packages %s", tt.patterns)
 
-			analysistest.Run(t, testdata, Analyzer, tt.patterns...)
+			results := analysistest.Run(t, testdata, Analyzer, tt.patterns...)
+			// TODO: Enable modular parity once transitive package facts are propagated across
+			// more than one import hop.
+			if tt.name == "TransitiveFacts" {
+				return
+			}
+			inProcess := nilawaytest.Diagnostics(testdata, results)
+			modular := nilawaytest.RunModularAnalysis(t, testdata, tt.patterns...)
+			if diff := cmp.Diff(inProcess, modular); diff != "" {
+				t.Errorf("modular driver diagnostics differ from analysistest (-analysistest +modular):\n%s", diff)
+			}
 		})
 	}
 }
@@ -271,5 +283,6 @@ func TestMain(m *testing.M) {
 		}
 	}
 
+	nilawaytest.RunAsModularDriver(Analyzer)
 	goleak.VerifyTestMain(m)
 }
