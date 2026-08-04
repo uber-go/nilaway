@@ -378,6 +378,18 @@ func (r *RootAssertionNode) addFieldProducers(structType *types.Struct, fieldIni
 		fieldVal := asthelper.GetFieldVal(fieldInits, field.Name(), numFields, i)
 		nilable := !typeshelper.TypeBarsNilness(field.Type())
 
+		// Locals lack boundary annotations, so move the field subtree to the initializer and let
+		// backpropagation find its current value. Boundary-rooted values keep static snapshots.
+		if fieldVal != nil && r.isLocalRootedValue(fieldVal) {
+			if srcPath, _ := r.ParseExprAsProducer(fieldVal, false); srcPath != nil {
+				dstPath, _ := r.ParseExprAsProducer(fieldSel, false)
+				if lifted, ok := r.LiftFromPath(dstPath); ok && lifted != nil {
+					r.LandAtPath(srcPath, lifted)
+				}
+				continue
+			}
+		}
+
 		switch {
 		case fieldVal != nil:
 			if innerType, innerInits, ok := r.asStructAllocation(fieldVal); ok {
@@ -644,6 +656,18 @@ func (r *RootAssertionNode) bindAllocationFieldsToContext(structType *types.Stru
 		site := &annotation.StructFieldContextSite{
 			FuncObj: funcObj, Kind: kind, Index: index, Path: path,
 		}
+		// Park trackable initializers so backpropagation resolves their value at this return. Formal
+		// parameter flows stay out of shared return sites and resolve through call-scoped sources.
+		if fieldVal != nil {
+			if trackable, _ := r.ParseExprAsProducer(fieldVal, false); trackable != nil {
+				r.AddConsumption(&annotation.ConsumeTrigger{
+					Annotation: &annotation.StructFieldToContext{TriggerIfNonNil: &annotation.TriggerIfNonNil{Ann: site}},
+					Expr:       fieldVal,
+					Guards:     guard.NoGuards(),
+				})
+				continue
+			}
+		}
 		r.AddNewTriggers(annotation.FullTrigger{
 			Producer: &annotation.ProduceTrigger{Annotation: r.getFieldInitNilabilityProducer(structType, fieldInits, i), Expr: valExpr},
 			Consumer: &annotation.ConsumeTrigger{
@@ -692,6 +716,27 @@ func (r *RootAssertionNode) getParamIndex(v *types.Var) (int, bool) {
 	return 0, false
 }
 
+// dropSharedReturnFieldConsumers keeps formal parameters and receivers out of shared return-field
+// sites. Their supported return flows are supplied from each caller's arguments instead.
+func (r *RootAssertionNode) dropSharedReturnFieldConsumers(node AssertionNode) {
+	consumers := node.ConsumeTriggers()
+	kept := consumers[:0]
+	for _, consumer := range consumers {
+		toContext, ok := consumer.Annotation.(*annotation.StructFieldToContext)
+		if ok {
+			if site, ok := toContext.Ann.(*annotation.StructFieldContextSite); ok &&
+				site.FuncObj == r.FuncObj() && site.Kind == annotation.StructFieldReturnContext && !site.Location.IsValid() {
+				continue
+			}
+		}
+		kept = append(kept, consumer)
+	}
+	node.SetConsumeTriggers(kept)
+	for _, child := range node.Children() {
+		r.dropSharedReturnFieldConsumers(child)
+	}
+}
+
 // addParamFieldProducers attaches, at function entry, producers making each nilable field of
 // a struct-typed parameter/receiver nil iff the corresponding parameter context site is inferred
 // nilable.
@@ -708,12 +753,13 @@ func (r *RootAssertionNode) addParamFieldProducers(builtExpr ast.Expr) {
 	if !ok {
 		return
 	}
-	if typeshelper.AsDeeplyStruct(v.Type()) == nil {
-		return
-	}
 	path, _ := r.ParseExprAsProducer(builtExpr, false)
 	node, _ := r.lookupPath(path)
 	if node == nil {
+		return
+	}
+	r.dropSharedReturnFieldConsumers(node)
+	if typeshelper.AsDeeplyStruct(v.Type()) == nil {
 		return
 	}
 	var paths []accessedFieldPath

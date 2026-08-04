@@ -132,6 +132,7 @@ func TestStructInitV2(t *testing.T) { //nolint:paralleltest
 	testdata := analysistest.TestData()
 	analysistest.Run(t, testdata, Analyzer,
 		"structinitv2/local",
+		"structinitv2/returnerr",
 		"structinitv2/defaultfield",
 		"structinitv2/deep",
 		"structinitv2/crosspkg/app",
