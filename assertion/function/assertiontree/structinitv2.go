@@ -22,7 +22,6 @@ import (
 	"sort"
 
 	"go.uber.org/nilaway/annotation"
-	"go.uber.org/nilaway/assertion/function/structfieldeffects"
 	"go.uber.org/nilaway/guard"
 	"go.uber.org/nilaway/util/asthelper"
 	"go.uber.org/nilaway/util/typeshelper"
@@ -91,9 +90,7 @@ func (r *RootAssertionNode) addAllocationFieldProducers(lhsVal, rhsVal ast.Expr)
 // caller argument.
 func (r *RootAssertionNode) resultPathHasParamSource(funcObj *types.Func, resultIdx int, resultPath annotation.FieldPath) bool {
 	sources := r.functionContext.boundaryFieldEffects.ReturnParamSources(funcObj)
-	return slices.ContainsFunc(sources, func(src structfieldeffects.ReturnParamSource) bool {
-		return src.SuppliesResultPath(resultIdx, resultPath)
-	})
+	return sources.HasSource(resultIdx, resultPath)
 }
 
 // resultValueHasParamSource reports whether funcObj's resultIdx-th result value itself (not a
