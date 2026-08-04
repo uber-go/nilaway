@@ -18,8 +18,6 @@ import (
 	"cmp"
 	"go/types"
 	"slices"
-	"sort"
-	"strings"
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/util/typeshelper"
@@ -52,7 +50,7 @@ type BoundaryFieldEffects struct {
 }
 
 // ParamReadPaths returns the field paths read from funcObj's parameter or receiver at idx.
-func (e *BoundaryFieldEffects) ParamReadPaths(funcObj *types.Func, idx int) []string {
+func (e *BoundaryFieldEffects) ParamReadPaths(funcObj *types.Func, idx int) []annotation.FieldPath {
 	if e == nil {
 		return nil
 	}
@@ -60,7 +58,7 @@ func (e *BoundaryFieldEffects) ParamReadPaths(funcObj *types.Func, idx int) []st
 }
 
 // ReturnReadPaths returns the field paths read from funcObj's result at idx.
-func (e *BoundaryFieldEffects) ReturnReadPaths(funcObj *types.Func, idx int) []string {
+func (e *BoundaryFieldEffects) ReturnReadPaths(funcObj *types.Func, idx int) []annotation.FieldPath {
 	if e == nil {
 		return nil
 	}
@@ -68,7 +66,7 @@ func (e *BoundaryFieldEffects) ReturnReadPaths(funcObj *types.Func, idx int) []s
 }
 
 // ReturnEffectPaths returns the field paths that are provably nil in funcObj's result at idx.
-func (e *BoundaryFieldEffects) ReturnEffectPaths(funcObj *types.Func, idx int) []string {
+func (e *BoundaryFieldEffects) ReturnEffectPaths(funcObj *types.Func, idx int) []annotation.FieldPath {
 	if e == nil {
 		return nil
 	}
@@ -76,24 +74,24 @@ func (e *BoundaryFieldEffects) ReturnEffectPaths(funcObj *types.Func, idx int) [
 }
 
 // ParamWritePaths returns the field paths written through funcObj's parameter or receiver at idx.
-func (e *BoundaryFieldEffects) ParamWritePaths(funcObj *types.Func, idx int) []string {
+func (e *BoundaryFieldEffects) ParamWritePaths(funcObj *types.Func, idx int) []annotation.FieldPath {
 	if e == nil {
 		return nil
 	}
 	return fieldPathsForIndex(e.paramWrites, funcObj, idx)
 }
 
-func fieldPathsForIndex(effects fieldEffects, funcObj *types.Func, idx int) []string {
+func fieldPathsForIndex(effects fieldEffects, funcObj *types.Func, idx int) []annotation.FieldPath {
 	fields := effects[funcObj]
-	paths := make([]string, 0, len(fields))
+	paths := make([]annotation.FieldPath, 0, len(fields))
 	for key := range fields {
-		if key.Idx == idx && key.Path != "" {
+		if key.Idx == idx && !key.Path.IsRoot() {
 			paths = append(paths, key.Path)
 		}
 	}
 
 	// Sort paths so diagnostics at the same source location have a deterministic order.
-	sort.Strings(paths)
+	slices.SortFunc(paths, annotation.FieldPath.Compare)
 	return paths
 }
 
@@ -108,7 +106,7 @@ func (c *collectedFieldEffects) close() *BoundaryFieldEffects {
 // seedImportedParamEffects merges an imported callee's parameter effects before closure runs.
 func seedImportedParamEffects(effects fieldEffects, funcObj *types.Func, paths []IndexedFieldPath) {
 	for _, path := range paths {
-		if path.Path == "" {
+		if path.Path.IsRoot() {
 			continue
 		}
 		effects.add(funcObj, path)
@@ -132,10 +130,10 @@ func (e fieldEffects) sortedPaths(funcObj *types.Func) []IndexedFieldPath {
 
 // IndexedFieldPath identifies a boundary value by parameter/result index and field path.
 // For example, in an access to `a.b.c` where `a` is the first parameter, {Idx: 0,
-// Path: "b"} represents the read demand on that parameter's `b` field.
+// Path: NewFieldPath("b")} represents the read demand on that parameter's `b` field.
 type IndexedFieldPath struct {
 	Idx  int
-	Path string
+	Path annotation.FieldPath
 }
 
 // compare orders IndexedFieldPaths by index, then path. The boundary summaries are map-backed
@@ -144,7 +142,7 @@ type IndexedFieldPath struct {
 func (p IndexedFieldPath) compare(other IndexedFieldPath) int {
 	return cmp.Or(
 		cmp.Compare(p.Idx, other.Idx),
-		cmp.Compare(p.Path, other.Path),
+		p.Path.Compare(other.Path),
 	)
 }
 
@@ -165,13 +163,13 @@ func (e fieldEffects) add(funcObj *types.Func, key IndexedFieldPath) bool {
 }
 
 // paramFieldForwardEdge records that the caller passes its own parameter/receiver (callerParamIdx) — possibly
-// at a nested field prefix callerPrefix (e.g. "inner" for g(x.inner)) — as the calleeParamIdx-th
+// at a nested field prefix callerPrefix (e.g. `inner` for g(x.inner)) — as the calleeParamIdx-th
 // parameter (or receiver) of callee. It is the unit of the transitive field-effect closure: if
 // callee has effect (calleeParamIdx, p), the caller inherits effect
-// (callerParamIdx, callerPrefix+"."+p).
+// (callerParamIdx, callerPrefix.Join(p)).
 type paramFieldForwardEdge struct {
 	callerParamIdx int
-	callerPrefix   string
+	callerPrefix   annotation.FieldPath
 	callee         *types.Func
 	calleeParamIdx int
 }
@@ -213,7 +211,7 @@ func closeParamFieldSets(fields fieldEffects, edges map[*types.Func][]paramField
 				if ck.Idx != e.calleeParamIdx {
 					continue
 				}
-				path := joinFieldPath(e.callerPrefix, ck.Path)
+				path := e.callerPrefix.Join(ck.Path)
 				// Skip recursive field paths; otherwise forwarding can keep growing paths like
 				// inner.f, inner.inner.f, ...
 				if !paramFieldPathIsAcyclic(f, e.callerParamIdx, path) {
@@ -277,35 +275,7 @@ func closeReturnEffects(effects fieldEffects, edges map[*types.Func][]returnForw
 	}
 }
 
-// joinFieldPath concatenates two (possibly empty) dotted field paths: join("", p) = p,
-// join("inner", "f") = "inner.f", join("inner", "") = "inner".
-func joinFieldPath(prefix, sub string) string {
-	if prefix == "" {
-		return sub
-	}
-	if sub == "" {
-		return prefix
-	}
-	return prefix + "." + sub
-}
-
-// trimFieldPathPrefix is joinFieldPath's inverse: it returns the remainder of path below prefix —
-// trim("Mid.Child", "Mid") = "Child", trim(p, "") = p, trim(p, p) = "". The match is per segment,
-// so ok is false when prefix does not cover path (`Middle` is not below `Mid`).
-func trimFieldPathPrefix(path, prefix string) (sub string, ok bool) {
-	switch {
-	case prefix == "":
-		return path, true
-	case path == prefix:
-		return "", true
-	case strings.HasPrefix(path, prefix+"."):
-		return path[len(prefix)+1:], true
-	default:
-		return "", false
-	}
-}
-
-func paramFieldPathIsAcyclic(fn *types.Func, paramIdx int, path string) bool {
+func paramFieldPathIsAcyclic(fn *types.Func, paramIdx int, path annotation.FieldPath) bool {
 	sig := fn.Signature()
 	if paramIdx == annotation.ReceiverParamIndex {
 		if sig.Recv() == nil {
@@ -319,7 +289,7 @@ func paramFieldPathIsAcyclic(fn *types.Func, paramIdx int, path string) bool {
 	return fieldPathIsAcyclic(sig.Params().At(paramIdx).Type(), path)
 }
 
-func resultFieldPathIsAcyclic(fn *types.Func, resultIdx int, path string) bool {
+func resultFieldPathIsAcyclic(fn *types.Func, resultIdx int, path annotation.FieldPath) bool {
 	sig := fn.Signature()
 	if resultIdx < 0 || resultIdx >= sig.Results().Len() {
 		return false
@@ -329,7 +299,7 @@ func resultFieldPathIsAcyclic(fn *types.Func, resultIdx int, path string) bool {
 
 // fieldPathIsAcyclic reports whether path can be followed without re-entering a struct type already
 // seen on the chain. Recursive paths are skipped so forwarding fixpoints remain finite.
-func fieldPathIsAcyclic(boundaryType types.Type, path string) bool {
+func fieldPathIsAcyclic(boundaryType types.Type, path annotation.FieldPath) bool {
 	// AsDeeplyStruct unwraps at most one pointer, but forwarded field paths can be rooted at
 	// boundary values with multiple pointer layers.
 	for {
@@ -346,7 +316,7 @@ func fieldPathIsAcyclic(boundaryType types.Type, path string) bool {
 	// Seed seen with the boundary struct type so a field that points back to it (a self-recursive
 	// field such as `A.inner *A`) is treated as recursive and skipped.
 	seen := map[*types.Struct]bool{st: true}
-	segs := strings.Split(path, ".")
+	segs := path.Segments()
 	for i, name := range segs {
 		var field *types.Var
 		for k := range st.NumFields() {

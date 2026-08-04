@@ -20,7 +20,6 @@ import (
 	"go/types"
 	"slices"
 	"sort"
-	"strings"
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/assertion/function/structfieldeffects"
@@ -90,7 +89,7 @@ func (r *RootAssertionNode) addAllocationFieldProducers(lhsVal, rhsVal ast.Expr)
 
 // resultPathHasParamSource reports whether funcObj's (resultIdx, resultPath) is supplied by a
 // caller argument.
-func (r *RootAssertionNode) resultPathHasParamSource(funcObj *types.Func, resultIdx int, resultPath string) bool {
+func (r *RootAssertionNode) resultPathHasParamSource(funcObj *types.Func, resultIdx int, resultPath annotation.FieldPath) bool {
 	sources := r.functionContext.boundaryFieldEffects.ReturnParamSources(funcObj)
 	return slices.ContainsFunc(sources, func(src structfieldeffects.ReturnParamSource) bool {
 		return src.SuppliesResultPath(resultIdx, resultPath)
@@ -101,7 +100,7 @@ func (r *RootAssertionNode) resultPathHasParamSource(funcObj *types.Func, result
 // field of it) is supplied by a caller argument — a whole-result source from `return p` or
 // `return p.x`.
 func (r *RootAssertionNode) resultValueHasParamSource(funcObj *types.Func, resultIdx int) bool {
-	return r.resultPathHasParamSource(funcObj, resultIdx, "")
+	return r.resultPathHasParamSource(funcObj, resultIdx, annotation.FieldPath{})
 }
 
 // addCallResultFieldProducers attaches producers for the accessed fields of a call result bound
@@ -114,9 +113,9 @@ func (r *RootAssertionNode) addCallResultFieldProducers(base ast.Expr, funcObj *
 		return
 	}
 	var paths []accessedFieldPath
-	r.collectAccessedFieldPaths(node, base, "", make(map[*types.Struct]bool), &paths)
+	r.collectAccessedFieldPaths(node, base, annotation.FieldPath{}, make(map[*types.Struct]bool), &paths)
 
-	returnEffects := make(map[string]bool)
+	returnEffects := make(map[annotation.FieldPath]bool)
 	// Error-returning functions are skipped for now: correlating the fields with the error result
 	// to be added in the future.
 	if !typeshelper.FuncIsErrReturning(funcObj.Signature()) {
@@ -143,12 +142,12 @@ func (r *RootAssertionNode) addCallResultFieldProducers(base ast.Expr, funcObj *
 		// If the callee's known return effects prove this path nil (e.g. `return &T{}`),
 		// additionally seed the context site with a definite nil here at the caller.
 		if returnEffects[p.path] {
-			parts := strings.Split(p.path, ".")
+			segments := p.path.Segments()
 			r.AddNewTriggers(annotation.FullTrigger{
 				Producer: &annotation.ProduceTrigger{
 					Annotation: &annotation.StructFieldNil{
 						ProduceTriggerTautology: &annotation.ProduceTriggerTautology{},
-						FieldName:               parts[len(parts)-1],
+						FieldName:               segments[len(segments)-1],
 					},
 					Expr: p.sel,
 				},
@@ -249,12 +248,12 @@ func (r *RootAssertionNode) isLocalRootedValue(expr ast.Expr) bool {
 // selector expression that reaches it.
 type accessedFieldPath struct {
 	sel  ast.Expr
-	path string
+	path annotation.FieldPath
 }
 
 // collectAccessedFieldPaths walks the live assertion subtree under node and collects accessed nilable
-// field paths, deepest path first. prefix is the dotted path from the boundary value to node.
-func (r *RootAssertionNode) collectAccessedFieldPaths(node AssertionNode, base ast.Expr, prefix string, seen map[*types.Struct]bool, out *[]accessedFieldPath) {
+// field paths, deepest path first. prefix is the field path from the boundary value to node.
+func (r *RootAssertionNode) collectAccessedFieldPaths(node AssertionNode, base ast.Expr, prefix annotation.FieldPath, seen map[*types.Struct]bool, out *[]accessedFieldPath) {
 	for _, child := range node.Children() {
 		fldNode, ok := child.(*fldAssertionNode)
 		if !ok {
@@ -262,10 +261,7 @@ func (r *RootAssertionNode) collectAccessedFieldPaths(node AssertionNode, base a
 		}
 		field := fldNode.decl
 		sel := r.getSelectorExpr(field, base)
-		path := field.Name()
-		if prefix != "" {
-			path = prefix + "." + field.Name()
-		}
+		path := prefix.Child(field.Name())
 		if inner := typeshelper.AsDeeplyStruct(field.Type()); inner == nil || !seen[inner] {
 			if inner != nil {
 				seen[inner] = true
@@ -322,7 +318,7 @@ func (r *RootAssertionNode) bindValueFieldsToContext(targetFunc *types.Func, val
 
 	allocType, fieldInits, isAlloc := r.asStructAllocation(valExpr)
 	if isAlloc {
-		r.bindAllocationFieldsToContext(allocType, fieldInits, valExpr, "", funcObj, kind, index)
+		r.bindAllocationFieldsToContext(allocType, fieldInits, valExpr, annotation.FieldPath{}, funcObj, kind, index)
 		return
 	}
 
@@ -358,7 +354,7 @@ func (r *RootAssertionNode) bindValueFieldsToContext(targetFunc *types.Func, val
 // boundaryReadPaths returns the field paths that are read through the boundary context site of
 // funcObj at (kind, index): the callee's param read-set for an argument or receiver, or the
 // callers' return read-set for a return value.
-func (r *RootAssertionNode) boundaryReadPaths(funcObj *types.Func, kind annotation.StructFieldContextKind, index int) []string {
+func (r *RootAssertionNode) boundaryReadPaths(funcObj *types.Func, kind annotation.StructFieldContextKind, index int) []annotation.FieldPath {
 	switch kind {
 	case annotation.StructFieldParamContext:
 		return r.functionContext.boundaryFieldEffects.ParamReadPaths(funcObj, index)
@@ -390,18 +386,18 @@ func (r *RootAssertionNode) bindCallResultFieldsToContext(call *ast.CallExpr, va
 	if sourceType == nil {
 		return
 	}
-	pathSet := make(map[string]bool)
+	pathSet := make(map[annotation.FieldPath]bool)
 	for _, path := range r.functionContext.boundaryFieldEffects.ReturnEffectPaths(source.Origin, 0) {
 		pathSet[path] = true
 	}
 	for _, path := range r.boundaryReadPaths(targetFunc, kind, index) {
 		pathSet[path] = true
 	}
-	paths := make([]string, 0, len(pathSet))
+	paths := make([]annotation.FieldPath, 0, len(pathSet))
 	for path := range pathSet {
 		paths = append(paths, path)
 	}
-	sort.Strings(paths)
+	slices.SortFunc(paths, annotation.FieldPath.Compare)
 	for _, fieldPath := range paths {
 		// Param-sourced paths of the callee are caller-dependent: forwarding them
 		// through the shared return sites would merge callers.
@@ -428,16 +424,13 @@ func (r *RootAssertionNode) bindCallResultFieldsToContext(call *ast.CallExpr, va
 
 // bindAllocationFieldsToContext binds the per-field nilability of an inline struct allocation to
 // the boundary context site of funcObj at (kind, index).
-func (r *RootAssertionNode) bindAllocationFieldsToContext(structType *types.Struct, fieldInits []ast.Expr, valExpr ast.Expr, prefix string, funcObj *types.Func, kind annotation.StructFieldContextKind, index int) {
+func (r *RootAssertionNode) bindAllocationFieldsToContext(structType *types.Struct, fieldInits []ast.Expr, valExpr ast.Expr, prefix annotation.FieldPath, funcObj *types.Func, kind annotation.StructFieldContextKind, index int) {
 	numFields := structType.NumFields()
 	for i := range numFields {
 		field := structType.Field(i)
 		fieldVal := asthelper.GetFieldVal(fieldInits, field.Name(), numFields, i)
 		nilable := !typeshelper.TypeBarsNilness(field.Type())
-		path := field.Name()
-		if prefix != "" {
-			path = prefix + "." + field.Name()
-		}
+		path := prefix.Child(field.Name())
 
 		switch {
 		case fieldVal != nil:
@@ -529,7 +522,7 @@ func (r *RootAssertionNode) addParamFieldProducers(builtExpr ast.Expr) {
 		return
 	}
 	var paths []accessedFieldPath
-	r.collectAccessedFieldPaths(node, builtExpr, "", make(map[*types.Struct]bool), &paths)
+	r.collectAccessedFieldPaths(node, builtExpr, annotation.FieldPath{}, make(map[*types.Struct]bool), &paths)
 	for _, p := range paths {
 		site := &annotation.StructFieldContextSite{
 			FuncObj: r.FuncObj(), Kind: annotation.StructFieldParamContext, Index: idx, Path: p.path,
@@ -544,11 +537,11 @@ func (r *RootAssertionNode) addParamFieldProducers(builtExpr ast.Expr) {
 }
 
 // buildFieldPathSelector builds the selector expression reaching base.<path>, where path is a
-// dotted field path under base's struct type.
-func (r *RootAssertionNode) buildFieldPathSelector(base ast.Expr, structType *types.Struct, path string) (ast.Expr, bool) {
+// field path under base's struct type.
+func (r *RootAssertionNode) buildFieldPathSelector(base ast.Expr, structType *types.Struct, path annotation.FieldPath) (ast.Expr, bool) {
 	cur := base
 	curStruct := structType
-	for _, name := range strings.Split(path, ".") {
+	for _, name := range path.Segments() {
 		if curStruct == nil {
 			return nil, false
 		}
@@ -600,7 +593,7 @@ func (r *RootAssertionNode) addCallParamOutFieldProducers(call *ast.CallExpr, ta
 		paths := r.functionContext.boundaryFieldEffects.ParamWritePaths(target.Origin, index)
 		// AddProduction detaches a matched subtree, so nested paths must be produced first.
 		sort.SliceStable(paths, func(i, j int) bool {
-			return strings.Count(paths[i], ".") > strings.Count(paths[j], ".")
+			return paths[i].NumSegments() > paths[j].NumSegments()
 		})
 		for _, fieldPath := range paths {
 			fieldExpr, ok := r.buildFieldPathSelector(arg, structType, fieldPath)
@@ -641,15 +634,16 @@ func (r *RootAssertionNode) addCallParamOutFieldProducers(call *ast.CallExpr, ta
 
 // bindForwardedParamOut connects a callee's output summary to a forwarder's output summary. For
 // `func g(p *A) { f(p) }`, when f's parameter 0 may write b.c, it adds
-// `PARAM_OUT(f, 0, "b.c") -> PARAM_OUT(g, 0, "b.c")`. A field prefix is retained, so passing
-// p.inner to f instead targets `PARAM_OUT(g, 0, "inner.b.c")`. The write summary is already closed
+// `PARAM_OUT(f, 0, b.c) -> PARAM_OUT(g, 0, b.c)`. A field prefix is retained, so passing
+// p.inner to f instead targets `PARAM_OUT(g, 0, inner.b.c)`. The write summary is already closed
 // over these edges; this supplies each inherited path's context value.
 func (r *RootAssertionNode) bindForwardedParamOut(call *ast.CallExpr, target typeshelper.StaticCallTarget) {
 	link := func(calleeIndex int, arg ast.Expr) {
-		base, prefix := asthelper.SplitFieldChain(arg)
+		base, prefixSegments := asthelper.SplitFieldChain(arg)
 		if base == nil {
 			return
 		}
+		prefix := annotation.NewFieldPath(prefixSegments...)
 		param, ok := r.ObjectOf(base).(*types.Var)
 		if !ok {
 			return
@@ -659,10 +653,7 @@ func (r *RootAssertionNode) bindForwardedParamOut(call *ast.CallExpr, target typ
 			return
 		}
 		for _, calleePath := range r.functionContext.boundaryFieldEffects.ParamWritePaths(target.Origin, calleeIndex) {
-			fieldPath := calleePath
-			if prefix != "" {
-				fieldPath = prefix + "." + fieldPath
-			}
+			fieldPath := prefix.Join(calleePath)
 			source := &annotation.StructFieldContextSite{
 				FuncObj: target.Origin, Kind: annotation.StructFieldParamOutContext, Index: calleeIndex, Path: calleePath,
 			}
@@ -702,10 +693,11 @@ func (r *RootAssertionNode) bindForwardedParamOut(call *ast.CallExpr, target typ
 // ordinary intraprocedural flow supplies the context. The write-summary check excludes local field
 // assignments from this boundary.
 func (r *RootAssertionNode) bindParamFieldWriteToContext(lhs, rhs ast.Expr) {
-	base, fieldPath := asthelper.SplitFieldChain(lhs)
-	if base == nil || fieldPath == "" {
+	base, segments := asthelper.SplitFieldChain(lhs)
+	if base == nil || len(segments) == 0 {
 		return
 	}
+	fieldPath := annotation.NewFieldPath(segments...)
 	param, ok := r.ObjectOf(base).(*types.Var)
 	if !ok {
 		return
