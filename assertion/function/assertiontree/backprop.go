@@ -859,7 +859,7 @@ func backpropAcrossManyToOneAssignment(rootNode *RootAssertionNode, lhs, rhs []a
 				sig := funcObj.Type().(*types.Signature)
 				if i < sig.Results().Len() {
 					if typeshelper.AsDeeplyStruct(sig.Results().At(i).Type()) != nil {
-						rootNode.addCallResultFieldProducers(lhsVal, funcObj, i)
+						rootNode.addCallResultFieldProducers(lhsVal, rhsVal, funcObj, i)
 					}
 				}
 			}
