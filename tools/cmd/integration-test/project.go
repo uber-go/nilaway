@@ -15,12 +15,16 @@
 package main
 
 import (
+	"bytes"
 	_ "embed"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"text/template"
+
+	"golang.org/x/mod/modfile"
 )
 
 //go:embed .custom-gcl.template.yaml
@@ -29,17 +33,8 @@ var customGCLTemplate string
 //go:embed .golangci.yaml
 var golangCIConfig string
 
-// PositionInProject converts a diagnostic position to a project-relative position.
-func PositionInProject(dir, filename string, line int) (Position, error) {
-	if !filepath.IsAbs(filename) {
-		filename = filepath.Join(dir, filename)
-	}
-	relative, err := filepath.Rel(dir, filename)
-	if err != nil {
-		return Position{}, fmt.Errorf("make diagnostic path %q relative to %q: %w", filename, dir, err)
-	}
-	return Position{Filename: filepath.ToSlash(relative), Line: line}, nil
-}
+//go:embed go.mod.template
+var goModTemplate string
 
 // PrepareTestProject creates a buildable copy of the integration test project.
 func PrepareTestProject(repoRoot, tempRoot string) (string, error) {
@@ -65,13 +60,17 @@ func PrepareTestProject(repoRoot, tempRoot string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	projectGoMod := fmt.Sprintf(
-		"module go.uber.org\n\ngo %s\n\nrequire stubs v0.0.0\n\nreplace stubs => ../stubs\n",
-		goVersion,
-	)
+	tmpl, err := template.New("go.mod").Parse(goModTemplate)
+	if err != nil {
+		return "", fmt.Errorf("parse go.mod template: %w", err)
+	}
+	var projectGoMod bytes.Buffer
+	if err := tmpl.Execute(&projectGoMod, map[string]string{"GoVersion": goVersion}); err != nil {
+		return "", fmt.Errorf("execute go.mod template: %w", err)
+	}
 	stubsGoMod := fmt.Sprintf("module stubs\n\ngo %s\n", goVersion)
 	files := map[string]string{
-		filepath.Join(projectDir, "go.mod"):                    projectGoMod,
+		filepath.Join(projectDir, "go.mod"):                    projectGoMod.String(),
 		filepath.Join(stubsDir, "go.mod"):                      stubsGoMod,
 		filepath.Join(projectDir, ".custom-gcl.template.yaml"): customGCLTemplate,
 		filepath.Join(projectDir, ".golangci.yaml"):            golangCIConfig,
@@ -83,6 +82,18 @@ func PrepareTestProject(repoRoot, tempRoot string) (string, error) {
 	}
 
 	return projectDir, nil
+}
+
+// PositionInProject converts a diagnostic position to a project-relative position.
+func PositionInProject(dir, filename string, line int) (Position, error) {
+	if !filepath.IsAbs(filename) {
+		filename = filepath.Join(dir, filename)
+	}
+	relative, err := filepath.Rel(dir, filename)
+	if err != nil {
+		return Position{}, fmt.Errorf("make diagnostic path %q relative to %q: %w", filename, dir, err)
+	}
+	return Position{Filename: filepath.ToSlash(relative), Line: line}, nil
 }
 
 // MakeCorpusBuildable applies temporary compatibility shims needed by real Go build drivers.
@@ -143,15 +154,17 @@ func print(args ...any) {}
 
 // RepositoryGoVersion returns the Go version declared by the repository's go.mod.
 func RepositoryGoVersion(repoRoot string) (string, error) {
-	data, err := os.ReadFile(filepath.Join(repoRoot, "go.mod"))
+	path := filepath.Join(repoRoot, "go.mod")
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", fmt.Errorf("read repository go.mod: %w", err)
 	}
-	for line := range strings.SplitSeq(string(data), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) == 2 && fields[0] == "go" {
-			return fields[1], nil
-		}
+	file, err := modfile.Parse(path, data, nil)
+	if err != nil {
+		return "", fmt.Errorf("parse repository go.mod: %w", err)
 	}
-	return "", errors.New("repository go.mod has no go directive")
+	if file.Go == nil {
+		return "", errors.New("repository go.mod has no go directive")
+	}
+	return file.Go.Version, nil
 }
