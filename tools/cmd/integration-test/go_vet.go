@@ -24,7 +24,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 )
@@ -43,10 +42,6 @@ func (d *GoVetDriver) Run(dir string) (map[Position][]string, error) {
 		return nil, fmt.Errorf("build NilAway: %w: %q", err, string(out))
 	}
 
-	goRoot := runtime.GOROOT() //nolint:staticcheck // Use the Go toolchain that built this runner.
-	if goRoot == "" {
-		return nil, errors.New("GOROOT is empty")
-	}
 	tempRoot := filepath.Dir(dir)
 	goCacheDir := filepath.Join(tempRoot, "go-vet-cache")
 	goTempDir := filepath.Join(tempRoot, "go-vet-tmp")
@@ -56,7 +51,7 @@ func (d *GoVetDriver) Run(dir string) (map[Position][]string, error) {
 		}
 	}
 	cmd := exec.Command(
-		filepath.Join(goRoot, "bin", "go"), "vet",
+		"go", "vet",
 		"-vettool="+filepath.Join(cwd, "bin", "nilaway"),
 		"-json",
 		"-pretty-print=false",
