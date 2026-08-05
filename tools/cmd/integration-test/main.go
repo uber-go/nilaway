@@ -146,11 +146,22 @@ func CompareDiagnostics(
 	})
 
 	for _, pos := range positions {
-		wants := truth[pos]
-		gots := collected[pos]
-		unmatchedWants, unmatchedGots := unmatchedDiagnostics(wants, gots)
-		for _, got := range unmatchedGots {
-			if len(unmatchedWants) == 0 {
+		wants := append([]*regexp.Regexp(nil), truth[pos]...)
+		for _, got := range collected[pos] {
+			matched := false
+			for i, want := range wants {
+				if !want.MatchString(got) {
+					continue
+				}
+				wants[i] = wants[len(wants)-1]
+				wants = wants[:len(wants)-1]
+				matched = true
+				break
+			}
+			if matched {
+				continue
+			}
+			if len(wants) == 0 {
 				err = errors.Join(err, fmt.Errorf(
 					"unexpected diagnostic at %s:%d:\n\tgot: %q",
 					pos.Filename, pos.Line, got))
@@ -158,9 +169,9 @@ func CompareDiagnostics(
 			}
 			err = errors.Join(err, fmt.Errorf(
 				"diagnostic mismatch at %s:%d:\n\twant one of: %s\n\tgot: %q",
-				pos.Filename, pos.Line, formatPatterns(unmatchedWants), got))
+				pos.Filename, pos.Line, formatPatterns(wants), got))
 		}
-		for _, want := range unmatchedWants {
+		for _, want := range wants {
 			err = errors.Join(err, fmt.Errorf(
 				"missing diagnostic at %s:%d:\n\twant: %q",
 				pos.Filename, pos.Line, want))
@@ -168,58 +179,6 @@ func CompareDiagnostics(
 	}
 
 	return err
-}
-
-// unmatchedDiagnostics returns the expected patterns and reported messages that cannot be paired.
-// It uses bipartite matching so overlapping patterns do not make the result order-dependent.
-func unmatchedDiagnostics(wants []*regexp.Regexp, gots []string) ([]*regexp.Regexp, []string) {
-	if wants == nil {
-		wants = []*regexp.Regexp{}
-	}
-	if gots == nil {
-		gots = []string{}
-	}
-
-	wantToGot := make([]int, len(wants))
-	for i := range wantToGot {
-		wantToGot[i] = -1
-	}
-
-	var match func(int, []bool) bool
-	match = func(got int, seen []bool) bool {
-		for want, rx := range wants {
-			if seen[want] || !rx.MatchString(gots[got]) {
-				continue
-			}
-			seen[want] = true
-			if wantToGot[want] == -1 || match(wantToGot[want], seen) {
-				wantToGot[want] = got
-				return true
-			}
-		}
-		return false
-	}
-
-	gotMatched := make([]bool, len(gots))
-	for got := range gots {
-		if match(got, make([]bool, len(wants))) {
-			gotMatched[got] = true
-		}
-	}
-
-	var unmatchedWants []*regexp.Regexp
-	for want, got := range wantToGot {
-		if got == -1 {
-			unmatchedWants = append(unmatchedWants, wants[want])
-		}
-	}
-	var unmatchedGots []string
-	for got, matched := range gotMatched {
-		if !matched {
-			unmatchedGots = append(unmatchedGots, gots[got])
-		}
-	}
-	return unmatchedWants, unmatchedGots
 }
 
 func formatPatterns(patterns []*regexp.Regexp) string {
@@ -273,13 +232,18 @@ func Run() (err error) {
 		return fmt.Errorf("collect want strings: %w", err)
 	}
 
-	dir, cleanup, err := prepareTestProject(wd)
+	tempRoot, err := os.MkdirTemp("", "nilaway-integration-test")
+	if err != nil {
+		return fmt.Errorf("create temp directory: %w", err)
+	}
+	defer func() {
+		err = errors.Join(err, os.RemoveAll(tempRoot))
+	}()
+
+	dir, err := prepareTestProject(wd, tempRoot)
 	if err != nil {
 		return fmt.Errorf("prepare test project: %w", err)
 	}
-	defer func() {
-		err = errors.Join(err, cleanup())
-	}()
 
 	drivers := []Driver{
 		&StandaloneDriver{},
@@ -304,38 +268,28 @@ func Run() (err error) {
 	return nil
 }
 
-func prepareTestProject(repoRoot string) (_ string, cleanup func() error, err error) {
-	tempRoot, err := os.MkdirTemp("", "nilaway-integration-test")
-	if err != nil {
-		return "", nil, fmt.Errorf("create temp directory: %w", err)
-	}
-	defer func() {
-		if err != nil {
-			err = errors.Join(err, os.RemoveAll(tempRoot))
-		}
-	}()
-
+func prepareTestProject(repoRoot, tempRoot string) (string, error) {
 	projectDir := filepath.Join(tempRoot, "go.uber.org")
 	stubsDir := filepath.Join(tempRoot, "stubs")
 	if err := os.MkdirAll(projectDir, 0755); err != nil {
-		return "", nil, fmt.Errorf("create project directory: %w", err)
+		return "", fmt.Errorf("create project directory: %w", err)
 	}
 	if err := os.MkdirAll(stubsDir, 0755); err != nil {
-		return "", nil, fmt.Errorf("create stubs directory: %w", err)
+		return "", fmt.Errorf("create stubs directory: %w", err)
 	}
 	if err := os.CopyFS(projectDir, os.DirFS(filepath.Join(repoRoot, "testdata", "src", "go.uber.org"))); err != nil {
-		return "", nil, fmt.Errorf("copy go.uber.org test corpus: %w", err)
+		return "", fmt.Errorf("copy go.uber.org test corpus: %w", err)
 	}
 	if err := os.CopyFS(stubsDir, os.DirFS(filepath.Join(repoRoot, "testdata", "src", "stubs"))); err != nil {
-		return "", nil, fmt.Errorf("copy test stubs: %w", err)
+		return "", fmt.Errorf("copy test stubs: %w", err)
 	}
 	if err := makeCorpusBuildable(projectDir); err != nil {
-		return "", nil, err
+		return "", err
 	}
 
 	goVersion, err := repositoryGoVersion(repoRoot)
 	if err != nil {
-		return "", nil, err
+		return "", err
 	}
 	projectGoMod := fmt.Sprintf(
 		"module go.uber.org\n\ngo %s\n\nrequire stubs v0.0.0\n\nreplace stubs => ../stubs\n",
@@ -350,11 +304,11 @@ func prepareTestProject(repoRoot string) (_ string, cleanup func() error, err er
 	}
 	for path, contents := range files {
 		if err := os.WriteFile(path, []byte(contents), 0644); err != nil {
-			return "", nil, fmt.Errorf("write %q: %w", path, err)
+			return "", fmt.Errorf("write %q: %w", path, err)
 		}
 	}
 
-	return projectDir, func() error { return os.RemoveAll(tempRoot) }, nil
+	return projectDir, nil
 }
 
 // makeCorpusBuildable applies temporary compatibility shims needed by real Go build drivers.

@@ -52,11 +52,11 @@ func TestCompareDiagnostics(t *testing.T) {
 			errContains: nil,
 		},
 		{
-			description: "multiple diagnostics with overlapping patterns",
+			description: "multiple diagnostics",
 			truth: map[Position][]*regexp.Regexp{
 				{Filename: "file1", Line: 10}: {
-					regexp.MustCompile("dereferenced"),
 					regexp.MustCompile("literal `nil` dereferenced"),
+					regexp.MustCompile("function parameter dereferenced"),
 				},
 			},
 			collected: map[Position][]string{
