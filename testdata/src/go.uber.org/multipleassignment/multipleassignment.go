@@ -101,14 +101,14 @@ func slightlyDeeperSwap2(x *T) *T {
 // assignment conflicts are suppressed without the experimental struct-init support), so their
 // derefs below are (unsoundly) considered safe.
 func testSwaps() {
-	print(*swapToSafety1(nil))
-	print(*swapToSafety2(nil))
-	print(*swapField1(&T{}))
-	print(*swapField2(&T{}))
-	print(*unsafeRedundantSwap(&T{})) //want "returned from `unsafeRedundantSwap.*` in position 0"
-	print(*safeRedundantSwap(&T{}))
-	print(*slightlyDeeperSwap(&T{}))
-	print(*slightlyDeeperSwap2(&T{}))
+	_ = *swapToSafety1(nil)
+	_ = *swapToSafety2(nil)
+	_ = *swapField1(&T{})
+	_ = *swapField2(&T{})
+	_ = *unsafeRedundantSwap(&T{}) //want "returned from `unsafeRedundantSwap.*` in position 0"
+	_ = *safeRedundantSwap(&T{})
+	_ = *slightlyDeeperSwap(&T{})
+	_ = *slightlyDeeperSwap2(&T{})
 }
 
 func twoNonNil() (*T, *T) {
@@ -135,8 +135,8 @@ func rightNonNil() (a *T, b *T, c *T) {
 // then each unsafe return path of testThreeRets creates its own conflict.
 func testTestThreeRets() {
 	a, b, c := testThreeRets()
-	print(*a) //want "returned from `testThreeRets.*` in position 0" "returned from `testThreeRets.*` in position 0" "returned from `testThreeRets.*` in position 0"
-	print(*c) //want "returned from `testThreeRets.*` in position 2" "returned from `testThreeRets.*` in position 2" "returned from `testThreeRets.*` in position 2"
+	_ = *a //want "returned from `testThreeRets.*` in position 0" "returned from `testThreeRets.*` in position 0" "returned from `testThreeRets.*` in position 0"
+	_ = *c //want "returned from `testThreeRets.*` in position 2" "returned from `testThreeRets.*` in position 2" "returned from `testThreeRets.*` in position 2"
 	_ = b
 }
 
@@ -156,15 +156,15 @@ func testThreeRets() (a *T, b *T, c *T) {
 }
 
 func takesLeftNonNil(a *T, b *T, c *T) {
-	print(*a) //want "dereferenced" "dereferenced"
+	_ = *a //want "dereferenced" "dereferenced"
 }
 
 func takesCenterNonNil(a *T, b *T, c *T) {
-	print(*b) //want "dereferenced" "dereferenced"
+	_ = *b //want "dereferenced" "dereferenced"
 }
 
 func takesRightNonNil(a *T, b *T, c *T) {
-	print(*c) //want "dereferenced" "dereferenced"
+	_ = *c //want "dereferenced" "dereferenced"
 }
 
 // multiple returners can be passed directly to multiple param funcs - test that here
@@ -195,7 +195,7 @@ func returnTwoNonNil() *T {
 }
 
 func testReturnTwoNonNil() {
-	print(*returnTwoNonNil())
+	_ = *returnTwoNonNil()
 }
 
 func assignThreeNonNil(tt *twoTs) {
@@ -205,22 +205,22 @@ func assignThreeNonNil(tt *twoTs) {
 	{
 		tt.second, tt.second, tt.second = rightNonNil()
 		a, b, c := rightNonNil()
-		print(*a) //want "dereferenced"
-		print(*b) //want "dereferenced"
+		_ = *a //want "dereferenced"
+		_ = *b //want "dereferenced"
 		_ = c
 	}
 	{
 		tt.second, tt.second, tt.second = centerNonNil()
 		a, b, c := centerNonNil()
-		print(*a) //want "dereferenced"
-		print(*c) //want "dereferenced"
+		_ = *a //want "dereferenced"
+		_ = *c //want "dereferenced"
 		_ = b
 	}
 	{
 		tt.second, tt.second, tt.second = leftNonNil()
 		a, b, c := leftNonNil()
-		print(*b) //want "dereferenced"
-		print(*c) //want "dereferenced"
+		_ = *b //want "dereferenced"
+		_ = *c //want "dereferenced"
 		_ = a
 	}
 	tt.first, tt.first, tt.second = rightNonNil()
@@ -238,7 +238,7 @@ func assignThreeNonNil(tt *twoTs) {
 // NOTE on testTestThreeRets).
 
 func testOneTrueNonNilReturnsA() {
-	print(*oneTrueNonNilReturnsA()) //want "returned from `oneTrueNonNilReturnsA.*` in position 0" "returned from `oneTrueNonNilReturnsA.*` in position 0" "returned from `oneTrueNonNilReturnsA.*` in position 0"
+	_ = *oneTrueNonNilReturnsA() //want "returned from `oneTrueNonNilReturnsA.*` in position 0" "returned from `oneTrueNonNilReturnsA.*` in position 0" "returned from `oneTrueNonNilReturnsA.*` in position 0"
 }
 
 func oneTrueNonNilReturnsA() *T {
@@ -261,7 +261,7 @@ func oneTrueNonNilReturnsA() *T {
 }
 
 func testOneTrueNonNilReturnsB() {
-	print(*oneTrueNonNilReturnsB()) //want "returned from `oneTrueNonNilReturnsB.*` in position 0" "returned from `oneTrueNonNilReturnsB.*` in position 0" "returned from `oneTrueNonNilReturnsB.*` in position 0"
+	_ = *oneTrueNonNilReturnsB() //want "returned from `oneTrueNonNilReturnsB.*` in position 0" "returned from `oneTrueNonNilReturnsB.*` in position 0" "returned from `oneTrueNonNilReturnsB.*` in position 0"
 }
 
 func oneTrueNonNilReturnsB() *T {

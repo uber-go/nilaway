@@ -48,7 +48,7 @@ func foo(a, b *bar, c *bar, d, e *bar) (f, g *bar, h *bar) { //want "returned fr
 	myBar.karp = a
 	myBar.lug = a
 	myBar.myr = a
-	print(*myBar.myr) //want "dereferenced"
+	_ = *myBar.myr //want "dereferenced"
 
 	myBar.jar = b
 	myBar.karp = b
@@ -59,19 +59,19 @@ func foo(a, b *bar, c *bar, d, e *bar) (f, g *bar, h *bar) { //want "returned fr
 	myBar.karp = c
 	myBar.lug = c
 	myBar.myr = c
-	print(*myBar.myr) //want "dereferenced"
+	_ = *myBar.myr //want "dereferenced"
 
 	myBar.jar = d
 	myBar.karp = d
 	myBar.lug = d
 	myBar.myr = d
-	print(*myBar.myr)
+	_ = *myBar.myr
 
 	myBar.jar = e
 	myBar.karp = e
 	myBar.lug = e
 	myBar.myr = e
-	print(*myBar.myr) //want "dereferenced"
+	_ = *myBar.myr //want "dereferenced"
 
 	switch 0 {
 	case 1:

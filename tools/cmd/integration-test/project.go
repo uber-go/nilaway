@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"text/template"
 
 	"golang.org/x/mod/modfile"
@@ -49,10 +48,6 @@ func PrepareTestProject(repoRoot, tempRoot string) (string, error) {
 	if err := os.CopyFS(stubsDir, os.DirFS(filepath.Join(repoRoot, "testdata", "src", "stubs"))); err != nil {
 		return "", fmt.Errorf("copy test stubs: %w", err)
 	}
-	if err := MakeCorpusBuildable(projectDir); err != nil {
-		return "", err
-	}
-
 	goVersion, err := RepositoryGoVersion(repoRoot)
 	if err != nil {
 		return "", err
@@ -90,62 +85,6 @@ func PositionInProject(dir, filename string, line int) (Position, error) {
 		return Position{}, fmt.Errorf("make diagnostic path %q relative to %q: %w", filename, dir, err)
 	}
 	return Position{Filename: filepath.ToSlash(relative), Line: line}, nil
-}
-
-// MakeCorpusBuildable applies temporary compatibility shims needed by real Go build drivers.
-// analysistest accepts bodyless function declarations and uses the print builtin with values that
-// the compiler rejects; neither construct changes the nil flows under test.
-func MakeCorpusBuildable(projectDir string) error {
-	printShimPackages := map[string]string{
-		"annotationparse":    "annotationparse",
-		"multipleassignment": "multipleassignment",
-		"nilcheck":           "nilcheck",
-		"trustedfunc":        "trustedfunc",
-	}
-	for relativeDir, packageName := range printShimPackages {
-		path := filepath.Join(projectDir, relativeDir, "integration_print.go")
-		contents := fmt.Sprintf(`package %s
-
-// nilable(args)
-// nilable(args[])
-func print(args ...any) {}
-`, packageName)
-		if err := os.WriteFile(path, []byte(contents), 0644); err != nil {
-			return fmt.Errorf("write print compatibility shim %q: %w", path, err)
-		}
-	}
-
-	replacements := []struct {
-		path string
-		old  string
-		new  string
-	}{
-		{
-			path: filepath.Join(projectDir, "globalvars", "globalvarinit.go"),
-			old:  "func bodylessFunc()",
-			new:  "func bodylessFunc() {}",
-		},
-		{
-			path: filepath.Join(projectDir, "goquirks", "goquirks.go"),
-			old:  "func external(v *int) *int",
-			new:  "func external(v *int) *int { return v }",
-		},
-	}
-	for _, replacement := range replacements {
-		data, err := os.ReadFile(replacement.path)
-		if err != nil {
-			return fmt.Errorf("read %q: %w", replacement.path, err)
-		}
-		source := string(data)
-		if count := strings.Count(source, replacement.old); count != 1 {
-			return fmt.Errorf("replace %q in %q: found %d occurrences", replacement.old, replacement.path, count)
-		}
-		source = strings.Replace(source, replacement.old, replacement.new, 1)
-		if err := os.WriteFile(replacement.path, []byte(source), 0644); err != nil {
-			return fmt.Errorf("write %q: %w", replacement.path, err)
-		}
-	}
-	return nil
 }
 
 // RepositoryGoVersion returns the Go version declared by the repository's go.mod.

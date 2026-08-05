@@ -1009,24 +1009,24 @@ func errorsAs(err error, num string, dummy bool) {
 	case "simple":
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
-			print(*exitErr)
+			_ = *exitErr
 		}
-		print(*exitErr) //want "unassigned variable `exitErr` dereferenced"
+		_ = *exitErr //want "unassigned variable `exitErr` dereferenced"
 	case "not in if block":
 		var exitErr *exec.ExitError
 		// Not checking the result of `errors.As` would not guard the variable.
 		errors.As(err, &exitErr)
-		print(*exitErr) //want "unassigned variable `exitErr` dereferenced"
+		_ = *exitErr //want "unassigned variable `exitErr` dereferenced"
 	case "two errors connected by AND":
 		var exitErr, anotherErr *exec.ExitError
 		if errors.As(err, &exitErr) && errors.As(err, &anotherErr) {
-			print(*exitErr)
-			print(*anotherErr)
+			_ = *exitErr
+			_ = *anotherErr
 		}
 	case "errors.As with other conditionals connected by AND":
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) && dummy {
-			print(*exitErr)
+			_ = *exitErr
 		}
 	case "method call on target in short-circuit AND (right operand)":
 		var exitErr *exec.ExitError
@@ -1037,40 +1037,40 @@ func errorsAs(err error, num string, dummy bool) {
 	case "errors.As with other conditionals connected by OR":
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) || dummy {
-			print(*exitErr) //want "unassigned variable `exitErr` dereferenced"
+			_ = *exitErr //want "unassigned variable `exitErr` dereferenced"
 		}
 	case "two errors connected by OR":
 		var exitErr, anotherErr *exec.ExitError
 		if errors.As(err, &exitErr) || errors.As(err, &anotherErr) {
 			// We do not know the nilability of either.
-			print(*exitErr)    //want "unassigned variable `exitErr` dereferenced"
-			print(*anotherErr) //want "unassigned variable `anotherErr` dereferenced"
+			_ = *exitErr    //want "unassigned variable `exitErr` dereferenced"
+			_ = *anotherErr //want "unassigned variable `anotherErr` dereferenced"
 		}
 	case "nil dereference in first argument":
 		var exitErr *exec.ExitError
 		var nilError *error
 		if errors.As(*nilError, &exitErr) { //want "unassigned variable `nilError` dereferenced"
-			print(*exitErr) // But this is fine!
+			_ = *exitErr // But this is fine!
 		}
 	case "short assignment in if statement":
 		var exitErr *exec.ExitError
 		var nilError error
 		if ok := errors.As(nilError, &exitErr); ok {
-			print(*exitErr)
+			_ = *exitErr
 			print(ok)
 		}
 	case "short assignment in if statement with OR condition":
 		var exitErr *exec.ExitError
 		var nilError error
 		if ok := errors.As(nilError, &exitErr); ok || dummy {
-			print(*exitErr) //want "unassigned variable `exitErr` dereferenced"
+			_ = *exitErr //want "unassigned variable `exitErr` dereferenced"
 			print(ok)
 		}
 	case "short assignment in if statement with AND condition (ok && dummy)":
 		var exitErr *exec.ExitError
 		var nilError error
 		if ok := errors.As(nilError, &exitErr); ok && dummy {
-			print(*exitErr)
+			_ = *exitErr
 			print(ok)
 		}
 	case "short assignment in if statement with AND condition (dummy && ok)":
@@ -1079,7 +1079,7 @@ func errorsAs(err error, num string, dummy bool) {
 		if ok := errors.As(nilError, &exitErr); dummy && ok {
 			// The following is an FP: since the `dummy && ok` is canonicalized to `if dummy { if ok { } }`,
 			// our current handling fails to find the `ok := errors.As(...)` call at the end of the block.
-			print(*exitErr) //want "unassigned variable `exitErr` dereferenced"
+			_ = *exitErr //want "unassigned variable `exitErr` dereferenced"
 			print(ok)
 		}
 	}
@@ -1091,62 +1091,62 @@ func cockroachdbErrorsAs(err error, num string, dummy bool) {
 	case "simple":
 		var exitErr *exec.ExitError
 		if cockroachdbErrors.As(err, &exitErr) {
-			print(*exitErr)
+			_ = *exitErr
 		}
-		print(*exitErr) //want "unassigned variable `exitErr` dereferenced"
+		_ = *exitErr //want "unassigned variable `exitErr` dereferenced"
 	case "not in if block":
 		var exitErr *exec.ExitError
 		// Not checking the result of `cockroachdbErrors.As` would not guard the variable.
 		cockroachdbErrors.As(err, &exitErr)
-		print(*exitErr) //want "unassigned variable `exitErr` dereferenced"
+		_ = *exitErr //want "unassigned variable `exitErr` dereferenced"
 	case "two errors connected by AND":
 		var exitErr, anotherErr *exec.ExitError
 		if cockroachdbErrors.As(err, &exitErr) && cockroachdbErrors.As(err, &anotherErr) {
-			print(*exitErr)
-			print(*anotherErr)
+			_ = *exitErr
+			_ = *anotherErr
 		}
 	case "errors.As with other conditionals connected by AND":
 		var exitErr *exec.ExitError
 		if cockroachdbErrors.As(err, &exitErr) && dummy {
-			print(*exitErr)
+			_ = *exitErr
 		}
 	case "errors.As with other conditionals connected by OR":
 		var exitErr *exec.ExitError
 		if cockroachdbErrors.As(err, &exitErr) || dummy {
-			print(*exitErr) //want "unassigned variable `exitErr` dereferenced"
+			_ = *exitErr //want "unassigned variable `exitErr` dereferenced"
 		}
 	case "two errors connected by OR":
 		var exitErr, anotherErr *exec.ExitError
 		if cockroachdbErrors.As(err, &exitErr) || cockroachdbErrors.As(err, &anotherErr) {
 			// We do not know the nilability of either.
-			print(*exitErr)    //want "unassigned variable `exitErr` dereferenced"
-			print(*anotherErr) //want "unassigned variable `anotherErr` dereferenced"
+			_ = *exitErr    //want "unassigned variable `exitErr` dereferenced"
+			_ = *anotherErr //want "unassigned variable `anotherErr` dereferenced"
 		}
 	case "nil dereference in first argument":
 		var exitErr *exec.ExitError
 		var nilError *error
 		if cockroachdbErrors.As(*nilError, &exitErr) { //want "unassigned variable `nilError` dereferenced"
-			print(*exitErr) // But this is fine!
+			_ = *exitErr // But this is fine!
 		}
 	case "short assignment in if statement":
 		var exitErr *exec.ExitError
 		var nilError error
 		if ok := cockroachdbErrors.As(nilError, &exitErr); ok {
-			print(*exitErr)
+			_ = *exitErr
 			print(ok)
 		}
 	case "short assignment in if statement with OR condition":
 		var exitErr *exec.ExitError
 		var nilError error
 		if ok := cockroachdbErrors.As(nilError, &exitErr); ok || dummy {
-			print(*exitErr) //want "unassigned variable `exitErr` dereferenced"
+			_ = *exitErr //want "unassigned variable `exitErr` dereferenced"
 			print(ok)
 		}
 	case "short assignment in if statement with AND condition (ok && dummy)":
 		var exitErr *exec.ExitError
 		var nilError error
 		if ok := cockroachdbErrors.As(nilError, &exitErr); ok && dummy {
-			print(*exitErr)
+			_ = *exitErr
 			print(ok)
 		}
 	case "short assignment in if statement with AND condition (dummy && ok)":
@@ -1155,7 +1155,7 @@ func cockroachdbErrorsAs(err error, num string, dummy bool) {
 		if ok := cockroachdbErrors.As(nilError, &exitErr); dummy && ok {
 			// The following is an FP: since the `dummy && ok` is canonicalized to `if dummy { if ok { } }`,
 			// our current handling fails to find the `ok := errors.As(...)` call at the end of the block.
-			print(*exitErr) //want "unassigned variable `exitErr` dereferenced"
+			_ = *exitErr //want "unassigned variable `exitErr` dereferenced"
 			print(ok)
 		}
 	}
