@@ -123,59 +123,50 @@ func CollectGroundTruths(dir string) (map[Position][]*regexp.Regexp, error) {
 
 // CompareDiagnostics compares the ground truths with the collected diagnostics and returns a
 // joined error containing the mismatched/missing/unexpected diagnostics (or nil if none).
-func CompareDiagnostics(truth map[Position][]*regexp.Regexp, collected map[Position][]string) (err error) {
-	positionSet := make(map[Position]struct{}, len(truth)+len(collected))
-	for pos := range truth {
-		positionSet[pos] = struct{}{}
+func CompareDiagnostics(truth map[Position][]*regexp.Regexp, collected map[Position][]string) error {
+	remaining := make(map[Position][]*regexp.Regexp, len(truth))
+	for pos, wants := range truth {
+		remaining[pos] = append([]*regexp.Regexp(nil), wants...)
 	}
-	for pos := range collected {
-		positionSet[pos] = struct{}{}
-	}
-	positions := make([]Position, 0, len(positionSet))
-	for pos := range positionSet {
-		positions = append(positions, pos)
-	}
-	sort.Slice(positions, func(i, j int) bool {
-		if positions[i].Filename != positions[j].Filename {
-			return positions[i].Filename < positions[j].Filename
-		}
-		return positions[i].Line < positions[j].Line
-	})
 
-	for _, pos := range positions {
-		wants := append([]*regexp.Regexp(nil), truth[pos]...)
-		for _, got := range collected[pos] {
-			matched := false
+	var errs []error
+	for pos, diagnostics := range collected {
+		wants := remaining[pos]
+	diagnostic:
+		for _, got := range diagnostics {
 			for i, want := range wants {
 				if !want.MatchString(got) {
 					continue
 				}
 				wants[i] = wants[len(wants)-1]
 				wants = wants[:len(wants)-1]
-				matched = true
-				break
-			}
-			if matched {
-				continue
+				continue diagnostic
 			}
 			if len(wants) == 0 {
-				err = errors.Join(err, fmt.Errorf(
+				errs = append(errs, fmt.Errorf(
 					"unexpected diagnostic at %s:%d:\n\tgot: %q",
 					pos.Filename, pos.Line, got))
 				continue
 			}
-			err = errors.Join(err, fmt.Errorf(
+			errs = append(errs, fmt.Errorf(
 				"diagnostic mismatch at %s:%d:\n\twant one of: %q\n\tgot: %q",
 				pos.Filename, pos.Line, wants, got))
 		}
+		remaining[pos] = wants
+	}
+
+	for pos, wants := range remaining {
 		for _, want := range wants {
-			err = errors.Join(err, fmt.Errorf(
+			errs = append(errs, fmt.Errorf(
 				"missing diagnostic at %s:%d:\n\twant: %q",
 				pos.Filename, pos.Line, want))
 		}
 	}
 
-	return err
+	sort.Slice(errs, func(i, j int) bool {
+		return errs[i].Error() < errs[j].Error()
+	})
+	return errors.Join(errs...)
 }
 
 // Run runs the integration test.
