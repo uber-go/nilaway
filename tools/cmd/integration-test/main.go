@@ -189,14 +189,6 @@ func formatPatterns(patterns []*regexp.Regexp) string {
 	return strings.Join(formatted, ", ")
 }
 
-func countDiagnostics(diagnostics map[Position][]string) int {
-	var total int
-	for _, messages := range diagnostics {
-		total += len(messages)
-	}
-	return total
-}
-
 func positionInProject(dir, filename string, line int) (Position, bool, error) {
 	if !filepath.IsAbs(filename) {
 		filename = filepath.Join(dir, filename)
@@ -262,7 +254,11 @@ func Run() (err error) {
 			return fmt.Errorf("diagnostics mismatch: \n%w", err)
 		}
 		fmt.Println("PASSED")
-		fmt.Printf("\t%d diagnostics matched\n", countDiagnostics(collected))
+		var count int
+		for _, diagnostics := range collected {
+			count += len(diagnostics)
+		}
+		fmt.Printf("\t%d diagnostics matched\n", count)
 	}
 
 	return nil
