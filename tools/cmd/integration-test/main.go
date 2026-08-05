@@ -165,8 +165,8 @@ func CompareDiagnostics(truth map[Position][]*regexp.Regexp, collected map[Posit
 				continue
 			}
 			err = errors.Join(err, fmt.Errorf(
-				"diagnostic mismatch at %s:%d:\n\twant one of: %s\n\tgot: %q",
-				pos.Filename, pos.Line, formatPatterns(wants), got))
+				"diagnostic mismatch at %s:%d:\n\twant one of: %q\n\tgot: %q",
+				pos.Filename, pos.Line, wants, got))
 		}
 		for _, want := range wants {
 			err = errors.Join(err, fmt.Errorf(
@@ -176,14 +176,6 @@ func CompareDiagnostics(truth map[Position][]*regexp.Regexp, collected map[Posit
 	}
 
 	return err
-}
-
-func formatPatterns(patterns []*regexp.Regexp) string {
-	formatted := make([]string, 0, len(patterns))
-	for _, pattern := range patterns {
-		formatted = append(formatted, strconv.Quote(pattern.String()))
-	}
-	return strings.Join(formatted, ", ")
 }
 
 // Run runs the integration test.
