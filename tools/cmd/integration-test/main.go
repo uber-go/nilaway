@@ -205,6 +205,7 @@ func Run() (err error) {
 
 	drivers := []Driver{
 		&StandaloneDriver{},
+		&GoVetDriver{},
 		&GolangCILintDriver{},
 	}
 	for _, driver := range drivers {
@@ -215,7 +216,11 @@ func Run() (err error) {
 			fmt.Println("FAILED")
 			return fmt.Errorf("%q driver: %w", name, err)
 		}
-		if err := CompareDiagnostics(truths, collected); err != nil {
+		expected := truths
+		if driver, ok := driver.(*GoVetDriver); ok {
+			expected = driver.supportedGroundTruths(truths)
+		}
+		if err := CompareDiagnostics(expected, collected); err != nil {
 			fmt.Println("FAILED")
 			return fmt.Errorf("diagnostics mismatch: \n%w", err)
 		}

@@ -147,6 +147,28 @@ func f() {
 	}, truths)
 }
 
+func TestParseGoVetOutput(t *testing.T) {
+	t.Parallel()
+
+	output := []byte(`# go.uber.org/first
+{
+	"go.uber.org/first": {
+		"nilaway": [
+			{"posn": "first/file.go:10:2", "message": "first"},
+			{"posn": "first/file.go:10:3", "message": "second"}
+		]
+	}
+}
+# go.uber.org/second
+{}
+`)
+	diagnostics, err := parseGoVetOutput(output, t.TempDir())
+	require.NoError(t, err)
+	require.Equal(t, map[Position][]string{
+		{Filename: "first/file.go", Line: 10}: {"first", "second"},
+	}, diagnostics)
+}
+
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
 }
