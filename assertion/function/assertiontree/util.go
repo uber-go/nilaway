@@ -418,7 +418,7 @@ func CopyNode(node AssertionNode) AssertionNode {
 	case *fldAssertionNode:
 		fresh = &fldAssertionNode{decl: node.decl, functionContext: node.functionContext}
 	case *funcAssertionNode:
-		fresh = &funcAssertionNode{decl: node.decl, args: node.args}
+		fresh = &funcAssertionNode{decl: node.decl, args: node.args, call: node.call}
 	case *indexAssertionNode:
 		fresh = &indexAssertionNode{
 			index:    node.index,

@@ -337,7 +337,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 			// non-builtin funcs
 			if !doNotTrack && litArgs() {
 				return TrackableExpr{&funcAssertionNode{
-					decl: r.ObjectOf(fun).(*types.Func), args: expr.Args}}, nil
+					decl: r.ObjectOf(fun).(*types.Func), args: expr.Args, call: expr}}, nil
 			}
 			// function call has non-literal args, so is not literal, use its return annotation
 			// alternatively, doNotTrack was set
@@ -364,11 +364,11 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 			if litArgs() {
 				if r.isPkgName(fun.X) {
 					return TrackableExpr{&funcAssertionNode{
-						decl: r.ObjectOf(fun.Sel).(*types.Func), args: expr.Args}}, nil
+						decl: r.ObjectOf(fun.Sel).(*types.Func), args: expr.Args, call: expr}}, nil
 				}
 				if recv, _ := r.ParseExprAsProducer(fun.X, false); recv != nil {
 					return append(recv, &funcAssertionNode{
-						decl: r.ObjectOf(fun.Sel).(*types.Func), args: expr.Args}), nil
+						decl: r.ObjectOf(fun.Sel).(*types.Func), args: expr.Args, call: expr}), nil
 				}
 				// receiver is not trackable, use its return annotation
 				return nil, r.getFuncReturnProducers(fun.Sel, expr)
@@ -402,7 +402,7 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 			// non-builtin funcs
 			if !doNotTrack && litArgs() {
 				return TrackableExpr{&funcAssertionNode{
-					decl: r.ObjectOf(funcIdent).(*types.Func), args: expr.Args}}, nil
+					decl: r.ObjectOf(funcIdent).(*types.Func), args: expr.Args, call: expr}}, nil
 			}
 			// function call has non-literal args, so is not literal, use its return annotation
 			// alternatively, doNotTrack was set
@@ -584,12 +584,13 @@ func (r *RootAssertionNode) getFuncReturnProducers(ident *ast.Ident, expr *ast.C
 			},
 			IsFromRichCheckEffectFunc: isErrReturning || isOkReturning,
 		}
-		// A result value supplied by a caller argument must not be read from the shared
-		// declaration return, which merges unrelated callers. This revision produces
-		// "no evidence of nil" instead (a documented under-report; the per-call resolution lands
-		// in the following revisions).
+		// Parameter-sourced results use call-scoped sites; unresolved sources remain silent.
 		if r.functionContext.functionConfig.EnableStructInitV2 && r.resultValueHasParamSource(funcObj, i) {
-			shallowAnnotation = &annotation.ProduceTriggerNever{}
+			if siteProducer, ok := r.shallowCallResultSiteProducer(expr, funcObj, i); ok {
+				shallowAnnotation = siteProducer
+			} else {
+				shallowAnnotation = &annotation.ProduceTriggerNever{}
+			}
 		}
 
 		producers[i] = producer.DeepParsedProducer{

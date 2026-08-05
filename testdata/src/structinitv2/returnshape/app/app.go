@@ -21,39 +21,39 @@ import (
 	"structinitv2/returnshape/mid"
 )
 
-// Param tie: b ties to t; t.Mid.Child is nil, so the deep deref flags.
+// A forwarded parameter keeps this call's argument shape.
 func useForwardParam() {
 	t := &lib.Outer{Mid: &lib.Node{}}
 	b := lib.ForwardParam(t)
-	print(b.Mid.Child.Ptr) //want "uninitialized field `Child`"
+	print(b.Mid.Child.Ptr) //want "field `Mid.Child` of result 0 of `ForwardParam`"
 }
 
-// The tie carries t's real (non-nil) shape; no flag.
+// A safe call does not inherit another call's nil argument.
 func useForwardParamSafe() {
 	t := &lib.Outer{Mid: &lib.Node{Child: &lib.Leaf{}}}
 	b := lib.ForwardParam(t)
 	print(b.Mid.Child.Ptr)
 }
 
-// ForwardParamNilField nils the field before forwarding; the deref must observe the post-call nil.
+// A forwarded parameter observes post-call field writes.
 func useForwardParamNilField() {
 	t := &lib.Node{Child: &lib.Leaf{}}
 	b := lib.ForwardParamNilField(t)
-	print(b.Child.Ptr) //want "field `Child` of param 0 of `ForwardParamNilField`"
+	print(b.Child.Ptr) //want "field `Child` of result 0 of `ForwardParamNilField`"
 }
 
-// Receiver forwarding: b ties to the receiver t; t.Child is nil.
+// Receiver forwarding uses the receiver as its source.
 func useRecv() {
 	t := &lib.Node{}
 	b := t.Self()
-	print(b.Child.Ptr) //want "uninitialized field `Child`"
+	print(b.Child.Ptr) //want "field `Child` of result 0 of `Self`"
 }
 
-// Field-projection param tie: b ties to t.In; t.In.Child is nil.
+// A projected result uses the argument field as its source.
 func useForwardParamProjection() {
 	t := &lib.Wrap{In: &lib.Inner{}}
 	b := lib.ForwardParamProjection(t)
-	print(b.Child.Ptr) //want "uninitialized field `Child`"
+	print(b.Child.Ptr) //want "field `Child` of result 0 of `ForwardParamProjection`"
 }
 
 // Transitive parameter sources are not resolved.
@@ -70,8 +70,7 @@ func useForwardParamTransitiveSafe() {
 	print(b.Mid.Child.Ptr)
 }
 
-// Ambiguous multi-return forwarder: the result could be either parameter, so the tie bails — a
-// documented under-report, NOT flagged.
+// Ambiguous parameter sources remain silent.
 func useForwardParamAmbiguous() {
 	t := &lib.Outer{Mid: &lib.Node{}}
 	w := &lib.Outer{Mid: &lib.Node{}}
@@ -86,24 +85,21 @@ func useForwardParamCrossPkg() {
 	print(b.Mid.Child.Ptr)
 }
 
-// Mixed sometimes constructs (Mid.Child nil) and sometimes forwards its param. The forwarding
-// summary is dropped, but the construct branch's own nil field is still a genuine true positive.
+// Mixed construct/forward results retain concrete effects but no parameter source.
 func useMixed() {
 	t := &lib.Outer{Mid: &lib.Node{Child: &lib.Leaf{}}}
 	b := lib.Mixed(t, true)
 	print(b.Mid.Child.Ptr) //want "field `Mid.Child` of result 0 of `Mixed`"
 }
 
-// MixedSafe's construct branch is safe but it also forwards its param, so the forwarding tie is
-// dropped: even though t.Mid.Child is nil, b must NOT be tied to t, so this is NOT flagged.
+// A dropped source must not tie the safe constructed result to its argument.
 func useMixedSafe() {
 	t := &lib.Outer{Mid: &lib.Node{}}
 	b := lib.MixedSafe(t, true)
 	print(b.Mid.Child.Ptr)
 }
 
-// Spreading a multi-result call (`TwoOut()`) into a forwarder gives the tie a non-lvalue argument,
-// so it must bail. The deref is a sound under-report; the point is that analysis completes.
+// Tuple-spread arguments cannot be resolved and remain silent.
 func useForwardFirstParamSpread() {
 	b := lib.ForwardFirstParam(lib.TwoOut())
 	print(b.Mid.Child.Ptr)
@@ -143,4 +139,37 @@ func usePairDeepPostCallBad() {
 	existing := &lib.Leaf{Ptr: &ptr}
 	bad := lib.NewPairAfterNil(existing, requested)
 	print(*bad.Existing.Ptr) //want "field `Ptr` of param 0 of `NewPairAfterNil`"
+}
+
+// A nil projected field makes this call's shallow result nil.
+func useForwardParamProjectionNil() {
+	t := &lib.Wrap{}
+	print(lib.ForwardParamProjection(t).Child.Ptr) //want "uninitialized field `In`"
+}
+
+// A safe projection call does not inherit another call's nil source.
+func useForwardParamProjectionShallowSafe() {
+	t := &lib.Wrap{In: &lib.Inner{Child: &lib.Leaf{}}}
+	print(lib.ForwardParamProjection(t).Child.Ptr)
+}
+
+// Receiver field projections use the same shallow result binding.
+func useReceiverProjectionNil() {
+	t := &lib.Wrap{}
+	print(t.ReceiverProjection().Child.Ptr) //want "uninitialized field `In`"
+}
+
+func useReceiverProjectionSafe() {
+	t := &lib.Wrap{In: &lib.Inner{Child: &lib.Leaf{}}}
+	print(t.ReceiverProjection().Child.Ptr)
+}
+
+// Calls at different locations use distinct sites even when otherwise identical.
+func useIdenticalCallsStayDistinct() {
+	t := &lib.Wrap{}
+	first := t.ReceiverProjection()
+	print(first.Child.Ptr) //want "uninitialized field `In`"
+	t.In = &lib.Inner{Child: &lib.Leaf{}}
+	second := t.ReceiverProjection()
+	print(second.Child.Ptr)
 }

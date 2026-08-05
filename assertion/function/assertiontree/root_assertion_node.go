@@ -777,6 +777,8 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 
 		if r.functionContext.functionConfig.EnableStructInitV2 {
 			if target, ok := typeshelper.ResolveStaticCallTarget(r.Pass().TypesInfo, expr); ok {
+				// Bind shallow result sources before param-out so they observe post-call values.
+				r.bindShallowCallResultArgs(expr, target.Origin)
 				r.addCallParamOutFieldProducers(expr, target)
 				r.bindForwardedParamOut(expr, target)
 				r.bindArgAndReceiverFieldsToContext(expr, target)
@@ -1123,6 +1125,14 @@ func (r *RootAssertionNode) shallowEqNodes(left, right AssertionNode) bool {
 		}
 		if left.decl != right.decl {
 			return false
+		}
+		// Parameter-sourced results at different call locations cannot share assertion nodes.
+		if r.functionContext.functionConfig.EnableStructInitV2 &&
+			left.call != nil && right.call != nil && left.call.Pos() != right.call.Pos() {
+			sources := r.functionContext.boundaryFieldEffects.ReturnParamSources(left.decl)
+			if _, ok := sources.ParamPathFromResultPath(0, annotation.FieldPath{}); ok {
+				return false
+			}
 		}
 		if len(left.args) != len(right.args) {
 			return false
