@@ -27,9 +27,6 @@ import (
 	"golang.org/x/mod/modfile"
 )
 
-//go:embed .custom-gcl.template.yaml
-var customGCLTemplate string
-
 //go:embed .golangci.yaml
 var golangCIConfig string
 
@@ -70,10 +67,9 @@ func PrepareTestProject(repoRoot, tempRoot string) (string, error) {
 	}
 	stubsGoMod := fmt.Sprintf("module stubs\n\ngo %s\n", goVersion)
 	files := map[string]string{
-		filepath.Join(projectDir, "go.mod"):                    projectGoMod.String(),
-		filepath.Join(stubsDir, "go.mod"):                      stubsGoMod,
-		filepath.Join(projectDir, ".custom-gcl.template.yaml"): customGCLTemplate,
-		filepath.Join(projectDir, ".golangci.yaml"):            golangCIConfig,
+		filepath.Join(projectDir, "go.mod"):         projectGoMod.String(),
+		filepath.Join(stubsDir, "go.mod"):           stubsGoMod,
+		filepath.Join(projectDir, ".golangci.yaml"): golangCIConfig,
 	}
 	for path, contents := range files {
 		if err := os.WriteFile(path, []byte(contents), 0644); err != nil {

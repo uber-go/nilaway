@@ -16,6 +16,7 @@ package main
 
 import (
 	"bytes"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,6 +26,9 @@ import (
 	"strings"
 	"text/template"
 )
+
+//go:embed .custom-gcl.template.yaml
+var customGCLTemplate string
 
 // GolangCILintDriver implements Driver for running NilAway via golangci-lint.
 type GolangCILintDriver struct{}
@@ -52,11 +56,7 @@ func (d *GolangCILintDriver) Run(dir string) (diagnostics map[Position][]string,
 
 	// Instantiate the template with the version and write it to the temp dir for building the
 	// custom gcl binary.
-	templateContent, err := os.ReadFile(filepath.Join(dir, ".custom-gcl.template.yaml"))
-	if err != nil {
-		return nil, fmt.Errorf("failed to read template file: %w", err)
-	}
-	tmpl, err := template.New("custom-gcl").Parse(string(templateContent))
+	tmpl, err := template.New("custom-gcl").Parse(customGCLTemplate)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse template: %w", err)
 	}
