@@ -127,12 +127,9 @@ func parseGolangCILintOutput(output []byte, dir string) (map[Position][]string, 
 		if issue.FromLinter != "nilaway" {
 			continue
 		}
-		pos, inProject, err := positionInProject(dir, issue.Pos.Filename, issue.Pos.Line)
+		pos, err := PositionInProject(dir, issue.Pos.Filename, issue.Pos.Line)
 		if err != nil {
 			return nil, err
-		}
-		if !inProject {
-			continue
 		}
 		diagnostics[pos] = append(diagnostics[pos], issue.Text)
 	}

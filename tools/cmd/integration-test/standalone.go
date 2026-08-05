@@ -80,12 +80,9 @@ func (d *StandaloneDriver) Run(dir string) (map[Position][]string, error) {
 			if err != nil {
 				return nil, fmt.Errorf("convert line number: %w", err)
 			}
-			pos, inProject, err := positionInProject(dir, strings.Join(parts[:len(parts)-2], ":"), line)
+			pos, err := PositionInProject(dir, strings.Join(parts[:len(parts)-2], ":"), line)
 			if err != nil {
 				return nil, err
-			}
-			if !inProject {
-				continue
 			}
 			collected[pos] = append(collected[pos], d.Message)
 		}

@@ -29,7 +29,20 @@ var customGCLTemplate string
 //go:embed .golangci.yaml
 var golangCIConfig string
 
-func prepareTestProject(repoRoot, tempRoot string) (string, error) {
+// PositionInProject converts a diagnostic position to a project-relative position.
+func PositionInProject(dir, filename string, line int) (Position, error) {
+	if !filepath.IsAbs(filename) {
+		filename = filepath.Join(dir, filename)
+	}
+	relative, err := filepath.Rel(dir, filename)
+	if err != nil {
+		return Position{}, fmt.Errorf("make diagnostic path %q relative to %q: %w", filename, dir, err)
+	}
+	return Position{Filename: filepath.ToSlash(relative), Line: line}, nil
+}
+
+// PrepareTestProject creates a buildable copy of the integration test project.
+func PrepareTestProject(repoRoot, tempRoot string) (string, error) {
 	projectDir := filepath.Join(tempRoot, "go.uber.org")
 	stubsDir := filepath.Join(tempRoot, "stubs")
 	if err := os.MkdirAll(projectDir, 0755); err != nil {
@@ -44,11 +57,11 @@ func prepareTestProject(repoRoot, tempRoot string) (string, error) {
 	if err := os.CopyFS(stubsDir, os.DirFS(filepath.Join(repoRoot, "testdata", "src", "stubs"))); err != nil {
 		return "", fmt.Errorf("copy test stubs: %w", err)
 	}
-	if err := makeCorpusBuildable(projectDir); err != nil {
+	if err := MakeCorpusBuildable(projectDir); err != nil {
 		return "", err
 	}
 
-	goVersion, err := repositoryGoVersion(repoRoot)
+	goVersion, err := RepositoryGoVersion(repoRoot)
 	if err != nil {
 		return "", err
 	}
@@ -72,10 +85,10 @@ func prepareTestProject(repoRoot, tempRoot string) (string, error) {
 	return projectDir, nil
 }
 
-// makeCorpusBuildable applies temporary compatibility shims needed by real Go build drivers.
+// MakeCorpusBuildable applies temporary compatibility shims needed by real Go build drivers.
 // analysistest accepts bodyless function declarations and uses the print builtin with values that
 // the compiler rejects; neither construct changes the nil flows under test.
-func makeCorpusBuildable(projectDir string) error {
+func MakeCorpusBuildable(projectDir string) error {
 	printShimPackages := map[string]string{
 		"annotationparse":    "annotationparse",
 		"multipleassignment": "multipleassignment",
@@ -128,7 +141,8 @@ func print(args ...any) {}
 	return nil
 }
 
-func repositoryGoVersion(repoRoot string) (string, error) {
+// RepositoryGoVersion returns the Go version declared by the repository's go.mod.
+func RepositoryGoVersion(repoRoot string) (string, error) {
 	data, err := os.ReadFile(filepath.Join(repoRoot, "go.mod"))
 	if err != nil {
 		return "", fmt.Errorf("read repository go.mod: %w", err)

@@ -123,10 +123,7 @@ func CollectGroundTruths(dir string) (map[Position][]*regexp.Regexp, error) {
 
 // CompareDiagnostics compares the ground truths with the collected diagnostics and returns a
 // joined error containing the mismatched/missing/unexpected diagnostics (or nil if none).
-func CompareDiagnostics(
-	truth map[Position][]*regexp.Regexp,
-	collected map[Position][]string,
-) (err error) {
+func CompareDiagnostics(truth map[Position][]*regexp.Regexp, collected map[Position][]string) (err error) {
 	positionSet := make(map[Position]struct{}, len(truth)+len(collected))
 	for pos := range truth {
 		positionSet[pos] = struct{}{}
@@ -189,20 +186,6 @@ func formatPatterns(patterns []*regexp.Regexp) string {
 	return strings.Join(formatted, ", ")
 }
 
-func positionInProject(dir, filename string, line int) (Position, bool, error) {
-	if !filepath.IsAbs(filename) {
-		filename = filepath.Join(dir, filename)
-	}
-	relative, err := filepath.Rel(dir, filename)
-	if err != nil {
-		return Position{}, false, fmt.Errorf("make diagnostic path %q relative to %q: %w", filename, dir, err)
-	}
-	if relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-		return Position{}, false, nil
-	}
-	return Position{Filename: filepath.ToSlash(relative), Line: line}, true, nil
-}
-
 // Run runs the integration test.
 func Run() (err error) {
 	// Make sure we are at the root of the git repository.
@@ -232,7 +215,7 @@ func Run() (err error) {
 		err = errors.Join(err, os.RemoveAll(tempRoot))
 	}()
 
-	dir, err := prepareTestProject(wd, tempRoot)
+	dir, err := PrepareTestProject(wd, tempRoot)
 	if err != nil {
 		return fmt.Errorf("prepare test project: %w", err)
 	}
