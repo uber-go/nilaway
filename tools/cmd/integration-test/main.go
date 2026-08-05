@@ -222,6 +222,7 @@ func Run() (err error) {
 			for pos, wants := range truths {
 				expected[pos] = wants
 			}
+			// TODO: Remove these suppressions once incremental fact exporting is fixed in NilAway.
 			// go vet cannot report diagnostics positioned in an imported package that are
 			// discovered only while analyzing an importing package.
 			for pos := range expected {
