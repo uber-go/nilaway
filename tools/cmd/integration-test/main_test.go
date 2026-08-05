@@ -29,23 +29,23 @@ func TestCompareDiagnostics(t *testing.T) {
 
 	tc := []struct {
 		description string
-		truth       GroundTruths
-		collected   Diagnostics
+		truth       map[Position][]*regexp.Regexp
+		collected   map[Position][]string
 		errContains []string
 	}{
 		{
 			description: "empty",
-			truth:       GroundTruths{},
-			collected:   Diagnostics{},
+			truth:       map[Position][]*regexp.Regexp{},
+			collected:   map[Position][]string{},
 			errContains: nil,
 		},
 		{
 			description: "perfect match",
-			truth: GroundTruths{
+			truth: map[Position][]*regexp.Regexp{
 				{Filename: "file1", Line: 10}: {regexp.MustCompile("foo")},
 				{Filename: "file2", Line: 11}: {regexp.MustCompile("bar")},
 			},
-			collected: Diagnostics{
+			collected: map[Position][]string{
 				{Filename: "file1", Line: 10}: {"foo"},
 				{Filename: "file2", Line: 11}: {"bar"},
 			},
@@ -53,13 +53,13 @@ func TestCompareDiagnostics(t *testing.T) {
 		},
 		{
 			description: "multiple diagnostics with overlapping patterns",
-			truth: GroundTruths{
+			truth: map[Position][]*regexp.Regexp{
 				{Filename: "file1", Line: 10}: {
 					regexp.MustCompile("dereferenced"),
 					regexp.MustCompile("literal `nil` dereferenced"),
 				},
 			},
-			collected: Diagnostics{
+			collected: map[Position][]string{
 				{Filename: "file1", Line: 10}: {
 					"literal `nil` dereferenced",
 					"function parameter dereferenced",
@@ -69,11 +69,11 @@ func TestCompareDiagnostics(t *testing.T) {
 		},
 		{
 			description: "mismatch",
-			truth: GroundTruths{
+			truth: map[Position][]*regexp.Regexp{
 				{Filename: "file1", Line: 10}: {regexp.MustCompile("foo")},
 				{Filename: "file2", Line: 11}: {regexp.MustCompile("bar")},
 			},
-			collected: Diagnostics{
+			collected: map[Position][]string{
 				{Filename: "file1", Line: 10}: {"foo"},
 				{Filename: "file2", Line: 11}: {"baz"},
 			},
@@ -81,21 +81,21 @@ func TestCompareDiagnostics(t *testing.T) {
 		},
 		{
 			description: "missing",
-			truth: GroundTruths{
+			truth: map[Position][]*regexp.Regexp{
 				{Filename: "file1", Line: 10}: {regexp.MustCompile("foo")},
 				{Filename: "file2", Line: 11}: {regexp.MustCompile("bar")},
 			},
-			collected: Diagnostics{
+			collected: map[Position][]string{
 				{Filename: "file1", Line: 10}: {"foo"},
 			},
 			errContains: []string{"missing", "file2:11", "bar"},
 		},
 		{
 			description: "extra",
-			truth: GroundTruths{
+			truth: map[Position][]*regexp.Regexp{
 				{Filename: "file1", Line: 10}: {regexp.MustCompile("foo")},
 			},
-			collected: Diagnostics{
+			collected: map[Position][]string{
 				{Filename: "file1", Line: 10}: {"foo"},
 				{Filename: "file2", Line: 11}: {"bar"},
 			},
@@ -130,19 +130,18 @@ func TestCollectGroundTruths(t *testing.T) {
 
 func f() {
 	println() // want "first" `+"`second`"+`
-	// want +1 "later"
-	println()
+	println() // want "later"
 }
 `), 0644))
 
 	truths, err := CollectGroundTruths(dir)
 	require.NoError(t, err)
-	require.Equal(t, GroundTruths{
+	require.Equal(t, map[Position][]*regexp.Regexp{
 		{Filename: "pkg/test.go", Line: 4}: {
 			regexp.MustCompile("first"),
 			regexp.MustCompile("second"),
 		},
-		{Filename: "pkg/test.go", Line: 6}: {
+		{Filename: "pkg/test.go", Line: 5}: {
 			regexp.MustCompile("later"),
 		},
 	}, truths)

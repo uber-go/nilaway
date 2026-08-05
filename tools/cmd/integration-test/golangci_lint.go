@@ -30,7 +30,7 @@ import (
 type GolangCILintDriver struct{}
 
 // Run runs NilAway via golangci-lint on the test project and returns the diagnostics.
-func (d *GolangCILintDriver) Run(dir string) (diagnostics Diagnostics, err error) {
+func (d *GolangCILintDriver) Run(dir string) (diagnostics map[Position][]string, err error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get current working directory: %w", err)
@@ -105,9 +105,9 @@ func (d *GolangCILintDriver) Run(dir string) (diagnostics Diagnostics, err error
 	return parseGolangCILintOutput(data, dir)
 }
 
-func parseGolangCILintOutput(output []byte, dir string) (Diagnostics, error) {
+func parseGolangCILintOutput(output []byte, dir string) (map[Position][]string, error) {
 	if len(output) == 0 {
-		return Diagnostics{}, nil
+		return map[Position][]string{}, nil
 	}
 
 	var result struct {
@@ -122,7 +122,7 @@ func parseGolangCILintOutput(output []byte, dir string) (Diagnostics, error) {
 		return nil, fmt.Errorf("failed to parse golangci-lint output: %w", err)
 	}
 
-	diagnostics := make(Diagnostics)
+	diagnostics := make(map[Position][]string)
 	for _, issue := range result.Issues {
 		if issue.FromLinter != "nilaway" {
 			continue

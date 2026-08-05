@@ -40,22 +40,16 @@ type Position struct {
 	Line     int
 }
 
-// GroundTruths maps source positions to the diagnostics expected at those positions.
-type GroundTruths map[Position][]*regexp.Regexp
-
-// Diagnostics maps source positions to the diagnostics reported at those positions.
-type Diagnostics map[Position][]string
-
 // Driver is the analyzer driver interface that runs NilAway on the test project.
 type Driver interface {
 	// Run runs NilAway on the test project specified by dir and returns the diagnostics reported
 	// by NilAway (in a map from Position to the diagnostic message).
-	Run(dir string) (Diagnostics, error)
+	Run(dir string) (map[Position][]string, error)
 }
 
 // CollectGroundTruths collects diagnostics specified by want comments in Go files under dir.
-func CollectGroundTruths(dir string) (GroundTruths, error) {
-	truths := make(GroundTruths)
+func CollectGroundTruths(dir string) (map[Position][]*regexp.Regexp, error) {
+	truths := make(map[Position][]*regexp.Regexp)
 	fset := token.NewFileSet()
 	err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
@@ -82,15 +76,6 @@ func CollectGroundTruths(dir string) (GroundTruths, error) {
 					continue
 				}
 
-				lineDelta, patterns, err := parseExpectations(rest)
-				if err != nil {
-					pos := fset.Position(comment.Pos())
-					return fmt.Errorf("%s:%d: parse want comment: %w", pos.Filename, pos.Line, err)
-				}
-				if len(patterns) == 0 {
-					continue
-				}
-
 				pos := fset.Position(comment.Pos())
 				relative, err := filepath.Rel(dir, pos.Filename)
 				if err != nil {
@@ -98,9 +83,34 @@ func CollectGroundTruths(dir string) (GroundTruths, error) {
 				}
 				key := Position{
 					Filename: filepath.ToSlash(relative),
-					Line:     pos.Line + lineDelta,
+					Line:     pos.Line,
 				}
-				truths[key] = append(truths[key], patterns...)
+
+				var scanErr string
+				sc := new(scanner.Scanner).Init(strings.NewReader(rest))
+				sc.Error = func(_ *scanner.Scanner, message string) {
+					scanErr = message
+				}
+				sc.Mode = scanner.ScanStrings | scanner.ScanRawStrings
+				for tok := sc.Scan(); tok != scanner.EOF; tok = sc.Scan() {
+					if tok != scanner.String && tok != scanner.RawString {
+						return fmt.Errorf(
+							"%s:%d: got %s in want comment, expected quoted string",
+							pos.Filename, pos.Line, scanner.TokenString(tok))
+					}
+					pattern, err := strconv.Unquote(sc.TokenText())
+					if err != nil {
+						return fmt.Errorf("%s:%d: unquote pattern: %w", pos.Filename, pos.Line, err)
+					}
+					rx, err := regexp.Compile(pattern)
+					if err != nil {
+						return fmt.Errorf("%s:%d: compile pattern %q: %w", pos.Filename, pos.Line, pattern, err)
+					}
+					truths[key] = append(truths[key], rx)
+				}
+				if scanErr != "" {
+					return fmt.Errorf("%s:%d: scan want comment: %s", pos.Filename, pos.Line, scanErr)
+				}
 			}
 		}
 		return nil
@@ -111,46 +121,12 @@ func CollectGroundTruths(dir string) (GroundTruths, error) {
 	return truths, nil
 }
 
-// parseExpectations parses the diagnostic regular expressions in a want comment.
-func parseExpectations(text string) (lineDelta int, patterns []*regexp.Regexp, err error) {
-	var scanErr string
-	sc := new(scanner.Scanner).Init(strings.NewReader(text))
-	sc.Error = func(_ *scanner.Scanner, message string) {
-		scanErr = message
-	}
-	sc.Mode = scanner.ScanStrings | scanner.ScanRawStrings | scanner.ScanInts
-
-	for {
-		switch tok := sc.Scan(); tok {
-		case '+':
-			if tok := sc.Scan(); tok != scanner.Int {
-				return 0, nil, fmt.Errorf("got +%s, want +Int", scanner.TokenString(tok))
-			}
-			lineDelta, _ = strconv.Atoi(sc.TokenText())
-		case scanner.String, scanner.RawString:
-			pattern, unquoteErr := strconv.Unquote(sc.TokenText())
-			if unquoteErr != nil {
-				return 0, nil, fmt.Errorf("unquote pattern: %w", unquoteErr)
-			}
-			rx, compileErr := regexp.Compile(pattern)
-			if compileErr != nil {
-				return 0, nil, fmt.Errorf("compile pattern %q: %w", pattern, compileErr)
-			}
-			patterns = append(patterns, rx)
-		case scanner.EOF:
-			if scanErr != "" {
-				return 0, nil, errors.New(scanErr)
-			}
-			return lineDelta, patterns, nil
-		default:
-			return 0, nil, fmt.Errorf("unexpected %s", scanner.TokenString(tok))
-		}
-	}
-}
-
 // CompareDiagnostics compares the ground truths with the collected diagnostics and returns a
 // joined error containing the mismatched/missing/unexpected diagnostics (or nil if none).
-func CompareDiagnostics(truth GroundTruths, collected Diagnostics) (err error) {
+func CompareDiagnostics(
+	truth map[Position][]*regexp.Regexp,
+	collected map[Position][]string,
+) (err error) {
 	positionSet := make(map[Position]struct{}, len(truth)+len(collected))
 	for pos := range truth {
 		positionSet[pos] = struct{}{}
@@ -254,7 +230,7 @@ func formatPatterns(patterns []*regexp.Regexp) string {
 	return strings.Join(formatted, ", ")
 }
 
-func countDiagnostics(diagnostics Diagnostics) int {
+func countDiagnostics(diagnostics map[Position][]string) int {
 	var total int
 	for _, messages := range diagnostics {
 		total += len(messages)
