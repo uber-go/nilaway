@@ -43,9 +43,17 @@ func (d *GoVetDriver) Run(dir string) (map[Position][]string, error) {
 		return nil, fmt.Errorf("build NilAway: %w: %q", err, string(out))
 	}
 
-	goRoot := runtime.GOROOT()
+	goRoot := runtime.GOROOT() //nolint:staticcheck // Use the Go toolchain that built this runner.
 	if goRoot == "" {
 		return nil, errors.New("GOROOT is empty")
+	}
+	tempRoot := filepath.Dir(dir)
+	goCacheDir := filepath.Join(tempRoot, "go-vet-cache")
+	goTempDir := filepath.Join(tempRoot, "go-vet-tmp")
+	for _, path := range []string{goCacheDir, goTempDir} {
+		if err := os.MkdirAll(path, 0755); err != nil {
+			return nil, fmt.Errorf("create temporary Go directory %q: %w", path, err)
+		}
 	}
 	cmd := exec.Command(
 		filepath.Join(goRoot, "bin", "go"), "vet",
@@ -59,6 +67,11 @@ func (d *GoVetDriver) Run(dir string) (map[Position][]string, error) {
 		"./...",
 	)
 	cmd.Dir = dir
+	cmd.Env = append(cmd.Environ(),
+		"GOCACHE="+goCacheDir,
+		"GOCACHEPROG=",
+		"GOTMPDIR="+goTempDir,
+	)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("run go vet: %w\n%s", err, string(out))
