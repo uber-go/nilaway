@@ -13,8 +13,8 @@
 // limitations under the License.
 
 // This package tests _single_ package inference. Due to limitations of `analysistest` framework,
-// multi-package inference is tested by our integration test suites. Please see
-// `testdata/README.md` for more details.
+// multi-package inference is also tested by running the integration-test drivers over the full
+// testdata/src/go.uber.org corpus.
 
 package inference
 
