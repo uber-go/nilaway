@@ -1,4 +1,4 @@
-// Copyright (c) 2026 Uber Technologies, Inc.
+//  Copyright (c) 2026 Uber Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,12 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package middle is the intermediate hop of the transitive-facts chain. It re-exposes
+// upstream.S through its own API but crucially never calls, guards, or otherwise mentions
+// upstream's S.Get method. Because InferredMap.Export is incremental (it exports only
+// information not already present in upstream maps), this package's fact therefore carries
+// nothing about S.Get: its return nilability lives solely in upstream's fact, and downstream can
+// only learn it if the driver propagates facts transitively.
 package middle
 
 import "go.uber.org/transitivefacts/upstream"
 
-// Source forwards upstream.Source through an intermediate package. The downstream package imports
-// only middle, so detecting the nil flow requires facts to propagate transitively through middle.
-func Source() *int {
-	return upstream.Source()
+// Make wraps upstream.NewS, making upstream.S reachable from this package's API so that the
+// downstream package can call its Get method without importing upstream directly.
+func Make() *upstream.S {
+	return upstream.NewS()
+}
+
+// NilableFunc returns nil directly, so its return site is determined nilable in _this_ package's
+// own incremental map. It serves as the one-hop control for the experiment: even fact-pruning
+// drivers report its unchecked dereference in downstream, proving that direct-import facts still
+// flow while the two-hop fact about upstream's S.Get does not.
+func NilableFunc() *int {
+	return nil
 }
