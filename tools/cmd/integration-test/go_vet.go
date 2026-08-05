@@ -24,7 +24,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -32,33 +31,6 @@ import (
 
 // GoVetDriver implements Driver for running NilAway through go vet.
 type GoVetDriver struct{}
-
-// supportedGroundTruths removes diagnostics that go vet cannot report because it runs analyzers
-// independently for each package. These diagnostics have positions in an imported package but are
-// discovered only while analyzing an importing package.
-func (d *GoVetDriver) supportedGroundTruths(
-	truths map[Position][]*regexp.Regexp,
-) map[Position][]*regexp.Regexp {
-	unsupported := map[Position]string{
-		{
-			Filename: "methodimplementation/multipackage/packageB/structfile.go",
-			Line:     24,
-		}: "function parameter `x` accessed field `S`",
-		{Filename: "nolint/upstream/upstream.go", Line: 18}: "function parameter `v` dereferenced",
-		{Filename: "nolint/upstream/upstream.go", Line: 26}: "function parameter `v` dereferenced",
-	}
-
-	supported := make(map[Position][]*regexp.Regexp, len(truths))
-	for pos, wants := range truths {
-		for _, want := range wants {
-			if want.String() == unsupported[pos] {
-				continue
-			}
-			supported[pos] = append(supported[pos], want)
-		}
-	}
-	return supported
-}
 
 // Run runs NilAway through go vet on the test project and returns the diagnostics.
 func (d *GoVetDriver) Run(dir string) (map[Position][]string, error) {

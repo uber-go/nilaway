@@ -217,8 +217,19 @@ func Run() (err error) {
 			return fmt.Errorf("%q driver: %w", name, err)
 		}
 		expected := truths
-		if driver, ok := driver.(*GoVetDriver); ok {
-			expected = driver.supportedGroundTruths(truths)
+		if _, ok := driver.(*GoVetDriver); ok {
+			expected = make(map[Position][]*regexp.Regexp, len(truths))
+			for pos, wants := range truths {
+				expected[pos] = wants
+			}
+			// go vet cannot report diagnostics positioned in an imported package that are
+			// discovered only while analyzing an importing package.
+			for pos := range expected {
+				switch filepath.ToSlash(filepath.Dir(pos.Filename)) {
+				case "methodimplementation/multipackage/packageB", "nolint/upstream":
+					delete(expected, pos)
+				}
+			}
 		}
 		if err := CompareDiagnostics(expected, collected); err != nil {
 			fmt.Println("FAILED")
