@@ -31,6 +31,7 @@ cover:
 		&& go tool cover -html=cover.out -o cover.html) &&) true
 
 .PHONY: upgrade-deps
+upgrade-deps: MODULE_DIRS := $(MODULE_DIRS) ./testdata/integration
 upgrade-deps:
 	@echo "[upgrade-deps] Upgrading dependencies and tools"
 	@echo "[upgrade-deps] Checking for latest golangci-lint version"
