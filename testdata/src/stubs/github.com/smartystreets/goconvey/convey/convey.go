@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// <nilaway no inference>
 package convey
 
 // these stubs simulate the real goconvey `convey` package because we can't import it in tests

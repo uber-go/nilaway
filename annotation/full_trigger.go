@@ -24,10 +24,8 @@ import (
 
 // A FullTrigger is a completed assertion. It contains both a ProduceTrigger Producer and a
 // ConsumeTrigger Consumer, representing a path along which a nil value can be produced and
-// consumed respectively. All produce and consume triggers are functions of the read set of
-// annotations, so a FullTrigger represents only a possibility of a nil flow error depending
-// on the set of annotations. A FullTrigger can be compared to an Annotation set to see if
-// such a nil flow error actually arises by the Check method.
+// consumed respectively. A FullTrigger represents a constraint that the inference engine uses to
+// find potential nil flow errors.
 type FullTrigger struct {
 	Producer *ProduceTrigger
 	Consumer *ConsumeTrigger
@@ -37,9 +35,6 @@ type FullTrigger struct {
 	// If this field is nil, it means the trigger is not a controlled trigger and the trigger will
 	// be activated all the time.
 	Controller *CallSiteParamAnnotationKey
-	// CreatedFromDuplication is true if the full trigger is created from duplicating another full
-	// trigger; otherwise false, which is also the default value for any normal full trigger.
-	CreatedFromDuplication bool
 }
 
 // Controlled returns true if this full trigger is controlled by a controller site; otherwise
@@ -51,12 +46,6 @@ func (t *FullTrigger) Controlled() bool {
 // Pos returns the position for logging the error specified by the ConsumeTrigger
 func (t *FullTrigger) Pos() token.Pos {
 	return t.Consumer.Pos()
-}
-
-// Check is a boolean test that determines whether this FullTrigger should be triggered against the Annotation map `annMap`
-func (t *FullTrigger) Check(annMap Map) bool {
-	return t.Producer.Annotation.CheckProduce(annMap) &&
-		t.Consumer.Annotation.CheckConsume(annMap)
 }
 
 func (t *FullTrigger) truncatedConsumerPos(pass *analysishelper.EnhancedPass) token.Position {

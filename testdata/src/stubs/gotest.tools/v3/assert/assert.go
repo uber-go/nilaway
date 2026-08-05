@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// <nilaway no inference>
 package assert
 
 // these stubs simulate the real `gotest.tools/v3/assert` package because we can't import it in tests

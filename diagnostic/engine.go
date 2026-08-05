@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package diagnostic hosts the diagnostic engine, which is responsible for collecting the
-// conflicts from annotation-based checks (no-infer mode) and/or inference (full-infer mode) and
-// generating user-friendly diagnostics from those conflicts.
+// Package diagnostic hosts the diagnostic engine, which is responsible for collecting conflicts
+// found during inference and generating user-friendly diagnostics from those conflicts.
 package diagnostic
 
 import (
@@ -156,8 +155,8 @@ func (e *Engine) AddOverconstraintConflict(nilReason, nonnilReason inference.Exp
 	for r := nilReason; r != nil; r = r.DeeperReason() {
 		producer, consumer := r.TriggerReprs()
 		// We have two cases here:
-		// 1. No annotation present (i.e., full inference): we have producer and consumer explanations available; use them directly
-		// 2: Annotation present (i.e., no inference): we construct the reason from the annotation string
+		// 1. Inferred reason: we have producer and consumer explanations available; use them directly.
+		// 2. Explicit annotation: construct the reason from the annotation string.
 		if producer != nil && consumer != nil {
 			flow.addNilPathNode(producer, consumer)
 		} else {
@@ -179,8 +178,8 @@ func (e *Engine) AddOverconstraintConflict(nilReason, nonnilReason inference.Exp
 		producer, consumer := r.TriggerReprs()
 		position := r.Position()
 		// Similar to above, we have two cases here:
-		// 1. No annotation present (i.e., full inference): we have producer and consumer explanations available; use them directly
-		// 2: Annotation present (i.e., no inference): we construct the reason from the annotation string
+		// 1. Inferred reason: we have producer and consumer explanations available; use them directly.
+		// 2. Explicit annotation: construct the reason from the annotation string.
 		if producer != nil && consumer != nil {
 			flow.addNonNilPathNode(producer, consumer)
 			reportPosition = position

@@ -85,7 +85,7 @@ func retsNilableNonnilWithErr() (*int, *int, error) {
 // determines that result 0 of the producer must be non-nil when the error is nil. Each
 // contract-violating return statement in the producer then opposes that already determined site
 // and is reported as a separate conflict, stacked on the dereference line of the consumer
-// (mirroring the per-return-statement errors reported in the old no-infer mode). *****
+// (preserving one diagnostic per contract-violating return statement). *****
 
 func derefRetsNonnilNilableWithErrBasicCases(i int) {
 	nonnilPtr, _, err := retsNonnilNilableWithErrBasicCases(&i, &i)

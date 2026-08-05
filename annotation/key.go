@@ -20,18 +20,8 @@ import (
 	"go/types"
 )
 
-// A Key is an object that can be looked up in a Map
+// A Key identifies an annotation site.
 type Key interface {
-	// Lookup checks whether this key is present in a given Map - returning false as its
-	// second result if not present, and true as its second result with the Val found if
-	// one is found.
-	// To provide optimistic defaults for unannotated files (formally - files on which the annotations
-	// checker has not been run), uses of `Lookup` such as `CheckProduce` and `CheckConsume` always
-	// return false (i.e. "don't trigger") if the key they wrap is not found in the map.
-	// Since not triggering on the level of a produce or consume trigger always results in fewer
-	// errors, this gives optimistic defaults to library code.
-	Lookup(Map) (Val, bool)
-
 	// Object returns the underlying object that this annotation key can be interpreted as annotating
 	Object() types.Object
 
@@ -47,17 +37,9 @@ type Key interface {
 	copy() Key
 }
 
-// FieldAnnotationKey allows the Lookup of a field's Annotation in the Annotation map
+// FieldAnnotationKey identifies a field annotation site.
 type FieldAnnotationKey struct {
 	FieldDecl *types.Var
-}
-
-// Lookup looks this key up in the passed map, returning a Val
-func (k *FieldAnnotationKey) Lookup(annMap Map) (Val, bool) {
-	if val, ok := annMap.CheckFieldAnn(k.FieldDecl); ok {
-		return val, true
-	}
-	return nonAnnotatedDefault, false
 }
 
 // Object returns the types.Object that this annotation can best be interpreted as annotating
@@ -96,18 +78,6 @@ type CallSiteParamAnnotationKey struct {
 // nilable(result 0)
 func (pk *CallSiteParamAnnotationKey) ParamName() *types.Var {
 	return pk.FuncDecl.Type().(*types.Signature).Params().At(pk.ParamNum)
-}
-
-// Lookup looks this key up in the passed map, returning a Val.
-func (pk *CallSiteParamAnnotationKey) Lookup(annMap Map) (Val, bool) {
-	if paramVal, ok := annMap.CheckFuncCallSiteParamAnn(pk); ok {
-		return paramVal, true
-	}
-	// Revert to the function's ParamAnnotationKey look up if there is no call-site annotation.
-	if paramVal, ok := annMap.CheckFuncParamAnn(pk.FuncDecl, pk.ParamNum); ok {
-		return paramVal, true
-	}
-	return nonAnnotatedDefault, false
 }
 
 // Object returns the types.Object that this annotation can best be interpreted as annotating.
@@ -182,7 +152,7 @@ func NewCallSiteParamKey(
 	}
 }
 
-// ParamAnnotationKey allows the Lookup of a function parameter's Annotation in the Annotation map
+// ParamAnnotationKey identifies a function parameter annotation site.
 // Only construct these using ParamKeyFromArgNum and ParamKeyFromName
 type ParamAnnotationKey struct {
 	FuncDecl *types.Func
@@ -230,15 +200,6 @@ func ParamKeyFromName(fdecl *types.Func, paramName *types.Var) *ParamAnnotationK
 		}
 	}
 	panic(fmt.Sprintf("no such parameter %s for function %s", paramName.String(), fdecl.String()))
-}
-
-// Lookup looks this key up in the passed map, returning a Val
-func (pk *ParamAnnotationKey) Lookup(annMap Map) (Val, bool) {
-
-	if paramVal, ok := annMap.CheckFuncParamAnn(pk.FuncDecl, pk.ParamNum); ok {
-		return paramVal, true
-	}
-	return nonAnnotatedDefault, false
 }
 
 // Object returns the types.Object that this annotation can best be interpreted as annotating
@@ -295,18 +256,6 @@ type CallSiteRetAnnotationKey struct {
 	Location token.Position
 }
 
-// Lookup looks this key up in the passed map, returning a Val.
-func (rk *CallSiteRetAnnotationKey) Lookup(annMap Map) (Val, bool) {
-	if retVal, ok := annMap.CheckFuncCallSiteRetAnn(rk); ok {
-		return retVal, true
-	}
-	// Revert to the function's RetAnnotationKey look up if there is no call-site annotation.
-	if paramVal, ok := annMap.CheckFuncRetAnn(rk.FuncDecl, rk.RetNum); ok {
-		return paramVal, true
-	}
-	return nonAnnotatedDefault, false
-}
-
 // Object returns the types.Object that this annotation can best be interpreted as annotating.
 func (rk *CallSiteRetAnnotationKey) Object() types.Object {
 	return rk.FuncDecl
@@ -340,18 +289,10 @@ func NewCallSiteRetKey(fdecl *types.Func, retNum int, location token.Position) *
 	}
 }
 
-// RetAnnotationKey allows the Lookup of a function's return Annotation in the Annotation Map
+// RetAnnotationKey identifies a function return annotation site.
 type RetAnnotationKey struct {
 	FuncDecl *types.Func
 	RetNum   int // which result
-}
-
-// Lookup looks this key up in the passed map, returning a Val
-func (rk *RetAnnotationKey) Lookup(annMap Map) (Val, bool) {
-	if retVal, ok := annMap.CheckFuncRetAnn(rk.FuncDecl, rk.RetNum); ok {
-		return retVal, true
-	}
-	return nonAnnotatedDefault, false
 }
 
 // Object returns the types.Object that this annotation can best be interpreted as annotating
@@ -385,17 +326,9 @@ func RetKeyFromRetNum(fdecl *types.Func, retNum int) *RetAnnotationKey {
 	}
 }
 
-// TypeNameAnnotationKey allows the Lookup of a named type annotations in the Annotation Map
+// TypeNameAnnotationKey identifies a named type annotation site.
 type TypeNameAnnotationKey struct {
 	TypeDecl *types.TypeName
-}
-
-// Lookup looks this key up in the passed map, returning a Val
-func (tk *TypeNameAnnotationKey) Lookup(annMap Map) (Val, bool) {
-	if typeVal, ok := annMap.CheckDeepTypeAnn(tk.TypeDecl); ok {
-		return typeVal, true
-	}
-	return nonAnnotatedDefault, false
 }
 
 // Object returns the types.Object that this annotation can best be interpreted as annotating
@@ -420,17 +353,9 @@ func (tk *TypeNameAnnotationKey) String() string {
 	return fmt.Sprintf("Type %s", tk.TypeDecl.Name())
 }
 
-// GlobalVarAnnotationKey allows the Lookup of a global variable's annotations in the Annotation Map
+// GlobalVarAnnotationKey identifies a global variable annotation site.
 type GlobalVarAnnotationKey struct {
 	VarDecl *types.Var
-}
-
-// Lookup looks this key up in the passed map, returning a Val
-func (gk *GlobalVarAnnotationKey) Lookup(annMap Map) (Val, bool) {
-	if typeVal, ok := annMap.CheckGlobalVarAnn(gk.VarDecl); ok {
-		return typeVal, true
-	}
-	return nonAnnotatedDefault, false
 }
 
 // Object returns the types.Object that this annotation can best be interpreted as annotating
@@ -455,15 +380,9 @@ func (gk *GlobalVarAnnotationKey) String() string {
 	return fmt.Sprintf("Global Variable %s", gk.VarDecl.Name())
 }
 
-// LocalVarAnnotationKey allows the Lookup of a local variable's annotations in the Annotation Map
+// LocalVarAnnotationKey identifies a local variable annotation site.
 type LocalVarAnnotationKey struct {
 	VarDecl *types.Var
-}
-
-// Lookup looks this key up in the passed map, returning a Val
-// TODO: Add support for local variables with no inference (Currently, only works with inference)
-func (lk *LocalVarAnnotationKey) Lookup(_ Map) (Val, bool) {
-	return nonAnnotatedDefault, false
 }
 
 // Object returns the types.Object that this annotation can best be interpreted as annotating
@@ -487,11 +406,9 @@ func (lk *LocalVarAnnotationKey) String() string {
 	return fmt.Sprintf("Local Variable %s", lk.VarDecl.Name())
 }
 
-// RetFieldAnnotationKey allows the Lookup of the Annotation on a specific field within a function's return of struct
-// (or pointer to struct) type, in the Annotation Map. This key is only effective when the struct initialization checking
-// is enabled.
-//
-// TODO: Add support for field of function return with no inference (Currently, only works with inference)
+// RetFieldAnnotationKey identifies the annotation site for a specific field within a function's
+// return of struct (or pointer to struct) type. This key is only effective when struct
+// initialization checking is enabled.
 type RetFieldAnnotationKey struct {
 	// FuncDecl is the function type of function containing return
 	FuncDecl *types.Func
@@ -499,11 +416,6 @@ type RetFieldAnnotationKey struct {
 	RetNum int
 	// FieldDecl is the declaration for the field of the key
 	FieldDecl *types.Var
-}
-
-// Lookup looks this key up in the passed map, returning a Val.
-func (rf *RetFieldAnnotationKey) Lookup(_ Map) (Val, bool) {
-	return nonAnnotatedDefault, false
 }
 
 // Object returns the types.Object that this annotation can best be interpreted as annotating
@@ -538,7 +450,7 @@ func (rf *RetFieldAnnotationKey) String() string {
 		rf.FieldDecl.Name(), rf.RetNum, rf.FuncDecl.Name())
 }
 
-// EscapeFieldAnnotationKey allows the Lookup of a field's Annotation in the Annotation map
+// EscapeFieldAnnotationKey identifies an escaping field annotation site.
 // For fields of depth 1, with struct initialization check, we track the nilability using param field and return field.
 // Anything that is not trackable using those, rely on the default nilability of the field.
 // Thus, we use the escape information for choosing the nilability of the fields that we do not track.
@@ -553,13 +465,6 @@ func (rf *RetFieldAnnotationKey) String() string {
 // TODO: Add struct assignment as another possible cause of field escape
 type EscapeFieldAnnotationKey struct {
 	FieldDecl *types.Var
-}
-
-// Lookup looks this key up in the passed map, returning a Val
-// Currently, the annotation key is used only with inference
-// TODO: This should be updated on supporting no-infer with struct initialization
-func (ek *EscapeFieldAnnotationKey) Lookup(_ Map) (Val, bool) {
-	return nonAnnotatedDefault, false
 }
 
 // Object returns the types.Object that this annotation can best be interpreted as annotating
@@ -584,8 +489,7 @@ func (ek *EscapeFieldAnnotationKey) String() string {
 	return fmt.Sprintf("escaped Field %s", ek.FieldDecl.Name())
 }
 
-// ParamFieldAnnotationKey allows the Lookup of Annotation of a function parameter's fields in the
-// Annotation map.
+// ParamFieldAnnotationKey identifies an annotation site for a function parameter's field.
 // The key is used for tracking flows through both function params and the receiver. In case, the key is tracking
 // nilability flow through receivers ParamNum is set to ReceiverParamIndex
 // If the key is tracking flow from caller to callee then IsTrackingSideEffect is false. If the key is tracking flow
@@ -618,13 +522,6 @@ func (pf *ParamFieldAnnotationKey) ParamName() *types.Var {
 		return pf.FuncDecl.Type().(*types.Signature).Recv()
 	}
 	return pf.FuncDecl.Type().(*types.Signature).Params().At(pf.ParamNum)
-}
-
-// Lookup looks this key up in the passed map, returning a Val
-// Currently, the annotation key is used only with inference
-// TODO: This should be updated on supporting no-infer with struct initialization
-func (pf *ParamFieldAnnotationKey) Lookup(_ Map) (Val, bool) {
-	return nonAnnotatedDefault, false
 }
 
 // Object returns the types.Object that this annotation can best be interpreted as annotating
@@ -666,17 +563,9 @@ func (pf *ParamFieldAnnotationKey) String() string {
 
 }
 
-// RecvAnnotationKey allows the Lookup of a method's receiver Annotation in the Annotation map
+// RecvAnnotationKey identifies a method receiver annotation site.
 type RecvAnnotationKey struct {
 	FuncDecl *types.Func
-}
-
-// Lookup looks this key up in the passed map, returning a Val
-func (rk *RecvAnnotationKey) Lookup(annMap Map) (Val, bool) {
-	if retVal, ok := annMap.CheckFuncRecvAnn(rk.FuncDecl); ok {
-		return retVal, true
-	}
-	return nonAnnotatedDefault, false
 }
 
 // Package returns the package containing the site of this annotation key
