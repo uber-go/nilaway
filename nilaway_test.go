@@ -66,6 +66,7 @@ func TestNilAway(t *testing.T) {
 		{name: "SimpleFlow", patterns: []string{"go.uber.org/simpleflow"}},
 		{name: "LoopFlow", patterns: []string{"go.uber.org/loopflow"}},
 		{name: "MethodImplementation", patterns: []string{"go.uber.org/methodimplementation/..."}},
+		{name: "TransitiveFacts", patterns: []string{"go.uber.org/transitivefacts/..."}},
 		{name: "NamedReturn", patterns: []string{"go.uber.org/namedreturn"}},
 		{name: "IgnoreGenerated", patterns: []string{"go.uber.org/ignoregenerated"}},
 		{name: "IgnorePackage", patterns: []string{"ignoredpkg1", "ignoredpkg2"}},
