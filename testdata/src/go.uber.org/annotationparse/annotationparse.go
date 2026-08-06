@@ -172,10 +172,12 @@ func testMultiStructDecl(m1 *multiStructOne, m2 *multiStructTwo) *A { //want "re
 		return b2
 	default:
 		m1.a = nil
+
+		// TODO: these two should actually raise an error, but currently we are suppressing the field assign triggers
+		//  to reduce false positives. We should reconsider these once struct initialization support is done.
 		m1.b = nil
-		print(*m1.b) //want "dereferenced"
 		m2.a = nil
-		print(*m2.a) //want "dereferenced"
+
 		m2.b = nil
 		return &A{}
 	}

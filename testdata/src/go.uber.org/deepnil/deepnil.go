@@ -215,96 +215,58 @@ func takesNonNilIntStar(i *int) {
 
 var i = 0
 
-// testsArrRets checks reads (in various index / local variable / range forms) of the deeply
-// nilable and deeply nonnil results of the two functions above. Since a single error is reported
-// per inference site, only one read of `retsNilableArr`'s result is dereferenced (case 1); the
-// other nilable reads are returned without dereference and are caught (as a single grouped error)
-// at the dereference of `testsArrRets`'s result in callsTestsArrRets below. Reads of
-// `retsNonNilArr`'s result are all safe to dereference.
-func testsArrRets() *int {
-	switch 0 {
-	case 1:
-		v := retsNilableArr(0)[0]
-		_ = *v //want "deep read from result 0 of `retsNilableArr"
-		return v
-	case 2:
-		v := retsNonNilArr(0)[0]
-		_ = *v
-		return v
-	case 3:
-		return retsNilableArr(i)[0]
-	case 4:
-		v := retsNonNilArr(i)[0]
-		_ = *v
-		return v
-	case 5:
-		return retsNilableArr(0)[i]
-	case 6:
-		v := retsNonNilArr(0)[i]
-		_ = *v
-		return v
-	case 7:
-		return retsNilableArr(i)[i]
-	case 8:
-		v := retsNonNilArr(i)[i]
-		_ = *v
-		return v
-	case 9:
-		a := retsNilableArr(0)
-		return a[0]
-	case 10:
-		a := retsNonNilArr(0)
-		_ = *a[0]
-		return a[0]
-	case 11:
-		a := retsNilableArr(i)
-		return a[0]
-	case 12:
-		a := retsNonNilArr(i)
-		_ = *a[0]
-		return a[0]
-	case 13:
-		a := retsNilableArr(0)
-		return a[i]
-	case 14:
-		a := retsNonNilArr(0)
-		_ = *a[i]
-		return a[i]
-	case 15:
-		a := retsNilableArr(i)
-		return a[i]
-	case 16:
-		a := retsNonNilArr(i)
-		_ = *a[i]
-		return a[i]
-	case 17:
-		for _, a := range retsNilableArr(0) {
-			return a
-		}
-		return nil
-	case 18:
-		for _, a := range retsNonNilArr(0) {
-			_ = *a
-			return a
-		}
-		return nil
-	case 19:
-		for _, a := range retsNilableArr(0) {
-			// the deeply read nilable value is passed to a function that dereferences its
-			// parameter - the error is reported at the dereference inside takesNonNilIntStar.
-			takesNonNilIntStar(a)
-		}
-		return nil
-	default:
-		for _, a := range retsNonNilArr(0) {
-			takesNonNilIntStar(a)
-		}
-		return nil
-	}
+func arrRetDirectConst() *int {
+	return retsNilableArr(0)[0]
 }
 
-func callsTestsArrRets() {
-	_ = *testsArrRets() //want "returned from `testsArrRets"
+func arrRetDirectVariable(i int) *int {
+	return retsNilableArr(i)[i]
+}
+
+func arrRetLocalConst() *int {
+	a := retsNilableArr(0)
+	return a[0]
+}
+
+func arrRetLocalVariable(i int) *int {
+	a := retsNilableArr(i)
+	return a[i]
+}
+
+func arrRetRange() *int {
+	for _, a := range retsNilableArr(0) {
+		return a
+	}
+	return new(int)
+}
+
+func testArrRets(i int) {
+	_ = *arrRetDirectConst()     //want "returned from `arrRetDirectConst"
+	_ = *arrRetDirectVariable(i) //want "returned from `arrRetDirectVariable"
+	_ = *arrRetLocalConst()      //want "returned from `arrRetLocalConst"
+	_ = *arrRetLocalVariable(i)  //want "returned from `arrRetLocalVariable"
+	_ = *arrRetRange()           //want "returned from `arrRetRange"
+
+	_ = *retsNonNilArr(0)[0]
+	_ = *retsNonNilArr(i)[i]
+
+	a := retsNonNilArr(0)
+	_ = *a[0]
+	a = retsNonNilArr(i)
+	_ = *a[i]
+
+	for _, a := range retsNonNilArr(0) {
+		_ = *a
+	}
+
+	for _, a := range retsNilableArr(i) {
+		// The deeply read nilable value is passed to a function that dereferences its parameter.
+		// The error is reported at the dereference inside takesNonNilIntStar.
+		takesNonNilIntStar(a)
+	}
+	for _, a := range retsNonNilArr(i) {
+		takesNonNilIntStar(a)
+	}
 }
 
 // S has two slice fields - deep nilability for fields is tracked at the field level (shared
