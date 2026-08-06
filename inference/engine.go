@@ -138,7 +138,7 @@ func (e *Engine) ObserveAnnotations(pkgAnnotations *annotation.ObservedMap) {
 		} else {
 			e.observeSiteExplanation(site, FalseBecauseAnnotation{AnnotationPos: site.Position})
 		}
-	}, true)
+	})
 }
 
 // mapGuardMissingAndReturnToFuncSite returns two maps:

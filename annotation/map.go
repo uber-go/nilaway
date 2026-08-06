@@ -167,15 +167,15 @@ type ArgLocAndVal struct {
 	Val      Val
 }
 
-// Range calls the passed function `op` on each annotation site in this map. If `setSitesOnly`
-// is true, then it only calls `op` only on the sites with is<Deep?>NilableSet true.
-func (m *ObservedMap) Range(op func(key Key, isDeep bool, val bool), setSitesOnly bool) {
+// Range calls the passed function `op` on each annotation site in this map that has
+// is<Deep?>NilableSet true.
+func (m *ObservedMap) Range(op func(key Key, isDeep bool, val bool)) {
 
 	callOpOnKeyVal := func(key Key, val Val) {
-		if !setSitesOnly || val.IsNilableSet {
+		if val.IsNilableSet {
 			op(key, false /* isDeep */, val.IsNilable)
 		}
-		if !setSitesOnly || val.IsDeepNilableSet {
+		if val.IsDeepNilableSet {
 			op(key, true /* isDeep */, val.IsDeepNilable)
 		}
 	}
