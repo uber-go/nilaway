@@ -26,7 +26,6 @@ import (
 
 type myNode struct{}
 
-// nilable(result 0)
 func (myNode) Pos() token.Pos {
 	return 1
 }

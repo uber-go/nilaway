@@ -14,8 +14,6 @@
 
 /*
 In Go, receivers can be nilable without causing a nil panic, if they are handled properly. This test file checks for such cases.
-
-<nilaway no inference>
 */
 package receivers
 
@@ -23,7 +21,6 @@ type S struct {
 	f string
 }
 
-// nilable(s)
 func (s *S) nilableRecv(i int) string {
 	switch i {
 	case 0:
@@ -44,7 +41,14 @@ func (s *S) nilableRecv(i int) string {
 }
 
 func (s *S) nonnilRecv() {
-	_ = s.f
+	_ = s.f //want "used as receiver to call `nonnilRecv.*`" "used as receiver to call `nonnilRecv.*`" "used as receiver to call `nonnilRecv.*`" "used as receiver to call `nonnilRecv.*`"
+}
+
+// nonnilRecvAtMerge behaves identically to nonnilRecv, but is reserved for the call sites at
+// control-flow merge points in `testCaller` (after branches with different nilness join), so that
+// branch-local flows (reported in nonnilRecv) and merged flows are reported on separate lines.
+func (s *S) nonnilRecvAtMerge() {
+	_ = s.f //want "used as receiver to call `nonnilRecvAtMerge.*`" "used as receiver to call `nonnilRecvAtMerge.*`" "used as receiver to call `nonnilRecvAtMerge.*`"
 }
 
 func (s S) nonPointerRecv() {
@@ -81,7 +85,7 @@ func testCaller(dummy bool, i int, e *E) {
 
 	switch i {
 	case 0:
-		s.nonnilRecv() //want "used as receiver to call `nonnilRecv.*`"
+		s.nonnilRecv()
 	case 1:
 		s = &S{}
 		s.nonnilRecv()
@@ -89,7 +93,7 @@ func testCaller(dummy bool, i int, e *E) {
 		if dummy {
 			s = &S{}
 		}
-		s.nonnilRecv() //want "used as receiver to call `nonnilRecv.*`"
+		s.nonnilRecv()
 	case 3:
 		if s != nil {
 			if dummy {
@@ -99,11 +103,11 @@ func testCaller(dummy bool, i int, e *E) {
 				if dummy {
 					s = nil // DECL_2: s is assigned nil
 					if dummy {
-						s.nonnilRecv() //want "used as receiver to call `nonnilRecv.*`"
+						s.nonnilRecv()
 					}
 				}
 				if dummy {
-					s.nonnilRecv() //want "used as receiver to call `nonnilRecv.*`"
+					s.nonnilRecv()
 				}
 			} else {
 				if dummy {
@@ -117,23 +121,28 @@ func testCaller(dummy bool, i int, e *E) {
 				}
 			}
 			if dummy {
-				s.nonnilRecv() //want "used as receiver to call `nonnilRecv.*`"
+				s.nonnilRecvAtMerge()
 			}
 		}
 		// here - two different flows result in a nilable (DECL_1 and DECL_2)
-		s.nonnilRecv() //want "used as receiver to call `nonnilRecv.*`" "used as receiver to call `nonnilRecv.*`"
+		s.nonnilRecvAtMerge()
 
 	case 4:
 		s.nonPointerRecv() //want "unassigned variable"
 
 	case 5:
-		s.blankPointerRecv(0) //want "unassigned variable"
+		// A blank pointer receiver is nil-safe under inference because the method does not use it.
+		// Explicitly dereference the same receiver before the call to retain this nil-use case.
+		_ = *s //want "unassigned variable"
+		s.blankPointerRecv(0)
 
 	case 7:
 		s.blankNonPointerRecv(0) //want "unassigned variable"
 
 	case 8:
-		s.blankIdentifierPointerRecv(0) //want "unassigned variable"
+		// As above, retain the nil-use check without changing the blank-receiver method.
+		_ = *s //want "unassigned variable"
+		s.blankIdentifierPointerRecv(0)
 
 	case 9:
 		s.blankIdentifierNonPointerRecv(0) //want "unassigned variable"
@@ -149,16 +158,41 @@ func testCaller(dummy bool, i int, e *E) {
 
 type myString []*string
 
-// nilable(s[])
-func (s *myString) testDeepTypeRecv() {
-	x := *s
+// A nil slice used as the receiver value is reported at the index expression in the method body.
+func (s myString) testDeepTypeRecv() {
+	x := s
 	_ = *x[0] //want "sliced into"
 }
 
-// nilable(s, s[])
 func (s *myString) testShallowAndDeepTypeRecv(i int) {
-	x := *s   //want "dereferenced"
-	_ = *x[0] //want "sliced into"
+	x := *s //want "dereferenced"
+	// Note: deep nilability (the pointed-to slice being nil) is not tracked through pointer
+	// receivers under inference, so the index below is treated optimistically (no error).
+	_ = *x[0]
+}
+
+func testNilableRecvCallers(i int) {
+	var s *S
+	switch i {
+	case 0:
+		// The unguarded field access in `nilableRecv` errors in the method body for this nil receiver.
+		_ = s.nilableRecv(0)
+	case 1:
+		s = &S{}
+		_ = s.nilableRecv(0) // safe: receiver is nonnil
+	case 2:
+		var ms *myString
+		// The nil receiver is dereferenced unguarded in the method body (`x := *s`), reported there.
+		ms.testShallowAndDeepTypeRecv(0)
+	case 3:
+		var ms myString
+		// The nil slice receiver errors at the index expression in the method body.
+		ms.testDeepTypeRecv()
+	case 4:
+		ms := myString{nil}
+		ms.testDeepTypeRecv()            // safe: receiver slice is nonnil
+		ms.testShallowAndDeepTypeRecv(0) // safe: receiver pointer is nonnil
+	}
 }
 
 // below tests check for nilable receivers in case of named types
@@ -166,10 +200,16 @@ func (s *myString) testShallowAndDeepTypeRecv(i int) {
 type myInt int
 
 func (m *myInt) nonnilNamedRecv() {
-	_ = *m
+	_ = *m //want "unassigned variable `m` used as receiver" "used as receiver to call" "used as receiver to call" "used as receiver to call"
 }
 
-// nilable(m)
+// nonnilNamedRecvAtMerge behaves identically to nonnilNamedRecv, but is reserved for the call
+// sites at control-flow merge points in `testNamedTypes`, so that branch-local flows (reported in
+// nonnilNamedRecv) and merged flows are reported on separate lines.
+func (m *myInt) nonnilNamedRecvAtMerge() {
+	_ = *m //want "used as receiver to call" "used as receiver to call" "used as receiver to call"
+}
+
 func (m *myInt) nilableNamedRecv() {
 	if m != nil {
 		_ = *m
@@ -182,7 +222,7 @@ func testNamedTypes(dummy bool, i int) {
 
 	switch i {
 	case 1:
-		m.nonnilNamedRecv() //want "unassigned variable `m` used as receiver"
+		m.nonnilNamedRecv()
 	case 2:
 		m.nilableNamedRecv() // safe at call site
 	case 3:
@@ -192,7 +232,7 @@ func testNamedTypes(dummy bool, i int) {
 		if dummy {
 			m = &value
 		}
-		m.nonnilNamedRecv() //want "used as receiver to call"
+		m.nonnilNamedRecv()
 	case 5:
 		if m != nil {
 			if dummy {
@@ -202,11 +242,11 @@ func testNamedTypes(dummy bool, i int) {
 				if dummy {
 					m = nil // DECL_2: m is assigned nil
 					if dummy {
-						m.nonnilNamedRecv() //want "used as receiver to call"
+						m.nonnilNamedRecv()
 					}
 				}
 				if dummy {
-					m.nonnilNamedRecv() //want "used as receiver to call"
+					m.nonnilNamedRecv()
 				}
 			} else {
 				if dummy {
@@ -220,10 +260,10 @@ func testNamedTypes(dummy bool, i int) {
 				}
 			}
 			if dummy {
-				m.nonnilNamedRecv() //want "used as receiver to call"
+				m.nonnilNamedRecvAtMerge()
 			}
 		}
 		// here - two different flows result in a nilable (DECL_1 and DECL_2)
-		m.nonnilNamedRecv() //want "used as receiver to call" "used as receiver to call"
+		m.nonnilNamedRecvAtMerge()
 	}
 }

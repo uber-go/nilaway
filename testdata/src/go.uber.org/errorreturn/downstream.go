@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package inference
+package errorreturn
 
-import "go.uber.org/errorreturn/inference/upstream"
+import "go.uber.org/errorreturn/upstream"
 
 type dummyCallback struct{}
 

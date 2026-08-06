@@ -1,4 +1,4 @@
-package inference
+package receivers
 
 // Named Slice type
 

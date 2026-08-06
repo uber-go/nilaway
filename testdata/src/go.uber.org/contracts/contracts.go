@@ -15,15 +15,13 @@
 /*
 This package aims to test some behavior of contracts - other tests for specific behavior appears
 in other packages such as `maps` and `erroreturn`.
-
-<nilaway no inference>
 */
 package contracts
 
 var dummy bool
 
-func simpleCond(m map[any]any) any {
-	var v any
+func simpleCond(m map[any]*int) *int {
+	var v *int
 	var ok bool
 	if dummy {
 		v, ok = m[0]
@@ -38,7 +36,7 @@ func simpleCond(m map[any]any) any {
 	return v
 }
 
-func testVarDecl(m map[any]any) any {
+func testVarDecl(m map[any]*int) *int {
 	var v, ok = m[0]
 	if !ok {
 		panic(0)
@@ -46,8 +44,8 @@ func testVarDecl(m map[any]any) any {
 	return v
 }
 
-func threeWay(m map[any]any) any {
-	var v any
+func threeWay(m map[any]*int) *int {
+	var v *int
 	var ok bool
 	if dummy {
 		if dummy {
@@ -66,7 +64,7 @@ func threeWay(m map[any]any) any {
 	return v
 }
 
-func overridesOk1(m map[any]any) any {
+func overridesOk1(m map[any]*int) *int {
 	v, ok := m[0]
 
 	if dummy {
@@ -80,11 +78,11 @@ func overridesOk1(m map[any]any) any {
 	return v
 }
 
-func overridesOk2(m map[any]any) any {
+func overridesOk2(m map[any]*int) *int {
 	v, ok := m[0]
 
 	if dummy {
-		v = 0
+		v = new(int)
 	}
 
 	if !ok {
@@ -94,7 +92,7 @@ func overridesOk2(m map[any]any) any {
 	return v
 }
 
-func overridesNotOk1(m map[any]any) any {
+func overridesNotOk1(m map[any]*int) *int {
 	v, ok := m[0]
 
 	if dummy {
@@ -105,10 +103,10 @@ func overridesNotOk1(m map[any]any) any {
 		panic(0)
 	}
 
-	return v //want "returned"
+	return v
 }
 
-func overridesNotOk2(m map[any]any) any {
+func overridesNotOk2(m map[any]*int) *int {
 	v, ok := m[0]
 
 	if dummy {
@@ -119,18 +117,18 @@ func overridesNotOk2(m map[any]any) any {
 		panic(0)
 	}
 
-	return v //want "returned"
+	return v
 }
 
-func threeWayOneConcrete(m map[any]any) any {
-	var v any
+func threeWayOneConcrete(m map[any]*int) *int {
+	var v *int
 	var ok bool
 	if dummy {
 		if dummy {
 			v, ok = m[1]
 		} else {
 			ok = false
-			v = 0
+			v = new(int)
 		}
 	} else {
 		v, ok = m[0]
@@ -147,8 +145,16 @@ var getInt func() int
 
 var dummy2 bool
 
-func badMerge(m map[any]any) any {
-	var v any
+// badMergeCaller consumes badMerge's result with a real dereference, demanding it nonnil under
+// inference. It is declared *before* badMerge: this makes each unsafe return site in badMerge
+// report its own nil flow at the dereference below (declaring the consumer after the producer
+// would collapse them into a single grouped diagnostic).
+func badMergeCaller(m map[any]*int) {
+	print(*badMerge(m)) //want "returned from `badMerge.*` in position 0" "returned from `badMerge.*` in position 0" "returned from `badMerge.*` in position 0" "returned from `badMerge.*` in position 0"
+}
+
+func badMerge(m map[any]*int) *int {
+	var v *int
 	var ok1 bool
 	var ok2 bool
 	if dummy {
@@ -159,14 +165,14 @@ func badMerge(m map[any]any) any {
 
 	switch getInt() {
 	case getInt():
-		return v //want "returned"
+		return v
 	case getInt():
 		if ok1 {
-			return v //want "returned"
+			return v
 		}
 	case getInt():
 		if ok2 {
-			return v //want "returned"
+			return v
 		}
 	case getInt():
 		if ok1 && ok2 {
@@ -174,14 +180,14 @@ func badMerge(m map[any]any) any {
 		}
 	case getInt():
 		if ok1 || ok2 {
-			return v //want "returned"
+			return v
 		}
 	}
-	return 0
+	return new(int)
 }
 
-func testCheckInNeitherThenNeitherParallel(m map[any]any) any {
-	var v any
+func testCheckInNeitherThenNeitherParallel(m map[any]*int) *int {
+	var v *int
 	var ok1, ok2 bool
 	if dummy {
 		v, ok1 = m[0]
@@ -189,11 +195,11 @@ func testCheckInNeitherThenNeitherParallel(m map[any]any) any {
 		v, ok2 = m[0]
 	}
 	func(any, any) {}(ok1, ok2)
-	return v //want "returned"
+	return v
 }
 
-func testCheckInNeitherThenLeftParallel(m map[any]any) any {
-	var v any
+func testCheckInNeitherThenLeftParallel(m map[any]*int) *int {
+	var v *int
 	var ok1, ok2 bool
 	if dummy {
 		v, ok1 = m[0]
@@ -201,14 +207,14 @@ func testCheckInNeitherThenLeftParallel(m map[any]any) any {
 		v, ok2 = m[0]
 	}
 	if !ok1 {
-		return 0
+		return new(int)
 	}
 	func(any, any) {}(ok1, ok2)
-	return v //want "returned"
+	return v
 }
 
-func testCheckInNeitherThenRightParallel(m map[any]any) any {
-	var v any
+func testCheckInNeitherThenRightParallel(m map[any]*int) *int {
+	var v *int
 	var ok1, ok2 bool
 	if dummy {
 		v, ok1 = m[0]
@@ -216,14 +222,14 @@ func testCheckInNeitherThenRightParallel(m map[any]any) any {
 		v, ok2 = m[0]
 	}
 	if !ok2 {
-		return 0
+		return new(int)
 	}
 	func(any, any) {}(ok1, ok2)
-	return v //want "returned"
+	return v
 }
 
-func testCheckInNeitherThenBothParallel(m map[any]any) any {
-	var v any
+func testCheckInNeitherThenBothParallel(m map[any]*int) *int {
+	var v *int
 	var ok1, ok2 bool
 	if dummy {
 		v, ok1 = m[0]
@@ -231,165 +237,165 @@ func testCheckInNeitherThenBothParallel(m map[any]any) any {
 		v, ok2 = m[0]
 	}
 	if !ok1 || !ok2 {
-		return 0
+		return new(int)
 	}
 	func(any, any) {}(ok1, ok2)
 	return v
 }
 
-func testCheckOnlyInLeftThenNeitherParallel(m map[any]any) any {
-	var v any
+func testCheckOnlyInLeftThenNeitherParallel(m map[any]*int) *int {
+	var v *int
 	var ok1, ok2 bool
 	if dummy {
 		v, ok1 = m[0]
 		if !ok1 {
-			return 0
+			return new(int)
 		}
 	} else {
 		v, ok2 = m[0]
 	}
 	func(any) {}(ok2)
-	return v //want "returned"
+	return v
 }
 
-func testCheckOnlyInLeftThenLeftParallel(m map[any]any) any {
-	var v any
+func testCheckOnlyInLeftThenLeftParallel(m map[any]*int) *int {
+	var v *int
 	var ok1, ok2 bool
 	if dummy {
 		v, ok1 = m[0]
 		if !ok1 {
-			return 0
+			return new(int)
 		}
 	} else {
 		v, ok2 = m[0]
 	}
 	if !ok1 {
-		return 0
+		return new(int)
 	}
 	func(any) {}(ok2)
-	return v //want "returned"
+	return v
 }
 
-func testCheckOnlyInLeftThenRightParallel(m map[any]any) any {
-	var v any
+func testCheckOnlyInLeftThenRightParallel(m map[any]*int) *int {
+	var v *int
 	var ok1, ok2 bool
 	if dummy {
 		v, ok1 = m[0]
 		if !ok1 {
-			return 0
+			return new(int)
 		}
 	} else {
 		v, ok2 = m[0]
 	}
 	if !ok2 {
-		return 0
+		return new(int)
 	}
 	return v
 }
 
-func testCheckOnlyInLeftThenBothParallel(m map[any]any) any {
-	var v any
+func testCheckOnlyInLeftThenBothParallel(m map[any]*int) *int {
+	var v *int
 	var ok1, ok2 bool
 	if dummy {
 		v, ok1 = m[0]
 		if !ok1 {
-			return 0
+			return new(int)
 		}
 	} else {
 		v, ok2 = m[0]
 	}
 	if !ok1 || !ok2 {
-		return 0
+		return new(int)
 	}
 	return v
 }
 
-func testCheckOnlyInRightThenNeitherParallel(m map[any]any) any {
-	var v any
+func testCheckOnlyInRightThenNeitherParallel(m map[any]*int) *int {
+	var v *int
 	var ok1, ok2 bool
 	if dummy {
 		v, ok1 = m[0]
 	} else {
 		v, ok2 = m[0]
 		if !ok2 {
-			return 0
+			return new(int)
 		}
 	}
 	func(any) {}(ok1)
-	return v //want "returned"
+	return v
 }
 
-func testCheckOnlyInRightThenLeftParallel(m map[any]any) any {
-	var v any
+func testCheckOnlyInRightThenLeftParallel(m map[any]*int) *int {
+	var v *int
 	var ok1, ok2 bool
 	if dummy {
 		v, ok1 = m[0]
 	} else {
 		v, ok2 = m[0]
 		if !ok2 {
-			return 0
+			return new(int)
 		}
 	}
 	if !ok1 {
-		return 0
+		return new(int)
 	}
 	return v
 }
 
-func testCheckOnlyInRightThenRightParallel(m map[any]any) any {
-	var v any
+func testCheckOnlyInRightThenRightParallel(m map[any]*int) *int {
+	var v *int
 	var ok1, ok2 bool
 	if dummy {
 		v, ok1 = m[0]
 	} else {
 		v, ok2 = m[0]
 		if !ok2 {
-			return 0
+			return new(int)
 		}
 	}
 	if !ok2 {
-		return 0
+		return new(int)
 	}
 	func(any) {}(ok1)
-	return v //want "returned"
+	return v
 }
 
-func testCheckOnlyInRightThenBothParallel(m map[any]any) any {
-	var v any
+func testCheckOnlyInRightThenBothParallel(m map[any]*int) *int {
+	var v *int
 	var ok1, ok2 bool
 	if dummy {
 		v, ok1 = m[0]
 	} else {
 		v, ok2 = m[0]
 		if !ok2 {
-			return 0
+			return new(int)
 		}
 	}
 	if !ok1 || !ok2 {
-		return 0
+		return new(int)
 	}
 	return v
 }
 
-func testCheckInBothParallel(m map[any]any) any {
-	var v any
+func testCheckInBothParallel(m map[any]*int) *int {
+	var v *int
 	var ok1, ok2 bool
 	if dummy {
 		v, ok1 = m[0]
 		if !ok1 {
-			return 0
+			return new(int)
 		}
 	} else {
 		v, ok2 = m[0]
 		if !ok2 {
-			return 0
+			return new(int)
 		}
 	}
 	return v
 }
 
-func testCheckInNeitherThenNeitherSeries(m map[any]any) any {
-	var v any = 0
+func testCheckInNeitherThenNeitherSeries(m map[any]*int) *int {
+	v := new(int)
 	var ok1, ok2 bool
 	if dummy {
 		v, ok1 = m[0]
@@ -398,11 +404,11 @@ func testCheckInNeitherThenNeitherSeries(m map[any]any) any {
 		v, ok2 = m[0]
 	}
 	func(any, any) {}(ok1, ok2)
-	return v //want "returned"
+	return v
 }
 
-func testCheckInNeitherThenLeftSeries(m map[any]any) any {
-	var v any = 0
+func testCheckInNeitherThenLeftSeries(m map[any]*int) *int {
+	v := new(int)
 	var ok1, ok2 bool
 	if dummy {
 		v, ok1 = m[0]
@@ -411,14 +417,14 @@ func testCheckInNeitherThenLeftSeries(m map[any]any) any {
 		v, ok2 = m[0]
 	}
 	if !ok1 {
-		return 0
+		return new(int)
 	}
 	func(any, any) {}(ok1, ok2)
-	return v //want "returned"
+	return v
 }
 
-func testCheckInNeitherThenRightSeries(m map[any]any) any {
-	var v any = 0
+func testCheckInNeitherThenRightSeries(m map[any]*int) *int {
+	v := new(int)
 	var ok1, ok2 bool
 	if dummy {
 		v, ok1 = m[0]
@@ -427,14 +433,14 @@ func testCheckInNeitherThenRightSeries(m map[any]any) any {
 		v, ok2 = m[0]
 	}
 	if !ok2 {
-		return 0
+		return new(int)
 	}
 	func(any, any) {}(ok1, ok2)
-	return v //want "returned"
+	return v
 }
 
-func testCheckInNeitherThenBothSeries(m map[any]any) any {
-	var v any = 0
+func testCheckInNeitherThenBothSeries(m map[any]*int) *int {
+	v := new(int)
 	var ok1, ok2 bool
 	if dummy {
 		v, ok1 = m[0]
@@ -443,85 +449,85 @@ func testCheckInNeitherThenBothSeries(m map[any]any) any {
 		v, ok2 = m[0]
 	}
 	if !ok1 || !ok2 {
-		return 0
+		return new(int)
 	}
 	func(any, any) {}(ok1, ok2)
 	return v
 }
 
-func testCheckOnlyInLeftThenNeitherSeries(m map[any]any) any {
-	var v any = 0
+func testCheckOnlyInLeftThenNeitherSeries(m map[any]*int) *int {
+	v := new(int)
 	var ok1, ok2 bool
 	if dummy {
 		v, ok1 = m[0]
 		if !ok1 {
-			return 0
+			return new(int)
 		}
 	}
 	if dummy2 {
 		v, ok2 = m[0]
 	}
 	func(any) {}(ok2)
-	return v //want "returned"
+	return v
 }
 
-func testCheckOnlyInLeftThenLeftSeries(m map[any]any) any {
-	var v any = 0
+func testCheckOnlyInLeftThenLeftSeries(m map[any]*int) *int {
+	v := new(int)
 	var ok1, ok2 bool
 	if dummy {
 		v, ok1 = m[0]
 		if !ok1 {
-			return 0
+			return new(int)
 		}
 	}
 	if dummy2 {
 		v, ok2 = m[0]
 	}
 	if !ok1 {
-		return 0
+		return new(int)
 	}
 	func(any) {}(ok2)
-	return v //want "returned"
+	return v
 }
 
-func testCheckOnlyInLeftThenRightSeries(m map[any]any) any {
-	var v any = 0
+func testCheckOnlyInLeftThenRightSeries(m map[any]*int) *int {
+	v := new(int)
 	var ok1, ok2 bool
 	if dummy {
 		v, ok1 = m[0]
 		if !ok1 {
-			return 0
+			return new(int)
 		}
 	}
 	if dummy2 {
 		v, ok2 = m[0]
 	}
 	if !ok2 {
-		return 0
+		return new(int)
 	}
 	return v
 }
 
-func testCheckOnlyInLeftThenBothSeries(m map[any]any) any {
-	var v any = 0
+func testCheckOnlyInLeftThenBothSeries(m map[any]*int) *int {
+	v := new(int)
 	var ok1, ok2 bool
 	if dummy {
 		v, ok1 = m[0]
 		if !ok1 {
-			return 0
+			return new(int)
 		}
 	}
 	if dummy2 {
 		v, ok2 = m[0]
 	}
 	if !ok1 || !ok2 {
-		return 0
+		return new(int)
 	}
 	return v
 }
 
-func testCheckOnlyInRightThenNeitherSeries(m map[any]any) any {
-	var v any = 0
+func testCheckOnlyInRightThenNeitherSeries(m map[any]*int) *int {
+	v := new(int)
 	var ok1, ok2 bool
 	if dummy {
 		v, ok1 = m[0]
@@ -529,15 +535,15 @@ func testCheckOnlyInRightThenNeitherSeries(m map[any]any) any {
 	if dummy2 {
 		v, ok2 = m[0]
 		if !ok2 {
-			return 0
+			return new(int)
 		}
 	}
 	func(any) {}(ok1)
-	return v //want "returned"
+	return v
 }
 
-func testCheckOnlyInRightThenLeftSeries(m map[any]any) any {
-	var v any = 0
+func testCheckOnlyInRightThenLeftSeries(m map[any]*int) *int {
+	v := new(int)
 	var ok1, ok2 bool
 	if dummy {
 		v, ok1 = m[0]
@@ -545,17 +551,17 @@ func testCheckOnlyInRightThenLeftSeries(m map[any]any) any {
 	if dummy2 {
 		v, ok2 = m[0]
 		if !ok2 {
-			return 0
+			return new(int)
 		}
 	}
 	if !ok1 {
-		return 0
+		return new(int)
 	}
 	return v
 }
 
-func testCheckOnlyInRightThenRightSeries(m map[any]any) any {
-	var v any = 0
+func testCheckOnlyInRightThenRightSeries(m map[any]*int) *int {
+	v := new(int)
 	var ok1, ok2 bool
 	if dummy {
 		v, ok1 = m[0]
@@ -563,18 +569,18 @@ func testCheckOnlyInRightThenRightSeries(m map[any]any) any {
 	if dummy2 {
 		v, ok2 = m[0]
 		if !ok2 {
-			return 0
+			return new(int)
 		}
 	}
 	if !ok2 {
-		return 0
+		return new(int)
 	}
 	func(any) {}(ok1)
-	return v //want "returned"
+	return v
 }
 
-func testCheckOnlyInRightThenBothSeries(m map[any]any) any {
-	var v any = 0
+func testCheckOnlyInRightThenBothSeries(m map[any]*int) *int {
+	v := new(int)
 	var ok1, ok2 bool
 	if dummy {
 		v, ok1 = m[0]
@@ -582,36 +588,78 @@ func testCheckOnlyInRightThenBothSeries(m map[any]any) any {
 	if dummy2 {
 		v, ok2 = m[0]
 		if !ok2 {
-			return 0
+			return new(int)
 		}
 	}
 	if !ok1 || !ok2 {
-		return 0
+		return new(int)
 	}
 	return v
 }
 
-func testCheckInBothSeries(m map[any]any) any {
-	var v any = 0
+func testCheckInBothSeries(m map[any]*int) *int {
+	v := new(int)
 	var ok1, ok2 bool
 	if dummy {
 		v, ok1 = m[0]
 		if !ok1 {
-			return 0
+			return new(int)
 		}
 	}
 	if dummy2 {
 		v, ok2 = m[0]
 		if !ok2 {
-			return 0
+			return new(int)
 		}
 	}
 	return v
+}
+
+// The following callers consume the results of the functions above with real dereferences. This
+// makes the result of each function above demanded as nonnil under inference, such that the
+// functions with insufficient "ok" guarding report errors (at the dereference sites below), while
+// the correctly guarded functions must stay silent (negative coverage).
+func callAndDerefResults(m map[any]*int) {
+	print(*simpleCond(m))
+	print(*testVarDecl(m))
+	print(*threeWay(m))
+	print(*overridesOk1(m))
+	print(*overridesOk2(m))
+	print(*overridesNotOk1(m)) //want "returned from `overridesNotOk1.*` in position 0"
+	print(*overridesNotOk2(m)) //want "returned from `overridesNotOk2.*` in position 0"
+	print(*threeWayOneConcrete(m))
+
+	print(*testCheckInNeitherThenNeitherParallel(m)) //want "returned from `testCheckInNeitherThenNeitherParallel.*` in position 0"
+	print(*testCheckInNeitherThenLeftParallel(m))    //want "returned from `testCheckInNeitherThenLeftParallel.*` in position 0"
+	print(*testCheckInNeitherThenRightParallel(m))   //want "returned from `testCheckInNeitherThenRightParallel.*` in position 0"
+	print(*testCheckInNeitherThenBothParallel(m))
+	print(*testCheckOnlyInLeftThenNeitherParallel(m)) //want "returned from `testCheckOnlyInLeftThenNeitherParallel.*` in position 0"
+	print(*testCheckOnlyInLeftThenLeftParallel(m))    //want "returned from `testCheckOnlyInLeftThenLeftParallel.*` in position 0"
+	print(*testCheckOnlyInLeftThenRightParallel(m))
+	print(*testCheckOnlyInLeftThenBothParallel(m))
+	print(*testCheckOnlyInRightThenNeitherParallel(m)) //want "returned from `testCheckOnlyInRightThenNeitherParallel.*` in position 0"
+	print(*testCheckOnlyInRightThenLeftParallel(m))
+	print(*testCheckOnlyInRightThenRightParallel(m)) //want "returned from `testCheckOnlyInRightThenRightParallel.*` in position 0"
+	print(*testCheckOnlyInRightThenBothParallel(m))
+	print(*testCheckInBothParallel(m))
+
+	print(*testCheckInNeitherThenNeitherSeries(m)) //want "returned from `testCheckInNeitherThenNeitherSeries.*` in position 0"
+	print(*testCheckInNeitherThenLeftSeries(m))    //want "returned from `testCheckInNeitherThenLeftSeries.*` in position 0"
+	print(*testCheckInNeitherThenRightSeries(m))   //want "returned from `testCheckInNeitherThenRightSeries.*` in position 0"
+	print(*testCheckInNeitherThenBothSeries(m))
+	print(*testCheckOnlyInLeftThenNeitherSeries(m)) //want "returned from `testCheckOnlyInLeftThenNeitherSeries.*` in position 0"
+	print(*testCheckOnlyInLeftThenLeftSeries(m))    //want "returned from `testCheckOnlyInLeftThenLeftSeries.*` in position 0"
+	print(*testCheckOnlyInLeftThenRightSeries(m))
+	print(*testCheckOnlyInLeftThenBothSeries(m))
+	print(*testCheckOnlyInRightThenNeitherSeries(m)) //want "returned from `testCheckOnlyInRightThenNeitherSeries.*` in position 0"
+	print(*testCheckOnlyInRightThenLeftSeries(m))
+	print(*testCheckOnlyInRightThenRightSeries(m)) //want "returned from `testCheckOnlyInRightThenRightSeries.*` in position 0"
+	print(*testCheckOnlyInRightThenBothSeries(m))
+	print(*testCheckInBothSeries(m))
 }
 
 // Now, we add a test for a FP case, which should be handled when we have user-defined contracts
 // in NilAway .
-// nilable(ptr) nilable(result 0)
 func imply(ptr *int) *int {
 	if ptr == nil {
 		return nil

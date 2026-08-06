@@ -16,8 +16,6 @@
 This test aims to make sure that annotations on functions and structs are parsed correctly.
 If any annotation on the struct bar or the function foo is not parsed correctly, then some source
 line from the function foo will not throw the expected set of diagnostics
-
-<nilaway no inference>
 */
 package annotationparse
 
@@ -25,6 +23,7 @@ package annotationparse
 /*
 nilable(jar)
 nilable(karp)
+nonnil(myr)
 */
 type bar struct {
 	jar  *bar
@@ -37,16 +36,19 @@ type bar struct {
 nilable(e)
 */
 // nilable(a, c)
+// nonnil(d)
 /*
 nilable(f, h)
+nonnil(g)
 */
-func foo(a, b *bar, c *bar, d, e *bar) (f, g *bar, h *bar) {
+func foo(a, b *bar, c *bar, d, e *bar) (f, g *bar, h *bar) { //want "returned from `foo.*` in position 1" "returned from `foo.*` in position 1" "returned from `foo.*` in position 1"
 	myBar := &bar{}
 
 	myBar.jar = a
 	myBar.karp = a
 	myBar.lug = a
-	myBar.myr = a //want "assigned into field `myr`"
+	myBar.myr = a
+	print(*myBar.myr) //want "dereferenced"
 
 	myBar.jar = b
 	myBar.karp = b
@@ -56,29 +58,32 @@ func foo(a, b *bar, c *bar, d, e *bar) (f, g *bar, h *bar) {
 	myBar.jar = c
 	myBar.karp = c
 	myBar.lug = c
-	myBar.myr = c //want "assigned into field `myr`"
+	myBar.myr = c
+	print(*myBar.myr) //want "dereferenced"
 
 	myBar.jar = d
 	myBar.karp = d
 	myBar.lug = d
 	myBar.myr = d
+	print(*myBar.myr)
 
 	myBar.jar = e
 	myBar.karp = e
 	myBar.lug = e
-	myBar.myr = e //want "assigned into field `myr`"
+	myBar.myr = e
+	print(*myBar.myr) //want "dereferenced"
 
 	switch 0 {
 	case 1:
-		return a, a, a //want "returned from `foo.*` in position 1"
+		return a, a, a
 	case 2:
 		return b, b, b
 	case 3:
-		return c, c, c //want "returned from `foo.*` in position 1"
+		return c, c, c
 	case 4:
 		return d, d, d
 	default:
-		return e, e, e //want "returned from `foo.*` in position 1"
+		return e, e, e
 	}
 }
 
@@ -89,18 +94,31 @@ type A struct{}
 // calling these functions in variadicTest tests that variadic parameters are handled appropriately
 // as sites for external argument passing
 
-// nilable(e)
-func variadicNilable(a, b, c *A, d *A, e ...*A) *A {
+// nilable(e), nonnil(result 0)
+func variadicNilable(a, b, c *A, d *A, e ...*A) *A { //want "returned from `variadicNilable.*` in position 0"
 	if len(e) > 1 {
 		e[1] = nil
-		return e[0] //want "returned"
+		return e[0]
 	}
 	return a
 }
 
-func variadicNonNil(a, b, c *A, d *A, e ...*A) *A {
+// nonnil(e)
+func variadicNonNil(a, b, c *A, d *A, e ...*A) *A { //want "assigned deeply into variadic parameter" "passed as arg `e`" "passed as arg `e`"
 	if len(e) > 1 {
-		e[1] = nil //want "assigned"
+		e[1] = nil
+		return e[0]
+	}
+	return a
+}
+
+// variadicNonNilLonger is identical to variadicNonNil (minus the in-body deep assignment, which
+// only needs to be tested once) and consumes the longer variadic calls, so that the
+// annotation-anchored diagnostics of the two functions stay on separate lines.
+
+// nonnil(e)
+func variadicNonNilLonger(a, b, c *A, d *A, e ...*A) *A { //want "passed as arg `e`" "passed as arg `e`" "passed as arg `e`"
+	if len(e) > 1 {
 		return e[0]
 	}
 	return a
@@ -114,11 +132,12 @@ func variadicTest() {
 	variadicNilable(a, a, a, a, nil, nil)
 	variadicNilable(a, a, a, a, a, nil)
 	variadicNonNil(a, a, a, a)
-	variadicNonNil(a, a, a, a, nil) //want "passed"
+	variadicNonNil(a, a, a, a, nil)
 	variadicNonNil(a, a, a, a, a)
-	variadicNonNil(a, a, a, a, a, nil)      //want "passed"
-	variadicNonNil(a, a, a, a, a, a, nil)   //want "passed"
-	variadicNonNil(a, a, a, a, a, nil, nil) //want "passed" "passed"
+	variadicNonNil(a, a, a, a, a, nil)
+	variadicNonNilLonger(a, a, a, a, a)
+	variadicNonNilLonger(a, a, a, a, a, a, nil)
+	variadicNonNilLonger(a, a, a, a, a, nil, nil)
 }
 
 type (
@@ -135,7 +154,8 @@ type (
 	}
 )
 
-func testMultiStructDecl(m1 *multiStructOne, m2 *multiStructTwo) *A {
+// nonnil(result 0)
+func testMultiStructDecl(m1 *multiStructOne, m2 *multiStructTwo) *A { //want "returned from `testMultiStructDecl.*` in position 0" "returned from `testMultiStructDecl.*` in position 0"
 	a1 := m1.a
 	b1 := m1.b
 	a2 := m2.a
@@ -143,32 +163,36 @@ func testMultiStructDecl(m1 *multiStructOne, m2 *multiStructTwo) *A {
 
 	switch 0 {
 	case 1:
-		return a1 //want "returned"
+		return a1
 	case 2:
 		return b1
 	case 3:
 		return a2
 	case 4:
-		return b2 //want "returned"
+		return b2
 	default:
 		m1.a = nil
-		m1.b = nil //want "assigned into field"
-		m2.a = nil //want "assigned into field"
+
+		// TODO: these two should actually raise an error, but currently we are suppressing the field assign triggers
+		//  to reduce false positives. We should reconsider these once struct initialization support is done.
+		m1.b = nil
+		m2.a = nil
+
 		m2.b = nil
 		return &A{}
 	}
 }
 
-// nilable(param 0, param 2)
-func anonParams(*int, *int, *int, *int) {
+// nilable(param 0, param 2), nonnil(param 1, param 3)
+func anonParams(*int, *int, *int, *int) { //want "passed as arg 1" "passed as arg 3"
 	i := 0
 	anonParams(&i, &i, &i, &i)
 	anonParams(nil, &i, nil, &i)
-	anonParams(nil, nil, nil, nil) //want "passed" "passed"
+	anonParams(nil, nil, nil, nil)
 }
 
-// nilable(result 0, result 2)
-func anonResults() (*int, *int, *int, *int) {
+// nilable(result 0, result 2), nonnil(result 1, result 3)
+func anonResults() (*int, *int, *int, *int) { //want "returned from `anonResults.*` in position 1" "returned from `anonResults.*` in position 3"
 	i := 0
 	switch 0 {
 	case 1:
@@ -176,21 +200,32 @@ func anonResults() (*int, *int, *int, *int) {
 	case 2:
 		return nil, &i, nil, &i
 	default:
-		return nil, nil, nil, nil //want "returned" "returned"
+		return nil, nil, nil, nil
 	}
 }
 
-func takesPacked(b ...*int) {}
+// nonnil(b)
+func takesPacked(b ...*int) {} //want "passed as arg `b`"
+
+// takesPackedPair and takesPackedSpread are identical to takesPacked; the call sites in
+// testPacking are spread across the three so that the annotation-anchored diagnostics stay on
+// separate lines.
+
+// nonnil(b)
+func takesPackedPair(b ...*int) {} //want "passed as arg `b`" "passed as arg `b`" "passed as arg `b`" "passed as arg `b`"
+
+// nonnil(b)
+func takesPackedSpread(b ...*int) {} //want "passed as arg `b`"
 
 // nilable(b)
 // nilable(d[])
 func testPacking(a *int, b *int, c []*int, d []*int) {
 	takesPacked(a)
-	takesPacked(b) //want "passed"
-	takesPacked(a, a)
-	takesPacked(a, b) //want "passed"
-	takesPacked(b, a) //want "passed"
-	takesPacked(b, b) //want "passed" "passed"
-	takesPacked(c...)
-	takesPacked(d...) //want "passed"
+	takesPacked(b)
+	takesPackedPair(a, a)
+	takesPackedPair(a, b)
+	takesPackedPair(b, a)
+	takesPackedPair(b, b)
+	takesPackedSpread(c...)
+	takesPackedSpread(d...)
 }

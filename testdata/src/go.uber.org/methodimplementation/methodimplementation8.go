@@ -22,8 +22,7 @@ interface method param2 nil, implementing method param2 non-nil --> contravarian
 package methodimplementation
 
 type I8 interface {
-	// nilable(x)
-	foo(x *A8) (*A8, string) //want "returned as result"
+	foo(x *A8) (*A8, string)
 }
 
 type A8 struct {
@@ -32,14 +31,14 @@ type A8 struct {
 
 type NamedType int
 
-// nilable(result 0)
-func (NamedType) foo(x *A8) (*A8, string) { //want "passed as param"
+func (NamedType) foo(x *A8) (*A8, string) {
 	var b *A8
-	return b, x.s
+	return b, x.s //want "passed as param"
 }
 
 func m8() {
 	// site 7: a named type (non-struct) implementing an interface
 	var i I8 = new(NamedType)
-	i.foo(&A8{})
+	r, _ := i.foo(nil)
+	_ = r.s //want "returned as result"
 }

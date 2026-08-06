@@ -22,7 +22,6 @@ interface method param2 nil, implementing method param2 non-nil --> contravarian
 package methodimplementation
 
 type I9 interface {
-	// nilable(result 0)
 	foo(x *A9) *string
 }
 
@@ -30,7 +29,6 @@ type A9 struct {
 	s string
 }
 
-// nilable(x)
 func (A9) foo(x *A9) *string {
 	if x != nil {
 		return &x.s
@@ -42,4 +40,7 @@ func (A9) foo(x *A9) *string {
 func m9() {
 	var i I9 = &A9{}
 	i.foo(&A9{})
+	// Passing nil through the interface is safe here: A9.foo guards x against nil
+	// before dereferencing it, so no contravariance violation should be reported.
+	i.foo(nil)
 }
