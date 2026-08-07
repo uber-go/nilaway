@@ -28,18 +28,6 @@ import (
 	"go.uber.org/nilaway/util/typeshelper"
 )
 
-// Map is an abstraction that concrete annotation maps must implement to be checked against.
-type Map interface {
-	CheckFieldAnn(*types.Var) (Val, bool)
-	CheckFuncParamAnn(*types.Func, int) (Val, bool)
-	CheckFuncRetAnn(*types.Func, int) (Val, bool)
-	CheckFuncRecvAnn(*types.Func) (Val, bool)
-	CheckDeepTypeAnn(*types.TypeName) (Val, bool)
-	CheckGlobalVarAnn(*types.Var) (Val, bool)
-	CheckFuncCallSiteParamAnn(*CallSiteParamAnnotationKey) (Val, bool)
-	CheckFuncCallSiteRetAnn(*CallSiteRetAnnotationKey) (Val, bool)
-}
-
 // Val is a possible value of an Annotation
 type Val struct {
 	IsNilable        bool
@@ -128,8 +116,8 @@ func (a Val) makeDeepNonNil(isFinalVal bool) Val {
 	}
 }
 
-// A ObservedMap represents a completed set of annotations read from a file or set of files,
-// it can be checked against an assertionTree using RootAssertionNode.ReportErrors
+// An ObservedMap represents a completed set of annotations read from a file or set of files. The
+// inference engine observes its explicitly set values as determined annotation sites.
 //
 // The maps are keyed by *ast.Idents because such an object is unique at each site in the code
 // it is used; canonically, declarations are identified with the identifier used at the site
@@ -179,15 +167,15 @@ type ArgLocAndVal struct {
 	Val      Val
 }
 
-// Range calls the passed function `op` on each annotation site in this map. If `setSitesOnly`
-// is true, then it only calls `op` only on the sites with is<Deep?>NilableSet true.
-func (m *ObservedMap) Range(op func(key Key, isDeep bool, val bool), setSitesOnly bool) {
+// Range calls the passed function `op` on each annotation site in this map that has
+// is<Deep?>NilableSet true.
+func (m *ObservedMap) Range(op func(key Key, isDeep bool, val bool)) {
 
 	callOpOnKeyVal := func(key Key, val Val) {
-		if !setSitesOnly || val.IsNilableSet {
+		if val.IsNilableSet {
 			op(key, false /* isDeep */, val.IsNilable)
 		}
-		if !setSitesOnly || val.IsDeepNilableSet {
+		if val.IsDeepNilableSet {
 			op(key, true /* isDeep */, val.IsDeepNilable)
 		}
 	}
@@ -235,12 +223,6 @@ func (m *ObservedMap) Range(op func(key Key, isDeep bool, val bool), setSitesOnl
 		}
 	}
 }
-
-// defaults for anonymous functions and structs (ones for which definitions just can't be found
-// aren't even looked up for now)
-var (
-	nonAnnotatedDefault = EmptyVal
-)
 
 const nilableKeyword = "nilable"
 const nonNilKeyword = "nonnil"
@@ -501,7 +483,7 @@ func newObservedMap(pass *analysishelper.EnhancedPass, files []*ast.File) *Obser
 			}
 			return accFromFieldList(set, decl.Recv, false, false)[0]
 		}
-		return nonAnnotatedDefault
+		return EmptyVal
 	}
 
 	for _, file := range files {

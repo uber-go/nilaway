@@ -369,10 +369,9 @@ func duplicateFullTrigger(
 	//  inference engine because we would not want to see a conflict at this site due to different
 	//  call sites.
 	dupTrigger := annotation.FullTrigger{
-		Producer:               trigger.Producer,
-		Consumer:               trigger.Consumer,
-		Controller:             nil,
-		CreatedFromDuplication: true,
+		Producer:   trigger.Producer,
+		Consumer:   trigger.Consumer,
+		Controller: nil,
 	}
 	if isParamProducer {
 		dupTrigger.Producer = annotation.DuplicateParamProducer(trigger.Producer, argLoc)

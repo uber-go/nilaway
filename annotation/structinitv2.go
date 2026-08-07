@@ -109,12 +109,6 @@ type StructFieldContextSite struct {
 	Location token.Position
 }
 
-// Lookup always returns the non-annotated default: these sites carry no syntactic annotation, so
-// their nilability comes purely from inference.
-func (s *StructFieldContextSite) Lookup(Map) (Val, bool) {
-	return nonAnnotatedDefault, false
-}
-
 // Object returns the function this site belongs to. Cross-package inference identity uses Object()
 // together with String(); the function is unique across packages, while the field may come from a
 // shared struct type.

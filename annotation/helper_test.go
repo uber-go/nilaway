@@ -26,11 +26,6 @@ type mockKey struct {
 	mock.Mock
 }
 
-func (m *mockKey) Lookup(m2 Map) (Val, bool) {
-	args := m.Called(m2)
-	return args.Get(0).(Val), args.Bool(1)
-}
-
 func (m *mockKey) Object() types.Object {
 	args := m.Called()
 	return args.Get(0).(types.Object)
@@ -62,11 +57,6 @@ func newMockKey() *mockKey {
 // mockProducingAnnotationTrigger is a mock implementation of the ProducingAnnotationTrigger interface
 type mockProducingAnnotationTrigger struct {
 	mock.Mock
-}
-
-func (m *mockProducingAnnotationTrigger) CheckProduce(m2 Map) bool {
-	args := m.Called(m2)
-	return args.Bool(0)
 }
 
 func (m *mockProducingAnnotationTrigger) NeedsGuardMatch() bool {

@@ -25,7 +25,6 @@ import (
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/assertion"
-	"go.uber.org/nilaway/assertion/function/assertiontree"
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/diagnostic"
 	"go.uber.org/nilaway/inference"
@@ -59,18 +58,9 @@ var Analyzer = &analysis.Analyzer{
 //
 // Before we proceed to the inference stage, we create an empty inference engine, observe (load)
 // any information from analyses of upstream dependencies, and load any manual annotations for the
-// current (local) package. Then, we start the inference depending on the mode:
-//
-// - Mode inference.NoInfer: No inference
-// We simply check all assertions against the manual annotations and upstream values (which can
-// possibly determine upstream values but cannot determine the already-determined local
-// values) and report errors if there are any.
-//
-// - Mode inference.FullInfer: Multi-Package Inference
-// Assertions are observed one by one to determine any further sites that must be determined from
-// this package's constraints. This is the extent of determination done, and all remaining
-// assertions and undetermined sites remain are exported later, possibly to be determined by
-// downstream packages.
+// current (local) package. Assertions are then observed one by one to determine any further sites
+// that must be determined from this package's constraints. All remaining assertions and
+// undetermined sites are exported later, possibly to be determined by downstream packages.
 //
 // Lastly, we export the _incremental_ information we have gathered from the analysis of local
 // package for use by downstream packages.
@@ -118,52 +108,30 @@ func run(p *analysis.Pass) (result interface{}, _ error) {
 	inferenceEngine := inference.NewEngine(pass, diagnosticEngine)
 	inferenceEngine.ObserveUpstream()
 
-	// Determine inference type based on comments in package doc string.
-	mode := inference.DetermineMode(pass)
+	// First observe all syntactically specified annotations from annotationsResult.
+	inferenceEngine.ObserveAnnotations(annotationsResult.Res)
 
-	// First observe all annotations from annotationsResult (observes only syntactic annotations
-	// for FullInfer mode, otherwise all annotations for NoInfer)
-	inferenceEngine.ObserveAnnotations(annotationsResult.Res, mode)
-
-	var (
-		inferredMap *inference.InferredMap
-		diagnostics []analysis.Diagnostic
-	)
-	switch mode {
-	case inference.FullInfer:
-		// TODO: This is a suppression added for handling of struct field assignments. We plan to add
-		//  object sensitivity to NilAway in the future, which will allow us to be more precise in struct fields'
-		//  handling. Remove this suppression once we have the object sensitivity implemented (issue #339).
-		for i := range assertionsResult.Res {
-			t := &assertionsResult.Res[i]
-			if _, ok := t.Consumer.Annotation.(*annotation.FldAssign); ok {
-				// Create a fresh producer for this consumer so the shared producer is not
-				// mutated.
-				t.Producer = &annotation.ProduceTrigger{
-					Annotation: &annotation.ProduceTriggerNever{},
-					Expr:       t.Producer.Expr,
-				}
+	// TODO: This is a suppression added for handling of struct field assignments. We plan to add
+	//  object sensitivity to NilAway in the future, which will allow us to be more precise in struct fields'
+	//  handling. Remove this suppression once we have the object sensitivity implemented (issue #339).
+	for i := range assertionsResult.Res {
+		t := &assertionsResult.Res[i]
+		if _, ok := t.Consumer.Annotation.(*annotation.FldAssign); ok {
+			// Create a fresh producer for this consumer so the shared producer is not
+			// mutated.
+			t.Producer = &annotation.ProduceTrigger{
+				Annotation: &annotation.ProduceTriggerNever{},
+				Expr:       t.Producer.Expr,
 			}
 		}
-
-		// Incorporate assertions from this package one-by-one into the inferredAnnotationMap, possibly
-		// determining local and upstream sites in the process. This is guaranteed not to determine any
-		// sites unless we really have a reason they have to be determined.
-		inferenceEngine.ObservePackage(assertionsResult.Res)
-		inferredMap = inferenceEngine.InferredMap()
-		diagnostics = diagnosticEngine.Diagnostics(conf.GroupErrorMessages)
-
-	case inference.NoInfer:
-		// In non-inference case - use the classical assertionNode.CheckErrors method to determine error outputs
-		inferredMap = inferenceEngine.InferredMap()
-		checkErrors(assertionsResult.Res, inferredMap, diagnosticEngine)
-		// Retrieve the diagnostics from the engine. Note that we should not group the
-		// diagnostics for easier unit testing.
-		diagnostics = diagnosticEngine.Diagnostics(false /* grouping */)
-
-	default:
-		panic("Invalid mode for running NilAway")
 	}
+
+	// Incorporate assertions from this package one-by-one into the inferredAnnotationMap, possibly
+	// determining local and upstream sites in the process. This is guaranteed not to determine any
+	// sites unless we really have a reason they have to be determined.
+	inferenceEngine.ObservePackage(assertionsResult.Res)
+	inferredMap := inferenceEngine.InferredMap()
+	diagnostics := diagnosticEngine.Diagnostics(conf.GroupErrorMessages)
 
 	// Export the _incremental_ information from this inferred map for analysis of downstream
 	// packages via the Fact mechanism (which [uses gob encoding under the hood]). The custom
@@ -177,47 +145,6 @@ func run(p *analysis.Pass) (result interface{}, _ error) {
 	inferredMap.Export(pass)
 
 	return diagnostics, nil
-}
-
-type conflictHandler interface {
-	AddSingleAssertionConflict(trigger annotation.FullTrigger)
-}
-
-// checkErrors iterates over a set of full triggers, checking each one against a given annotation
-// map to see if it fails and if so appending it to the returned list.
-func checkErrors(triggers []annotation.FullTrigger, annMap annotation.Map, diagnosticEngine conflictHandler) {
-	// Filter triggers for error return handling -- inter-procedural and annotations-based (no inference).
-	// (Note that since we are using FilterTriggersForErrorReturn as a preprocessing step here, we can directly use its
-	// first output `filteredTriggers` to check and report errors. The second output of raw `deleted triggers` is not
-	// needed in this situation, and hence suppressed with a blank identifier `_`)
-	filteredTriggers, _ := assertiontree.FilterTriggersForErrorReturn(
-		triggers,
-		func(p *annotation.ProduceTrigger) assertiontree.ProducerNilability {
-			if !p.Annotation.CheckProduce(annMap) {
-				return assertiontree.ProducerIsNonNil
-			}
-			// ProducerNilabilityUnknown is returned here since all we know at this point is that `p` is nilable,
-			// which means that it could be nil, but is not guaranteed to be always nil
-			return assertiontree.ProducerNilabilityUnknown
-		},
-	)
-
-	// Delete all "always safe" special handlers, since they are not meant to be tested for the no infer case
-	finalTriggers := make([]annotation.FullTrigger, 0, len(filteredTriggers))
-	for _, trigger := range filteredTriggers {
-		if c, ok := trigger.Consumer.Annotation.(*annotation.UseAsReturn); ok && c.IsTrackingAlwaysSafe {
-			continue
-		}
-		finalTriggers = append(finalTriggers, trigger)
-	}
-
-	for _, trigger := range finalTriggers {
-		// Skip checking any full triggers we created by duplicating from contracted functions
-		// to the caller function.
-		if !trigger.CreatedFromDuplication && trigger.Check(annMap) {
-			diagnosticEngine.AddSingleAssertionConflict(trigger)
-		}
-	}
 }
 
 // This is required to use interface types in facts - see the implementation of GobRegister for the

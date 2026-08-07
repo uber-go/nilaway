@@ -128,14 +128,9 @@ func (e *Engine) ObserveUpstream() {
 	})
 }
 
-// ObserveAnnotations does one of two things. If the inferenceType is FullInfer, then it reads
-// ONLY those annotations that are "set" (a separate flag for both nilability and deep nilability)
-// in an annotation.Val - corresponding to syntactically provided annotations but not default
-// annotations. Otherwise, it reads ALL values from the map pkgAnnotations including
-// non-syntactically present annotations that simply arose from defaults.
-// In this latter case, the subsequent calls to observeAssertion below cannot determine any local
-// annotation sites, because they're all already determined, but they can yield failures.
-func (e *Engine) ObserveAnnotations(pkgAnnotations *annotation.ObservedMap, mode ModeOfInference) {
+// ObserveAnnotations reads annotations that are explicitly set in an annotation.Val, corresponding
+// to syntactically provided annotations rather than default values.
+func (e *Engine) ObserveAnnotations(pkgAnnotations *annotation.ObservedMap) {
 	pkgAnnotations.Range(func(key annotation.Key, isDeep bool, val bool) {
 		site := e.primitive.site(key, isDeep)
 		if val {
@@ -143,7 +138,7 @@ func (e *Engine) ObserveAnnotations(pkgAnnotations *annotation.ObservedMap, mode
 		} else {
 			e.observeSiteExplanation(site, FalseBecauseAnnotation{AnnotationPos: site.Position})
 		}
-	}, mode != NoInfer)
+	})
 }
 
 // mapGuardMissingAndReturnToFuncSite returns two maps:
@@ -249,7 +244,7 @@ func (e *Engine) ObservePackage(pkgFullTriggers []annotation.FullTrigger) {
 
 	// Step 3: run error return handling procedure to filter out redundant triggers based on the error contract, and
 	// keep only those UseAsNonErrorRetDependentOnErrorRetNilability triggers that are not deleted.
-	// Call FilterTriggersForErrorReturn to filter triggers for error return handling -- inter-procedural and full-inference mode
+	// Call FilterTriggersForErrorReturn to filter triggers for inter-procedural error return handling.
 	_, delTriggers := assertiontree.FilterTriggersForErrorReturn(
 		pkgFullTriggers,
 		func(p *annotation.ProduceTrigger) assertiontree.ProducerNilability {
@@ -409,7 +404,7 @@ func (e *Engine) observeSiteExplanation(site primitiveSite, siteExplained Explai
 		panic(fmt.Sprintf("nil value stored in inferred map for site %v", site))
 	}
 
-	// If value exists in the annotation map, there are two cases:
+	// If the site exists in the inferred map, there are two cases:
 	// (1) a determined value (*DeterminedVal) exists: we check if the new value agrees with the
 	//     existing value and create failure if not.
 	// (2) an undetermined value (*UndeterminedVal) exists: this site is now determined, and

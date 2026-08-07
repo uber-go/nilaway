@@ -35,12 +35,6 @@ import (
 // This is because there are interfaces, such as AdmitsPrimitive, that are implemented only for those
 // structs, and to which a ProducingAnnotationTrigger must be able to be cast
 type ProducingAnnotationTrigger interface {
-	// CheckProduce can be called to determined whether this trigger should be triggered
-	// given a particular Annotation map
-	// for example - a `FuncReturn` trigger triggers iff the corresponding function has
-	// nilable return type
-	CheckProduce(Map) bool
-
 	// NeedsGuardMatch returns whether this production is contingent on being
 	// paired with a guarded consumer.
 	// In other words, this production is only given the freedom to produce
@@ -85,12 +79,6 @@ func (TriggerIfNilableRepr) String() string {
 	return "nilable value"
 }
 
-// CheckProduce returns true if the underlying annotation is present in the passed map and nilable
-func (t *TriggerIfNilable) CheckProduce(annMap Map) bool {
-	ann, ok := t.Ann.Lookup(annMap)
-	return ok && ann.IsNilable
-}
-
 // NeedsGuardMatch returns true if this trigger needs to be matched with a guarded consumer
 func (t *TriggerIfNilable) NeedsGuardMatch() bool { return t.NeedsGuard }
 
@@ -130,12 +118,6 @@ func (TriggerIfDeepNilableRepr) String() string {
 	return "deeply nilable value"
 }
 
-// CheckProduce returns true if the underlying annotation is present in the passed map and deeply nilable
-func (t *TriggerIfDeepNilable) CheckProduce(annMap Map) bool {
-	ann, ok := t.Ann.Lookup(annMap)
-	return ok && ann.IsDeepNilable
-}
-
 // NeedsGuardMatch returns true if this trigger needs to be matched with a guarded consumer
 func (t *TriggerIfDeepNilable) NeedsGuardMatch() bool { return t.NeedsGuard }
 
@@ -159,11 +141,6 @@ func (t *TriggerIfDeepNilable) equals(other ProducingAnnotationTrigger) bool {
 // ProduceTriggerTautology is used for trigger producers that will always result in nil
 type ProduceTriggerTautology struct {
 	NeedsGuard bool
-}
-
-// CheckProduce returns true
-func (*ProduceTriggerTautology) CheckProduce(Map) bool {
-	return true
 }
 
 // NeedsGuardMatch returns true if this trigger needs to be matched with a guarded consumer
@@ -215,11 +192,6 @@ type ProduceTriggerNeverRepr struct{}
 
 func (ProduceTriggerNeverRepr) String() string {
 	return "is not nilable"
-}
-
-// CheckProduce returns true false
-func (*ProduceTriggerNever) CheckProduce(Map) bool {
-	return false
 }
 
 // NeedsGuardMatch returns true if this trigger needs to be matched with a guarded consumer

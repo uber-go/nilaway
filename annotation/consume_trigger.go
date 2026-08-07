@@ -34,11 +34,6 @@ import (
 // -TriggerIfDeepNonNil
 // -ConsumeTriggerTautology
 type ConsumingAnnotationTrigger interface {
-	// CheckConsume can be called to determined whether this trigger should be triggered
-	// given a particular Annotation map
-	// for example - an `ArgPass` trigger triggers iff the corresponding function arg has
-	// nonNil type
-	CheckConsume(Map) bool
 	Repr() fmt.Stringer
 
 	// Kind returns the kind of the trigger.
@@ -158,12 +153,6 @@ func (*TriggerIfNonNil) Kind() TriggerKind { return Conditional }
 // UnderlyingSite the underlying site this trigger's nilability depends on.
 func (t *TriggerIfNonNil) UnderlyingSite() Key { return t.Ann }
 
-// CheckConsume returns true if the underlying annotation is present in the passed map and nonnil
-func (t *TriggerIfNonNil) CheckConsume(annMap Map) bool {
-	ann, ok := t.Ann.Lookup(annMap)
-	return ok && !ann.IsNilable
-}
-
 // customPos has the below default implementation for TriggerIfNonNil, in which case ConsumeTrigger.Pos() will return a default value.
 // To return non-default position values, this method should be overridden appropriately.
 func (*TriggerIfNonNil) customPos() (token.Pos, bool) { return token.NoPos, false }
@@ -229,12 +218,6 @@ func (*TriggerIfDeepNonNil) Kind() TriggerKind { return DeepConditional }
 // UnderlyingSite the underlying site this trigger's nilability depends on.
 func (t *TriggerIfDeepNonNil) UnderlyingSite() Key { return t.Ann }
 
-// CheckConsume returns true if the underlying annotation is present in the passed map and deeply nonnil
-func (t *TriggerIfDeepNonNil) CheckConsume(annMap Map) bool {
-	ann, ok := t.Ann.Lookup(annMap)
-	return ok && !ann.IsDeepNilable
-}
-
 // customPos has the below default implementation for TriggerIfDeepNonNil, in which case ConsumeTrigger.Pos() will return a default value.
 // To return non-default position values, this method should be overridden appropriately.
 func (*TriggerIfDeepNonNil) customPos() (token.Pos, bool) { return token.NoPos, false }
@@ -298,9 +281,6 @@ func (*ConsumeTriggerTautology) Kind() TriggerKind { return Always }
 
 // UnderlyingSite always returns nil.
 func (*ConsumeTriggerTautology) UnderlyingSite() Key { return nil }
-
-// CheckConsume returns true
-func (*ConsumeTriggerTautology) CheckConsume(Map) bool { return true }
 
 // customPos has the below default implementation for ConsumeTriggerTautology, in which case ConsumeTrigger.Pos() will return a default value.
 // To return non-default position values, this method should be overridden appropriately.

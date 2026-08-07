@@ -18,10 +18,8 @@ import (
 	"bytes"
 	"encoding/gob"
 	"errors"
-	"go/types"
 
 	"github.com/klauspost/compress/s2"
-	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/orderedmap"
 )
@@ -231,73 +229,4 @@ func (i *InferredMap) chooseSitesToExport() map[primitiveSite]bool {
 		}
 	}
 	return toExport
-}
-
-// The following method implementations make InferredMap satisfy the annotation.Map
-// interface, so that triggers can be checked against it.
-
-// CheckFieldAnn checks this InferredMap for a concrete mapping of the field key provided
-func (i *InferredMap) CheckFieldAnn(fld *types.Var) (annotation.Val, bool) {
-	return i.checkAnnotationKey(&annotation.FieldAnnotationKey{FieldDecl: fld})
-}
-
-// CheckFuncParamAnn checks this InferredMap for a concrete mapping of the param key provided
-func (i *InferredMap) CheckFuncParamAnn(fdecl *types.Func, num int) (annotation.Val, bool) {
-	return i.checkAnnotationKey(annotation.ParamKeyFromArgNum(fdecl, num))
-}
-
-// CheckFuncRetAnn checks this InferredMap for a concrete mapping of the return key provided
-func (i *InferredMap) CheckFuncRetAnn(fdecl *types.Func, num int) (annotation.Val, bool) {
-	return i.checkAnnotationKey(annotation.RetKeyFromRetNum(fdecl, num))
-}
-
-// CheckFuncRecvAnn checks this InferredMap for a concrete mapping of the receiver key provided
-func (i *InferredMap) CheckFuncRecvAnn(fdecl *types.Func) (annotation.Val, bool) {
-	return i.checkAnnotationKey(&annotation.RecvAnnotationKey{FuncDecl: fdecl})
-}
-
-// CheckDeepTypeAnn checks this InferredMap for a concrete mapping of the type name key provideed
-func (i *InferredMap) CheckDeepTypeAnn(name *types.TypeName) (annotation.Val, bool) {
-	return i.checkAnnotationKey(&annotation.TypeNameAnnotationKey{TypeDecl: name})
-}
-
-// CheckGlobalVarAnn checks this InferredMap for a concrete mapping of the global variable key provided
-func (i *InferredMap) CheckGlobalVarAnn(v *types.Var) (annotation.Val, bool) {
-	return i.checkAnnotationKey(&annotation.GlobalVarAnnotationKey{VarDecl: v})
-}
-
-// CheckFuncCallSiteParamAnn checks this InferredMap for a concrete mapping of the call site param
-// key provided.
-func (i *InferredMap) CheckFuncCallSiteParamAnn(key *annotation.CallSiteParamAnnotationKey) (annotation.Val, bool) {
-	return i.checkAnnotationKey(key)
-}
-
-// CheckFuncCallSiteRetAnn checks this InferredMap for a concrete mapping of the call site return
-// key provided.
-func (i *InferredMap) CheckFuncCallSiteRetAnn(key *annotation.CallSiteRetAnnotationKey) (annotation.Val, bool) {
-	return i.checkAnnotationKey(key)
-}
-
-func (i *InferredMap) checkAnnotationKey(key annotation.Key) (annotation.Val, bool) {
-	shallowKey := i.primitive.site(key, false)
-	deepKey := i.primitive.site(key, true)
-
-	shallowVal, shallowOk := i.mapping.Load(shallowKey)
-	deepVal, deepOk := i.mapping.Load(deepKey)
-	if !shallowOk || !deepOk {
-		return annotation.EmptyVal, false
-	}
-
-	shallowBoolVal, shallowOk := shallowVal.(*DeterminedVal)
-	deepBoolVal, deepOk := deepVal.(*DeterminedVal)
-	if !shallowOk || !deepOk {
-		return annotation.EmptyVal, false
-	}
-
-	return annotation.Val{
-		IsNilable:        shallowBoolVal.Bool.Val(),
-		IsDeepNilable:    deepBoolVal.Bool.Val(),
-		IsNilableSet:     true,
-		IsDeepNilableSet: true,
-	}, true
 }

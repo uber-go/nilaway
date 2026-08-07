@@ -25,10 +25,6 @@ package config
 // to lower values, making it a good compromise for precise results.
 const StableRoundLimit = 5
 
-// NilAwayNoInferString is the string that may be inserted into the docstring for a package to prevent
-// NilAway from inferring the annotations for that package - this is useful for unit tests
-const NilAwayNoInferString = "<nilaway no inference>"
-
 // InternalPanicPrefix identifies diagnostics emitted when NilAway recovers from an internal panic.
 const InternalPanicPrefix = "INTERNAL PANIC"
 
