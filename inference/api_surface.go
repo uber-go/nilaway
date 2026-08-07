@@ -81,9 +81,9 @@ type apiSurfaceWalker struct {
 	seen    map[seenEntry]bool
 }
 
-// seenEntry marks a type or an object as visited at a given polarity (see visitType).
+// seenEntry marks a type as visited at a given polarity (see visitType).
 type seenEntry struct {
-	key any
+	typ types.Type
 	out bool
 }
 
@@ -112,7 +112,7 @@ func (w *apiSurfaceWalker) visitType(t types.Type, out bool) {
 	if t == nil {
 		return
 	}
-	entry := seenEntry{key: t, out: out}
+	entry := seenEntry{typ: t, out: out}
 	if w.seen[entry] {
 		return
 	}
@@ -151,28 +151,13 @@ func (w *apiSurfaceWalker) visitType(t types.Type, out bool) {
 	case *types.Interface:
 		// Interfaces are reachable in both polarities: values handed out can be inspected, and
 		// interfaces asked for can be implemented by the importer, whose implementations are
-		// related to the interface methods by NilAway's affiliation analysis.
-		for i := range t.NumMethods() {
-			method := t.Method(i)
-			// An unexported method can neither be called nor implemented from another package,
-			// which incidentally makes the whole interface unimplementable outside its own.
-			if !method.Exported() {
-				continue
-			}
-			w.recordObject(method)
-			w.visitSignature(method.Signature(), out)
-		}
+		// related to the interface methods by NilAway's affiliation analysis. Note that an
+		// unexported method makes the whole interface unimplementable outside its own package.
+		w.visitMethods(t.NumMethods(), t.Method, out)
 	case *types.Named:
 		if out {
 			w.recordObject(t.Obj())
-			for i := range t.NumMethods() {
-				method := t.Method(i)
-				if !method.Exported() {
-					continue
-				}
-				w.recordObject(method)
-				w.visitSignature(method.Signature(), out)
-			}
+			w.visitMethods(t.NumMethods(), t.Method, out)
 		}
 		for i := range t.TypeArgs().Len() {
 			w.visitType(t.TypeArgs().At(i), out)
@@ -184,6 +169,20 @@ func (w *apiSurfaceWalker) visitType(t types.Type, out bool) {
 		w.visitType(t.Underlying(), out)
 	case *types.TypeParam:
 		w.visitType(t.Constraint(), out)
+	}
+}
+
+// visitMethods records and traverses the exported methods of an interface or named type, given its
+// method count and accessor. Unexported methods can neither be called nor implemented from another
+// package, so they are skipped.
+func (w *apiSurfaceWalker) visitMethods(numMethods int, methodAt func(int) *types.Func, out bool) {
+	for i := range numMethods {
+		method := methodAt(i)
+		if !method.Exported() {
+			continue
+		}
+		w.recordObject(method)
+		w.visitSignature(method.Signature(), out)
 	}
 }
 
