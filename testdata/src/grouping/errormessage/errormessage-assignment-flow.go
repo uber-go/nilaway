@@ -115,7 +115,7 @@ func test11(s []*int) {
 	print(*y)
 }
 
-func test12(mp map[int]S, i int) {
+func test12(mp map[int]*S, i int) {
 	x := mp[i] // unrelated assignment, should not be printed in the error message
 	_ = x
 
@@ -123,11 +123,23 @@ func test12(mp map[int]S, i int) {
 	_ = y
 
 	s := mp[i] // relevant assignment, should be printed in the error message
-	consumeS(&s)
+	consumeS(s)
 }
 
 func consumeS(s *S) {
 	print(s.f) //want "`mp\\[i\\]` to `s`"
+}
+
+func test12ValueMapRead(mp map[int]S, i int) {
+	s := mp[i]
+	consumeS(&s)
+}
+
+type test12ValueMap map[int]S
+
+func test12NamedValueMapRead(mp test12ValueMap, i int) {
+	s := mp[i]
+	consumeS(&s)
 }
 
 func retErr() error {

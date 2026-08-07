@@ -108,6 +108,18 @@ func IsDeeplyType[T types.Type](t types.Type) bool {
 	})
 }
 
+// IsDeeplyTypeWithNilableElement is like IsDeeplyType, but additionally requires the element type
+// of T to admit nil.
+func IsDeeplyTypeWithNilableElement[T interface {
+	types.Type
+	Elem() types.Type
+}](t types.Type) bool {
+	return underlyingAlwaysSatisfies(t, func(u types.Type) bool {
+		outer, ok := u.(T)
+		return ok && !TypeBarsNilness(outer.Elem())
+	})
+}
+
 // IsDeeplyArrayOrArrayPtr is like IsDeeplyType[*types.Array], but additionally accepts pointers to arrays
 // (again resolving named types, aliases, and type parameters). Slice expressions and range
 // statements auto-dereference pointers to arrays, so for them an operand of either type

@@ -44,7 +44,7 @@ func DeepNilabilityAsNamedType(typ types.Type) ProducingAnnotationTrigger {
 		return &ArrayRead{TriggerIfDeepNilable: nameAsDeepTrigger(t.Obj())}
 	case *types.Map:
 		trigger := nameAsDeepTrigger(t.Obj())
-		trigger.NeedsGuard = true
+		trigger.NeedsGuard = typeshelper.IsDeeplyTypeWithNilableElement[*types.Map](t)
 		return &MapRead{
 			TriggerIfDeepNilable: trigger,
 		}
@@ -65,7 +65,7 @@ func DeepNilabilityOfFuncRet(fn *types.Func, retNum int) ProducingAnnotationTrig
 		return &FuncReturnDeep{
 			TriggerIfDeepNilable: &TriggerIfDeepNilable{
 				Ann:        RetKeyFromRetNum(fn, retNum),
-				NeedsGuard: typeshelper.IsDeeplyType[*types.Map](retType)},
+				NeedsGuard: typeshelper.IsDeeplyTypeWithNilableElement[*types.Map](retType)},
 		}
 	}
 	return DeepNilabilityAsNamedType(retType)
@@ -79,7 +79,7 @@ func DeepNilabilityOfFld(fld *types.Var) ProducingAnnotationTrigger {
 			TriggerIfDeepNilable: &TriggerIfDeepNilable{
 				Ann: &FieldAnnotationKey{
 					FieldDecl: fld},
-				NeedsGuard: typeshelper.IsDeeplyType[*types.Map](fld.Type())},
+				NeedsGuard: typeshelper.IsDeeplyTypeWithNilableElement[*types.Map](fld.Type())},
 		}
 	}
 	return DeepNilabilityAsNamedType(fld.Type())
@@ -96,7 +96,7 @@ func DeepNilabilityOfVar(fdecl *types.Func, v *types.Var) ProducingAnnotationTri
 					Ann: &GlobalVarAnnotationKey{
 						VarDecl: v,
 					},
-					NeedsGuard: typeshelper.IsDeeplyType[*types.Map](v.Type())},
+					NeedsGuard: typeshelper.IsDeeplyTypeWithNilableElement[*types.Map](v.Type())},
 			}
 		}
 		if VarIsParam(fdecl, v) {
@@ -115,7 +115,7 @@ func DeepNilabilityOfVar(fdecl *types.Func, v *types.Var) ProducingAnnotationTri
 				Ann: &LocalVarAnnotationKey{
 					VarDecl: v,
 				},
-				NeedsGuard: typeshelper.IsDeeplyType[*types.Map](v.Type()),
+				NeedsGuard: typeshelper.IsDeeplyTypeWithNilableElement[*types.Map](v.Type()),
 			},
 		}
 	}
@@ -195,12 +195,12 @@ func paramAsDeepProducer(fdecl *types.Func, param *types.Var) ProducingAnnotatio
 		return &VariadicFuncParamDeep{
 			TriggerIfNilable: &TriggerIfNilable{
 				Ann:        paramKey,
-				NeedsGuard: typeshelper.IsDeeplyType[*types.Map](param.Type())}}
+				NeedsGuard: typeshelper.IsDeeplyTypeWithNilableElement[*types.Map](param.Type())}}
 	}
 	return &FuncParamDeep{
 		TriggerIfDeepNilable: &TriggerIfDeepNilable{
 			Ann:        paramKey,
-			NeedsGuard: typeshelper.IsDeeplyType[*types.Map](param.Type())},
+			NeedsGuard: typeshelper.IsDeeplyTypeWithNilableElement[*types.Map](param.Type())},
 	}
 }
 
