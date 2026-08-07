@@ -98,11 +98,14 @@ func useReturnVarDeclNil() {
 	print(b.aptr.aptr.ptr) //want "uninitialized field `aptr`"
 }
 
-// Multi-return assignments bind the struct result by result index.
+// Multi-return assignments bind fields by result index after an ok check.
 func giveNilWithFlag() (*A, bool) { return &A{aptr: &A2{}}, false }
 
 func useMultiReturnNil() {
-	b, _ := giveNilWithFlag()
+	b, ok := giveNilWithFlag()
+	if !ok {
+		return
+	}
 	print(b.aptr.aptr.ptr) //want "uninitialized field `aptr`"
 }
 

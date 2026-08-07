@@ -565,6 +565,10 @@ func guardExpr(rootNode *RootAssertionNode, expr TrackableExpr, nonce guard.Nonc
 		lookedUpNode.SetConsumeTriggers(
 			annotation.ConsumeTriggerSliceAsGuarded(
 				lookedUpNode.ConsumeTriggers(), nonce))
+		// Error and ok checks guard tracked result fields as well as the result itself.
+		if rootNode.functionContext.functionConfig.EnableStructInitV2 {
+			guardFieldSubtree(lookedUpNode, nonce)
+		}
 	}
 }
 

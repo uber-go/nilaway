@@ -853,13 +853,19 @@ func backpropAcrossManyToOneAssignment(rootNode *RootAssertionNode, lhs, rhs []a
 			continue
 		}
 
+		// Match guards before field production detaches the tracked consumers.
+		rootNode.AddGuardMatch(lhsVal, ContinueTracking)
+
 		// Bind return fields before LHS production detaches its subtree.
 		if rootNode.functionContext.functionConfig.EnableStructInitV2 {
 			if funcObj := typeutil.StaticCallee(rootNode.Pass().TypesInfo, rhsVal); funcObj != nil {
 				sig := funcObj.Type().(*types.Signature)
 				if i < sig.Results().Len() {
 					if typeshelper.AsDeeplyStruct(sig.Results().At(i).Type()) != nil {
-						rootNode.addCallResultFieldProducers(lhsVal, rhsVal, funcObj, i)
+						// Non-error results require the caller to check the companion error or ok value.
+						needsGuard := (typeshelper.FuncIsErrReturning(sig) || typeshelper.FuncIsOkReturning(sig)) &&
+							i != sig.Results().Len()-1
+						rootNode.addCallResultFieldProducers(lhsVal, rhsVal, funcObj, i, needsGuard)
 					}
 				}
 			}
@@ -874,7 +880,6 @@ func backpropAcrossManyToOneAssignment(rootNode *RootAssertionNode, lhs, rhs []a
 		// beforeTriggersLastIndex is used to find the newly added triggers on the next line
 		beforeTriggersLastIndex := len(rootNode.triggers)
 
-		rootNode.AddGuardMatch(lhsVal, ContinueTracking)
 		rootNode.AddProduction(&annotation.ProduceTrigger{
 			Annotation: producers[i].GetShallow().Annotation,
 			Expr:       lhsVal,

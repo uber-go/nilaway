@@ -516,6 +516,10 @@ func (r *RootAssertionNode) AddGuardMatch(expr ast.Expr, behavior GuardMatchBeha
 				consumers[i].GuardMatched = true
 			}
 		}
+		// Match field guards before result production detaches the consumers.
+		if r.functionContext.functionConfig.EnableStructInitV2 {
+			matchGuardFieldSubtree(currNode, guard)
+		}
 	case ProduceAsNonnil:
 		var newConsumers []*annotation.ConsumeTrigger
 		for _, consumer := range consumers {

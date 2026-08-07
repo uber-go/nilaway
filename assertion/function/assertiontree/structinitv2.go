@@ -81,7 +81,7 @@ func (r *RootAssertionNode) addAllocationFieldProducers(lhsVal, rhsVal ast.Expr)
 	if call, ok := ast.Unparen(rhsVal).(*ast.CallExpr); ok {
 		if target, ok := typeshelper.ResolveStaticCallTarget(r.Pass().TypesInfo, call); ok && target.Signature.Results().Len() == 1 {
 			if typeshelper.AsDeeplyStruct(target.Signature.Results().At(0).Type()) != nil {
-				r.addCallResultFieldProducers(lhsVal, call, target.Origin, 0)
+				r.addCallResultFieldProducers(lhsVal, call, target.Origin, 0, false)
 			}
 		}
 	}
@@ -101,13 +101,15 @@ func (r *RootAssertionNode) resultValueHasParamSource(funcObj *types.Func, resul
 	return r.resultPathHasParamSource(funcObj, resultIdx, annotation.FieldPath{})
 }
 
-// addCallResultFieldProducers adds producers for the accessed fields of a call result. Parameter
-// sources use call-scoped sites; unresolved sources are skipped to avoid merging callers.
+// addCallResultFieldProducers adds producers for accessed call-result fields. Parameter sources
+// use call-scoped sites; unresolved sources remain severed. needsGuard requires the caller to
+// check a companion error or ok result before using the fields.
 func (r *RootAssertionNode) addCallResultFieldProducers(
 	base ast.Expr,
 	call *ast.CallExpr,
 	funcObj *types.Func,
 	resultIdx int,
+	needsGuard bool,
 ) {
 	path, _ := r.ParseExprAsProducer(base, false)
 	node, _ := r.lookupPath(path)
@@ -129,14 +131,14 @@ func (r *RootAssertionNode) addCallResultFieldProducers(
 	sources := r.functionContext.boundaryFieldEffects.ReturnParamSources(funcObj)
 	for _, p := range paths {
 		result := structfieldeffects.IndexedFieldPath{Idx: resultIdx, Path: p.path}
-		if r.bindParamSourcedResultFieldAtCall(call, funcObj, sources, result, p.sel) {
+		if r.bindParamSourcedResultFieldAtCall(call, funcObj, sources, result, p.sel, needsGuard) {
 			continue
 		}
 		// Unresolved param sources cannot safely use shared sites.
 		if sources.HasSource(result.Idx, result.Path) {
 			continue
 		}
-		r.addSharedCallResultFieldProducer(p.sel, funcObj, resultIdx, p.path, returnEffects[p.path])
+		r.addSharedCallResultFieldProducer(p.sel, funcObj, resultIdx, p.path, returnEffects[p.path], needsGuard)
 	}
 }
 
@@ -146,6 +148,7 @@ func (r *RootAssertionNode) addSharedCallResultFieldProducer(
 	resultIdx int,
 	resultPath annotation.FieldPath,
 	definiteNil bool,
+	needsGuard bool,
 ) {
 	site := &annotation.StructFieldContextSite{
 		FuncObj: funcObj,
@@ -155,7 +158,7 @@ func (r *RootAssertionNode) addSharedCallResultFieldProducer(
 	}
 	r.AddProduction(&annotation.ProduceTrigger{
 		Annotation: &annotation.StructFieldFromContext{
-			TriggerIfNilable: &annotation.TriggerIfNilable{Ann: site},
+			TriggerIfNilable: &annotation.TriggerIfNilable{Ann: site, NeedsGuard: needsGuard},
 		},
 		Expr: dst,
 	})
@@ -189,6 +192,7 @@ func (r *RootAssertionNode) bindParamSourcedResultFieldAtCall(
 	sources structfieldeffects.ReturnParamSources,
 	result structfieldeffects.IndexedFieldPath,
 	dst ast.Expr,
+	needsGuard bool,
 ) bool {
 	param, ok := sources.ParamPathFromResultPath(result.Idx, result.Path)
 	if !ok {
@@ -207,7 +211,7 @@ func (r *RootAssertionNode) bindParamSourcedResultFieldAtCall(
 	}
 	r.AddProduction(&annotation.ProduceTrigger{
 		Annotation: &annotation.StructFieldFromContext{
-			TriggerIfNilable: &annotation.TriggerIfNilable{Ann: site},
+			TriggerIfNilable: &annotation.TriggerIfNilable{Ann: site, NeedsGuard: needsGuard},
 		},
 		Expr: dst,
 	})
@@ -215,7 +219,8 @@ func (r *RootAssertionNode) bindParamSourcedResultFieldAtCall(
 	return true
 }
 
-// bindShallowCallResultArgs supplies call-scoped sites for parameter-sourced result values.
+// bindShallowCallResultArgs supplies call-scoped result sites from the call's arguments. It runs
+// before param-out so backpropagation observes post-call values.
 func (r *RootAssertionNode) bindShallowCallResultArgs(call *ast.CallExpr, funcObj *types.Func) {
 	sources := r.functionContext.boundaryFieldEffects.ReturnParamSources(funcObj)
 	sig := funcObj.Signature()
@@ -262,8 +267,11 @@ func (r *RootAssertionNode) shallowCallResultSiteProducer(
 		Path:     result.Path,
 		Location: r.LocationOf(call),
 	}
+	sig := funcObj.Signature()
+	needsGuard := (typeshelper.FuncIsErrReturning(sig) || typeshelper.FuncIsOkReturning(sig)) &&
+		resultIdx != sig.Results().Len()-1
 	return &annotation.StructFieldFromContext{
-		TriggerIfNilable: &annotation.TriggerIfNilable{Ann: site},
+		TriggerIfNilable: &annotation.TriggerIfNilable{Ann: site, NeedsGuard: needsGuard},
 	}, true
 }
 
@@ -439,9 +447,35 @@ func (r *RootAssertionNode) collectAccessedFieldPaths(node AssertionNode, base a
 	}
 }
 
-// bindReturnFieldsToContext binds, at a return statement, the fields of each struct-typed return
-// value to that result's return context site, so the returned value's per-field nilability
-// becomes the function's return summary.
+// guardFieldSubtree guards field consumers below node. The caller handles node itself.
+func guardFieldSubtree(node AssertionNode, nonce guard.Nonce) {
+	for _, child := range node.Children() {
+		if _, ok := child.(*fldAssertionNode); !ok {
+			continue
+		}
+		child.SetConsumeTriggers(annotation.ConsumeTriggerSliceAsGuarded(child.ConsumeTriggers(), nonce))
+		guardFieldSubtree(child, nonce)
+	}
+}
+
+// matchGuardFieldSubtree matches guarded field consumers below node.
+func matchGuardFieldSubtree(node AssertionNode, nonce guard.Nonce) {
+	for _, child := range node.Children() {
+		if _, ok := child.(*fldAssertionNode); !ok {
+			continue
+		}
+		consumers := child.ConsumeTriggers()
+		for i, consumer := range consumers {
+			if consumer.Guards.Contains(nonce) && !consumer.GuardMatched {
+				consumers[i].GuardMatched = true
+			}
+		}
+		matchGuardFieldSubtree(child, nonce)
+	}
+}
+
+// bindReturnFieldsToContext binds returned struct fields to their summary. Error-returning
+// functions contribute fields only when the error is definitely nil; unknown errors stay silent.
 func (r *RootAssertionNode) bindReturnFieldsToContext(node *ast.ReturnStmt) {
 	sig := r.FuncObj().Type().(*types.Signature)
 	if len(node.Results) != sig.Results().Len() {
@@ -449,8 +483,7 @@ func (r *RootAssertionNode) bindReturnFieldsToContext(node *ast.ReturnStmt) {
 	}
 	if typeshelper.FuncIsErrReturning(sig) {
 		errExpr := node.Results[sig.Results().Len()-1]
-		// We are not attaching a consumer when we are sure that the the err is definitely non-nil
-		if _, definitelyNonNil := r.getShallowExprNilabilityProducer(errExpr).(*annotation.ProduceTriggerNever); definitelyNonNil {
+		if !isErrorReturnNil(r, errExpr) {
 			return
 		}
 	}
