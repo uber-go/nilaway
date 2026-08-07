@@ -116,7 +116,10 @@ func (s *StructFieldContextSite) Object() types.Object { return s.FuncObj }
 
 func (s *StructFieldContextSite) equals(other Key) bool {
 	if other, ok := other.(*StructFieldContextSite); ok {
-		return *s == *other
+		// Order the value comparison so the cheap, selective scalar fields (Kind, Index, FuncObj
+		// identity) run before the Path string and Location compares.
+		return s.Kind == other.Kind && s.Index == other.Index && s.FuncObj == other.FuncObj &&
+			s.Path == other.Path && s.Location == other.Location
 	}
 	return false
 }

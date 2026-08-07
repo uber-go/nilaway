@@ -67,17 +67,19 @@ func (t *FullTrigger) truncatedProducerPos(pass *analysishelper.EnhancedPass) to
 
 // equals returns true if the two passed FullTriggers are equal, and false otherwise.
 func (t *FullTrigger) equals(other FullTrigger) bool {
-	return t.Producer.Annotation.equals(other.Producer.Annotation) &&
-		t.Consumer.Annotation.equals(other.Consumer.Annotation) &&
-		t.Consumer.Expr == other.Consumer.Expr &&
-		t.Consumer.GuardMatched == other.Consumer.GuardMatched
+	// Consumer Expr identity and GuardMatched are the cheap, selective discriminators; the
+	// annotation comparisons only run for the (rare) pairs that agree on them.
+	return t.Consumer.Expr == other.Consumer.Expr &&
+		t.Consumer.GuardMatched == other.Consumer.GuardMatched &&
+		t.Producer.Annotation.equals(other.Producer.Annotation) &&
+		t.Consumer.Annotation.equals(other.Consumer.Annotation)
 }
 
 // equalsModuloGuardMatched returns true if the two passed FullTriggers (modulo the GuardMatched field) are equal, and false otherwise.
 func (t *FullTrigger) equalsModuloGuardMatched(other FullTrigger) bool {
-	return t.Producer.Annotation.equals(other.Producer.Annotation) &&
-		t.Consumer.Annotation.equals(other.Consumer.Annotation) &&
-		t.Consumer.Expr == other.Consumer.Expr
+	return t.Consumer.Expr == other.Consumer.Expr &&
+		t.Producer.Annotation.equals(other.Producer.Annotation) &&
+		t.Consumer.Annotation.equals(other.Consumer.Annotation)
 }
 
 // A LocatedRepr wraps another fmt.Stringer with a `token.Position` - for formatting with that position
