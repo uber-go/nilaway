@@ -12,23 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package main implements the integration test framework for checking cross-package inference with
-// different analyzer drivers. It compares the diagnostics reported by running NilAway separately
-// and the diagnostics specified in the comments of the `testdata/integration` project.
-// See `testdata/integration/README.md` for more details.
+// Package main implements the integration test framework for checking NilAway with different
+// analyzer drivers. It runs each driver on the analysistest corpus under
+// testdata/src/go.uber.org and compares the reported diagnostics with its want comments.
 package main
 
 import (
 	"errors"
 	"fmt"
+	"go/parser"
+	"go/token"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"sort"
+	"strconv"
 	"strings"
-
-	"golang.org/x/tools/go/packages"
+	"text/scanner"
 )
 
 // Position represents a line position in a file.
@@ -41,75 +44,133 @@ type Position struct {
 type Driver interface {
 	// Run runs NilAway on the test project specified by dir and returns the diagnostics reported
 	// by NilAway (in a map from Position to the diagnostic message).
-	Run(dir string) (map[Position]string, error)
+	Run(dir string) (map[Position][]string, error)
 }
 
-// CollectGroundTruths collects the ground truths from the test project specified by the "//want"
-// comments in the test code (see `testdata/integration` for more details).
-func CollectGroundTruths(dir string) (map[Position]*regexp.Regexp, error) {
-	// First load all packages in the directory.
-	config := &packages.Config{
-		Mode: packages.NeedName | packages.NeedSyntax | packages.NeedFiles | packages.NeedTypes,
-		Dir:  dir,
-	}
-	pkgs, err := packages.Load(config, "./...")
-	if err != nil {
-		return nil, fmt.Errorf("load packages: %w", err)
-	}
+// CollectGroundTruths collects diagnostics specified by want comments in Go files under dir.
+func CollectGroundTruths(dir string) (map[Position][]*regexp.Regexp, error) {
+	truths := make(map[Position][]*regexp.Regexp)
+	fset := token.NewFileSet()
+	err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || filepath.Ext(path) != ".go" {
+			return nil
+		}
 
-	// Traverse all comment nodes and collect corresponding comments with "want" strings.
-	truths := make(map[Position]*regexp.Regexp)
-	for _, pkg := range pkgs {
-		for _, f := range pkg.Syntax {
-			for _, group := range f.Comments {
-				for _, comment := range group.List {
-					text := strings.TrimSpace(strings.TrimPrefix(comment.Text, "//"))
-					if !strings.HasPrefix(text, "want ") {
-						continue
+		file, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
+		if err != nil {
+			return fmt.Errorf("parse %q: %w", path, err)
+		}
+		for _, group := range file.Comments {
+			for _, comment := range group.List {
+				text := strings.TrimPrefix(comment.Text, "//")
+				if text == comment.Text {
+					text = strings.TrimPrefix(text, "/*")
+					text = strings.TrimSuffix(text, "*/")
+				}
+				text = strings.TrimSpace(text)
+				rest, ok := strings.CutPrefix(text, "want")
+				if !ok {
+					continue
+				}
+
+				pos := fset.Position(comment.Pos())
+				relative, err := filepath.Rel(dir, pos.Filename)
+				if err != nil {
+					return fmt.Errorf("make %q relative to %q: %w", pos.Filename, dir, err)
+				}
+				key := Position{
+					Filename: filepath.ToSlash(relative),
+					Line:     pos.Line,
+				}
+
+				var scanErr string
+				sc := new(scanner.Scanner).Init(strings.NewReader(rest))
+				sc.Error = func(_ *scanner.Scanner, message string) {
+					scanErr = message
+				}
+				sc.Mode = scanner.ScanStrings | scanner.ScanRawStrings
+				for tok := sc.Scan(); tok != scanner.EOF; tok = sc.Scan() {
+					if tok != scanner.String && tok != scanner.RawString {
+						return fmt.Errorf(
+							"%s:%d: got %s in want comment, expected quoted string",
+							pos.Filename, pos.Line, scanner.TokenString(tok))
 					}
-					text = strings.Trim(text[5:], "\"")
-					pos := pkg.Fset.Position(group.Pos())
-					p := Position{Filename: pos.Filename, Line: pos.Line}
-					truths[p] = regexp.MustCompile(text)
+					pattern, err := strconv.Unquote(sc.TokenText())
+					if err != nil {
+						return fmt.Errorf("%s:%d: unquote pattern: %w", pos.Filename, pos.Line, err)
+					}
+					rx, err := regexp.Compile(pattern)
+					if err != nil {
+						return fmt.Errorf("%s:%d: compile pattern %q: %w", pos.Filename, pos.Line, pattern, err)
+					}
+					truths[key] = append(truths[key], rx)
+				}
+				if scanErr != "" {
+					return fmt.Errorf("%s:%d: scan want comment: %s", pos.Filename, pos.Line, scanErr)
 				}
 			}
 		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("walk test corpus: %w", err)
 	}
-
 	return truths, nil
 }
 
 // CompareDiagnostics compares the ground truths with the collected diagnostics and returns a
 // joined error containing the mismatched/missing/unexpected diagnostics (or nil if none).
-func CompareDiagnostics(truth map[Position]*regexp.Regexp, collected map[Position]string) (err error) {
-	// Keep track of the positions that we have seen.
-	hit := make(map[Position]bool, len(truth))
-	for pos, got := range collected {
-		want, ok := truth[pos]
-		if !ok {
-			err = errors.Join(err, fmt.Errorf("unexpected diagnostic at %s:%d:\n\tgot :%q", pos.Filename, pos.Line, got))
-			continue
+func CompareDiagnostics(truth map[Position][]*regexp.Regexp, collected map[Position][]string) error {
+	remaining := make(map[Position][]*regexp.Regexp, len(truth))
+	for pos, wants := range truth {
+		remaining[pos] = append([]*regexp.Regexp(nil), wants...)
+	}
+
+	var errs []error
+	for pos, diagnostics := range collected {
+		wants := remaining[pos]
+	diagnostic:
+		for _, got := range diagnostics {
+			for i, want := range wants {
+				if !want.MatchString(got) {
+					continue
+				}
+				wants[i] = wants[len(wants)-1]
+				wants = wants[:len(wants)-1]
+				continue diagnostic
+			}
+			if len(wants) == 0 {
+				errs = append(errs, fmt.Errorf(
+					"unexpected diagnostic at %s:%d:\n\tgot: %q",
+					pos.Filename, pos.Line, got))
+				continue
+			}
+			errs = append(errs, fmt.Errorf(
+				"diagnostic mismatch at %s:%d:\n\twant one of: %q\n\tgot: %q",
+				pos.Filename, pos.Line, wants, got))
 		}
-		hit[pos] = true
-		if !want.MatchString(got) {
-			err = errors.Join(err, fmt.Errorf("diagnostic mismatch at %s:%d:\n\twant: %q\n\tgot : %q", pos.Filename, pos.Line, want, got))
-			continue
+		remaining[pos] = wants
+	}
+
+	for pos, wants := range remaining {
+		for _, want := range wants {
+			errs = append(errs, fmt.Errorf(
+				"missing diagnostic at %s:%d:\n\twant: %q",
+				pos.Filename, pos.Line, want))
 		}
 	}
 
-	// Check for missing diagnostics.
-	for pos, want := range truth {
-		if hit[pos] {
-			continue
-		}
-		err = errors.Join(err, fmt.Errorf("missing diagnostic at %s:%d:\n\twant: %q", pos.Filename, pos.Line, want))
-	}
-
-	return err
+	sort.Slice(errs, func(i, j int) bool {
+		return errs[i].Error() < errs[j].Error()
+	})
+	return errors.Join(errs...)
 }
 
 // Run runs the integration test.
-func Run() error {
+func Run() (err error) {
 	// Make sure we are at the root of the git repository.
 	out, err := exec.Command("git", "rev-parse", "--show-toplevel").CombinedOutput()
 	if err != nil {
@@ -122,13 +183,24 @@ func Run() error {
 	if dir := strings.TrimSpace(string(out)); dir != wd {
 		return fmt.Errorf("not at the root of the git repository: %q != %q", dir, wd)
 	}
-	// Set up the root directory for the integration test project.
-	dir := filepath.Join(wd, "testdata", "integration")
 
-	// Collect ground truths first.
-	truths, err := CollectGroundTruths(dir)
+	sourceDir := filepath.Join(wd, "testdata", "src", "go.uber.org")
+	truths, err := CollectGroundTruths(sourceDir)
 	if err != nil {
 		return fmt.Errorf("collect want strings: %w", err)
+	}
+
+	tempRoot, err := os.MkdirTemp("", "nilaway-integration-test")
+	if err != nil {
+		return fmt.Errorf("create temp directory: %w", err)
+	}
+	defer func() {
+		err = errors.Join(err, os.RemoveAll(tempRoot))
+	}()
+
+	dir, err := PrepareTestProject(wd, tempRoot)
+	if err != nil {
+		return fmt.Errorf("prepare test project: %w", err)
 	}
 
 	drivers := []Driver{
@@ -148,7 +220,11 @@ func Run() error {
 			return fmt.Errorf("diagnostics mismatch: \n%w", err)
 		}
 		fmt.Println("PASSED")
-		fmt.Printf("\t%d diagnostics matched\n", len(collected))
+		var count int
+		for _, diagnostics := range collected {
+			count += len(diagnostics)
+		}
+		fmt.Printf("\t%d diagnostics matched\n", count)
 	}
 
 	return nil

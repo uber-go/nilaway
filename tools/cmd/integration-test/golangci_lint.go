@@ -16,6 +16,7 @@ package main
 
 import (
 	"bytes"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,11 +27,14 @@ import (
 	"text/template"
 )
 
+//go:embed .custom-gcl.template.yaml
+var customGCLTemplate string
+
 // GolangCILintDriver implements Driver for running NilAway via golangci-lint.
 type GolangCILintDriver struct{}
 
 // Run runs NilAway via golangci-lint on the test project and returns the diagnostics.
-func (d *GolangCILintDriver) Run(dir string) (diagnostics map[Position]string, err error) {
+func (d *GolangCILintDriver) Run(dir string) (diagnostics map[Position][]string, err error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get current working directory: %w", err)
@@ -52,11 +56,7 @@ func (d *GolangCILintDriver) Run(dir string) (diagnostics map[Position]string, e
 
 	// Instantiate the template with the version and write it to the temp dir for building the
 	// custom gcl binary.
-	templateContent, err := os.ReadFile(filepath.Join(dir, ".custom-gcl.template.yaml"))
-	if err != nil {
-		return nil, fmt.Errorf("failed to read template file: %w", err)
-	}
-	tmpl, err := template.New("custom-gcl").Parse(string(templateContent))
+	tmpl, err := template.New("custom-gcl").Parse(customGCLTemplate)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse template: %w", err)
 	}
@@ -81,7 +81,16 @@ func (d *GolangCILintDriver) Run(dir string) (diagnostics map[Position]string, e
 
 	// Run the custom-gcl to collect NilAway diagnostics.
 	diagnosticFile := filepath.Join(tempDir, "diagnostics.json")
-	cmd = exec.Command(filepath.Join(tempDir, "custom-gcl"), "run", "--output.json.path", diagnosticFile, "--path-mode", "abs", "./...")
+	cmd = exec.Command(
+		filepath.Join(tempDir, "custom-gcl"),
+		"run",
+		"--output.json.path", diagnosticFile,
+		"--path-mode", "abs",
+		"--max-issues-per-linter=0",
+		"--max-same-issues=0",
+		"--uniq-by-line=false",
+		"./...",
+	)
 	cmd.Dir = dir
 	// golangci-lint exits with status 1 when it finds issues, which is expected.
 	var exitErr *exec.ExitError
@@ -96,9 +105,9 @@ func (d *GolangCILintDriver) Run(dir string) (diagnostics map[Position]string, e
 	return parseGolangCILintOutput(data, dir)
 }
 
-func parseGolangCILintOutput(output []byte, dir string) (map[Position]string, error) {
+func parseGolangCILintOutput(output []byte, dir string) (map[Position][]string, error) {
 	if len(output) == 0 {
-		return map[Position]string{}, nil
+		return map[Position][]string{}, nil
 	}
 
 	var result struct {
@@ -113,19 +122,16 @@ func parseGolangCILintOutput(output []byte, dir string) (map[Position]string, er
 		return nil, fmt.Errorf("failed to parse golangci-lint output: %w", err)
 	}
 
-	// Only include diagnostics in files under the test directory; golangci-lint surfaces
-	// diagnostics from dependencies (e.g. stdlib, modules in the cache) that the standalone
-	// driver does not, but those are not part of the test contract.
-	dirPrefix := dir + string(filepath.Separator)
-	diagnostics := make(map[Position]string)
+	diagnostics := make(map[Position][]string)
 	for _, issue := range result.Issues {
 		if issue.FromLinter != "nilaway" {
 			continue
 		}
-		if !strings.HasPrefix(issue.Pos.Filename, dirPrefix) {
-			continue
+		pos, err := PositionInProject(dir, issue.Pos.Filename, issue.Pos.Line)
+		if err != nil {
+			return nil, err
 		}
-		diagnostics[issue.Pos] = issue.Text
+		diagnostics[pos] = append(diagnostics[pos], issue.Text)
 	}
 
 	return diagnostics, nil

@@ -15,6 +15,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"regexp"
 	"testing"
 
@@ -27,59 +29,75 @@ func TestCompareDiagnostics(t *testing.T) {
 
 	tc := []struct {
 		description string
-		truth       map[Position]*regexp.Regexp
-		collected   map[Position]string
+		truth       map[Position][]*regexp.Regexp
+		collected   map[Position][]string
 		errContains []string
 	}{
 		{
 			description: "empty",
-			truth:       map[Position]*regexp.Regexp{},
-			collected:   map[Position]string{},
+			truth:       map[Position][]*regexp.Regexp{},
+			collected:   map[Position][]string{},
 			errContains: nil,
 		},
 		{
 			description: "perfect match",
-			truth: map[Position]*regexp.Regexp{
-				{Filename: "file1", Line: 10}: regexp.MustCompile("foo"),
-				{Filename: "file2", Line: 11}: regexp.MustCompile("bar"),
+			truth: map[Position][]*regexp.Regexp{
+				{Filename: "file1", Line: 10}: {regexp.MustCompile("foo")},
+				{Filename: "file2", Line: 11}: {regexp.MustCompile("bar")},
 			},
-			collected: map[Position]string{
-				{Filename: "file1", Line: 10}: "foo",
-				{Filename: "file2", Line: 11}: "bar",
+			collected: map[Position][]string{
+				{Filename: "file1", Line: 10}: {"foo"},
+				{Filename: "file2", Line: 11}: {"bar"},
+			},
+			errContains: nil,
+		},
+		{
+			description: "multiple diagnostics",
+			truth: map[Position][]*regexp.Regexp{
+				{Filename: "file1", Line: 10}: {
+					regexp.MustCompile("literal `nil` dereferenced"),
+					regexp.MustCompile("function parameter dereferenced"),
+				},
+			},
+			collected: map[Position][]string{
+				{Filename: "file1", Line: 10}: {
+					"literal `nil` dereferenced",
+					"function parameter dereferenced",
+				},
 			},
 			errContains: nil,
 		},
 		{
 			description: "mismatch",
-			truth: map[Position]*regexp.Regexp{
-				{Filename: "file1", Line: 10}: regexp.MustCompile("foo"),
-				{Filename: "file2", Line: 11}: regexp.MustCompile("bar"),
+			truth: map[Position][]*regexp.Regexp{
+				{Filename: "file1", Line: 10}: {regexp.MustCompile("foo")},
+				{Filename: "file2", Line: 11}: {regexp.MustCompile("bar")},
 			},
-			collected: map[Position]string{
-				{Filename: "file1", Line: 10}: "foo",
-				{Filename: "file2", Line: 11}: "baz",
+			collected: map[Position][]string{
+				{Filename: "file1", Line: 10}: {"foo"},
+				{Filename: "file2", Line: 11}: {"baz"},
 			},
 			errContains: []string{"mismatch", "file2:11", "baz"},
 		},
 		{
 			description: "missing",
-			truth: map[Position]*regexp.Regexp{
-				{Filename: "file1", Line: 10}: regexp.MustCompile("foo"),
-				{Filename: "file2", Line: 11}: regexp.MustCompile("bar"),
+			truth: map[Position][]*regexp.Regexp{
+				{Filename: "file1", Line: 10}: {regexp.MustCompile("foo")},
+				{Filename: "file2", Line: 11}: {regexp.MustCompile("bar")},
 			},
-			collected: map[Position]string{
-				{Filename: "file1", Line: 10}: "foo",
+			collected: map[Position][]string{
+				{Filename: "file1", Line: 10}: {"foo"},
 			},
 			errContains: []string{"missing", "file2:11", "bar"},
 		},
 		{
 			description: "extra",
-			truth: map[Position]*regexp.Regexp{
-				{Filename: "file1", Line: 10}: regexp.MustCompile("foo"),
+			truth: map[Position][]*regexp.Regexp{
+				{Filename: "file1", Line: 10}: {regexp.MustCompile("foo")},
 			},
-			collected: map[Position]string{
-				{Filename: "file1", Line: 10}: "foo",
-				{Filename: "file2", Line: 11}: "bar",
+			collected: map[Position][]string{
+				{Filename: "file1", Line: 10}: {"foo"},
+				{Filename: "file2", Line: 11}: {"bar"},
 			},
 			errContains: []string{"unexpected", "file2:11", "bar"},
 		},
@@ -100,6 +118,33 @@ func TestCompareDiagnostics(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCollectGroundTruths(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "pkg", "test.go")
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0755))
+	require.NoError(t, os.WriteFile(path, []byte(`package pkg
+
+func f() {
+	println() // want "first" `+"`second`"+`
+	println() // want "later"
+}
+`), 0644))
+
+	truths, err := CollectGroundTruths(dir)
+	require.NoError(t, err)
+	require.Equal(t, map[Position][]*regexp.Regexp{
+		{Filename: "pkg/test.go", Line: 4}: {
+			regexp.MustCompile("first"),
+			regexp.MustCompile("second"),
+		},
+		{Filename: "pkg/test.go", Line: 5}: {
+			regexp.MustCompile("later"),
+		},
+	}, truths)
 }
 
 func TestMain(m *testing.M) {

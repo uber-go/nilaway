@@ -47,7 +47,7 @@ func TestNilAway(t *testing.T) {
 		patterns []string
 	}{
 		{name: "Inference", patterns: []string{"go.uber.org/inference"}},
-		{name: "Contracts", patterns: []string{"go.uber.org/contracts", "go.uber.org/contracts/namedtypes"}},
+		{name: "Contracts", patterns: []string{"go.uber.org/contracts/..."}},
 		{name: "TrustedFunc", patterns: []string{"go.uber.org/trustedfunc"}},
 		{name: "ErrorReturn", patterns: []string{"go.uber.org/errorreturn", "go.uber.org/errorreturn/typeswitch", "go.uber.org/errorreturn/typeswitch/shadownil"}},
 		{name: "Maps", patterns: []string{"go.uber.org/maps"}},
@@ -75,7 +75,7 @@ func TestNilAway(t *testing.T) {
 		{name: "Constants", patterns: []string{"go.uber.org/consts"}},
 		{name: "LoopRange", patterns: []string{"go.uber.org/looprange"}},
 		{name: "AbnormalFlow", patterns: []string{"go.uber.org/abnormalflow"}},
-		{name: "NoLint", patterns: []string{"go.uber.org/nolint"}},
+		{name: "NoLint", patterns: []string{"go.uber.org/nolint/..."}},
 		{name: "Templ", patterns: []string{"go.uber.org/templ"}},
 		{name: "CtrlflowIntrinsic", patterns: []string{"go.uber.org/zap"}},
 	}

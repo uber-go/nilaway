@@ -70,7 +70,7 @@ func noDeep4(x *ralph) *ralph {
 	if x == nil {
 		x = x
 	}
-	print(*x) //want "dereferenced"
+	_ = *x //want "dereferenced"
 	return x
 }
 
@@ -109,7 +109,7 @@ func posNilCheckPreservesNilable(x *ralph) *ralph {
 	if x == nil {
 		noop()
 	}
-	print(*x) //want "dereferenced"
+	_ = *x //want "dereferenced"
 	return x
 }
 
@@ -118,7 +118,7 @@ func negNilCheckPreservesNilable(x *ralph) *ralph {
 	if x != nil {
 		noop()
 	}
-	print(*x) //want "dereferenced"
+	_ = *x //want "dereferenced"
 	return x
 }
 

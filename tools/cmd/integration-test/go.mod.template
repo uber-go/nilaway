@@ -1,0 +1,7 @@
+module go.uber.org
+
+go {{.GoVersion}}
+
+require stubs v0.0.0
+
+replace stubs => ../stubs

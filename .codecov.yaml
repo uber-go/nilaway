@@ -1,3 +1,6 @@
+ignore:
+  - "tools"
+
 coverage:
   range: 80..100
   round: down
