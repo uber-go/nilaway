@@ -130,19 +130,17 @@ func (i *InferredMap) Export(pass *analysishelper.EnhancedPass) {
 			continue
 		}
 
-		if upstreamVal, upstreamPresent := i.upstreamMapping[site]; upstreamPresent {
-			// Forwarded sites are exported in full, since downstream packages may not have access
-			// to the upstream fact this value refines.
-			if sitesToForward[site] {
-				exported.Store(site, val)
-				continue
-			}
-			diff, diffNonempty := inferredValDiff(val, upstreamVal)
-			if diffNonempty && diff != nil {
+		upstreamVal, upstreamPresent := i.upstreamMapping[site]
+		switch {
+		// Sites unknown upstream carry no baseline to diff against, and forwarded sites must be
+		// exported in full since downstream packages may not have access to the upstream fact this
+		// value refines. Both cases export the value as-is.
+		case !upstreamPresent, sitesToForward[site]:
+			exported.Store(site, val)
+		default:
+			if diff, diffNonempty := inferredValDiff(val, upstreamVal); diffNonempty && diff != nil {
 				exported.Store(site, diff)
 			}
-		} else {
-			exported.Store(site, val)
 		}
 	}
 
@@ -211,10 +209,6 @@ func (i *InferredMap) chooseSitesToForward() map[primitiveSite]bool {
 	}
 
 	reachable := i.primitive.upstreamAPISurface(pkgPaths)
-	if len(reachable) == 0 {
-		return nil
-	}
-
 	toForward := make(map[primitiveSite]bool)
 	for site := range i.upstreamMapping {
 		if site.ObjectPath != "" && reachable[site.PkgPath+"."+string(site.ObjectPath)] {
