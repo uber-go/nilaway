@@ -224,11 +224,19 @@ func Run() (err error) {
 			}
 			// TODO: Remove these suppressions once incremental fact exporting is fixed in NilAway.
 			// go vet cannot report diagnostics positioned in an imported package that are
-			// discovered only while analyzing an importing package.
-			for pos := range expected {
+			// discovered only while analyzing an importing package, or diagnostics that require
+			// facts from a transitive dependency.
+			for pos, wants := range expected {
 				switch filepath.ToSlash(filepath.Dir(pos.Filename)) {
 				case "methodimplementation/multipackage/packageB", "nolint/upstream":
 					delete(expected, pos)
+				case "transitivefacts/downstream":
+					for _, want := range wants {
+						if want.String() == "result 0 of `Get\\(\\)` dereferenced" {
+							delete(expected, pos)
+							break
+						}
+					}
 				}
 			}
 		}
