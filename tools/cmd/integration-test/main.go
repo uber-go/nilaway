@@ -205,6 +205,7 @@ func Run() (err error) {
 
 	drivers := []Driver{
 		&StandaloneDriver{},
+		&GoVetDriver{},
 		&GolangCILintDriver{},
 	}
 	for _, driver := range drivers {
@@ -215,7 +216,23 @@ func Run() (err error) {
 			fmt.Println("FAILED")
 			return fmt.Errorf("%q driver: %w", name, err)
 		}
-		if err := CompareDiagnostics(truths, collected); err != nil {
+		expected := truths
+		if _, ok := driver.(*GoVetDriver); ok {
+			expected = make(map[Position][]*regexp.Regexp, len(truths))
+			for pos, wants := range truths {
+				expected[pos] = wants
+			}
+			// TODO: Remove these suppressions once incremental fact exporting is fixed in NilAway.
+			// go vet cannot report diagnostics positioned in an imported package that are
+			// discovered only while analyzing an importing package.
+			for pos := range expected {
+				switch filepath.ToSlash(filepath.Dir(pos.Filename)) {
+				case "methodimplementation/multipackage/packageB", "nolint/upstream":
+					delete(expected, pos)
+				}
+			}
+		}
+		if err := CompareDiagnostics(expected, collected); err != nil {
 			fmt.Println("FAILED")
 			return fmt.Errorf("diagnostics mismatch: \n%w", err)
 		}

@@ -13,10 +13,15 @@ inference.
 The integration tests complement the unit tests by running NilAway through real drivers:
 
 - the standalone NilAway binary; and
+- `go vet` using the NilAway binary as its analysis tool; and
 - a custom golangci-lint binary containing the NilAway module plugin.
 
 This verifies the end-to-end driver setup, cross-package fact propagation, and diagnostic
 reporting in addition to the analysis logic covered by the unit tests.
+
+`go vet` runs analyzers independently for each package. It therefore cannot report the few
+diagnostics whose positions are in an imported package but that are discovered only while
+analyzing an importing package; those expectations are excluded only for the `go vet` driver.
 
 ## How the tests work
 
@@ -25,8 +30,7 @@ The integration-test tool:
 1. Collects the expected diagnostics from `// want` comments throughout
    `testdata/src/go.uber.org`.
 2. Copies that corpus and its stubs into a temporary, buildable Go module.
-3. Adds the small compatibility shims and driver configuration required to run the corpus with
-   real Go build drivers.
+3. Adds the driver configuration required to run the corpus with real Go build drivers.
 4. Runs each supported driver over the complete module.
 5. Compares every reported diagnostic with the expectations, including multiple diagnostics on
    the same source line.
