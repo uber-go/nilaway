@@ -35,3 +35,14 @@ func Make() *upstream.S {
 func NilableFunc() *int {
 	return nil
 }
+
+// Wrapper holds an upstream.S in an exported field, so that a package importing middle -- and
+// through it, a package importing _that_ package -- can reach S.Get without ever naming upstream.
+type Wrapper struct {
+	Inner *upstream.S
+}
+
+// NewWrapper returns a Wrapper with a non-nil Inner.
+func NewWrapper() *Wrapper {
+	return &Wrapper{Inner: upstream.NewS()}
+}
