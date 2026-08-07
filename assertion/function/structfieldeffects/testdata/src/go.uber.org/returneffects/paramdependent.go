@@ -115,3 +115,86 @@ func closureReassignedParam(y *Outer, z *Outer) *Outer { // expect_effects:
 func spreadReturn(y *Outer) (*Outer, error) { // expect_effects:
 	return forwardWithErr(y)
 }
+
+// A forwarded return call composes the callee's param sources onto the wrapper.
+func forwardViaCall(y *Outer) *Outer { // expect_effects: return_param_source:0::0:
+	return forwardParam(y)
+}
+
+// Composition re-roots the callee's parameter path under the forwarded parameter's field prefix.
+func forwardProjectionViaCall(y *Outer) *Node { // expect_effects: return_param_source:0::0:Mid param_reads:0:Mid
+	return forwardParamProjection(y)
+}
+
+// Field-level sources compose unchanged on the result side.
+func newPairViaCall(existing, requested *Leaf) *Pair { // expect_effects: return_param_source:0:Existing:0: return_param_source:0:Requested:1:
+	return newPair(existing, requested)
+}
+
+// Multi-return wrappers do not compose forwarding edges.
+func walkRec(r *Rec) *Rec { // expect_effects: param_reads:0:Self param_reads:0:Ptr
+	if r.Ptr == nil {
+		return r
+	}
+	return walkRec(r.Self)
+}
+
+// A forwarded call with a non-parameter argument composes nothing: the wrapper's result is not
+// supplied by the wrapper's own caller.
+func forwardWithLocalArg(y *Outer) *Pair { // expect_effects:
+	return newPair(nil, &Leaf{})
+}
+
+func newOuter() *Outer { // expect_effects: return_effects:0:Mid return_effects:0:Value.Child
+	return &Outer{}
+}
+
+// A non-source branch makes a multi-return wrapper unsupported.
+func forwardOrNew(y *Outer, pick bool) *Outer { // expect_effects: return_effects:0:Mid return_effects:0:Value.Child
+	if pick {
+		return forwardParam(y)
+	}
+	return newOuter()
+}
+
+func (o *Outer) selfParam() *Outer { // expect_effects: return_param_source:0::-1:
+	return o
+}
+
+func forwardMethodValue(y *Outer) *Outer { // expect_effects: return_param_source:0::0:
+	return y.selfParam()
+}
+
+// Method expressions do not compose because the receiver is an explicit argument.
+func forwardMethodExpr(y *Outer) *Outer { // expect_effects:
+	return (*Outer).selfParam(y)
+}
+
+type outerHolder struct{ *Outer }
+
+// Promoted methods do not compose because the receiver includes an implicit field path.
+func forwardPromotedMethod(h *outerHolder) *Outer { // expect_effects:
+	return h.selfParam()
+}
+
+type outerSlice struct{ Values []*Outer }
+
+func packOuter(values ...*Outer) *outerSlice { // expect_effects: return_param_source:0:Values:0:
+	return &outerSlice{Values: values}
+}
+
+// Variadic calls do not provide one expression for the variadic parameter.
+func forwardVariadic(y, z *Outer) *outerSlice { // expect_effects:
+	return packOuter(y, z)
+}
+
+type anyBox struct{ Value any }
+
+func packAny(value any) *anyBox { // expect_effects: return_param_source:0:Value:0:
+	return &anyBox{Value: value}
+}
+
+// Interface boxing can change shallow nilability, so it does not compose.
+func forwardInterface(y *Outer) *anyBox { // expect_effects:
+	return packAny(y)
+}

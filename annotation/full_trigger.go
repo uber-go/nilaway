@@ -67,17 +67,19 @@ func (t *FullTrigger) truncatedProducerPos(pass *analysishelper.EnhancedPass) to
 
 // equals returns true if the two passed FullTriggers are equal, and false otherwise.
 func (t *FullTrigger) equals(other FullTrigger) bool {
-	return t.Producer.Annotation.equals(other.Producer.Annotation) &&
-		t.Consumer.Annotation.equals(other.Consumer.Annotation) &&
-		t.Consumer.Expr == other.Consumer.Expr &&
-		t.Consumer.GuardMatched == other.Consumer.GuardMatched
+	// Consumer Expr identity and GuardMatched are the cheap, selective discriminators; the
+	// annotation comparisons only run for the (rare) pairs that agree on them.
+	return t.Consumer.Expr == other.Consumer.Expr &&
+		t.Consumer.GuardMatched == other.Consumer.GuardMatched &&
+		t.Producer.Annotation.equals(other.Producer.Annotation) &&
+		t.Consumer.Annotation.equals(other.Consumer.Annotation)
 }
 
 // equalsModuloGuardMatched returns true if the two passed FullTriggers (modulo the GuardMatched field) are equal, and false otherwise.
 func (t *FullTrigger) equalsModuloGuardMatched(other FullTrigger) bool {
-	return t.Producer.Annotation.equals(other.Producer.Annotation) &&
-		t.Consumer.Annotation.equals(other.Consumer.Annotation) &&
-		t.Consumer.Expr == other.Consumer.Expr
+	return t.Consumer.Expr == other.Consumer.Expr &&
+		t.Producer.Annotation.equals(other.Producer.Annotation) &&
+		t.Consumer.Annotation.equals(other.Consumer.Annotation)
 }
 
 // A LocatedRepr wraps another fmt.Stringer with a `token.Position` - for formatting with that position
@@ -134,18 +136,21 @@ func FullTriggerSlicesEq(left, right []FullTrigger) bool {
 		return false
 	}
 
-	// because we have two sets of the same size, without repetition, to test equality it suffices
-	// to check that one of them contains the other
-	matched := make(map[int]bool)
+	// Track matched right-side positions in a slice to prevent duplicate left values from sharing
+	// one right-side match without allocating a map.
+	matched := make([]bool, len(right))
+	matchedCount := 0
+outer:
 	for _, l := range left {
 		for j, r := range right {
-			if l.equals(r) {
+			if !matched[j] && l.equals(r) {
 				matched[j] = true
-				break
+				matchedCount++
+				continue outer
 			}
 		}
 	}
-	return len(matched) == len(left)
+	return matchedCount == len(left)
 }
 
 // MergeFullTriggers creates a union of the passed left and right triggers eliminating duplicates

@@ -250,20 +250,49 @@ func (fc *functionCollector) collectReturnSites() {
 	fc.stableVars = fc.collectStableStructVars()
 	fc.unstableParams = fc.collectUnstableParamVars()
 
-	for _, stmt := range returnStatements(fc.fd.Body) {
+	statements := returnStatements(fc.fd.Body)
+	allowParamForwarding := len(statements) == 1
+	directSourceSites := make([]int, fc.sig.Results().Len())
+	sourceSiteCount := len(statements)
+	for _, stmt := range statements {
 		// A bare spreading return such as `return f()` is one expression that yields every
 		// result, so len(stmt.Results) is 1 while the signature may have many; we bail out
 		// rather than try to split it, so such multi-result call returns are unsupported.
 		if len(stmt.Results) != fc.sig.Results().Len() {
 			continue
 		}
+		// Error paths do not describe the value observed by a checked caller.
+		if typeshelper.FuncIsErrReturning(fc.sig) && !fc.pass.IsNil(stmt.Results[len(stmt.Results)-1]) {
+			sourceSiteCount--
+			continue
+		}
 		for resultIdx, resultExpr := range stmt.Results {
 			if typeshelper.AsDeeplyStruct(fc.sig.Results().At(resultIdx).Type()) == nil {
 				continue
 			}
-			fc.collectReturnSiteEffect(resultIdx, resultExpr)
-			fc.collectWholeResultParamSource(resultIdx, resultExpr)
+			fc.collectReturnSiteEffect(resultIdx, resultExpr, allowParamForwarding)
+			if fc.collectWholeResultParamSource(resultIdx, resultExpr) {
+				directSourceSites[resultIdx]++
+			}
 		}
+	}
+
+	// A forwarding edge is sound only when the result has a single return site. With several
+	// sites, keep direct sources only when every path has one; otherwise the recorded sources do
+	// not describe the result on every path and are dropped as a deliberate under-report.
+	if allowParamForwarding {
+		return
+	}
+	for resultIdx, sourceSites := range directSourceSites {
+		if typeshelper.AsDeeplyStruct(fc.sig.Results().At(resultIdx).Type()) == nil ||
+			sourceSites == sourceSiteCount {
+			continue
+		}
+		if fc.collected.resultsWithConstructSite[fc.funcObj][resultIdx] {
+			// Constructed results are reconciled by dropMixedResultParamSources.
+			continue
+		}
+		fc.collected.dropWholeResultParamSources(fc.funcObj, resultIdx)
 	}
 }
 
@@ -505,8 +534,9 @@ func (fc *functionCollector) collectStableStructVars() map[*types.Var]bool {
 // collectReturnSiteEffect records what one struct-shaped return operand contributes to the
 // effects summary: a construction (direct or through a stable local) enumerates its nil fields
 // and marks the result index as constructed (see markResultWithConstructSite); a direct return of a
-// static call result — or of a stable local bound to one — adds a return forwarding edge.
-func (fc *functionCollector) collectReturnSiteEffect(resultIdx int, resultExpr ast.Expr) {
+// static call result — or of a stable local bound to one — adds a return forwarding edge. A direct
+// call can retain parameter forwarding only when this result has a single return site.
+func (fc *functionCollector) collectReturnSiteEffect(resultIdx int, resultExpr ast.Expr, allowParamForwarding bool) {
 	if source, ok := staticStructAllocation(fc.pass, resultExpr); ok {
 		fc.collected.markResultWithConstructSite(fc.funcObj, resultIdx)
 		fc.enumerateConcreteReturnEffects(resultIdx, source.structType, source.fieldInits, annotation.FieldPath{})
@@ -515,7 +545,11 @@ func (fc *functionCollector) collectReturnSiteEffect(resultIdx int, resultExpr a
 	if call, ok := ast.Unparen(resultExpr).(*ast.CallExpr); ok {
 		target, ok := typeshelper.ResolveStaticCallTarget(fc.pass.TypesInfo, call)
 		if ok && target.Signature.Results().Len() == 1 {
-			fc.addReturnEdge(resultIdx, target, 0)
+			var paramForwardingEdges []paramFieldForwardEdge
+			if allowParamForwarding {
+				paramForwardingEdges = fc.returnCallParamForwardingEdges(call, target)
+			}
+			fc.addReturnEdge(resultIdx, target, 0, paramForwardingEdges)
 		}
 		return
 	}
@@ -533,13 +567,18 @@ func (fc *functionCollector) collectReturnSiteEffect(resultIdx int, resultExpr a
 		return
 	}
 	if source, ok := fc.resultVars[v]; ok {
-		fc.addReturnEdge(resultIdx, source.callee, source.idx)
+		fc.addReturnEdge(resultIdx, source.callee, source.idx, nil)
 	}
 }
 
 // addReturnEdge records a return forwarding edge when the callee resolves to an origin and its
 // forwarded result is struct-shaped.
-func (fc *functionCollector) addReturnEdge(callerResultIdx int, target typeshelper.StaticCallTarget, calleeResultIdx int) {
+func (fc *functionCollector) addReturnEdge(
+	callerResultIdx int,
+	target typeshelper.StaticCallTarget,
+	calleeResultIdx int,
+	paramForwardingEdges []paramFieldForwardEdge,
+) {
 	if target.Origin == nil {
 		return
 	}
@@ -548,9 +587,10 @@ func (fc *functionCollector) addReturnEdge(callerResultIdx int, target typeshelp
 		return
 	}
 	fc.collected.addReturnForwardEdge(fc.funcObj, returnForwardEdge{
-		callerResultIdx: callerResultIdx,
-		callee:          target.Origin,
-		calleeResultIdx: calleeResultIdx,
+		callerResultIdx:      callerResultIdx,
+		callee:               target.Origin,
+		calleeResultIdx:      calleeResultIdx,
+		paramForwardingEdges: paramForwardingEdges,
 	})
 }
 

@@ -233,3 +233,49 @@ func m13errVarUnchecked() *int {
 	t, _ := giveACompositeOrErrVar()
 	return t.aptr.ptr //want "accessed field `ptr`"
 }
+
+// Parameter sources on an error path must not affect the checked success result.
+func paramFieldOnlyOnError(p *leaf) (*A11, error) {
+	if dummy() {
+		return &A11{aptr: p}, errors.New("boom")
+	}
+	return &A11{aptr: new(leaf)}, nil
+}
+
+func checkedParamFieldErrorPath() *int {
+	t, err := paramFieldOnlyOnError(nil)
+	if err != nil {
+		return new(int)
+	}
+	return t.aptr.ptr
+}
+
+func returnParamWithErr(p *A11) (*A11, error) { return p, nil }
+
+func uncheckedParamResult() {
+	t, _ := returnParamWithErr(&A11{})
+	_ = *t //want "lacking guarding"
+}
+
+func checkedParamResult() {
+	t, err := returnParamWithErr(&A11{})
+	if err != nil {
+		return
+	}
+	_ = *t
+}
+
+func returnParamOnSuccess(p *A11) (*A11, error) {
+	if dummy() {
+		return &A11{}, errors.New("boom")
+	}
+	return p, nil
+}
+
+func checkedNilParamResult() {
+	t, err := returnParamOnSuccess(nil)
+	if err != nil {
+		return
+	}
+	_ = *t //want "nilable value reaches result 0"
+}

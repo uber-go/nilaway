@@ -2039,11 +2039,12 @@ type ConsumeTrigger struct {
 
 // equals compares two ConsumeTrigger pointers for equality
 func (c *ConsumeTrigger) equals(c2 *ConsumeTrigger) bool {
-	return c.Annotation.equals(c2.Annotation) &&
-		c.Expr == c2.Expr &&
-		c.Guards.Eq(c2.Guards) &&
-		c.GuardMatched == c2.GuardMatched
-
+	// Expr identity and GuardMatched are the cheap, selective discriminators; the annotation and
+	// guard-set comparisons only run for the (rare) pairs that agree on them.
+	return c.Expr == c2.Expr &&
+		c.GuardMatched == c2.GuardMatched &&
+		c.Annotation.equals(c2.Annotation) &&
+		c.Guards.Eq(c2.Guards)
 }
 
 // Copy returns a deep copy of the ConsumeTrigger
@@ -2071,8 +2072,10 @@ func MergeConsumeTriggerSlices(left, right []*ConsumeTrigger) []*ConsumeTrigger 
 
 	addToOut := func(trigger *ConsumeTrigger) {
 		for i, outTrigger := range out {
-			if outTrigger.Annotation.equals(trigger.Annotation) &&
-				outTrigger.Expr == trigger.Expr {
+			// Expr identity is the cheap, selective discriminator; the annotation comparison
+			// only runs for the (rare) same-expression pairs.
+			if outTrigger.Expr == trigger.Expr &&
+				outTrigger.Annotation.equals(trigger.Annotation) {
 				// intersect guard sets - if a guard isn't present in both branches it can't
 				// be considered present before the branch
 				out[i] = &ConsumeTrigger{
