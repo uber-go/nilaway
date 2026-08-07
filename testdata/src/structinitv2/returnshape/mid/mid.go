@@ -25,3 +25,13 @@ import "structinitv2/returnshape/lib"
 func ForwardParamCrossPkg(y *lib.Outer) *lib.Outer {
 	return lib.ForwardParam(y)
 }
+
+// ForwardProjectionCrossPkg forwards a shallow parameter projection across a package boundary.
+func ForwardProjectionCrossPkg(y *lib.Wrap) *lib.Inner {
+	return lib.ForwardParamProjection(y)
+}
+
+// ForwardPair forwards caller-dependent fields across a package boundary.
+func ForwardPair(existing, requested *lib.Leaf) *lib.Pair {
+	return lib.NewPair(existing, requested)
+}

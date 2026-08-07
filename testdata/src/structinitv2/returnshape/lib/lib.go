@@ -77,6 +77,11 @@ func ForwardParamTransitive(y *Outer) *Outer {
 	return ForwardParam(y)
 }
 
+// ForwardProjectionTransitive forwards a projected parameter field through another call.
+func ForwardProjectionTransitive(y *Wrap) *Inner {
+	return ForwardParamProjection(y)
+}
+
 // ForwardParamAmbiguous forwards a different parameter on each return site. Because the result could
 // be either parameter, the caller-side tie bails — a documented under-report.
 func ForwardParamAmbiguous(y *Outer, z *Outer, pick bool) *Outer {
@@ -133,4 +138,10 @@ func NewPair(existing, requested *Leaf) *Pair {
 func NewPairAfterNil(existing, requested *Leaf) *Pair {
 	existing.Ptr = nil
 	return &Pair{Existing: existing, Requested: requested}
+}
+
+// NewPairViaCall pins transitive composition of field-level param forwarding through
+// `return g(args)`.
+func NewPairViaCall(existing, requested *Leaf) *Pair {
+	return NewPair(existing, requested)
 }
