@@ -136,18 +136,21 @@ func FullTriggerSlicesEq(left, right []FullTrigger) bool {
 		return false
 	}
 
-	// because we have two sets of the same size, without repetition, to test equality it suffices
-	// to check that one of them contains the other
-	matched := make(map[int]bool)
+	// Track matched right-side positions in a slice to prevent duplicate left values from sharing
+	// one right-side match without allocating a map.
+	matched := make([]bool, len(right))
+	matchedCount := 0
+outer:
 	for _, l := range left {
 		for j, r := range right {
-			if l.equals(r) {
+			if !matched[j] && l.equals(r) {
 				matched[j] = true
-				break
+				matchedCount++
+				continue outer
 			}
 		}
 	}
-	return len(matched) == len(left)
+	return matchedCount == len(left)
 }
 
 // MergeFullTriggers creates a union of the passed left and right triggers eliminating duplicates
