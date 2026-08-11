@@ -149,6 +149,57 @@ func (f *FuncErrRetNonnilArg) equals(effect RichCheckEffect) bool {
 	return f.root.Equal(f.err, other.err) && f.root.Equal(f.arg, other.arg)
 }
 
+// A FuncErrRetNonnilResult is a RichCheckEffect for a trusted function call `r, err := f(...)` whose
+// final result is of type `error` and which, on success (`err == nil`), guarantees by documented
+// contract that one of its non-error results is non-nil. The canonical example is
+// `(*net/http.Client).Do`: per the net/http package docs, the returned `*http.Response` is non-nil
+// whenever the returned error is nil.
+//
+// This mirrors FuncErrRet (which guards a result awaiting an error check) but is stronger: for
+// out-of-scope functions whose bodies NilAway does not analyze, the result's producer defaults to
+// nilable, so merely guarding the consume triggers is not enough to clear field-access dereferences
+// of the result. Here, on the error-is-nil branch we actively *produce* a non-nil value for the
+// result, exactly as an explicit `result != nil` check would. This is the same active-production
+// strategy used by FuncErrRetNonnilArg, applied to a result expression instead of an argument
+// pointee.
+type FuncErrRetNonnilResult struct {
+	root       *RootAssertionNode // an associated root node
+	err        TrackableExpr      // the `error`-typed return of the function
+	result     TrackableExpr      // the trackable result guaranteed non-nil on success
+	resultExpr ast.Expr           // the raw result expression, for producing a non-nil value
+}
+
+func (f *FuncErrRetNonnilResult) isTriggeredBy(expr ast.Expr) bool {
+	return exprIsPositiveNilCheck(f.root, expr, f.err)
+}
+
+func (f *FuncErrRetNonnilResult) isInvalidatedBy(node ast.Node) bool {
+	// Reassigning either the checked error or the result breaks the correspondence established at
+	// the call site, so either invalidates the effect.
+	return nodeAssignsAny(f.root, node, f.err, f.result)
+}
+
+func (f *FuncErrRetNonnilResult) effectIfTrue(node *RootAssertionNode) {
+	node.AddProduction(&annotation.ProduceTrigger{
+		Annotation: &annotation.NegativeNilCheck{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
+		Expr:       f.resultExpr,
+	})
+}
+
+func (f *FuncErrRetNonnilResult) effectIfFalse(*RootAssertionNode) {
+	// no-op
+}
+
+func (f *FuncErrRetNonnilResult) isNoop() bool { return false }
+
+func (f *FuncErrRetNonnilResult) equals(effect RichCheckEffect) bool {
+	other, ok := effect.(*FuncErrRetNonnilResult)
+	if !ok {
+		return false
+	}
+	return f.root.Equal(f.err, other.err) && f.root.Equal(f.result, other.result)
+}
+
 // okRead provides a general implementation for the special return form: `v1, v2, ..., ok := expr`.
 // Concrete examples of patterns supported are:
 // - map ok read: `v, ok := m[k]`
@@ -491,6 +542,24 @@ func NodeTriggersFuncErrRet(rootNode *RootAssertionNode, nonceGenerator *guard.N
 				err:     errExprParsed,
 				arg:     argExprParsed,
 				argExpr: argExpr,
+			}), true
+		}
+	}
+
+	// Certain trusted functions also guarantee by documented contract that one of their results is
+	// non-nil once the error return is checked to be nil (e.g., `(*http.Client).Do`). This is
+	// stronger than the per-result FuncErrRet guard created above: for out-of-scope functions whose
+	// bodies are not analyzed, the result's producer defaults to nilable, so we actively produce a
+	// non-nil value for the result in the error-is-nil branch, exactly as an explicit
+	// `result != nil` check would.
+	if resultIdx := hook.ErrorReturnNonnilResult(rootNode.Pass(), callExpr); resultIdx >= 0 && resultIdx < n-1 {
+		resultExpr := lhs[resultIdx]
+		if resultExprParsed := parseExpr(rootNode, resultExpr); resultExprParsed != nil {
+			effects, someEffect = append(effects, &FuncErrRetNonnilResult{
+				root:       rootNode,
+				err:        errExprParsed,
+				result:     resultExprParsed,
+				resultExpr: resultExpr,
 			}), true
 		}
 	}
