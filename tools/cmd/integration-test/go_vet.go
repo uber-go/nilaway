@@ -31,6 +31,9 @@ import (
 // GoVetDriver implements Driver for running NilAway through go vet.
 type GoVetDriver struct{}
 
+// UsesGoVetTransport returns true.
+func (d *GoVetDriver) UsesGoVetTransport() bool { return true }
+
 // Run runs NilAway through go vet on the test project and returns the diagnostics.
 func (d *GoVetDriver) Run(dir string) (map[Position][]string, error) {
 	cwd, err := os.Getwd()
@@ -72,10 +75,14 @@ func (d *GoVetDriver) Run(dir string) (map[Position][]string, error) {
 		return nil, fmt.Errorf("run go vet: %w\n%s", err, string(out))
 	}
 
-	return parseGoVetOutput(out, dir)
+	return parseDriverOutput(out, dir)
 }
 
-func parseGoVetOutput(output []byte, dir string) (map[Position][]string, error) {
+// parseDriverOutput parses the streaming JSON output emitted by the modular NilAway driver (both
+// the standalone binary and the go vet driver), which delegates through `go vet -vettool`. Each
+// package produces one JSON object; `go vet` interleaves `# package` status lines that are
+// stripped before decoding.
+func parseDriverOutput(output []byte, dir string) (map[Position][]string, error) {
 	var jsonOutput bytes.Buffer
 	sc := bufio.NewScanner(bytes.NewReader(output))
 	for sc.Scan() {

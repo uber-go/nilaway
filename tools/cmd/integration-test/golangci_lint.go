@@ -33,6 +33,9 @@ var customGCLTemplate string
 // GolangCILintDriver implements Driver for running NilAway via golangci-lint.
 type GolangCILintDriver struct{}
 
+// UsesGoVetTransport returns false; golangci-lint loads packages independently of go vet.
+func (d *GolangCILintDriver) UsesGoVetTransport() bool { return false }
+
 // Run runs NilAway via golangci-lint on the test project and returns the diagnostics.
 func (d *GolangCILintDriver) Run(dir string) (diagnostics map[Position][]string, err error) {
 	cwd, err := os.Getwd()
