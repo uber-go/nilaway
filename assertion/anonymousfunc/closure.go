@@ -15,7 +15,6 @@
 package anonymousfunc
 
 import (
-	"fmt"
 	"go/ast"
 	"go/types"
 
@@ -51,7 +50,7 @@ func collectClosure(funcLit *ast.FuncLit, pass *analysishelper.EnhancedPass, clo
 			for _, closureVar := range closureMap[node] {
 				obj, ok := pass.TypesInfo.ObjectOf(closureVar.Ident).(*types.Var)
 				if !ok {
-					panic(fmt.Sprintf("identifier %s passed as a variable could not be looked up as one", closureVar.Ident))
+					continue
 				}
 
 				// Update varsFromClosure with ident if it does not exist in the current scope
@@ -71,10 +70,14 @@ func collectClosure(funcLit *ast.FuncLit, pass *analysishelper.EnhancedPass, clo
 				return false
 			}
 
-			// Get the underlying object for the identifier
+			// Get the underlying object for the identifier. ObjectOf returns nil for type-switch
+			// guard variables (e.g., `switch x := y.(type)`): the parser marks the guard ident as
+			// ast.Var, but the type checker stores the per-case objects in Implicits, not in
+			// Defs/Uses. A type-switch guard is always local to its switch statement and can never
+			// be a closure variable, so we skip it.
 			obj, ok := pass.TypesInfo.ObjectOf(node).(*types.Var)
 			if !ok {
-				panic(fmt.Sprintf("identifier %s passed as a variable could not be looked up as one", node))
+				return false
 			}
 
 			// Skip if node is a global variable

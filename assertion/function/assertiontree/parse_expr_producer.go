@@ -77,7 +77,13 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 		}
 
 		funcObj := r.FuncObj()
-		varObj := r.ObjectOf(expr).(*types.Var)
+		obj := r.ObjectOf(expr)
+		varObj, ok := obj.(*types.Var)
+		if !ok {
+			// ObjectOf returns nil for type-switch guard variables and other idents the
+			// type checker cannot resolve; we cannot produce nilability info for them.
+			return nil, nil
+		}
 		if doNotTrack {
 			if annotation.VarIsRecv(funcObj, varObj) {
 				return nil, []producer.ParsedProducer{producer.DeepParsedProducer{
@@ -548,7 +554,10 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 
 // getFuncReturnProducers returns a list of producers that are triggered at the call expression
 func (r *RootAssertionNode) getFuncReturnProducers(ident *ast.Ident, expr *ast.CallExpr) []producer.ParsedProducer {
-	funcObj := r.ObjectOf(ident).(*types.Func)
+	funcObj, ok := r.ObjectOf(ident).(*types.Func)
+	if !ok {
+		return nil
+	}
 
 	numResults := typeshelper.FuncNumResults(funcObj)
 	isErrReturning := typeshelper.FuncIsErrReturning(funcObj.Signature())

@@ -196,7 +196,10 @@ func backpropAcrossReturn(rootNode *RootAssertionNode, node *ast.ReturnStmt) err
 				// `fident` is actually definitely, non-nil here, tracked as
 				return errors.New("fident variable is nil")
 			}
-			funcObj := rootNode.ObjectOf(fident).(*types.Func)
+			funcObj, ok := rootNode.ObjectOf(fident).(*types.Func)
+			if !ok {
+				return computeAndConsumeResults(rootNode, node)
+			}
 			if typeshelper.FuncNumResults(funcObj) > 1 {
 				// this is the case we were looking for!
 				// we've identified that a multiply-returning function is being returned
