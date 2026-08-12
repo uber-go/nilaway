@@ -24,6 +24,14 @@ func foo() {
 	// import facts about it.
 	upstream.ExportedManual(nil)
 	upstream.ExportedInferred(nil)
+	upstream.ExportedField(nil)
+	upstream.ExportedTrue(nil)
+	var msg upstream.ExportedMsg
+	msg.ExportedMethod(&msg)
+	var validator upstream.ExportedValidator
+	validator.ExportedTrueMethod(nil)
+	var event upstream.ExportedEvent
+	event.IsValid()
 }
 
 // This is a local function that has a contract that should be combined with the imported facts.

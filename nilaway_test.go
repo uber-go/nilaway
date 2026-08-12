@@ -72,7 +72,6 @@ func TestNilAway(t *testing.T) {
 		{name: "IgnorePackage", patterns: []string{"ignoredpkg1", "ignoredpkg2"}},
 		{name: "Receivers", patterns: []string{"go.uber.org/receivers"}},
 		{name: "Generics", patterns: []string{"go.uber.org/generics"}},
-		{name: "FunctionContracts", patterns: []string{"go.uber.org/functioncontracts"}},
 		{name: "Constants", patterns: []string{"go.uber.org/consts"}},
 		{name: "LoopRange", patterns: []string{"go.uber.org/looprange"}},
 		{name: "AbnormalFlow", patterns: []string{"go.uber.org/abnormalflow"}},
@@ -96,7 +95,17 @@ func TestFacts(t *testing.T) {
 	t.Parallel()
 	testdata := analysistest.TestData()
 
-	results := analysistest.Run(t, testdata, Analyzer, "go.uber.org/...")
+	results := analysistest.Run(t, testdata, Analyzer,
+		"go.uber.org/inference", "go.uber.org/contracts/...", "go.uber.org/trustedfunc",
+		"go.uber.org/errorreturn", "go.uber.org/errorreturn/typeswitch", "go.uber.org/errorreturn/typeswitch/shadownil",
+		"go.uber.org/maps", "go.uber.org/slices", "go.uber.org/arrays", "go.uber.org/channels",
+		"go.uber.org/goquirks", "go.uber.org/globalvars", "go.uber.org/deepnil", "go.uber.org/nilabletypes",
+		"go.uber.org/helloworld", "go.uber.org/multifilepackage", "go.uber.org/multifilepackage/firstpackage",
+		"go.uber.org/multifilepackage/secondpackage", "go.uber.org/multipleassignment", "go.uber.org/annotationparse",
+		"go.uber.org/nilcheck", "go.uber.org/simpleflow", "go.uber.org/loopflow", "go.uber.org/methodimplementation/...",
+		"go.uber.org/transitivefacts/...", "go.uber.org/namedreturn", "go.uber.org/ignoregenerated", "ignoredpkg1",
+		"ignoredpkg2", "go.uber.org/receivers", "go.uber.org/generics", "go.uber.org/consts", "go.uber.org/looprange",
+		"go.uber.org/abnormalflow", "go.uber.org/nolint/...", "go.uber.org/templ", "go.uber.org/zap")
 	factStats := nilawaytest.RequireFactCodecs(t, results)
 
 	t.Logf("Total fact bytes: %.2f KB", float32(factStats.TotalBytes)/1024)
@@ -145,6 +154,17 @@ func TestStructInitV2(t *testing.T) { //nolint:paralleltest
 		"structinitv2/returnzerovalue/app",
 		"structinitv2/returnshape/app",
 	)
+}
+
+func TestStructInitV2Contracts(t *testing.T) { //nolint:paralleltest
+	err := config.Analyzer.Flags.Set(config.ExperimentalStructInitV2EnableFlag, "true")
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, config.Analyzer.Flags.Set(config.ExperimentalStructInitV2EnableFlag, "false"))
+	}()
+
+	testdata := analysistest.TestData()
+	analysistest.Run(t, testdata, Analyzer, "go.uber.org/functioncontracts")
 }
 
 func TestAnonymousFunction(t *testing.T) { //nolint:paralleltest

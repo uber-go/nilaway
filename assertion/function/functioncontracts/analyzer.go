@@ -101,11 +101,11 @@ func run(p *analysis.Pass) (Map, error) {
 		// packages).
 		if fn.Exported() &&
 			// fn.Scope() -> the scope of the function body.
-			fn.Scope() != nil &&
-			// fn.Scope().Parent() -> the scope of the file.
-			fn.Scope().Parent() != nil &&
-			// fn.Scope().Parent().Parent() -> the scope of the package.
-			fn.Scope().Parent().Parent() == pass.Pkg.Scope() {
+			((fn.Scope() != nil &&
+				// fn.Scope().Parent() -> the scope of the file.
+				fn.Scope().Parent() != nil &&
+				// fn.Scope().Parent().Parent() -> the scope of the package.
+				fn.Scope().Parent().Parent() == pass.Pkg.Scope()) || isExportedMethodOfPackage(fn, pass.Pkg)) {
 			pass.ExportObjectFact(fn, &ctrts)
 		}
 	}
@@ -168,11 +168,16 @@ func collectFunctionContracts(pass *analysishelper.EnhancedPass) (Map, error) {
 
 			// If we reach here, it means that there are no handwritten contracts for this
 			// function. We need to infer contracts for this function.
-			if funcDecl.Type.Params.NumFields() != 1 ||
-				funcDecl.Type.Results.NumFields() != 1 ||
-				typeshelper.TypeBarsNilness(funcObj.Type().(*types.Signature).Params().At(0).Type()) ||
-				typeshelper.TypeBarsNilness(funcObj.Type().(*types.Signature).Results().At(0).Type()) ||
-				funcObj.Type().(*types.Signature).Variadic() {
+			sig := funcObj.Type().(*types.Signature)
+			oldInferenceEligible := funcDecl.Type.Params.NumFields() == 1 &&
+				funcDecl.Type.Results.NumFields() == 1 &&
+				!typeshelper.TypeBarsNilness(sig.Params().At(0).Type()) &&
+				!typeshelper.TypeBarsNilness(sig.Results().At(0).Type()) &&
+				!sig.Variadic()
+			argFieldInferenceEligible := typeshelper.FuncIsErrReturning(sig) && !sig.Variadic() && typeshelper.FuncHasPointerToStructParam(sig)
+			trueArgInferenceEligible := typeshelper.FuncReturnsExactlyBool(sig) && !sig.Variadic() && typeshelper.FuncHasNilableParam(sig)
+			trueRecvFieldInferenceEligible := typeshelper.FuncReturnsExactlyBool(sig) && !sig.Variadic() && hasNilableReceiverField(sig) && receiverInPackage(sig, pass.Pkg)
+			if !oldInferenceEligible && !argFieldInferenceEligible && !trueArgInferenceEligible && !trueRecvFieldInferenceEligible {
 				// We definitely want to ignore any function without any parameters or return
 				// values since they cannot have any contracts.
 
@@ -209,7 +214,20 @@ func collectFunctionContracts(pass *analysishelper.EnhancedPass) (Map, error) {
 					}
 				}()
 
-				if contracts := inferContracts(fnssa); len(contracts) != 0 {
+				var contracts Contracts
+				if oldInferenceEligible {
+					contracts = append(contracts, inferContracts(fnssa)...)
+				}
+				if conf.ExperimentalStructInitV2Enable && argFieldInferenceEligible {
+					contracts = append(contracts, inferArgFieldContracts(fnssa)...)
+				}
+				if conf.ExperimentalStructInitV2Enable && trueArgInferenceEligible {
+					contracts = append(contracts, inferTrueArgNonNilContracts(fnssa)...)
+				}
+				if conf.ExperimentalStructInitV2Enable && trueRecvFieldInferenceEligible {
+					contracts = append(contracts, inferTrueRecvFieldNonNilContracts(fnssa)...)
+				}
+				if len(contracts) != 0 {
 					funcChan <- functionResult{
 						funcObj:   funcObj,
 						contracts: contracts,
@@ -234,4 +252,47 @@ func collectFunctionContracts(pass *analysishelper.EnhancedPass) (Map, error) {
 	}
 
 	return m, err
+}
+
+func hasNilableReceiverField(sig *types.Signature) bool {
+	if sig.Recv() == nil {
+		return false
+	}
+	t := sig.Recv().Type()
+	if ptr, ok := t.(*types.Pointer); ok {
+		t = ptr.Elem()
+	}
+	st := typeshelper.AsDeeplyStruct(t)
+	if st == nil {
+		return false
+	}
+	for i := 0; i < st.NumFields(); i++ {
+		f := st.Field(i)
+		if !f.Embedded() && !typeshelper.TypeBarsNilness(f.Type()) {
+			return true
+		}
+	}
+	return false
+}
+
+func receiverInPackage(sig *types.Signature, pkg *types.Package) bool {
+	t := sig.Recv().Type()
+	if ptr, ok := t.(*types.Pointer); ok {
+		t = ptr.Elem()
+	}
+	named, ok := t.(*types.Named)
+	return ok && named.Obj().Pkg() == pkg
+}
+
+func isExportedMethodOfPackage(fn *types.Func, pkg *types.Package) bool {
+	sig, ok := fn.Type().(*types.Signature)
+	if !ok || sig.Recv() == nil {
+		return false
+	}
+	t := sig.Recv().Type()
+	if ptr, ok := t.(*types.Pointer); ok {
+		t = ptr.Elem()
+	}
+	named, ok := t.(*types.Named)
+	return ok && named.Obj().Pkg() == pkg
 }

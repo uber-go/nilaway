@@ -15,12 +15,292 @@
 package functioncontracts
 
 import (
+	"go/constant"
 	"go/token"
 	"go/types"
+	"sort"
 
 	"go.uber.org/nilaway/util/typeshelper"
 	"golang.org/x/tools/go/ssa"
 )
+
+// inferTrueArgNonNilContracts infers the deliberately small, structural contract
+// true => arg(N).nonnil. Values which are not directly justified by a nil
+// comparison (or by the short-circuit control flow surrounding one) are rejected.
+func inferTrueArgNonNilContracts(fn *ssa.Function) Contracts {
+	if fn.Signature.Results().Len() != 1 || fn.Signature.Results().At(0).Type().String() != "bool" || fn.Signature.Variadic() {
+		return nil
+	}
+	declaredStart := len(fn.Params) - fn.Signature.Params().Len()
+	var contracts Contracts
+	for i := 0; i < fn.Signature.Params().Len(); i++ {
+		param := fn.Params[declaredStart+i]
+		if typeshelper.TypeBarsNilness(param.Type()) {
+			continue
+		}
+		proven := false
+		valid := true
+		for _, ret := range getReturnInstrs(fn) {
+			ok, depends := proveTrueImpliesNonNil(ret.Results[0], ret.Block(), nil, func(value ssa.Value) bool { return value == param })
+			if !ok {
+				valid = false
+				break
+			}
+			proven = proven || depends
+		}
+		if valid && proven {
+			index := i
+			contracts = append(contracts, Contract{TrueArgNonNil: &index})
+		}
+	}
+	return contracts
+}
+
+func inferTrueRecvFieldNonNilContracts(fn *ssa.Function) Contracts {
+	if fn.Signature.Recv() == nil || fn.Signature.Results().Len() != 1 ||
+		fn.Signature.Results().At(0).Type().Underlying().String() != "bool" || fn.Signature.Variadic() ||
+		len(fn.Params) == 0 {
+		return nil
+	}
+	recv := fn.Params[0]
+	t := recv.Type()
+	if ptr, ok := t.(*types.Pointer); ok {
+		t = ptr.Elem()
+	}
+	st := typeshelper.AsDeeplyStruct(t)
+	if st == nil {
+		return nil
+	}
+	if hasNonLocalStore(fn) || !receiverDoesNotEscape(fn, recv) {
+		return nil
+	}
+	var contracts Contracts
+	for fieldIndex := 0; fieldIndex < st.NumFields(); fieldIndex++ {
+		field := st.Field(fieldIndex)
+		if field.Embedded() || typeshelper.TypeBarsNilness(field.Type()) {
+			continue
+		}
+		candidate, ok := receiverFieldLoad(fn, recv, fieldIndex)
+		if !ok {
+			continue
+		}
+		valid, depends := true, false
+		for _, ret := range getReturnInstrs(fn) {
+			ok, used := proveTrueImpliesNonNil(ret.Results[0], ret.Block(), nil, func(value ssa.Value) bool { return value == candidate })
+			if !ok {
+				valid = false
+				break
+			}
+			depends = depends || used
+		}
+		if valid && depends {
+			index := fieldIndex
+			contracts = append(contracts, Contract{TrueRecvFieldNonNil: &index})
+		}
+	}
+	sort.Slice(contracts, func(i, j int) bool { return *contracts[i].TrueRecvFieldNonNil < *contracts[j].TrueRecvFieldNonNil })
+	return contracts
+}
+
+// receiverFieldLoad returns the SSA value that loads field fieldIndex of receiver recv within fn, without performing any soundness check. For pointer receivers the load must come from a *ssa.FieldAddr on recv dereferenced by a *ssa.UnOp (token.MUL); for value receivers it comes from the unique localization copy Alloc (the store of recv into a block-local Alloc) via FieldAddr+MUL, or from a direct *ssa.Field on recv. The second result is false if no unique such load exists.
+func receiverFieldLoad(fn *ssa.Function, recv ssa.Value, fieldIndex int) (ssa.Value, bool) {
+	var copyAlloc *ssa.Alloc
+	if _, valueReceiver := recv.Type().Underlying().(*types.Struct); valueReceiver {
+		for _, b := range fn.Blocks {
+			for _, instr := range b.Instrs {
+				store, ok := instr.(*ssa.Store)
+				if !ok || store.Val != recv {
+					continue
+				}
+				alloc, ok := store.Addr.(*ssa.Alloc)
+				if !ok || copyAlloc != nil {
+					return nil, false
+				}
+				copyAlloc = alloc
+			}
+		}
+		if copyAlloc == nil {
+			return nil, false
+		}
+	}
+	var load ssa.Value
+	for _, b := range fn.Blocks {
+		for _, instr := range b.Instrs {
+			if addr, ok := instr.(*ssa.FieldAddr); ok && addr.Field == fieldIndex && (addr.X == recv || addr.X == copyAlloc) {
+				refs := addr.Referrers()
+				if refs == nil {
+					return nil, false
+				}
+				for _, ref := range *refs {
+					candidate, ok := ref.(*ssa.UnOp)
+					if !ok || candidate.Op != token.MUL || load != nil {
+						return nil, false
+					}
+					load = candidate
+				}
+			} else if value, ok := instr.(*ssa.Field); ok && value.X == recv && value.Field == fieldIndex {
+				if load != nil {
+					return nil, false
+				}
+				load = value
+			}
+		}
+	}
+	return load, load != nil
+}
+
+// receiverDoesNotEscape reports whether receiver recv (and, for value receivers, its localization copy) is used in fn only in ways that cannot mutate or leak the receiver. Pointer receiver: any *ssa.Call, *ssa.Go, or *ssa.Defer in fn is unsafe, and recv-derived addresses may only feed dereference loads (token.MUL UnOp); passing, returning, storing, converting, or capturing them is unsafe. Value receiver: there must be exactly one localization store of recv into a block-local Alloc; the copy may only participate in its own initialization, field addressing, direct reads, and dereference loads, and neither it nor a receiver-rooted field address may escape.
+func receiverDoesNotEscape(fn *ssa.Function, recv ssa.Value) bool {
+	_, valueReceiver := recv.Type().Underlying().(*types.Struct)
+	var copyAlloc *ssa.Alloc
+	if valueReceiver {
+		for _, b := range fn.Blocks {
+			for _, instr := range b.Instrs {
+				store, ok := instr.(*ssa.Store)
+				if !ok || store.Val != recv {
+					continue
+				}
+				alloc, ok := store.Addr.(*ssa.Alloc)
+				if !ok || copyAlloc != nil {
+					return false
+				}
+				copyAlloc = alloc
+			}
+		}
+		if copyAlloc == nil {
+			return false
+		}
+		refs := copyAlloc.Referrers()
+		if refs == nil {
+			return false
+		}
+		for _, ref := range *refs {
+			switch ref := ref.(type) {
+			case *ssa.Store:
+				if ref.Val != recv || ref.Addr != copyAlloc {
+					return false
+				}
+			case *ssa.FieldAddr:
+				if !receiverFieldAddrDoesNotEscape(ref) {
+					return false
+				}
+			default:
+				return false
+			}
+		}
+	} else {
+		refs := recv.Referrers()
+		if refs == nil {
+			return false
+		}
+		for _, ref := range *refs {
+			addr, ok := ref.(*ssa.FieldAddr)
+			if !ok || !receiverFieldAddrDoesNotEscape(addr) {
+				return false
+			}
+		}
+	}
+	for _, b := range fn.Blocks {
+		for _, instr := range b.Instrs {
+			switch instr.(type) {
+			case *ssa.Call, *ssa.Go, *ssa.Defer:
+				if !valueReceiver {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
+func receiverFieldAddrDoesNotEscape(addr *ssa.FieldAddr) bool {
+	refs := addr.Referrers()
+	if refs == nil {
+		return false
+	}
+	for _, ref := range *refs {
+		load, ok := ref.(*ssa.UnOp)
+		if !ok || load.Op != token.MUL || load.X != addr {
+			return false
+		}
+	}
+	return true
+}
+
+// proveTrueImpliesNonNil returns whether true for value implies the matched value is non-nil, and
+// whether that proof actually used the matched value (rather than a vacuous false return).
+func proveTrueImpliesNonNil(value ssa.Value, pred *ssa.BasicBlock, seen map[ssa.Value]bool, matches func(ssa.Value) bool) (bool, bool) {
+	if seen == nil {
+		seen = make(map[ssa.Value]bool)
+	}
+	if seen[value] {
+		return false, false
+	}
+	seen[value] = true
+	defer delete(seen, value)
+	if c, ok := value.(*ssa.Const); ok {
+		return !constant.BoolVal(c.Value), false
+	}
+	switch v := value.(type) {
+	case *ssa.BinOp:
+		if v.Op == token.LAND {
+			l, ld := proveTrueImpliesNonNil(v.X, pred, seen, matches)
+			r, rd := proveTrueImpliesNonNil(v.Y, pred, seen, matches)
+			return l || r, ld || rd
+		}
+		if v.Op == token.LOR {
+			l, ld := proveTrueImpliesNonNil(v.X, pred, seen, matches)
+			r, rd := proveTrueImpliesNonNil(v.Y, pred, seen, matches)
+			return l && r, ld && rd
+		}
+		if (v.Op == token.EQL || v.Op == token.NEQ) && ((matches(v.X) && isNilConst(v.Y)) || (matches(v.Y) && isNilConst(v.X))) {
+			return v.Op == token.NEQ, v.Op == token.NEQ
+		}
+	case *ssa.UnOp:
+		if v.Op == token.NOT {
+			if bin, ok := v.X.(*ssa.BinOp); ok && (bin.Op == token.EQL || bin.Op == token.NEQ) && ((matches(bin.X) && isNilConst(bin.Y)) || (matches(bin.Y) && isNilConst(bin.X))) {
+				return bin.Op == token.EQL, bin.Op == token.EQL
+			}
+		}
+	case *ssa.Phi:
+		if len(v.Edges) != len(v.Block().Preds) {
+			return false, false
+		}
+		depends := false
+		for i, edge := range v.Edges {
+			ok, used := proveTrueImpliesNonNil(edge, v.Block().Preds[i], seen, matches)
+			if !ok {
+				ok, used = proveTrueOnBranch(matches, v.Block().Preds[i], v.Block())
+			}
+			if !ok {
+				return false, false
+			}
+			depends = depends || used
+		}
+		return true, depends
+	}
+	return false, false
+}
+
+func proveTrueOnBranch(matches func(ssa.Value) bool, block, target *ssa.BasicBlock) (bool, bool) {
+	if block == nil || len(block.Instrs) == 0 {
+		if block != nil && len(block.Preds) == 1 {
+			return proveTrueOnBranch(matches, block.Preds[0], block)
+		}
+		return false, false
+	}
+	eq, neq, cond := branch(block)
+	if cond == nil || len(block.Succs) != 2 {
+		if len(block.Preds) == 1 {
+			return proveTrueOnBranch(matches, block.Preds[0], block)
+		}
+		return false, false
+	}
+	if matches(cond.X) && isNilConst(cond.Y) || matches(cond.Y) && isNilConst(cond.X) {
+		return (cond.Op == token.NEQ && neq == target) || (cond.Op == token.EQL && eq == target), true
+	}
+	return false, false
+}
 
 // _maxNumTablesPerBlock is the maximum number of nilnessTables that we will keep for each block.
 // If the number of nilnessTables exceeds this number, we will stop analyzing the function and
@@ -148,6 +428,232 @@ func inferContracts(fn *ssa.Function) Contracts {
 	}
 
 	return deriveContracts(retInstrs, fn, nilnessTableSetByBB)
+}
+
+type argFieldKey struct {
+	param int
+	field int
+}
+
+// inferArgFieldContracts infers contracts established by checking a direct field of an argument.
+// This analysis deliberately has a small whitelist: values derived from the argument must not
+// escape or be modified in ways that make the proof of the field check unreliable.
+func inferArgFieldContracts(fn *ssa.Function) Contracts {
+	if !typeshelper.FuncIsErrReturning(fn.Signature) || fn.Signature.Variadic() {
+		return nil
+	}
+
+	declaredStart := len(fn.Params) - fn.Signature.Params().Len()
+	fieldsByParam := make(map[int]map[int]bool)
+	params := make(map[ssa.Value]int)
+	for i := 0; i < fn.Signature.Params().Len(); i++ {
+		param := fn.Params[declaredStart+i]
+		_, ok := param.Type().(*types.Pointer)
+		if !ok {
+			continue
+		}
+		st := typeshelper.AsDeeplyStruct(param.Type())
+		if st == nil {
+			continue
+		}
+		for fieldIndex := 0; fieldIndex < st.NumFields(); fieldIndex++ {
+			field := st.Field(fieldIndex)
+			if !field.Embedded() && !typeshelper.TypeBarsNilness(field.Type()) {
+				if fieldsByParam[i] == nil {
+					fieldsByParam[i] = make(map[int]bool)
+				}
+				fieldsByParam[i][fieldIndex] = true
+			}
+		}
+		params[param] = i
+	}
+	if len(params) == 0 {
+		return nil
+	}
+
+	valid := make(map[argFieldKey]bool)
+	observed := make(map[argFieldKey]bool)
+	for param, paramIndex := range params {
+		for fieldIndex := range fieldsByParam[paramIndex] {
+			key := argFieldKey{param: paramIndex, field: fieldIndex}
+			if argFieldUsesWhitelisted(param, fieldsByParam[paramIndex]) {
+				valid[key] = true
+			}
+		}
+	}
+	if len(valid) == 0 {
+		return nil
+	}
+	if hasNonLocalStore(fn) {
+		return nil
+	}
+
+	for _, b := range fn.Blocks {
+		for _, instr := range b.Instrs {
+			if binOp, ok := instr.(*ssa.BinOp); ok {
+				if key, ok := checkedArgField(binOp, params, fieldsByParam); ok && valid[key] {
+					observed[key] = true
+				}
+			}
+		}
+	}
+
+	checks := make(map[argFieldKey]map[*ssa.BasicBlock]*ssa.BasicBlock)
+	for _, b := range fn.Blocks {
+		_, neSucc, binOp := branch(b)
+		if binOp == nil {
+			continue
+		}
+		if key, ok := checkedArgField(binOp, params, fieldsByParam); ok && valid[key] {
+			if checks[key] == nil {
+				checks[key] = make(map[*ssa.BasicBlock]*ssa.BasicBlock)
+			}
+			checks[key][b] = neSucc
+		}
+	}
+
+	var contracts Contracts
+	for key := range valid {
+		if !observed[key] {
+			continue
+		}
+		inferred := true
+		for _, ret := range getReturnInstrs(fn) {
+			err := ret.Results[len(ret.Results)-1]
+			if isProvablyNonNilError(err) {
+				continue
+			}
+			dominated := false
+			for _, nonnilSucc := range checks[key] {
+				if nonnilSucc.Dominates(ret.Block()) {
+					dominated = true
+					break
+				}
+			}
+			if !dominated {
+				inferred = false
+				break
+			}
+		}
+		if inferred {
+			contracts = append(contracts, Contract{Field: &ArgField{ParamIndex: key.param, FieldIndex: key.field}})
+		}
+	}
+	sort.Slice(contracts, func(i, j int) bool {
+		if contracts[i].Field.ParamIndex != contracts[j].Field.ParamIndex {
+			return contracts[i].Field.ParamIndex < contracts[j].Field.ParamIndex
+		}
+		return contracts[i].Field.FieldIndex < contracts[j].Field.FieldIndex
+	})
+	return contracts
+}
+
+// hasNonLocalStore reports whether fn contains any store to an address not rooted in a block-local Alloc (see rootedInBlockAlloc), i.e. a write that could mutate state outside fn's local copies.
+func hasNonLocalStore(fn *ssa.Function) bool {
+	for _, b := range fn.Blocks {
+		for _, instr := range b.Instrs {
+			if store, ok := instr.(*ssa.Store); ok && !rootedInBlockAlloc(store.Addr) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func argFieldUsesWhitelisted(param ssa.Value, candidateFields map[int]bool) bool {
+	refs := param.Referrers()
+	if refs == nil {
+		return false
+	}
+	for _, instr := range *refs {
+		switch instr := instr.(type) {
+		case *ssa.FieldAddr:
+			if instr.X != param || !candidateFields[instr.Field] || !fieldAddrUsesWhitelisted(instr) {
+				return false
+			}
+		case *ssa.BinOp:
+			if !isNilComparisonOf(instr, param) {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func fieldAddrUsesWhitelisted(addr *ssa.FieldAddr) bool {
+	refs := addr.Referrers()
+	if refs == nil {
+		return false
+	}
+	for _, instr := range *refs {
+		load, ok := instr.(*ssa.UnOp)
+		if !ok || load.Op != token.MUL || load.X != addr {
+			return false
+		}
+		loadRefs := load.Referrers()
+		if loadRefs == nil {
+			return false
+		}
+		for _, use := range *loadRefs {
+			binOp, ok := use.(*ssa.BinOp)
+			if !ok || !isNilComparisonOf(binOp, load) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func isNilComparisonOf(binOp *ssa.BinOp, value ssa.Value) bool {
+	if binOp.Op != token.EQL && binOp.Op != token.NEQ {
+		return false
+	}
+	return (binOp.X == value && isNilConst(binOp.Y)) || (binOp.Y == value && isNilConst(binOp.X))
+}
+
+func isNilConst(value ssa.Value) bool {
+	constant, ok := value.(*ssa.Const)
+	return ok && constant.IsNil()
+}
+
+func checkedArgField(binOp *ssa.BinOp, params map[ssa.Value]int, fields map[int]map[int]bool) (argFieldKey, bool) {
+	var load *ssa.UnOp
+	if left, ok := binOp.X.(*ssa.UnOp); ok {
+		load = left
+	} else if right, ok := binOp.Y.(*ssa.UnOp); ok {
+		load = right
+	}
+	if load == nil || load.Op != token.MUL || !isNilComparisonOf(binOp, load) {
+		return argFieldKey{}, false
+	}
+	addr, ok := load.X.(*ssa.FieldAddr)
+	if !ok {
+		return argFieldKey{}, false
+	}
+	paramIndex, ok := params[addr.X]
+	if !ok || !fields[paramIndex][addr.Field] {
+		return argFieldKey{}, false
+	}
+	return argFieldKey{param: paramIndex, field: addr.Field}, true
+}
+
+func rootedInBlockAlloc(value ssa.Value) bool {
+	switch value := value.(type) {
+	case *ssa.Alloc:
+		return true
+	case *ssa.FieldAddr:
+		return rootedInBlockAlloc(value.X)
+	case *ssa.IndexAddr:
+		return rootedInBlockAlloc(value.X)
+	default:
+		return false
+	}
+}
+
+func isProvablyNonNilError(value ssa.Value) bool {
+	return nilnessTable{}.nilnessOf(value) == isnonnil
 }
 
 // learnNilness learns nilness for the block succ, extended from one nilnessTable table of its

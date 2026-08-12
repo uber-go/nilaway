@@ -207,3 +207,42 @@ func barUnnamedParam2() {
 	b2 := fooUnnamedParam(a2) // nilable(param 0) nonnil(result 0)
 	print(*b2)                // No error here.
 }
+
+type embeddedValidator struct {
+	F *int
+}
+
+func (v embeddedValidator) IsValid() bool {
+	return v.F != nil
+}
+
+type outerValidator struct {
+	G *int
+	embeddedValidator
+}
+
+func usePromotedValidator() {
+	var x outerValidator
+	var nilInt *int
+	x.G = nilInt
+	if x.IsValid() {
+		_ = *x.G // want "dereferenced"
+	}
+}
+
+type directValidator struct {
+	G *int
+}
+
+func (v directValidator) IsValid() bool {
+	return v.G != nil
+}
+
+func useDirectValidator() {
+	var x directValidator
+	var nilInt *int
+	x.G = nilInt
+	if x.IsValid() {
+		_ = *x.G // No error: the direct method proves G is nonnil.
+	}
+}

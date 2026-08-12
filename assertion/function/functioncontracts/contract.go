@@ -14,8 +14,16 @@
 
 package functioncontracts
 
+import "fmt"
+
 // ContractVal represents the possible value appearing in a function contract.
 type ContractVal string
+
+// ArgField identifies a direct field of a declared pointer-to-struct argument.
+type ArgField struct {
+	ParamIndex int
+	FieldIndex int
+}
 
 const (
 	// NonNil has keyword "nonnil".
@@ -53,4 +61,24 @@ type Contract struct {
 	Ins []ContractVal
 	// Outs is the list of output contract values, where the index is the index of the return.
 	Outs []ContractVal
+	// Field describes a field whose non-nilness is guaranteed when the error is nil.
+	Field *ArgField
+	// TrueArgNonNil describes an argument whose non-nilness is guaranteed when the function returns true.
+	TrueArgNonNil *int
+	// TrueRecvFieldNonNil describes a receiver field whose non-nilness is guaranteed when true.
+	TrueRecvFieldNonNil *int
+}
+
+func (c Contract) String() string {
+	str := fmt.Sprintf("{%v %v", c.Ins, c.Outs)
+	if c.Field != nil {
+		str += fmt.Sprintf(" field(%d,%d)", c.Field.ParamIndex, c.Field.FieldIndex)
+	}
+	if c.TrueArgNonNil != nil {
+		str += fmt.Sprintf(" true => arg(%d).nonnil", *c.TrueArgNonNil)
+	}
+	if c.TrueRecvFieldNonNil != nil {
+		str += fmt.Sprintf(" true => recv.field(%d).nonnil", *c.TrueRecvFieldNonNil)
+	}
+	return str + "}"
 }

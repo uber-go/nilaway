@@ -101,6 +101,9 @@ func TestInfer(t *testing.T) {
 
 	actual := make(Map)
 	for funcObj, contracts := range funcContractsMap {
+		if strings.HasPrefix(funcObj.Pkg().Path(), "internal/runtime/") {
+			continue
+		}
 		actual[funcObj] = contracts
 	}
 
@@ -143,16 +146,92 @@ func TestInfer(t *testing.T) {
 	}
 }
 
-func TestFactExport(t *testing.T) {
-	t.Parallel()
+func TestInferArgField(t *testing.T) { //nolint:paralleltest // toggles the shared analyzer flag
+	err := config.Analyzer.Flags.Set(config.ExperimentalStructInitV2EnableFlag, "true")
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, config.Analyzer.Flags.Set(config.ExperimentalStructInitV2EnableFlag, "false"))
+	}()
+
+	testdata := analysistest.TestData()
+	r := analysistest.Run(t, testdata, Analyzer, "go.uber.org/inferargfield")
+	require.Len(t, r, 1)
+	pass, result := r[0].Pass, r[0].Result
+	contracts := result.(*analysishelper.Result[Map]).Res
+	require.NoError(t, result.(*analysishelper.Result[Map]).Err)
+	expected := Map{
+		getFuncObj(pass, "Plain"): {{Field: &ArgField{ParamIndex: 0, FieldIndex: 0}}},
+		getFuncObj(pass, "MultipleFields"): {
+			{Field: &ArgField{ParamIndex: 0, FieldIndex: 0}},
+			{Field: &ArgField{ParamIndex: 0, FieldIndex: 1}},
+		},
+		getFuncObj(pass, "MultipleParams"): {{Field: &ArgField{ParamIndex: 1, FieldIndex: 0}}},
+		getFuncObj(pass, "Reversed"):       {{Field: &ArgField{ParamIndex: 0, FieldIndex: 0}}},
+		getFuncObj(pass, "Msg.Method"):     {{Field: &ArgField{ParamIndex: 0, FieldIndex: 1}}},
+	}
+	for _, name := range []string{"LoopFixpoint", "PassFieldToCall", "UnrelatedStore", "LoopStore"} {
+		require.NotContains(t, contracts, getFuncObj(pass, name))
+	}
+	if diff := cmp.Diff(expected, contracts); diff != "" {
+		require.Fail(t, fmt.Sprintf("inferred field contracts mismatch (-want +got):\n%s", diff))
+	}
+}
+
+func TestInferTrueArgNonNil(t *testing.T) { //nolint:paralleltest // toggles the shared analyzer flag
+	err := config.Analyzer.Flags.Set(config.ExperimentalStructInitV2EnableFlag, "true")
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, config.Analyzer.Flags.Set(config.ExperimentalStructInitV2EnableFlag, "false"))
+	}()
+	r := analysistest.Run(t, analysistest.TestData(), Analyzer, "go.uber.org/infertruearg")
+	require.Len(t, r, 1)
+	pass := r[0].Pass
+	contracts := r[0].Result.(*analysishelper.Result[Map]).Res
+	index := 0
+	want := Map{
+		getFuncObj(pass, "Compare"):          {{TrueArgNonNil: &index}},
+		getFuncObj(pass, "Compound"):         {{TrueArgNonNil: &index}},
+		getFuncObj(pass, "Negated"):          {{TrueArgNonNil: &index}},
+		getFuncObj(pass, "Validator.Method"): {{TrueArgNonNil: &index}},
+	}
+	for _, name := range []string{"Vacuous", "Or", "Variadic", "Reassigned"} {
+		require.NotContains(t, contracts, getFuncObj(pass, name))
+	}
+	require.Empty(t, cmp.Diff(want, contracts))
+}
+
+func TestInferTrueRecvField(t *testing.T) { //nolint:paralleltest // toggles the shared analyzer flag
+	err := config.Analyzer.Flags.Set(config.ExperimentalStructInitV2EnableFlag, "true")
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, config.Analyzer.Flags.Set(config.ExperimentalStructInitV2EnableFlag, "false"))
+	}()
+	r := analysistest.Run(t, analysistest.TestData(), Analyzer, "go.uber.org/infertruerecvfield")
+	require.Len(t, r, 1)
+	contracts := r[0].Result.(*analysishelper.Result[Map]).Res
+	for _, name := range []string{"Event.Vacuous", "Event.Or", "Event.NotChecked", "Event.Mutated", "Event.MutateOther", "Event.PassFieldAddr"} {
+		require.NotContains(t, contracts, getFuncObj(r[0].Pass, name))
+	}
+}
+
+func TestFactExport(t *testing.T) { //nolint:paralleltest // toggles the shared analyzer flag
+	err := config.Analyzer.Flags.Set(config.ExperimentalStructInitV2EnableFlag, "true")
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, config.Analyzer.Flags.Set(config.ExperimentalStructInitV2EnableFlag, "false"))
+	}()
 
 	testdata := analysistest.TestData()
 	// The exported facts are asserted in the testdata file themselves in "want" strings.
 	analysistest.Run(t, testdata, Analyzer, "go.uber.org/factexport/upstream")
 }
 
-func TestFactImport(t *testing.T) {
-	t.Parallel()
+func TestFactImport(t *testing.T) { //nolint:paralleltest // toggles the shared analyzer flag
+	err := config.Analyzer.Flags.Set(config.ExperimentalStructInitV2EnableFlag, "true")
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, config.Analyzer.Flags.Set(config.ExperimentalStructInitV2EnableFlag, "false"))
+	}()
 
 	// Now we test the import of the contract facts. The downstream package has a dependency on
 	// the upstream package (which contains several contracted functions). It should be able to
@@ -176,19 +255,36 @@ func TestFactImport(t *testing.T) {
 		getFuncObj(pass, "upstream.ExportedInferred"): {
 			Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		},
+		getFuncObj(pass, "upstream.ExportedField"): {
+			Contract{Field: &ArgField{ParamIndex: 0, FieldIndex: 0}},
+		},
+		getFuncObj(pass, "upstream.ExportedMsg.ExportedMethod"): {
+			Contract{Field: &ArgField{ParamIndex: 0, FieldIndex: 0}},
+		},
+		getFuncObj(pass, "upstream.ExportedTrue"): {
+			Contract{TrueArgNonNil: ptrTo(0)},
+		},
+		getFuncObj(pass, "upstream.ExportedValidator.ExportedTrueMethod"): {
+			Contract{TrueArgNonNil: ptrTo(0)},
+		},
+		getFuncObj(pass, "upstream.ExportedEvent.IsValid"): {
+			Contract{TrueRecvFieldNonNil: ptrTo(0)},
+		},
 	}
 	if diff := cmp.Diff(expected, actual); diff != "" {
 		require.Fail(t, fmt.Sprintf("inferred contracts mismatch (-want +got):\n%s", diff))
 	}
 }
 
+func ptrTo(v int) *int { return &v }
+
 func getFuncObj(pass *analysis.Pass, name string) *types.Func {
 	parts := strings.Split(name, ".")
 	if len(parts) == 1 {
 		return pass.Pkg.Scope().Lookup(parts[0]).(*types.Func)
 	}
-	if len(parts) > 2 {
-		panic(fmt.Sprintf("invalid function name to look up, expected name or pkg.name, got %q", name))
+	if len(parts) > 3 {
+		panic(fmt.Sprintf("invalid function name to look up, got %q", name))
 	}
 	// A "Type.Method" reference to a method of a named type in the current package.
 	if obj := pass.Pkg.Scope().Lookup(parts[0]); obj != nil {
@@ -209,7 +305,18 @@ func getFuncObj(pass *analysis.Pass, name string) *types.Func {
 	}
 	for _, imported := range pass.Pkg.Imports() {
 		if imported.Name() == parts[0] {
-			return imported.Scope().Lookup(parts[1]).(*types.Func)
+			if fn, ok := imported.Scope().Lookup(parts[1]).(*types.Func); ok {
+				return fn
+			}
+			if typeName, ok := imported.Scope().Lookup(parts[1]).(*types.TypeName); ok {
+				if named, ok := typeName.Type().(*types.Named); ok {
+					for i := 0; i < named.NumMethods(); i++ {
+						if method := named.Method(i); method.Name() == parts[2] {
+							return method
+						}
+					}
+				}
+			}
 		}
 	}
 

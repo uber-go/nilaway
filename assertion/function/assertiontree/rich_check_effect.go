@@ -149,6 +149,122 @@ func (f *FuncErrRetNonnilArg) equals(effect RichCheckEffect) bool {
 	return f.root.Equal(f.err, other.err) && f.root.Equal(f.arg, other.arg)
 }
 
+// FuncTrueRetNonnilArg is a RichCheckEffect for a predicate call that guarantees an argument is non-nil
+// when the predicate returns true.
+type FuncTrueRetNonnilArg struct {
+	root    *RootAssertionNode
+	call    *ast.CallExpr
+	arg     TrackableExpr
+	argExpr ast.Expr
+}
+
+// FuncTrueRetNonnilRecvField is a RichCheckEffect for a predicate method call that guarantees a
+// receiver field is non-nil when the predicate returns true.
+type FuncTrueRetNonnilRecvField struct {
+	root         *RootAssertionNode
+	call         *ast.CallExpr
+	receiver     TrackableExpr
+	fieldExpr    TrackableExpr
+	receiverExpr ast.Expr
+	field        *types.Var
+	fieldName    string
+}
+
+func (f *FuncTrueRetNonnilRecvField) isTriggeredBy(expr ast.Expr) bool {
+	call, ok := expr.(*ast.CallExpr)
+	return ok && call == f.call
+}
+
+func (f *FuncTrueRetNonnilRecvField) isInvalidatedBy(node ast.Node) bool {
+	if nodeAssignsAny(f.root, node, f.receiver, f.fieldExpr) {
+		return true
+	}
+	return callsMentionTrackable(f.root, node, f.receiver)
+}
+
+func (f *FuncTrueRetNonnilRecvField) effectIfTrue(node *RootAssertionNode) {
+	id := ast.NewIdent(f.fieldName)
+	f.root.functionContext.AddFakeIdent(id, f.field)
+	node.AddProduction(&annotation.ProduceTrigger{Annotation: &annotation.NegativeNilCheck{ProduceTriggerNever: &annotation.ProduceTriggerNever{}}, Expr: &ast.SelectorExpr{X: f.receiverExpr, Sel: id}})
+}
+
+func (*FuncTrueRetNonnilRecvField) effectIfFalse(*RootAssertionNode) {}
+func (*FuncTrueRetNonnilRecvField) isNoop() bool                     { return false }
+func (f *FuncTrueRetNonnilRecvField) equals(effect RichCheckEffect) bool {
+	o, ok := effect.(*FuncTrueRetNonnilRecvField)
+	return ok && f.root.Equal(f.receiver, o.receiver) && f.field == o.field
+}
+
+func (f *FuncTrueRetNonnilArg) isTriggeredBy(expr ast.Expr) bool {
+	call, ok := expr.(*ast.CallExpr)
+	return ok && call == f.call
+}
+
+func (f *FuncTrueRetNonnilArg) isInvalidatedBy(node ast.Node) bool {
+	if nodeAssignsAny(f.root, node, f.arg) {
+		return true
+	}
+	return callsMentionTrackable(f.root, node, f.arg)
+}
+
+func (f *FuncTrueRetNonnilArg) effectIfTrue(node *RootAssertionNode) {
+	node.AddProduction(&annotation.ProduceTrigger{Annotation: &annotation.NegativeNilCheck{ProduceTriggerNever: &annotation.ProduceTriggerNever{}}, Expr: f.argExpr})
+}
+
+func (*FuncTrueRetNonnilArg) effectIfFalse(*RootAssertionNode) {}
+func (*FuncTrueRetNonnilArg) isNoop() bool                     { return false }
+func (f *FuncTrueRetNonnilArg) equals(effect RichCheckEffect) bool {
+	o, ok := effect.(*FuncTrueRetNonnilArg)
+	return ok && f.call == o.call && f.root.Equal(f.arg, o.arg)
+}
+
+// FuncErrRetNonnilArgField is a RichCheckEffect for a trusted function call whose final result is
+// of type error and which guarantees that a direct field of a pointer-to-struct argument is non-nil
+// once the returned error is checked to be nil.
+type FuncErrRetNonnilArgField struct {
+	root      *RootAssertionNode // an associated root node
+	err       TrackableExpr      // the `error`-typed return of the function
+	arg       TrackableExpr      // the pointer-to-struct argument
+	argExpr   ast.Expr           // the raw argument expression
+	field     *types.Var         // the guaranteed non-nil struct field
+	fieldName string             // the field name, for constructing the selector expression
+}
+
+func (f *FuncErrRetNonnilArgField) isTriggeredBy(expr ast.Expr) bool {
+	return exprIsPositiveNilCheck(f.root, expr, f.err)
+}
+
+func (f *FuncErrRetNonnilArgField) isInvalidatedBy(node ast.Node) bool {
+	if nodeAssignsAny(f.root, node, f.err, f.arg) {
+		return true
+	}
+	return callsMentionTrackable(f.root, node, f.arg)
+}
+
+func (f *FuncErrRetNonnilArgField) effectIfTrue(node *RootAssertionNode) {
+	fieldIdent := ast.NewIdent(f.fieldName)
+	f.root.functionContext.AddFakeIdent(fieldIdent, f.field)
+	fieldExpr := &ast.SelectorExpr{X: f.argExpr, Sel: fieldIdent}
+	node.AddProduction(&annotation.ProduceTrigger{
+		Annotation: &annotation.NegativeNilCheck{ProduceTriggerNever: &annotation.ProduceTriggerNever{}},
+		Expr:       fieldExpr,
+	})
+}
+
+func (*FuncErrRetNonnilArgField) effectIfFalse(*RootAssertionNode) {
+	// no-op
+}
+
+func (*FuncErrRetNonnilArgField) isNoop() bool { return false }
+
+func (f *FuncErrRetNonnilArgField) equals(effect RichCheckEffect) bool {
+	other, ok := effect.(*FuncErrRetNonnilArgField)
+	if !ok {
+		return false
+	}
+	return f.root.Equal(f.err, other.err) && f.root.Equal(f.arg, other.arg) && f.field == other.field
+}
+
 // okRead provides a general implementation for the special return form: `v1, v2, ..., ok := expr`.
 // Concrete examples of patterns supported are:
 // - map ok read: `v, ok := m[k]`
@@ -259,7 +375,93 @@ func RichCheckFromNode(rootNode *RootAssertionNode, nonceGenerator *guard.NonceG
 	if funcEffects, ok := NodeTriggersFuncErrRet(rootNode, nonceGenerator, node); ok {
 		effects, someEffects = append(effects, funcEffects...), true
 	}
+	if rootNode.functionContext.functionConfig.EnableStructInitV2 {
+		if funcEffects, ok := NodeTriggersFuncTrueRetNonnilArg(rootNode, node); ok {
+			effects, someEffects = append(effects, funcEffects...), true
+		}
+		if funcEffects, ok := NodeTriggersFuncTrueRetNonnilRecvField(rootNode, node); ok {
+			effects, someEffects = append(effects, funcEffects...), true
+		}
+	}
 	return effects, someEffects
+}
+
+// NodeTriggersFuncTrueRetNonnilRecvField returns effects for predicate methods that guarantee a
+// receiver field is non-nil when they return true.
+func NodeTriggersFuncTrueRetNonnilRecvField(rootNode *RootAssertionNode, node ast.Node) ([]RichCheckEffect, bool) {
+	call, ok := node.(*ast.CallExpr)
+	if !ok {
+		return nil, false
+	}
+	sel, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr)
+	if !ok {
+		return nil, false
+	}
+	selection := rootNode.Pass().TypesInfo.Selections[sel]
+	if selection == nil || selection.Kind() != types.MethodVal || len(selection.Index()) != 1 {
+		return nil, false
+	}
+	target, ok := typeshelper.ResolveStaticCallTarget(rootNode.Pass().TypesInfo, call)
+	if !ok || target.Signature.Recv() == nil {
+		return nil, false
+	}
+	receiverExpr := sel.X
+	receiverType := rootNode.Pass().TypesInfo.TypeOf(receiverExpr)
+	if ptr, ok := receiverType.(*types.Pointer); ok {
+		receiverType = ptr.Elem()
+	}
+	st, ok := receiverType.Underlying().(*types.Struct)
+	if !ok {
+		return nil, false
+	}
+	receiver := parseExpr(rootNode, receiverExpr)
+	if receiver == nil {
+		return nil, false
+	}
+	var effects []RichCheckEffect
+	for _, contract := range rootNode.functionContext.funcContracts[target.Origin] {
+		if contract.TrueRecvFieldNonNil == nil {
+			continue
+		}
+		index := *contract.TrueRecvFieldNonNil
+		if index < 0 || index >= st.NumFields() {
+			continue
+		}
+		field := st.Field(index)
+		fieldIdent := ast.NewIdent(field.Name())
+		rootNode.functionContext.AddFakeIdent(fieldIdent, field)
+		fieldExpr := parseExpr(rootNode, &ast.SelectorExpr{X: receiverExpr, Sel: fieldIdent})
+		if fieldExpr == nil {
+			continue
+		}
+		effects = append(effects, &FuncTrueRetNonnilRecvField{root: rootNode, call: call, receiver: receiver, fieldExpr: fieldExpr, receiverExpr: receiverExpr, field: field, fieldName: field.Name()})
+	}
+	return effects, len(effects) != 0
+}
+
+// NodeTriggersFuncTrueRetNonnilArg returns effects for predicate calls that guarantee an argument is
+// non-nil when they return true.
+func NodeTriggersFuncTrueRetNonnilArg(rootNode *RootAssertionNode, node ast.Node) ([]RichCheckEffect, bool) {
+	call, ok := node.(*ast.CallExpr)
+	if !ok {
+		return nil, false
+	}
+	target, ok := typeshelper.ResolveStaticCallTarget(rootNode.Pass().TypesInfo, call)
+	if !ok || target.Signature.Results().Len() != 1 {
+		return nil, false
+	}
+	var effects []RichCheckEffect
+	for _, contract := range rootNode.functionContext.funcContracts[target.Origin] {
+		if contract.TrueArgNonNil == nil || *contract.TrueArgNonNil < 0 || *contract.TrueArgNonNil >= len(call.Args) || *contract.TrueArgNonNil >= target.Signature.Params().Len() {
+			continue
+		}
+		argExpr := call.Args[*contract.TrueArgNonNil]
+		arg := parseExpr(rootNode, argExpr)
+		if arg != nil {
+			effects = append(effects, &FuncTrueRetNonnilArg{root: rootNode, call: call, arg: arg, argExpr: argExpr})
+		}
+	}
+	return effects, len(effects) != 0
 }
 
 // parseExpr wraps a call to ParseExprAsProducer with two additional bits of useful handling:
@@ -280,6 +482,39 @@ func parseExpr(rootNode *RootAssertionNode, expr ast.Expr) TrackableExpr {
 	}
 	parsed, _ := rootNode.ParseExprAsProducer(expr, false)
 	return parsed
+}
+
+func callMentionsTrackable(root *RootAssertionNode, call *ast.CallExpr, tracked TrackableExpr) bool {
+	if tracked == nil {
+		return false
+	}
+	var expressions []ast.Expr
+	expressions = append(expressions, call.Args...)
+	if selector, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr); ok {
+		expressions = append(expressions, selector.X)
+	}
+	for _, expr := range expressions {
+		if unary, ok := ast.Unparen(expr).(*ast.UnaryExpr); ok && unary.Op == token.AND {
+			expr = unary.X
+		}
+		parsed := parseExpr(root, expr)
+		if parsed != nil && root.Equal(parsed, tracked) {
+			return true
+		}
+	}
+	return false
+}
+
+func callsMentionTrackable(root *RootAssertionNode, node ast.Node, tracked TrackableExpr) bool {
+	invalidated := false
+	ast.Inspect(node, func(n ast.Node) bool {
+		if call, ok := n.(*ast.CallExpr); ok && callMentionsTrackable(root, call, tracked) {
+			invalidated = true
+			return false
+		}
+		return !invalidated
+	})
+	return invalidated
 }
 
 // NodeTriggersOkRead is a case of a node creating a rich bool effect for map reads, channel receives, and user-defined
@@ -491,6 +726,43 @@ func NodeTriggersFuncErrRet(rootNode *RootAssertionNode, nonceGenerator *guard.N
 				err:     errExprParsed,
 				arg:     argExprParsed,
 				argExpr: argExpr,
+			}), true
+		}
+	}
+
+	if target, ok := typeshelper.ResolveStaticCallTarget(rootNode.Pass().TypesInfo, callExpr); ok {
+		for _, contract := range rootNode.functionContext.funcContracts[target.Origin] {
+			if contract.Field == nil {
+				continue
+			}
+			fieldContract := contract.Field
+			if fieldContract.ParamIndex < 0 || fieldContract.ParamIndex >= len(callExpr.Args) {
+				continue
+			}
+			if fieldContract.ParamIndex >= target.Signature.Params().Len() {
+				continue
+			}
+			argExpr := callExpr.Args[fieldContract.ParamIndex]
+			argType, ok := target.Signature.Params().At(fieldContract.ParamIndex).Type().Underlying().(*types.Pointer)
+			if !ok {
+				continue
+			}
+			structType, ok := argType.Elem().Underlying().(*types.Struct)
+			if !ok || fieldContract.FieldIndex < 0 || fieldContract.FieldIndex >= structType.NumFields() {
+				continue
+			}
+			field := structType.Field(fieldContract.FieldIndex)
+			argParsed := parseExpr(rootNode, argExpr)
+			if argParsed == nil {
+				continue
+			}
+			effects, someEffect = append(effects, &FuncErrRetNonnilArgField{
+				root:      rootNode,
+				err:       errExprParsed,
+				arg:       argParsed,
+				argExpr:   argExpr,
+				field:     field,
+				fieldName: field.Name(),
 			}), true
 		}
 	}

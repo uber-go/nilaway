@@ -271,6 +271,38 @@ func FuncIsOkReturning(sig *types.Signature) bool {
 	return true
 }
 
+// FuncReturnsExactlyBool returns whether a function has exactly one boolean result.
+func FuncReturnsExactlyBool(sig *types.Signature) bool {
+	if sig.Results().Len() != 1 {
+		return false
+	}
+	t, ok := sig.Results().At(0).Type().Underlying().(*types.Basic)
+	return ok && t.Kind() == types.Bool
+}
+
+// FuncHasNilableParam returns whether a function has a parameter whose type admits nil.
+func FuncHasNilableParam(sig *types.Signature) bool {
+	for i := 0; i < sig.Params().Len(); i++ {
+		if !TypeBarsNilness(sig.Params().At(i).Type()) {
+			return true
+		}
+	}
+	return false
+}
+
+// FuncHasPointerToStructParam returns whether a function has a pointer-to-struct parameter.
+func FuncHasPointerToStructParam(sig *types.Signature) bool {
+	for i := 0; i < sig.Params().Len(); i++ {
+		ptr, ok := sig.Params().At(i).Type().(*types.Pointer)
+		if ok {
+			if _, ok := ptr.Elem().Underlying().(*types.Struct); ok {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // GetParamObjFromIndex get the variable corresponding to the parameter from the function functionType
 func GetParamObjFromIndex(functionType *types.Func, argIdx int) *types.Var {
 	fSig := functionType.Type().(*types.Signature)

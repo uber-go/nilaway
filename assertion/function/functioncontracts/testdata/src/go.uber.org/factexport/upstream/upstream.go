@@ -16,7 +16,29 @@ package upstream
 
 // This tests the export of contracts from the upstream package.
 
-//contract(nonnil -> nonnil)
+type ExportedMsg struct {
+	Field *int
+}
+
+type exportedError struct{}
+
+func (*exportedError) Error() string { return "error" }
+
+func ExportedField(msg *ExportedMsg) error { //want ExportedField:"field"
+	if msg.Field == nil {
+		return &exportedError{}
+	}
+	return nil
+}
+
+func (m *ExportedMsg) ExportedMethod(msg *ExportedMsg) error { //want ExportedMethod:"field"
+	if msg.Field == nil {
+		return &exportedError{}
+	}
+	return nil
+}
+
+// contract(nonnil -> nonnil)
 func ExportedManual(p *int) *int { //want ExportedManual:"&\\[{\\[nonnil\\] \\[nonnil\\]}\\]"
 	if p != nil {
 		a := 1
@@ -33,7 +55,7 @@ func ExportedInferred(p *int) *int { //want ExportedInferred:"&\\[{\\[nonnil\\] 
 	return nil
 }
 
-//contract(nonnil -> nonnil)
+// contract(nonnil -> nonnil)
 func unexportedManual(p *int) *int { // Notice here we do not want to export the contracts for it.
 	if p != nil {
 		a := 1
@@ -48,4 +70,20 @@ func unexportedInferred(p *int) *int { // Notice here we do not want to export t
 		return &a
 	}
 	return nil
+}
+
+func ExportedTrue(p *int) bool { //want ExportedTrue:"&\\[{\\[\\] \\[\\] true => arg\\(0\\)\\.nonnil\\}\\]"
+	return p != nil
+}
+
+type ExportedValidator struct{}
+
+func (ExportedValidator) ExportedTrueMethod(p *int) bool { //want ExportedTrueMethod:"&\\[{\\[\\] \\[\\] true => arg\\(0\\)\\.nonnil\\}\\]"
+	return p != nil
+}
+
+type ExportedEvent struct{ Action *int }
+
+func (e ExportedEvent) IsValid() bool { //want IsValid:"&\\[{\\[\\] \\[\\] true => recv.field\\(0\\)\\.nonnil\\}\\]"
+	return e.Action != nil
 }
