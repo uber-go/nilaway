@@ -45,10 +45,6 @@ type Driver interface {
 	// Run runs NilAway on the test project specified by dir and returns the diagnostics reported
 	// by NilAway (in a map from Position to the diagnostic message).
 	Run(dir string) (map[Position][]string, error)
-	// UsesGoVetTransport reports whether the driver routes analysis through `go vet`, which
-	// cannot report diagnostics positioned in an imported package or diagnostics requiring
-	// transitive facts until incremental fact exporting is fixed in NilAway.
-	UsesGoVetTransport() bool
 }
 
 // CollectGroundTruths collects diagnostics specified by want comments in Go files under dir.
@@ -173,16 +169,12 @@ func CompareDiagnostics(truth map[Position][]*regexp.Regexp, collected map[Posit
 	return errors.Join(errs...)
 }
 
-// usesGoVetTransport reports whether the driver routes analysis through `go vet`.
-func usesGoVetTransport(driver Driver) bool {
-	return driver.UsesGoVetTransport()
-}
-
-// suppressGoVetFactLimitations returns a copy of truths with the diagnostics removed that `go vet`
-// cannot report because incremental fact exporting is not yet implemented in NilAway: diagnostics
-// positioned in an imported package that are discovered only while analyzing an importing package,
-// or diagnostics requiring facts from a transitive dependency.
-func suppressGoVetFactLimitations(truths map[Position][]*regexp.Regexp) map[Position][]*regexp.Regexp {
+// suppressImportPackageDiagnostics returns a copy of truths with the diagnostics removed that
+// `go vet` cannot report because incremental fact exporting is not yet implemented in NilAway:
+// diagnostics positioned in an imported package that are discovered only while analyzing an
+// importing package, or diagnostics requiring facts from a transitive dependency.
+// TODO: Remove this suppression once incremental fact exporting is fixed in NilAway.
+func suppressImportPackageDiagnostics(truths map[Position][]*regexp.Regexp) map[Position][]*regexp.Regexp {
 	expected := make(map[Position][]*regexp.Regexp, len(truths))
 	for pos, wants := range truths {
 		expected[pos] = wants
@@ -251,8 +243,15 @@ func Run() (err error) {
 			return fmt.Errorf("%q driver: %w", name, err)
 		}
 		expected := truths
-		if usesGoVetTransport(driver) {
-			expected = suppressGoVetFactLimitations(truths)
+		// Both the standalone binary and the go vet driver route analysis through
+		// `go vet -vettool`, which spawns one worker per compilation unit. Until incremental
+		// fact exporting is fixed in NilAway, these workers cannot report diagnostics positioned
+		// in an imported package that are discovered only while analyzing an importing package,
+		// or diagnostics requiring facts from a transitive dependency. GolangCILintDriver uses
+		// its own transport and is unaffected.
+		switch driver.(type) {
+		case *StandaloneDriver, *GoVetDriver:
+			expected = suppressImportPackageDiagnostics(truths)
 		}
 		if err := CompareDiagnostics(expected, collected); err != nil {
 			fmt.Println("FAILED")

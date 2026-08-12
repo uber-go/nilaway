@@ -31,9 +31,6 @@ import (
 // GoVetDriver implements Driver for running NilAway through go vet.
 type GoVetDriver struct{}
 
-// UsesGoVetTransport returns true.
-func (d *GoVetDriver) UsesGoVetTransport() bool { return true }
-
 // Run runs NilAway through go vet on the test project and returns the diagnostics.
 func (d *GoVetDriver) Run(dir string) (map[Position][]string, error) {
 	cwd, err := os.Getwd()

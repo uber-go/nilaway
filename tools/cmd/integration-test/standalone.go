@@ -24,10 +24,6 @@ import (
 // StandaloneDriver implements Driver for running NilAway as a standalone binary.
 type StandaloneDriver struct{}
 
-// UsesGoVetTransport returns true because the standalone binary delegates direct invocations
-// through `go vet -vettool=<self>`.
-func (d *StandaloneDriver) UsesGoVetTransport() bool { return true }
-
 // Run runs NilAway as a standalone binary on the test project and returns the diagnostics.
 // The standalone binary delegates direct invocations through `go vet -vettool=<self>`, so its
 // JSON output is the same per-package streaming format that parseDriverOutput handles.
