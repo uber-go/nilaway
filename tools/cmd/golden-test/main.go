@@ -163,23 +163,29 @@ func Run(writer io.Writer, baseBranch, testBranch string) error {
 	return CheckInternalPanics(branches)
 }
 
-// ParseDiagnostics parses the diagnostics from the raw JSON output of NilAway and returns the
-// set of diagnostics.
+// ParseDiagnostics parses the diagnostics from the raw streaming JSON output of NilAway and
+// returns the set of diagnostics. The modular driver emits one JSON object per package worker;
+// json.Decoder reads them sequentially until EOF.
 func ParseDiagnostics(reader io.Reader) (map[Diagnostic]bool, error) {
-	// Package name -> "nilaway" -> slice of diagnostics.
-	var output map[string]map[string][]Diagnostic
-	if err := json.NewDecoder(reader).Decode(&output); err != nil {
-		return nil, fmt.Errorf("decoding diagnostics: %w", err)
-	}
-
 	allDiagnostics := make(map[Diagnostic]bool)
-	for _, packages := range output {
-		diagnostics, ok := packages["nilaway"]
-		if !ok {
-			continue
+	decoder := json.NewDecoder(reader)
+	for {
+		// Package name -> "nilaway" -> slice of diagnostics.
+		var output map[string]map[string][]Diagnostic
+		if err := decoder.Decode(&output); err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return nil, fmt.Errorf("decoding diagnostics: %w", err)
 		}
-		for _, d := range diagnostics {
-			allDiagnostics[d] = true
+		for _, packages := range output {
+			diagnostics, ok := packages["nilaway"]
+			if !ok {
+				continue
+			}
+			for _, d := range diagnostics {
+				allDiagnostics[d] = true
+			}
 		}
 	}
 

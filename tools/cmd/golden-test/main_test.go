@@ -47,6 +47,18 @@ func TestParseDiagnostics(t *testing.T) {
 		{Posn: "src/file2:10:2", Message: "foo"}:                     true,
 		{Posn: "src/file2:11:2", Message: "bar"}:                     true,
 	}, diagnostics)
+
+	// Check streaming JSON: the modular driver emits one JSON object per package worker.
+	buf.Reset()
+	buf.WriteString(`{}
+{"pkg1":{"nilaway":[{"posn":"src/file1:10:2","message":"nil pointer dereference"}]}}
+{"pkg2":{"nilaway":[{"posn":"src/file2:10:2","message":"foo"}]}}`)
+	diagnostics, err = ParseDiagnostics(&buf)
+	require.NoError(t, err)
+	require.Equal(t, map[Diagnostic]bool{
+		{Posn: "src/file1:10:2", Message: "nil pointer dereference"}: true,
+		{Posn: "src/file2:10:2", Message: "foo"}:                     true,
+	}, diagnostics)
 }
 
 func TestWriteDiff(t *testing.T) {
