@@ -91,3 +91,88 @@ func uncovered(x *X, cond bool) {
 	}
 	x.F.Y = 1 //want "accessed field `Y`"
 }
+
+func Map(x *X) int {
+	if x.GetF() == nil {
+		x.F = &U{}
+	}
+	return x.F.Y
+}
+
+func Use() int {
+	return Map(&X{})
+}
+
+type Request struct {
+	ContentOptions *ContentOptions
+}
+
+func (r *Request) GetContentOptions() *ContentOptions { return r.ContentOptions }
+
+type ContentOptions struct {
+	Android *Android
+}
+
+type Android struct {
+	Priority int
+}
+
+func pushRequest(req *Request) int {
+	co := req.GetContentOptions()
+	if co == nil {
+		co = &ContentOptions{}
+		req.ContentOptions = co
+	}
+	if co.Android == nil {
+		co.Android = &Android{}
+	}
+	return co.Android.Priority
+}
+
+func requestCaller() int {
+	return pushRequest(&Request{})
+}
+
+func negativeCaller(x *X) {
+	if x.GetF() == nil {
+		_ = 0
+	}
+	_ = x.F.Y //want "accessed field `Y`"
+}
+
+func runNegativeCaller() {
+	negativeCaller(&X{})
+}
+
+func phiAlias(x *X, c bool) int {
+	y := x
+	if c {
+		y = &X{}
+	}
+	if x.GetF() == nil {
+		x.F = &U{}
+	}
+	y.F = nil
+	return x.F.Y //want "accessed field `Y`"
+}
+
+func usePhiAlias() {
+	phiAlias(&X{}, false)
+}
+
+type H struct {
+	P *X
+}
+
+func loadAlias(x *X, h *H) int {
+	h.P = x
+	if x.GetF() == nil {
+		x.F = &U{}
+	}
+	h.P.F = nil
+	return x.F.Y //want "accessed field `Y`"
+}
+
+func useLoadAlias() {
+	loadAlias(&X{}, &H{})
+}
