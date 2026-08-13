@@ -36,8 +36,10 @@ import (
 	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/asthelper"
 	"golang.org/x/tools/go/analysis"
+	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/analysis/passes/ctrlflow"
 	"golang.org/x/tools/go/cfg"
+	"golang.org/x/tools/go/ssa"
 )
 
 const _doc = "Build the trees of assertions for each function in this package, propagating them to " +
@@ -54,6 +56,7 @@ var Analyzer = &analysis.Analyzer{
 	Requires: []*analysis.Analyzer{
 		config.Analyzer,
 		ctrlflow.Analyzer,
+		buildssa.Analyzer,
 		structfield.Analyzer,
 		anonymousfunc.Analyzer,
 		functioncontracts.Analyzer,
@@ -107,6 +110,7 @@ func run(p *analysis.Pass) ([]annotation.FullTrigger, error) {
 	}
 
 	ctrlflowResult := pass.ResultOf[ctrlflow.Analyzer].(*ctrlflow.CFGs)
+	ssaResult := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 	anonymousFuncResult := pass.ResultOf[anonymousfunc.Analyzer].(*analysishelper.Result[map[*ast.FuncLit]*anonymousfunc.FuncLitInfo])
 	contractsResult := pass.ResultOf[functioncontracts.Analyzer].(*analysishelper.Result[functioncontracts.Map])
 	structFieldEffectsResult := pass.ResultOf[structfieldeffects.Analyzer].(*analysishelper.Result[*structfieldeffects.BoundaryFieldEffects])
@@ -205,8 +209,15 @@ func run(p *analysis.Pass) ([]annotation.FullTrigger, error) {
 			}
 
 			// Now, analyze the function declarations concurrently.
+			var ssaFunc *ssa.Function
+			for _, candidate := range ssaResult.SrcFuncs {
+				if candidate != nil && candidate.Syntax() == fun {
+					ssaFunc = candidate
+					break
+				}
+			}
 			funcContext := assertiontree.NewFunctionContext(
-				pass, funcDecl, funcLit, functionConfig, funcLitMap, pkgFakeIdentMap, funcContracts, boundaryFieldEffects)
+				pass, funcDecl, funcLit, functionConfig, funcLitMap, pkgFakeIdentMap, funcContracts, boundaryFieldEffects, ssaFunc)
 			idx := funcIndex
 			wg.Go(func() { analyzeFunc(ctx, pass, funcDecl, funcContext, graph, idx, funcChan) })
 			funcIndex++

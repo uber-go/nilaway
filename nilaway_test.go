@@ -153,6 +153,7 @@ func TestStructInitV2(t *testing.T) { //nolint:paralleltest
 		"structinitv2/returnlocal",
 		"structinitv2/returnzerovalue/app",
 		"structinitv2/returnshape/app",
+		"structinitv2/lazyinit",
 	)
 }
 

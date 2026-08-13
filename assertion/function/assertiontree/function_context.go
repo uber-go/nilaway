@@ -22,6 +22,7 @@ import (
 	"go.uber.org/nilaway/assertion/function/functioncontracts"
 	"go.uber.org/nilaway/assertion/function/structfieldeffects"
 	"go.uber.org/nilaway/util/analysishelper"
+	"golang.org/x/tools/go/ssa"
 )
 
 // SelectorExprMap is used to cache artificially created ast selector expressions
@@ -39,6 +40,9 @@ type FunctionContext struct {
 
 	// pass records the overarching analysis pass - needed for identifier resolution.
 	pass *analysishelper.EnhancedPass
+
+	// ssaFunc is the SSA function corresponding to funcDecl.
+	ssaFunc *ssa.Function
 
 	// selectorExpressionCache we cache artificially created selector expressions nodes to avoid
 	// duplication. Duplication is dangerous as it will result in duplicate triggers and the
@@ -95,6 +99,7 @@ func NewFunctionContext(
 	pkgFakeIdentMap map[*ast.Ident]types.Object,
 	funcContracts functioncontracts.Map,
 	effects *structfieldeffects.BoundaryFieldEffects,
+	ssaFunc *ssa.Function,
 ) FunctionContext {
 	// Keep effects non-nil so the boundary lookups never need a nil guard; an empty summary
 	// (nil inner maps) reads back as "no effects", which is correct when the analysis is disabled.
@@ -103,6 +108,7 @@ func NewFunctionContext(
 	}
 	return FunctionContext{
 		pass:                    pass,
+		ssaFunc:                 ssaFunc,
 		funcDecl:                decl,
 		funcLit:                 funcLit,
 		fakeIdentMap:            make(map[*ast.Ident]types.Object),

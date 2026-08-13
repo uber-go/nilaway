@@ -88,7 +88,7 @@ func TestCancelledContext(t *testing.T) {
 	emptyPkgFakeIdentMap := make(map[*ast.Ident]types.Object)
 	emptyFuncContracts := make(functioncontracts.Map)
 	funcContext := assertiontree.NewFunctionContext(pass, funcDecl, nil, /* funcLit */
-		funcConfig, emptyFuncLitMap, emptyPkgFakeIdentMap, emptyFuncContracts, nil)
+		funcConfig, emptyFuncLitMap, emptyPkgFakeIdentMap, emptyFuncContracts, nil, nil)
 	// (3) Set up synchronization and communication for the goroutine we are going to spawn.
 	resultChan := make(chan functionResult)
 	var wg sync.WaitGroup
@@ -176,7 +176,7 @@ func TestBackpropFixpointConvergence(t *testing.T) {
 		emptyPkgFakeIdentMap := make(map[*ast.Ident]types.Object)
 		emptyFuncContracts := make(functioncontracts.Map)
 		funcContext := assertiontree.NewFunctionContext(pass, funcDecl, nil, /* funcLit */
-			funcConfig, emptyFuncLitMap, emptyPkgFakeIdentMap, emptyFuncContracts, nil)
+			funcConfig, emptyFuncLitMap, emptyPkgFakeIdentMap, emptyFuncContracts, nil, nil)
 		ctrlflowResult := pass.ResultOf[ctrlflow.Analyzer].(*ctrlflow.CFGs)
 
 		ctx, cancel := context.WithCancel(t.Context())

@@ -384,6 +384,10 @@ func (r *RootAssertionNode) triggerProductions(node AssertionNode, producer *ann
 		node AssertionNode,
 		producer *annotation.ProduceTrigger) {
 		for _, consumer := range node.ConsumeTriggers() {
+			if r.functionContext.functionConfig.EnableStructInitV2 &&
+				lazyInitSuppressed(r.functionContext, producer, consumer) {
+				continue
+			}
 			r.AddNewTriggers(annotation.FullTrigger{
 				Producer: producer,
 				Consumer: consumer,
