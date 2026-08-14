@@ -406,6 +406,9 @@ func NodeTriggersFuncTrueRetNonnilRecvField(rootNode *RootAssertionNode, node as
 		return nil, false
 	}
 	receiverExpr := sel.X
+	if exprContainsCall(receiverExpr) {
+		return nil, false
+	}
 	receiverType := rootNode.Pass().TypesInfo.TypeOf(receiverExpr)
 	if ptr, ok := receiverType.(*types.Pointer); ok {
 		receiverType = ptr.Elem()
@@ -456,12 +459,27 @@ func NodeTriggersFuncTrueRetNonnilArg(rootNode *RootAssertionNode, node ast.Node
 			continue
 		}
 		argExpr := call.Args[*contract.TrueArgNonNil]
+		if exprContainsCall(argExpr) {
+			continue
+		}
 		arg := parseExpr(rootNode, argExpr)
 		if arg != nil {
 			effects = append(effects, &FuncTrueRetNonnilArg{root: rootNode, call: call, arg: arg, argExpr: argExpr})
 		}
 	}
 	return effects, len(effects) != 0
+}
+
+func exprContainsCall(expr ast.Expr) bool {
+	contains := false
+	ast.Inspect(expr, func(node ast.Node) bool {
+		if _, ok := node.(*ast.CallExpr); ok {
+			contains = true
+			return false
+		}
+		return !contains
+	})
+	return contains
 }
 
 // parseExpr wraps a call to ParseExprAsProducer with two additional bits of useful handling:

@@ -55,3 +55,19 @@ func inferredTrueArgInterfaceUse(msg *inferredTrueArgMessage) {
 		_ = *msg // want "dereferenced"
 	}
 }
+
+var inferredTrueArgToggle bool
+
+func inferredTrueArgToggling() *inferredTrueArgMessage {
+	inferredTrueArgToggle = !inferredTrueArgToggle
+	if inferredTrueArgToggle {
+		return &inferredTrueArgMessage{}
+	}
+	return nil
+}
+
+func inferredTrueArgRepeatedCall() {
+	if inferredTrueArgPredicate(inferredTrueArgToggling()) {
+		_ = *inferredTrueArgToggling() // want "dereferenced"
+	}
+}

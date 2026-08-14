@@ -34,6 +34,7 @@ func lazyInitSuppressed(fc FunctionContext, producer *annotation.ProduceTrigger,
 	checkAliasedStores := false
 	switch producerAnnotation := producer.Annotation.(type) {
 	case *annotation.StructFieldNil:
+		checkAliasedStores = true
 	case *annotation.StructFieldFromContext:
 		site, ok := producerAnnotation.Ann.(*annotation.StructFieldContextSite)
 		if !ok || site.Kind != annotation.StructFieldParamContext || site.FuncObj != fc.ssaFunc.Object() {
@@ -239,7 +240,7 @@ func fieldEstablishedOnAllPaths(fc FunctionContext, field, deref *ssa.FieldAddr,
 	// block reached from the nil edge as established too.
 	establishedEdges := make(map[ssaEdge]bool)
 	for _, block := range fc.ssaFunc.Blocks {
-		_, nonNilSucc, ok := nilGuard(block, field)
+		_, nonNilSucc, ok := nilGuard(fc, block, field)
 		if ok && nonNilSucc != nil {
 			establishedEdges[ssaEdge{from: block, to: nonNilSucc}] = true
 		}
@@ -260,7 +261,7 @@ func instructionBefore(block *ssa.BasicBlock, first ssa.Instruction, second ssa.
 	return firstIndex >= 0 && secondIndex >= 0 && firstIndex < secondIndex
 }
 
-func nilGuard(block *ssa.BasicBlock, field *ssa.FieldAddr) (*ssa.BasicBlock, *ssa.BasicBlock, bool) {
+func nilGuard(fc FunctionContext, block *ssa.BasicBlock, field *ssa.FieldAddr) (*ssa.BasicBlock, *ssa.BasicBlock, bool) {
 	value, eqSucc, nonNilSucc, ok := nilGuardCond(block)
 	if !ok {
 		return nil, nil, false
@@ -275,19 +276,45 @@ func nilGuard(block *ssa.BasicBlock, field *ssa.FieldAddr) (*ssa.BasicBlock, *ss
 		return nil, nil, false
 	}
 	callee := call.Call.StaticCallee()
-	if callee == nil || !strings.HasPrefix(callee.Name(), "Get") {
+	if callee == nil || callee.Pkg == nil || fc.ssaFunc == nil || fc.ssaFunc.Pkg == nil || callee.Pkg.Pkg != fc.ssaFunc.Pkg.Pkg {
 		return nil, nil, false
 	}
-	// Getter guards are correlated by logical field identity and the
-	// conventional Get<Field> name; arbitrary calls are not trusted.
-	if len(call.Call.Args) == 0 {
-		return nil, nil, false
-	}
-	getterField := fieldAtIndex(call.Call.Args[0].Type(), field.Field)
-	if getterField == nil || getterField.Name() != callee.Name()[3:] || call.Call.Args[0] != field.X {
+	fieldVar := fieldAtIndex(field.X.Type(), field.Field)
+	if fieldVar == nil || !strings.HasPrefix(callee.Name(), "Get") || callee.Name()[3:] != fieldVar.Name() || len(call.Call.Args) == 0 || call.Call.Args[0] != field.X || !validGetter(callee, field.Field) {
 		return nil, nil, false
 	}
 	return eqSucc, nonNilSucc, true
+}
+
+func validGetter(getter *ssa.Function, field int) bool {
+	if getter.Blocks == nil || len(getter.Params) == 0 {
+		return false
+	}
+	hasExactLoad := false
+	for _, block := range getter.Blocks {
+		for _, instr := range block.Instrs {
+			switch instr.(type) {
+			case *ssa.Store, *ssa.Call, *ssa.Go, *ssa.Defer, *ssa.Send:
+				return false
+			}
+			ret, ok := instr.(*ssa.Return)
+			if !ok {
+				continue
+			}
+			if len(ret.Results) != 1 {
+				return false
+			}
+			if isNilConst(ret.Results[0]) {
+				continue
+			}
+			loaded := directFieldValue(ret.Results[0])
+			if loaded == nil || loaded.X != getter.Params[0] || loaded.Field != field {
+				return false
+			}
+			hasExactLoad = true
+		}
+	}
+	return hasExactLoad
 }
 
 func nilGuardValue(block *ssa.BasicBlock, value ssa.Value) (nonNilSucc *ssa.BasicBlock, ok bool) {

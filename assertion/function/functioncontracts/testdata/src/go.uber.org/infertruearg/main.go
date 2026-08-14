@@ -24,3 +24,11 @@ func Reassigned(p *Message) bool {
 	p = nil
 	return p != nil
 }
+
+func PhiFromCompare(p *Message) bool {
+	result := false
+	if p == nil {
+		result = true
+	}
+	return result
+}

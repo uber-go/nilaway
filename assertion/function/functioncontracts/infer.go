@@ -289,7 +289,7 @@ func proveTrueOnBranch(matches func(ssa.Value) bool, block, target *ssa.BasicBlo
 		}
 		return false, false
 	}
-	eq, neq, cond := branch(block)
+	_, neq, cond := branch(block)
 	if cond == nil || len(block.Succs) != 2 {
 		if len(block.Preds) == 1 {
 			return proveTrueOnBranch(matches, block.Preds[0], block)
@@ -297,7 +297,7 @@ func proveTrueOnBranch(matches func(ssa.Value) bool, block, target *ssa.BasicBlo
 		return false, false
 	}
 	if matches(cond.X) && isNilConst(cond.Y) || matches(cond.Y) && isNilConst(cond.X) {
-		return (cond.Op == token.NEQ && neq == target) || (cond.Op == token.EQL && eq == target), true
+		return (cond.Op == token.NEQ && neq == target) || (cond.Op == token.EQL && neq == target), true
 	}
 	return false, false
 }

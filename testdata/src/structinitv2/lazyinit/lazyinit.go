@@ -22,6 +22,24 @@ func getterGuard(x *X) {
 	x.F.Y = 1
 }
 
+type misleadingX struct {
+	F     *U
+	Other *U
+}
+
+func (x *misleadingX) GetF() *U { return x.Other }
+
+func misleadingGetter(x *misleadingX) {
+	if x.GetF() == nil {
+		x.F = &U{}
+	}
+	x.F.Y = 1 //want "accessed field `Y`"
+}
+
+func runMisleadingGetter() {
+	misleadingGetter(&misleadingX{})
+}
+
 func fieldGuard(x *X) {
 	if x.F == nil {
 		x.F = &U{}
@@ -158,6 +176,26 @@ func phiAlias(x *X, c bool) int {
 
 func usePhiAlias() {
 	phiAlias(&X{}, false)
+}
+
+func localPhiAlias(c bool) int {
+	x := &X{}
+	y := x
+	if c {
+		y = &X{}
+	}
+	if x.F == nil {
+		x.F = &U{}
+	}
+	y.F = nil
+	if !c {
+		x.F = y.F
+	}
+	return x.F.Y //want "accessed field `Y`"
+}
+
+func useLocalPhiAlias() {
+	localPhiAlias(false)
 }
 
 type H struct {

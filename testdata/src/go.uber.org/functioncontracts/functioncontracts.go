@@ -246,3 +246,25 @@ func useDirectValidator() {
 		_ = *x.G // No error: the direct method proves G is nonnil.
 	}
 }
+
+var repeatedValidatorToggle bool
+
+type repeatedValidator struct {
+	F *int
+}
+
+func (v repeatedValidator) IsValid() bool { return v.F != nil }
+
+func nextRepeatedValidator() *repeatedValidator {
+	repeatedValidatorToggle = !repeatedValidatorToggle
+	if repeatedValidatorToggle {
+		return &repeatedValidator{F: new(int)}
+	}
+	return nil
+}
+
+func useRepeatedValidator() {
+	if nextRepeatedValidator().IsValid() { // want "result 0"
+		_ = *nextRepeatedValidator().F // want "accessed field"
+	}
+}

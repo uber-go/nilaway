@@ -194,7 +194,7 @@ func TestInferTrueArgNonNil(t *testing.T) { //nolint:paralleltest // toggles the
 		getFuncObj(pass, "Negated"):          {{TrueArgNonNil: &index}},
 		getFuncObj(pass, "Validator.Method"): {{TrueArgNonNil: &index}},
 	}
-	for _, name := range []string{"Vacuous", "Or", "Variadic", "Reassigned"} {
+	for _, name := range []string{"Vacuous", "Or", "Variadic", "Reassigned", "PhiFromCompare"} {
 		require.NotContains(t, contracts, getFuncObj(pass, name))
 	}
 	require.Empty(t, cmp.Diff(want, contracts))
