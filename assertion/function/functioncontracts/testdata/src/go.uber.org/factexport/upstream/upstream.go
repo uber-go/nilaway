@@ -87,3 +87,17 @@ type ExportedEvent struct{ Action *int }
 func (e ExportedEvent) IsValid() bool { //want IsValid:"&\\[{\\[\\] \\[\\] true => recv.field\\(0\\)\\.nonnil\\}\\]"
 	return e.Action != nil
 }
+
+type Box[T any] struct{ Field *int }
+
+func (b Box[T]) IsValid() bool { //want IsValid:"&\\[{\\[\\] \\[\\] true => recv.field\\(0\\)\\.nonnil\\}\\]"
+	return b.Field != nil
+}
+
+type Hidden struct{ Field *int }
+
+func (h Hidden) IsValid() bool { //want IsValid:"&\\[{\\[\\] \\[\\] true => recv.field\\(0\\)\\.nonnil\\}\\]"
+	return h.Field != nil
+}
+
+type Visible = Hidden

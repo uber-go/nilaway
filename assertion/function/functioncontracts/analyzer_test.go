@@ -270,10 +270,40 @@ func TestFactImport(t *testing.T) { //nolint:paralleltest // toggles the shared 
 		getFuncObj(pass, "upstream.ExportedEvent.IsValid"): {
 			Contract{TrueRecvFieldNonNil: ptrTo(0)},
 		},
+		getFuncObj(pass, "upstream.Box.IsValid"): {
+			Contract{TrueRecvFieldNonNil: ptrTo(0)},
+		},
+		getFuncObj(pass, "upstream.Hidden.IsValid"): {
+			Contract{TrueRecvFieldNonNil: ptrTo(0)},
+		},
 	}
 	if diff := cmp.Diff(expected, actual); diff != "" {
 		require.Fail(t, fmt.Sprintf("inferred contracts mismatch (-want +got):\n%s", diff))
 	}
+}
+
+func TestReachableAPITypeMethods(t *testing.T) { //nolint:paralleltest // toggles the shared analyzer flag
+	upstream := types.NewPackage("go.uber.org/factexport/upstream", "upstream")
+	box := types.NewNamed(types.NewTypeName(0, upstream, "Box", nil), types.NewStruct(nil, nil), nil)
+	boxParam := types.NewTypeParam(types.NewTypeName(0, upstream, "T", nil), types.Universe.Lookup("any").Type())
+	box.SetTypeParams([]*types.TypeParam{boxParam})
+	boxMethod := types.NewFunc(0, upstream, "IsValid", types.NewSignatureType(types.NewVar(0, upstream, "b", box), nil, nil, types.NewTuple(), types.NewTuple(types.NewVar(0, upstream, "", types.Typ[types.Bool])), false))
+	box.AddMethod(boxMethod)
+	hidden := types.NewNamed(types.NewTypeName(0, upstream, "Hidden", nil), types.NewStruct(nil, nil), nil)
+	hiddenMethod := types.NewFunc(0, upstream, "IsValid", types.NewSignatureType(types.NewVar(0, upstream, "h", hidden), nil, nil, types.NewTuple(), types.NewTuple(types.NewVar(0, upstream, "", types.Typ[types.Bool])), false))
+	hidden.AddMethod(hiddenMethod)
+	visible := types.NewAlias(types.NewTypeName(0, upstream, "Visible", nil), hidden)
+
+	middle := types.NewPackage("go.uber.org/factexport/middle", "middle")
+	boxInstance, err := types.Instantiate(nil, box, []types.Type{types.Typ[types.Int]}, true)
+	require.NoError(t, err)
+	middle.Scope().Insert(types.NewFunc(0, middle, "NewBox", types.NewSignatureType(nil, nil, nil, types.NewTuple(), types.NewTuple(types.NewVar(0, middle, "", boxInstance)), false)))
+	middle.Scope().Insert(types.NewFunc(0, middle, "NewVisible", types.NewSignatureType(nil, nil, nil, types.NewTuple(), types.NewTuple(types.NewVar(0, middle, "", visible)), false)))
+
+	pass := &analysis.Pass{Pkg: middle}
+	methods := reachableAPITypeMethods(reachableAPITypeNames(analysishelper.NewEnhancedPass(pass)))
+	require.Contains(t, methods, boxMethod)
+	require.Contains(t, methods, hiddenMethod)
 }
 
 func ptrTo(v int) *int { return &v }

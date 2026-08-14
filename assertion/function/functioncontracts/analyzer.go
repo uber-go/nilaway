@@ -32,6 +32,7 @@ import (
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
+	"golang.org/x/tools/go/types/objectpath"
 )
 
 const _doc = "Read the contracts of each function in this package, returning the results."
@@ -43,12 +44,29 @@ var Analyzer = &analysis.Analyzer{
 	Doc:        _doc,
 	Run:        analysishelper.WrapRun(run),
 	ResultType: reflect.TypeOf((*analysishelper.Result[Map])(nil)),
-	FactTypes:  []analysis.Fact{new(Contracts)},
+	FactTypes:  []analysis.Fact{new(Contracts), new(ForwardedContracts)},
 	Requires:   []*analysis.Analyzer{config.Analyzer, buildssa.Analyzer},
 }
 
 // Contracts represents the list of contracts for a function.
 type Contracts []Contract
+
+// ForwardedContracts carries upstream method contracts across a package boundary. Object facts
+// cannot be exported for objects owned by another package, so methods are identified by paths and
+// resolved again from the importing package's type graph.
+type ForwardedContracts struct {
+	Functions []ForwardedFunction
+}
+
+// ForwardedFunction associates an upstream method (by object path) with the contracts that this
+// package re-exports on its behalf.
+type ForwardedFunction struct {
+	ObjectPath objectpath.Path
+	Contracts  Contracts
+}
+
+// AFact enables use of the facts passing mechanism in Go's analysis framework.
+func (*ForwardedContracts) AFact() {}
 
 // AFact enables use of the facts passing mechanism in Go's analysis framework.
 func (*Contracts) AFact() {}
@@ -94,7 +112,28 @@ func run(p *analysis.Pass) (Map, error) {
 		contracts[fn] = *ctrts
 	}
 
-	// Now, export the contracts for the _exported_ functions in the current package only.
+	// Object facts cannot be re-exported for objects owned by another package. Import the package
+	// fact used for transitive forwarding and resolve its methods in the current type graph.
+	for _, fact := range pass.AllPackageFacts() {
+		forwarded, ok := fact.Fact.(*ForwardedContracts)
+		if !ok {
+			continue
+		}
+		methods := reachableAPITypeMethods(reachableAPITypeNames(pass))
+		for _, entry := range forwarded.Functions {
+			for fn := range methods {
+				path, pathErr := (&objectpath.Encoder{}).For(fn)
+				if pathErr == nil && path == entry.ObjectPath {
+					contracts[fn] = entry.Contracts
+				}
+			}
+		}
+	}
+
+	// Now, export the contracts for the _exported_ functions in the current package only, as
+	// well as contracts for upstream methods whose receiver types are part of this package's API.
+	reachableTypes := reachableAPITypeNames(pass)
+	packageFact := &ForwardedContracts{}
 	for fn, ctrts := range contracts {
 		// Check if the function is (1) exported by name (i.e., starts with a capital letter), (2)
 		// it is directly inside the package scope (such that it is really visible in downstream
@@ -105,11 +144,118 @@ func run(p *analysis.Pass) (Map, error) {
 				// fn.Scope().Parent() -> the scope of the file.
 				fn.Scope().Parent() != nil &&
 				// fn.Scope().Parent().Parent() -> the scope of the package.
-				fn.Scope().Parent().Parent() == pass.Pkg.Scope()) || isExportedMethodOfPackage(fn, pass.Pkg)) {
-			pass.ExportObjectFact(fn, &ctrts)
+				fn.Scope().Parent().Parent() == pass.Pkg.Scope()) || isExportedMethodOfPackage(fn, pass.Pkg) ||
+				isReachableUpstreamMethod(fn, pass.Pkg, reachableTypes)) {
+			if fn.Pkg() == pass.Pkg {
+				pass.ExportObjectFact(fn, &ctrts)
+			} else if isReachableUpstreamMethod(fn, pass.Pkg, reachableTypes) {
+				path, pathErr := (&objectpath.Encoder{}).For(fn)
+				if pathErr != nil {
+					return nil, fmt.Errorf("create object path for forwarded function %s: %w", fn, pathErr)
+				}
+				packageFact.Functions = append(packageFact.Functions, ForwardedFunction{ObjectPath: path, Contracts: ctrts})
+			}
 		}
 	}
+	if len(packageFact.Functions) != 0 {
+		pass.ExportPackageFact(packageFact)
+	}
 	return contracts, nil
+}
+
+// reachableAPITypeNames returns the named types occurring anywhere in the exported API of pkg.
+// Both input and output positions are intentionally traversed: a caller can obtain a method value
+// from a value passed to an exported function, not only from a returned value.
+func reachableAPITypeNames(pass *analysishelper.EnhancedPass) map[*types.Named]bool {
+	reachable := make(map[*types.Named]bool)
+	seen := make(map[types.Type]bool)
+	var visit func(types.Type)
+	visit = func(t types.Type) {
+		t = types.Unalias(t)
+		if t == nil || seen[t] {
+			return
+		}
+		seen[t] = true
+		switch t := t.(type) {
+		case *types.Named:
+			reachable[t.Origin()] = true
+			for i := 0; i < t.TypeArgs().Len(); i++ {
+				visit(t.TypeArgs().At(i))
+			}
+			visit(t.Underlying())
+		case *types.Pointer:
+			visit(t.Elem())
+		case *types.Array:
+			visit(t.Elem())
+		case *types.Slice:
+			visit(t.Elem())
+		case *types.Map:
+			visit(t.Key())
+			visit(t.Elem())
+		case *types.Chan:
+			visit(t.Elem())
+		case *types.Struct:
+			for i := 0; i < t.NumFields(); i++ {
+				field := t.Field(i)
+				if field.Exported() || field.Embedded() {
+					visit(field.Type())
+				}
+			}
+		case *types.Signature:
+			visitTuple(t.Params(), visit)
+			visitTuple(t.Results(), visit)
+		case *types.Interface:
+			for i := 0; i < t.NumMethods(); i++ {
+				visit(t.Method(i).Type())
+			}
+			for i := 0; i < t.NumEmbeddeds(); i++ {
+				visit(t.EmbeddedType(i))
+			}
+		case *types.Tuple:
+			visitTuple(t, visit)
+		case *types.TypeParam:
+			visit(t.Constraint())
+		}
+	}
+	for _, name := range pass.Pkg.Scope().Names() {
+		obj := pass.Pkg.Scope().Lookup(name)
+		if obj.Exported() {
+			visit(obj.Type())
+		}
+	}
+	return reachable
+}
+
+func visitTuple(tuple *types.Tuple, visit func(types.Type)) {
+	for i := 0; i < tuple.Len(); i++ {
+		visit(tuple.At(i).Type())
+	}
+}
+
+func isReachableUpstreamMethod(fn *types.Func, pkg *types.Package, reachable map[*types.Named]bool) bool {
+	if fn.Pkg() == nil || fn.Pkg() == pkg || !fn.Exported() {
+		return false
+	}
+	sig, ok := fn.Type().(*types.Signature)
+	if !ok || sig.Recv() == nil {
+		return false
+	}
+	t := types.Unalias(sig.Recv().Type())
+	if ptr, ok := t.(*types.Pointer); ok {
+		t = types.Unalias(ptr.Elem())
+	}
+	named, ok := t.(*types.Named)
+	return ok && named.Obj().Pkg() != pkg && reachable[named.Origin()]
+}
+
+func reachableAPITypeMethods(reachable map[*types.Named]bool) map[*types.Func]bool {
+	methods := make(map[*types.Func]bool)
+	for named := range reachable {
+		for i := 0; i < named.NumMethods(); i++ {
+			methods[named.Method(i)] = true
+		}
+	}
+	return methods
 }
 
 // functionResult is the struct that is received from the channel for each function.
