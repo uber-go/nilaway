@@ -256,8 +256,20 @@ func isErrorReturnNonnil(rootNode *RootAssertionNode, errRet ast.Expr) bool {
 	if t := rootNode.Pass().TypesInfo.TypeOf(errRet); typeshelper.AsDeeplyStruct(t) != nil {
 		return true
 	}
-	// The error value is the return of a hook-modeled function known to produce a non-nil error.
 	if callExpr, ok := errRet.(*ast.CallExpr); ok {
+		// The standard library constructors below always return a non-nil error. Resolve the
+		// function object through TypesInfo so a same-named function from another package cannot
+		// be mistaken for either constructor. Wrapper constructors are intentionally not inferred
+		// here; doing so soundly requires interprocedural path analysis.
+		if funcIdent := asthelper.FuncIdentFromCallExpr(callExpr); funcIdent != nil {
+			if funcObj, ok := rootNode.Pass().TypesInfo.ObjectOf(funcIdent).(*types.Func); ok && funcObj.Pkg() != nil {
+				path, name := funcObj.Pkg().Path(), funcObj.Name()
+				if (path == "errors" && name == "New") || (path == "fmt" && name == "Errorf") {
+					return true
+				}
+			}
+		}
+		// The error value is the return of a hook-modeled function known to produce a non-nil error.
 		if hook.AssumeReturn(rootNode.Pass(), callExpr) != nil {
 			return true
 		}

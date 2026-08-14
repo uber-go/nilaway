@@ -276,7 +276,7 @@ func nilGuard(fc FunctionContext, block *ssa.BasicBlock, field *ssa.FieldAddr) (
 		return nil, nil, false
 	}
 	callee := call.Call.StaticCallee()
-	if callee == nil || callee.Pkg == nil || fc.ssaFunc == nil || fc.ssaFunc.Pkg == nil || callee.Pkg.Pkg != fc.ssaFunc.Pkg.Pkg {
+	if callee == nil || callee.Pkg == nil {
 		return nil, nil, false
 	}
 	fieldVar := fieldAtIndex(field.X.Type(), field.Field)
