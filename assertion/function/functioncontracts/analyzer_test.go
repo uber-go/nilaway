@@ -201,11 +201,28 @@ func TestInferTrueArgNonNil(t *testing.T) { //nolint:paralleltest // toggles the
 		getFuncObj(pass, "Compound"):         {{TrueArgNonNil: &index}},
 		getFuncObj(pass, "Negated"):          {{TrueArgNonNil: &index}},
 		getFuncObj(pass, "Validator.Method"): {{TrueArgNonNil: &index}},
+		getFuncObj(pass, "PhiFromCompare"):   {{FalseArgNonNil: &index}},
 	}
-	for _, name := range []string{"Vacuous", "Or", "Variadic", "Reassigned", "PhiFromCompare"} {
+	for _, name := range []string{"Vacuous", "Or", "Variadic", "Reassigned"} {
 		require.NotContains(t, contracts, getFuncObj(pass, name))
 	}
 	require.Empty(t, cmp.Diff(want, contracts))
+}
+
+func TestInferFalseArgNonNil(t *testing.T) { //nolint:paralleltest // toggles the shared analyzer flag
+	err := config.Analyzer.Flags.Set(config.ExperimentalStructInitV2EnableFlag, "true")
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, config.Analyzer.Flags.Set(config.ExperimentalStructInitV2EnableFlag, "false"))
+	}()
+	r := analysistest.Run(t, analysistest.TestData(), Analyzer, "go.uber.org/infertruerecvfield")
+	require.Len(t, r, 1)
+	pass := r[0].Pass
+	contracts := r[0].Result.(*analysishelper.Result[Map]).Res
+	index := 0
+	require.Equal(t, Contracts{{FalseArgNonNil: &index}}, contracts[getFuncObj(pass, "IsNilOrEmpty")])
+	require.NotContains(t, contracts, getFuncObj(pass, "Impure"))
+	require.NotContains(t, contracts, getFuncObj(pass, "DerefOnlyHelper"))
 }
 
 func TestInferTrueRecvField(t *testing.T) { //nolint:paralleltest // toggles the shared analyzer flag
@@ -217,6 +234,10 @@ func TestInferTrueRecvField(t *testing.T) { //nolint:paralleltest // toggles the
 	r := analysistest.Run(t, analysistest.TestData(), Analyzer, "go.uber.org/infertruerecvfield")
 	require.Len(t, r, 1)
 	contracts := r[0].Result.(*analysishelper.Result[Map]).Res
+	require.Equal(t, Contracts{{TrueRecvFieldNonNil: ptrTo(0)}}, contracts[getFuncObj(r[0].Pass, "Event.HelperValid")])
+	require.Equal(t, Contracts{{TrueRecvFieldNonNil: ptrTo(0)}, {TrueRecvFieldNonNil: ptrTo(1)}}, contracts[getFuncObj(r[0].Pass, "Event.MultiClauseValid")])
+	require.Equal(t, Contracts{{TrueRecvFieldNonNil: ptrTo(0)}}, contracts[getFuncObj(r[0].Pass, "Event.PartialClauseValid")])
+	require.NotContains(t, contracts, getFuncObj(r[0].Pass, "Event.ImpureMultiClause"))
 	for _, name := range []string{"Event.Vacuous", "Event.Or", "Event.NotChecked", "Event.Mutated", "Event.MutateOther", "Event.PassFieldAddr"} {
 		require.NotContains(t, contracts, getFuncObj(r[0].Pass, name))
 	}
@@ -283,6 +304,9 @@ func TestFactImport(t *testing.T) { //nolint:paralleltest // toggles the shared 
 		},
 		getFuncObj(pass, "upstream.Hidden.IsValid"): {
 			Contract{TrueRecvFieldNonNil: ptrTo(0)},
+		},
+		getFuncObj(pass, "upstream.Getter.FetchData"): {
+			Contract{GetterField: ptrTo(0)},
 		},
 	}
 	if diff := cmp.Diff(expected, actual); diff != "" {

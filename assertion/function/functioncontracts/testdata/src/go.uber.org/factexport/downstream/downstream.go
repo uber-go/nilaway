@@ -32,6 +32,8 @@ func foo() {
 	validator.ExportedTrueMethod(nil)
 	var event upstream.ExportedEvent
 	event.IsValid()
+	var gt upstream.Getter
+	gt.FetchData()
 }
 
 // This is a local function that has a contract that should be combined with the imported facts.

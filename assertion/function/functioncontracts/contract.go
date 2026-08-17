@@ -65,8 +65,12 @@ type Contract struct {
 	Field *ArgField
 	// TrueArgNonNil describes an argument whose non-nilness is guaranteed when the function returns true.
 	TrueArgNonNil *int
+	// FalseArgNonNil describes an argument whose non-nilness is guaranteed when the function returns false.
+	FalseArgNonNil *int
 	// TrueRecvFieldNonNil describes a receiver field whose non-nilness is guaranteed when true.
 	TrueRecvFieldNonNil *int
+	// GetterField is the receiver field index returned by a pure nil-safe getter.
+	GetterField *int
 }
 
 func (c Contract) String() string {
@@ -77,8 +81,14 @@ func (c Contract) String() string {
 	if c.TrueArgNonNil != nil {
 		str += fmt.Sprintf(" true => arg(%d).nonnil", *c.TrueArgNonNil)
 	}
+	if c.FalseArgNonNil != nil {
+		str += fmt.Sprintf(" false => arg(%d).nonnil", *c.FalseArgNonNil)
+	}
 	if c.TrueRecvFieldNonNil != nil {
 		str += fmt.Sprintf(" true => recv.field(%d).nonnil", *c.TrueRecvFieldNonNil)
+	}
+	if c.GetterField != nil {
+		str += fmt.Sprintf(" getfield(%d)", *c.GetterField)
 	}
 	return str + "}"
 }

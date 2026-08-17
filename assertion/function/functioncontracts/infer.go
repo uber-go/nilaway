@@ -27,7 +27,7 @@ import (
 // inferTrueArgNonNilContracts infers the deliberately small, structural contract
 // true => arg(N).nonnil. Values which are not directly justified by a nil
 // comparison (or by the short-circuit control flow surrounding one) are rejected.
-func inferTrueArgNonNilContracts(fn *ssa.Function) Contracts {
+func inferTrueArgNonNilContracts(fn *ssa.Function, resolveContract func(*ssa.Function) Contracts) Contracts {
 	if fn.Signature.Results().Len() != 1 || fn.Signature.Results().At(0).Type().String() != "bool" || fn.Signature.Variadic() {
 		return nil
 	}
@@ -41,7 +41,7 @@ func inferTrueArgNonNilContracts(fn *ssa.Function) Contracts {
 		proven := false
 		valid := true
 		for _, ret := range getReturnInstrs(fn) {
-			ok, depends := proveTrueImpliesNonNil(ret.Results[0], ret.Block(), nil, func(value ssa.Value) bool { return value == param })
+			ok, depends := proveImpliesNonNil(ret.Results[0], true, ret.Block(), nil, func(value ssa.Value) bool { return value == param }, resolveContract)
 			if !ok {
 				valid = false
 				break
@@ -56,7 +56,43 @@ func inferTrueArgNonNilContracts(fn *ssa.Function) Contracts {
 	return contracts
 }
 
-func inferTrueRecvFieldNonNilContracts(fn *ssa.Function) Contracts {
+func inferFalseArgNonNilContracts(fn *ssa.Function) Contracts {
+	if fn.Signature.Results().Len() != 1 || fn.Signature.Results().At(0).Type().Underlying().String() != "bool" || fn.Signature.Variadic() {
+		return nil
+	}
+	for _, b := range fn.Blocks {
+		for _, instr := range b.Instrs {
+			switch instr.(type) {
+			case *ssa.Store, *ssa.Call, *ssa.Go, *ssa.Defer, *ssa.Send, *ssa.MapUpdate:
+				return nil
+			}
+		}
+	}
+	declaredStart := len(fn.Params) - fn.Signature.Params().Len()
+	var contracts Contracts
+	for i := 0; i < fn.Signature.Params().Len(); i++ {
+		param := fn.Params[declaredStart+i]
+		if typeshelper.TypeBarsNilness(param.Type()) {
+			continue
+		}
+		valid, depends := true, false
+		for _, ret := range getReturnInstrs(fn) {
+			ok, used := proveImpliesNonNil(ret.Results[0], false, ret.Block(), nil, func(v ssa.Value) bool { return v == param }, nil)
+			if !ok {
+				valid = false
+				break
+			}
+			depends = depends || used
+		}
+		if valid && depends {
+			index := i
+			contracts = append(contracts, Contract{FalseArgNonNil: &index})
+		}
+	}
+	return contracts
+}
+
+func inferTrueRecvFieldNonNilContracts(fn *ssa.Function, resolveContract func(*ssa.Function) Contracts) Contracts {
 	if fn.Signature.Recv() == nil || fn.Signature.Results().Len() != 1 ||
 		fn.Signature.Results().At(0).Type().Underlying().String() != "bool" || fn.Signature.Variadic() ||
 		len(fn.Params) == 0 {
@@ -71,7 +107,7 @@ func inferTrueRecvFieldNonNilContracts(fn *ssa.Function) Contracts {
 	if st == nil {
 		return nil
 	}
-	if hasNonLocalStore(fn) || !receiverDoesNotEscape(fn, recv) {
+	if hasNonLocalStore(fn) || !receiverDoesNotEscape(fn, recv, resolveContract) {
 		return nil
 	}
 	var contracts Contracts
@@ -86,7 +122,13 @@ func inferTrueRecvFieldNonNilContracts(fn *ssa.Function) Contracts {
 		}
 		valid, depends := true, false
 		for _, ret := range getReturnInstrs(fn) {
-			ok, used := proveTrueImpliesNonNil(ret.Results[0], ret.Block(), nil, func(value ssa.Value) bool { return value == candidate })
+			if c, ok := ret.Results[0].(*ssa.Const); ok && !constant.BoolVal(c.Value) {
+				continue
+			}
+			ok, used := proveImpliesNonNil(ret.Results[0], true, ret.Block(), nil, func(value ssa.Value) bool { return value == candidate }, resolveContract)
+			if ok && !used && len(ret.Block().Preds) == 1 {
+				ok, used = proveOnBranch(func(value ssa.Value) bool { return value == candidate }, ret.Block().Preds[0], ret.Block(), nil, resolveContract)
+			}
 			if !ok {
 				valid = false
 				break
@@ -99,6 +141,66 @@ func inferTrueRecvFieldNonNilContracts(fn *ssa.Function) Contracts {
 		}
 	}
 	sort.Slice(contracts, func(i, j int) bool { return *contracts[i].TrueRecvFieldNonNil < *contracts[j].TrueRecvFieldNonNil })
+	return contracts
+}
+
+func inferGetterFieldContracts(fn *ssa.Function) Contracts {
+	if fn.Signature.Recv() == nil || fn.Signature.Params().Len() != 0 ||
+		fn.Signature.Results().Len() != 1 || fn.Signature.Variadic() || len(fn.Params) < 1 {
+		return nil
+	}
+	recv := fn.Params[0]
+	t := recv.Type()
+	if ptr, ok := t.(*types.Pointer); ok {
+		t = ptr.Elem()
+	}
+	st := typeshelper.AsDeeplyStruct(t)
+	if st == nil {
+		return nil
+	}
+	for _, b := range fn.Blocks {
+		for _, instr := range b.Instrs {
+			switch instr.(type) {
+			case *ssa.Store, *ssa.Call, *ssa.Go, *ssa.Defer, *ssa.Send:
+				return nil
+			}
+		}
+	}
+	if !receiverDoesNotEscape(fn, recv, nil) {
+		return nil
+	}
+	var contracts Contracts
+	for fieldIndex := 0; fieldIndex < st.NumFields(); fieldIndex++ {
+		field := st.Field(fieldIndex)
+		if field.Embedded() || typeshelper.TypeBarsNilness(field.Type()) {
+			continue
+		}
+		load, ok := receiverFieldLoad(fn, recv, fieldIndex)
+		if !ok {
+			continue
+		}
+		usesLoad := false
+		valid := true
+		for _, ret := range getReturnInstrs(fn) {
+			if len(ret.Results) != 1 {
+				valid = false
+				break
+			}
+			result := ret.Results[0]
+			if isNilConst(result) {
+				continue
+			}
+			if result != load {
+				valid = false
+				break
+			}
+			usesLoad = true
+		}
+		if valid && usesLoad {
+			index := fieldIndex
+			contracts = append(contracts, Contract{GetterField: &index})
+		}
+	}
 	return contracts
 }
 
@@ -150,7 +252,7 @@ func receiverFieldLoad(fn *ssa.Function, recv ssa.Value, fieldIndex int) (ssa.Va
 }
 
 // receiverDoesNotEscape reports whether receiver recv (and, for value receivers, its localization copy) is used in fn only in ways that cannot mutate or leak the receiver. Pointer receiver: any *ssa.Call, *ssa.Go, or *ssa.Defer in fn is unsafe, and recv-derived addresses may only feed dereference loads (token.MUL UnOp); passing, returning, storing, converting, or capturing them is unsafe. Value receiver: there must be exactly one localization store of recv into a block-local Alloc; the copy may only participate in its own initialization, field addressing, direct reads, and dereference loads, and neither it nor a receiver-rooted field address may escape.
-func receiverDoesNotEscape(fn *ssa.Function, recv ssa.Value) bool {
+func receiverDoesNotEscape(fn *ssa.Function, recv ssa.Value, resolveContract func(*ssa.Function) Contracts) bool {
 	_, valueReceiver := recv.Type().Underlying().(*types.Struct)
 	var copyAlloc *ssa.Alloc
 	if valueReceiver {
@@ -195,15 +297,38 @@ func receiverDoesNotEscape(fn *ssa.Function, recv ssa.Value) bool {
 		}
 		for _, ref := range *refs {
 			addr, ok := ref.(*ssa.FieldAddr)
-			if !ok || !receiverFieldAddrDoesNotEscape(addr) {
+			if ok {
+				if !receiverFieldAddrDoesNotEscape(addr) {
+					return false
+				}
+				continue
+			}
+			comparison, ok := ref.(*ssa.BinOp)
+			if !ok || (comparison.Op != token.EQL && comparison.Op != token.NEQ) ||
+				!((comparison.X == recv && isNilConst(comparison.Y)) || (comparison.Y == recv && isNilConst(comparison.X))) {
 				return false
 			}
 		}
 	}
 	for _, b := range fn.Blocks {
 		for _, instr := range b.Instrs {
-			switch instr.(type) {
-			case *ssa.Call, *ssa.Go, *ssa.Defer:
+			switch instr := instr.(type) {
+			case *ssa.Call:
+				if resolveContract == nil || instr.Call.StaticCallee() == nil {
+					if !valueReceiver {
+						return false
+					}
+				}
+				if !valueReceiver {
+					found := false
+					for _, contract := range resolveContract(instr.Call.StaticCallee()) {
+						found = found || contract.TrueArgNonNil != nil || contract.FalseArgNonNil != nil
+					}
+					if !found {
+						return false
+					}
+				}
+			case *ssa.Go, *ssa.Defer:
 				if !valueReceiver {
 					return false
 				}
@@ -227,9 +352,9 @@ func receiverFieldAddrDoesNotEscape(addr *ssa.FieldAddr) bool {
 	return true
 }
 
-// proveTrueImpliesNonNil returns whether true for value implies the matched value is non-nil, and
-// whether that proof actually used the matched value (rather than a vacuous false return).
-func proveTrueImpliesNonNil(value ssa.Value, pred *ssa.BasicBlock, seen map[ssa.Value]bool, matches func(ssa.Value) bool) (bool, bool) {
+// proveImpliesNonNil returns whether desiredBool for value implies the matched value is non-nil,
+// and whether that proof actually used the matched value.
+func proveImpliesNonNil(value ssa.Value, desiredBool bool, pred *ssa.BasicBlock, seen map[ssa.Value]bool, matches func(ssa.Value) bool, resolveContract func(*ssa.Function) Contracts) (bool, bool) {
 	if seen == nil {
 		seen = make(map[ssa.Value]bool)
 	}
@@ -239,38 +364,80 @@ func proveTrueImpliesNonNil(value ssa.Value, pred *ssa.BasicBlock, seen map[ssa.
 	seen[value] = true
 	defer delete(seen, value)
 	if c, ok := value.(*ssa.Const); ok {
-		return !constant.BoolVal(c.Value), false
+		return constant.BoolVal(c.Value) == desiredBool, false
 	}
 	switch v := value.(type) {
 	case *ssa.BinOp:
 		if v.Op == token.LAND {
-			l, ld := proveTrueImpliesNonNil(v.X, pred, seen, matches)
-			r, rd := proveTrueImpliesNonNil(v.Y, pred, seen, matches)
-			return l || r, ld || rd
-		}
-		if v.Op == token.LOR {
-			l, ld := proveTrueImpliesNonNil(v.X, pred, seen, matches)
-			r, rd := proveTrueImpliesNonNil(v.Y, pred, seen, matches)
+			l, ld := proveImpliesNonNil(v.X, desiredBool, pred, seen, matches, resolveContract)
+			r, rd := proveImpliesNonNil(v.Y, desiredBool, pred, seen, matches, resolveContract)
+			if desiredBool {
+				return l || r, ld || rd
+			}
 			return l && r, ld && rd
 		}
+		if v.Op == token.LOR {
+			l, ld := proveImpliesNonNil(v.X, desiredBool, pred, seen, matches, resolveContract)
+			r, rd := proveImpliesNonNil(v.Y, desiredBool, pred, seen, matches, resolveContract)
+			if desiredBool {
+				return l && r, ld && rd
+			}
+			return l || r, ld || rd
+		}
 		if (v.Op == token.EQL || v.Op == token.NEQ) && ((matches(v.X) && isNilConst(v.Y)) || (matches(v.Y) && isNilConst(v.X))) {
-			return v.Op == token.NEQ, v.Op == token.NEQ
+			return (v.Op == token.NEQ) == desiredBool, v.Op == token.NEQ == desiredBool
 		}
 	case *ssa.UnOp:
 		if v.Op == token.NOT {
-			if bin, ok := v.X.(*ssa.BinOp); ok && (bin.Op == token.EQL || bin.Op == token.NEQ) && ((matches(bin.X) && isNilConst(bin.Y)) || (matches(bin.Y) && isNilConst(bin.X))) {
-				return bin.Op == token.EQL, bin.Op == token.EQL
+			return proveImpliesNonNil(v.X, !desiredBool, pred, seen, matches, resolveContract)
+		}
+	case *ssa.Call:
+		callee := v.Call.StaticCallee()
+		if callee == nil || resolveContract == nil {
+			return false, false
+		}
+		var index *int
+		for _, contract := range resolveContract(callee) {
+			if desiredBool && contract.TrueArgNonNil != nil {
+				index = contract.TrueArgNonNil
+			}
+			if !desiredBool && contract.FalseArgNonNil != nil {
+				index = contract.FalseArgNonNil
 			}
 		}
+		if index == nil {
+			return false, false
+		}
+		offset := len(v.Call.Args) - callee.Signature.Params().Len()
+		if offset < 0 || *index+offset >= len(v.Call.Args) || !matches(v.Call.Args[*index+offset]) {
+			return false, false
+		}
+		return true, true
 	case *ssa.Phi:
 		if len(v.Edges) != len(v.Block().Preds) {
 			return false, false
 		}
 		depends := false
 		for i, edge := range v.Edges {
-			ok, used := proveTrueImpliesNonNil(edge, v.Block().Preds[i], seen, matches)
+			if c, isConst := edge.(*ssa.Const); isConst && constant.BoolVal(c.Value) != desiredBool {
+				continue
+			}
+			ok, used := proveImpliesNonNil(edge, desiredBool, v.Block().Preds[i], seen, matches, resolveContract)
+			if ok {
+				if c, isConst := edge.(*ssa.Const); isConst && constant.BoolVal(c.Value) == desiredBool {
+					branchOK, branchUsed := proveOnBranch(matches, v.Block().Preds[i], v.Block(), nil, resolveContract)
+					if branchOK {
+						used = used || branchUsed
+					} else {
+						_, _, cond := branch(v.Block().Preds[i])
+						if cond != nil && ((matches(cond.X) && isNilConst(cond.Y)) || (matches(cond.Y) && isNilConst(cond.X))) {
+							ok = false
+						}
+					}
+				}
+			}
 			if !ok {
-				ok, used = proveTrueOnBranch(matches, v.Block().Preds[i], v.Block())
+				ok, used = proveOnBranch(matches, v.Block().Preds[i], v.Block(), nil, resolveContract)
 			}
 			if !ok {
 				return false, false
@@ -282,22 +449,39 @@ func proveTrueImpliesNonNil(value ssa.Value, pred *ssa.BasicBlock, seen map[ssa.
 	return false, false
 }
 
-func proveTrueOnBranch(matches func(ssa.Value) bool, block, target *ssa.BasicBlock) (bool, bool) {
-	if block == nil || len(block.Instrs) == 0 {
-		if block != nil && len(block.Preds) == 1 {
-			return proveTrueOnBranch(matches, block.Preds[0], block)
-		}
+// proveOnBranch reports whether the control-flow edge block->target proves the matched value
+// non-nil: block must end in *ssa.If with 2 successors; the condition's known value on the edge
+// is (target == block.Succs[0]); that polarity is proven via proveImpliesNonNil on ifInstr.Cond.
+// If this block's condition does not prove the match, recurse backward only through a single
+// predecessor (linear chain). Fail closed at joins (len(Preds) != 1) and cycles (seenBlocks).
+func proveOnBranch(matches func(ssa.Value) bool, block, target *ssa.BasicBlock, seenBlocks map[*ssa.BasicBlock]bool, resolveContract func(*ssa.Function) Contracts) (bool, bool) {
+	if block == nil || seenBlocks[block] {
 		return false, false
 	}
-	_, neq, cond := branch(block)
-	if cond == nil || len(block.Succs) != 2 {
+	if seenBlocks == nil {
+		seenBlocks = make(map[*ssa.BasicBlock]bool)
+	}
+	seenBlocks[block] = true
+	defer delete(seenBlocks, block)
+	if len(block.Instrs) == 0 {
 		if len(block.Preds) == 1 {
-			return proveTrueOnBranch(matches, block.Preds[0], block)
+			return proveOnBranch(matches, block.Preds[0], block, seenBlocks, resolveContract)
 		}
 		return false, false
 	}
-	if matches(cond.X) && isNilConst(cond.Y) || matches(cond.Y) && isNilConst(cond.X) {
-		return (cond.Op == token.NEQ && neq == target) || (cond.Op == token.EQL && neq == target), true
+	ifInstr, ok := block.Instrs[len(block.Instrs)-1].(*ssa.If)
+	if !ok || len(block.Succs) != 2 || (target != block.Succs[0] && target != block.Succs[1]) {
+		if len(block.Preds) == 1 {
+			return proveOnBranch(matches, block.Preds[0], block, seenBlocks, resolveContract)
+		}
+		return false, false
+	}
+	condValue := target == block.Succs[0]
+	if ok, depends := proveImpliesNonNil(ifInstr.Cond, condValue, block, nil, matches, resolveContract); ok && depends {
+		return true, true
+	}
+	if len(block.Preds) == 1 {
+		return proveOnBranch(matches, block.Preds[0], block, seenBlocks, resolveContract)
 	}
 	return false, false
 }

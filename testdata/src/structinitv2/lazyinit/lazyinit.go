@@ -214,3 +214,41 @@ func loadAlias(x *X, h *H) int {
 func useLoadAlias() {
 	loadAlias(&X{}, &H{})
 }
+
+type PredicateEvent struct {
+	ActionName *string
+	Other      *string
+}
+
+func (e *PredicateEvent) IsValid() bool {
+	return e != nil && e.ActionName != nil
+}
+
+func predicateGuard() {
+	ev := &PredicateEvent{}
+	if !ev.IsValid() {
+		return
+	}
+	_ = *ev.ActionName
+}
+
+func (e *PredicateEvent) OtherValid() bool {
+	return e != nil && e.Other != nil
+}
+
+func predicateGuardWrongField() {
+	ev := &PredicateEvent{}
+	if !ev.OtherValid() {
+		return
+	}
+	_ = *ev.ActionName //want "uninitialized field `ActionName`"
+}
+
+func predicateGuardRenil() {
+	ev := &PredicateEvent{}
+	if !ev.IsValid() {
+		return
+	}
+	ev.ActionName = nil
+	_ = *ev.ActionName //want "literal `nil` dereferenced"
+}

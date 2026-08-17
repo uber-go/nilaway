@@ -25,7 +25,7 @@ func Reassigned(p *Message) bool {
 	return p != nil
 }
 
-func PhiFromCompare(p *Message) bool {
+func PhiFromCompare(p *Message) bool { // want PhiFromCompare:"&\\[{\\[\\] \\[\\] false => arg\\(0\\)\\.nonnil\\}\\]"
 	result := false
 	if p == nil {
 		result = true

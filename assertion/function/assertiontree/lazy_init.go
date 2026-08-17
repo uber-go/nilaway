@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"go.uber.org/nilaway/annotation"
+	"go.uber.org/nilaway/assertion/function/functioncontracts"
 	"go.uber.org/nilaway/util/typeshelper"
 	"golang.org/x/tools/go/ssa"
 )
@@ -44,7 +45,9 @@ func lazyInitSuppressed(fc FunctionContext, producer *annotation.ProduceTrigger,
 	default:
 		return false
 	}
-	if _, ok := consumer.Annotation.(*annotation.FldAccess); !ok {
+	switch consumer.Annotation.(type) {
+	case *annotation.FldAccess, *annotation.PtrLoad, *annotation.MapWrittenTo:
+	default:
 		return false
 	}
 
@@ -62,14 +65,30 @@ func fieldAddrForExpr(fc FunctionContext, expr ast.Expr) (*ssa.FieldAddr, *types
 		return nil, nil
 	}
 	selection := fc.pass.TypesInfo.Selections[sel]
-	if selection == nil {
-		return nil, nil
+	var field *types.Var
+	var indexes []int
+	if selection != nil {
+		field, ok = selection.Obj().(*types.Var)
+		if !ok {
+			return nil, nil
+		}
+		indexes = selection.Index()
+	} else {
+		field, ok = fc.pass.TypesInfo.Uses[sel.Sel].(*types.Var)
+		if !ok {
+			return nil, nil
+		}
+		structType := typeshelper.AsDeeplyStruct(fc.pass.TypesInfo.TypeOf(sel.X))
+		if structType == nil {
+			return nil, nil
+		}
+		for i := 0; i < structType.NumFields(); i++ {
+			if structType.Field(i) == field {
+				indexes = []int{i}
+				break
+			}
+		}
 	}
-	field, ok := selection.Obj().(*types.Var)
-	if !ok {
-		return nil, nil
-	}
-	indexes := selection.Index()
 	if len(indexes) == 0 {
 		return nil, nil
 	}
@@ -244,6 +263,9 @@ func fieldEstablishedOnAllPaths(fc FunctionContext, field, deref *ssa.FieldAddr,
 		if ok && nonNilSucc != nil {
 			establishedEdges[ssaEdge{from: block, to: nonNilSucc}] = true
 		}
+		if trueSucc, ok := predicateGuard(fc, block, field); ok {
+			establishedEdges[ssaEdge{from: block, to: trueSucc}] = true
+		}
 	}
 	return allPathsEstablished(deref.Block(), establishing, establishedEdges, map[*ssa.BasicBlock]bool{}, map[*ssa.BasicBlock]bool{})
 }
@@ -280,10 +302,74 @@ func nilGuard(fc FunctionContext, block *ssa.BasicBlock, field *ssa.FieldAddr) (
 		return nil, nil, false
 	}
 	fieldVar := fieldAtIndex(field.X.Type(), field.Field)
-	if fieldVar == nil || !strings.HasPrefix(callee.Name(), "Get") || callee.Name()[3:] != fieldVar.Name() || len(call.Call.Args) == 0 || call.Call.Args[0] != field.X || !validGetter(callee, field.Field) {
+	var getterOK bool
+	if callee.Blocks != nil {
+		getterOK = validGetter(callee, field.Field)
+	} else {
+		getterOK = crossPackageGetterContractMatches(fc, callee, field.Field)
+	}
+	if fieldVar == nil || !strings.HasPrefix(callee.Name(), "Get") || callee.Name()[3:] != fieldVar.Name() || len(call.Call.Args) == 0 || call.Call.Args[0] != field.X || !getterOK {
 		return nil, nil, false
 	}
 	return eqSucc, nonNilSucc, true
+}
+
+func crossPackageGetterContractMatches(fc FunctionContext, callee *ssa.Function, field int) bool {
+	fn, ok := callee.Object().(*types.Func)
+	if !ok {
+		return false
+	}
+	for _, c := range fc.funcContracts[fn.Origin()] {
+		if c.GetterField != nil && *c.GetterField == field {
+			return true
+		}
+	}
+	return false
+}
+
+// predicateGuard returns the successor on which a predicate-contract method is known to be true.
+// It intentionally handles only a direct call, optionally negated by !, to fail closed for more
+// complicated boolean expressions whose edge semantics require additional reasoning.
+func predicateGuard(fc FunctionContext, block *ssa.BasicBlock, field *ssa.FieldAddr) (*ssa.BasicBlock, bool) {
+	if len(block.Instrs) == 0 || len(block.Succs) != 2 {
+		return nil, false
+	}
+	ifInstr, ok := block.Instrs[len(block.Instrs)-1].(*ssa.If)
+	if !ok {
+		return nil, false
+	}
+	condition := ifInstr.Cond
+	inverted := false
+	if not, ok := condition.(*ssa.UnOp); ok && not.Op == token.NOT {
+		condition = not.X
+		inverted = true
+	}
+	call, ok := condition.(*ssa.Call)
+	if !ok || len(call.Call.Args) < 1 || call.Call.Args[0] != field.X {
+		return nil, false
+	}
+	callee := call.Call.StaticCallee()
+	if callee == nil {
+		return nil, false
+	}
+	funcObj, ok := callee.Object().(*types.Func)
+	if !ok {
+		return nil, false
+	}
+	origin := funcObj.Origin()
+	for _, contract := range fc.funcContracts[origin] {
+		if predicateContractMatches(contract, field.Field) {
+			if inverted {
+				return block.Succs[1], true
+			}
+			return block.Succs[0], true
+		}
+	}
+	return nil, false
+}
+
+func predicateContractMatches(contract functioncontracts.Contract, field int) bool {
+	return contract.TrueRecvFieldNonNil != nil && *contract.TrueRecvFieldNonNil == field
 }
 
 func validGetter(getter *ssa.Function, field int) bool {

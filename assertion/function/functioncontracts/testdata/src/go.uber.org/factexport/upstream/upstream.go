@@ -101,3 +101,12 @@ func (h Hidden) IsValid() bool { //want IsValid:"&\\[{\\[\\] \\[\\] true => recv
 }
 
 type Visible = Hidden
+
+type Getter struct{ Data *int }
+
+func (g *Getter) FetchData() *int { //want FetchData:"&\\[{\\[\\] \\[\\] getfield\\(0\\)\\}\\]"
+	if g == nil {
+		return nil
+	}
+	return g.Data
+}

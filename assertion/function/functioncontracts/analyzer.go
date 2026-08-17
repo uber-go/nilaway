@@ -86,6 +86,61 @@ func run(p *analysis.Pass) (Map, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := importUpstreamContracts(pass, contracts); err != nil {
+		return nil, err
+	}
+	if conf.ExperimentalStructInitV2Enable {
+		snapshot := make(Map, len(contracts))
+		for fn, ctrts := range contracts {
+			snapshot[fn] = ctrts
+		}
+		phase2 := make(Map)
+		ssaInput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
+		ssaOfFunc := make(map[*types.Func]*ssa.Function, len(ssaInput.SrcFuncs))
+		for _, fnssa := range ssaInput.SrcFuncs {
+			if fnssa != nil {
+				if fn, ok := fnssa.Object().(*types.Func); ok {
+					ssaOfFunc[fn] = fnssa
+				}
+			}
+		}
+		resolveContract := func(callee *ssa.Function) Contracts {
+			if o, ok := callee.Object().(*types.Func); ok {
+				return snapshot[o]
+			}
+			return nil
+		}
+		for _, file := range pass.Files {
+			if !conf.IsFileInScope(file) {
+				continue
+			}
+			for _, decl := range file.Decls {
+				funcDecl, ok := decl.(*ast.FuncDecl)
+				if !ok {
+					continue
+				}
+				funcObj := pass.TypesInfo.ObjectOf(funcDecl.Name).(*types.Func)
+				if _, ok := contracts[funcObj]; ok {
+					continue
+				}
+				sig := funcObj.Type().(*types.Signature)
+				eligible := sig.Recv() != nil && sig.Results().Len() == 1 && sig.Results().At(0).Type().Underlying().String() == "bool" && !sig.Variadic() && hasNilableReceiverField(sig) && receiverInPackage(sig, pass.Pkg)
+				if !eligible {
+					continue
+				}
+				fnssa := ssaOfFunc[funcObj]
+				if fnssa == nil || len(fnssa.Blocks) == 0 {
+					continue
+				}
+				if inferred := inferTrueRecvFieldNonNilContracts(fnssa, resolveContract); len(inferred) != 0 {
+					phase2[funcObj] = inferred
+				}
+			}
+		}
+		for fn, ctrts := range phase2 {
+			contracts[fn] = ctrts
+		}
+	}
 
 	// The fact mechanism only allows exporting pointer types. However, internally we are using
 	// `Contract` as a value type because it is an underlying slice type (such that making it a
@@ -93,42 +148,6 @@ func run(p *analysis.Pass) (Map, error) {
 	// only convert it from/to a pointer type _here_ during the fact import/exports. Everywhere
 	// else in NilAway (this sub-analyzer, as well as the other analyzers) we treat `Contract`
 	// simply as a value type.
-
-	// Import contracts from upstream packages and merge it with the local contract map.
-	for _, fact := range pass.AllObjectFacts() {
-		fn, ok := fact.Object.(*types.Func)
-		if !ok {
-			continue
-		}
-		ctrts, ok := fact.Fact.(*Contracts)
-		if !ok || ctrts == nil {
-			continue
-		}
-		// The existing contracts are imported from upstream packages about upstream functions,
-		// therefore there should not be any conflicts with contracts collected from the current package.
-		if _, ok := contracts[fn]; ok {
-			return nil, fmt.Errorf("function %s has multiple contracts", fn.Name())
-		}
-		contracts[fn] = *ctrts
-	}
-
-	// Object facts cannot be re-exported for objects owned by another package. Import the package
-	// fact used for transitive forwarding and resolve its methods in the current type graph.
-	for _, fact := range pass.AllPackageFacts() {
-		forwarded, ok := fact.Fact.(*ForwardedContracts)
-		if !ok {
-			continue
-		}
-		methods := reachableAPITypeMethods(reachableAPITypeNames(pass))
-		for _, entry := range forwarded.Functions {
-			for fn := range methods {
-				path, pathErr := (&objectpath.Encoder{}).For(fn)
-				if pathErr == nil && path == entry.ObjectPath {
-					contracts[fn] = entry.Contracts
-				}
-			}
-		}
-	}
 
 	// Now, export the contracts for the _exported_ functions in the current package only, as
 	// well as contracts for upstream methods whose receiver types are part of this package's API.
@@ -161,6 +180,39 @@ func run(p *analysis.Pass) (Map, error) {
 		pass.ExportPackageFact(packageFact)
 	}
 	return contracts, nil
+}
+
+func importUpstreamContracts(pass *analysishelper.EnhancedPass, contracts Map) error {
+	for _, fact := range pass.AllObjectFacts() {
+		fn, ok := fact.Object.(*types.Func)
+		if !ok {
+			continue
+		}
+		ctrts, ok := fact.Fact.(*Contracts)
+		if !ok || ctrts == nil {
+			continue
+		}
+		if _, ok := contracts[fn]; ok {
+			return fmt.Errorf("function %s has multiple contracts", fn.Name())
+		}
+		contracts[fn] = *ctrts
+	}
+	for _, fact := range pass.AllPackageFacts() {
+		forwarded, ok := fact.Fact.(*ForwardedContracts)
+		if !ok {
+			continue
+		}
+		methods := reachableAPITypeMethods(reachableAPITypeNames(pass))
+		for _, entry := range forwarded.Functions {
+			for fn := range methods {
+				path, pathErr := (&objectpath.Encoder{}).For(fn)
+				if pathErr == nil && path == entry.ObjectPath {
+					contracts[fn] = entry.Contracts
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // reachableAPITypeNames returns the named types occurring anywhere in the exported API of pkg.
@@ -321,9 +373,14 @@ func collectFunctionContracts(pass *analysishelper.EnhancedPass) (Map, error) {
 				!typeshelper.TypeBarsNilness(sig.Results().At(0).Type()) &&
 				!sig.Variadic()
 			argFieldInferenceEligible := typeshelper.FuncIsErrReturning(sig) && !sig.Variadic() && typeshelper.FuncHasPointerToStructParam(sig)
-			trueArgInferenceEligible := typeshelper.FuncReturnsExactlyBool(sig) && !sig.Variadic() && typeshelper.FuncHasNilableParam(sig)
-			trueRecvFieldInferenceEligible := typeshelper.FuncReturnsExactlyBool(sig) && !sig.Variadic() && hasNilableReceiverField(sig) && receiverInPackage(sig, pass.Pkg)
-			if !oldInferenceEligible && !argFieldInferenceEligible && !trueArgInferenceEligible && !trueRecvFieldInferenceEligible {
+			trueArgInferenceEligible := typeshelper.FuncReturnsExactlyBool(sig) && !sig.Variadic() && sig.Params().Len() > 0 && typeshelper.FuncHasNilableParam(sig)
+			falseArgInferenceEligible := trueArgInferenceEligible
+			pointerReceiver := false
+			if sig.Recv() != nil {
+				_, pointerReceiver = sig.Recv().Type().(*types.Pointer)
+			}
+			getterFieldInferenceEligible := sig.Recv() != nil && pointerReceiver && sig.Params().Len() == 0 && sig.Results().Len() == 1 && !sig.Variadic() && hasNilableReceiverField(sig)
+			if !oldInferenceEligible && !argFieldInferenceEligible && !trueArgInferenceEligible && !falseArgInferenceEligible && !getterFieldInferenceEligible {
 				// We definitely want to ignore any function without any parameters or return
 				// values since they cannot have any contracts.
 
@@ -368,10 +425,13 @@ func collectFunctionContracts(pass *analysishelper.EnhancedPass) (Map, error) {
 					contracts = append(contracts, inferArgFieldContracts(fnssa)...)
 				}
 				if conf.ExperimentalStructInitV2Enable && trueArgInferenceEligible {
-					contracts = append(contracts, inferTrueArgNonNilContracts(fnssa)...)
+					contracts = append(contracts, inferTrueArgNonNilContracts(fnssa, nil)...)
 				}
-				if conf.ExperimentalStructInitV2Enable && trueRecvFieldInferenceEligible {
-					contracts = append(contracts, inferTrueRecvFieldNonNilContracts(fnssa)...)
+				if conf.ExperimentalStructInitV2Enable && falseArgInferenceEligible {
+					contracts = append(contracts, inferFalseArgNonNilContracts(fnssa)...)
+				}
+				if conf.ExperimentalStructInitV2Enable && getterFieldInferenceEligible {
+					contracts = append(contracts, inferGetterFieldContracts(fnssa)...)
 				}
 				if len(contracts) != 0 {
 					funcChan <- functionResult{
