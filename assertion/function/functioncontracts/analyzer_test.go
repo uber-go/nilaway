@@ -157,8 +157,14 @@ func TestInferArgField(t *testing.T) { //nolint:paralleltest // toggles the shar
 	r := analysistest.Run(t, testdata, Analyzer, "go.uber.org/inferargfield")
 	require.Len(t, r, 1)
 	pass, result := r[0].Pass, r[0].Result
-	contracts := result.(*analysishelper.Result[Map]).Res
+	allContracts := result.(*analysishelper.Result[Map]).Res
 	require.NoError(t, result.(*analysishelper.Result[Map]).Err)
+	contracts := make(Map)
+	for funcObj, contract := range allContracts {
+		if strings.HasPrefix(funcObj.Pkg().Path(), "go.uber.org/inferargfield") {
+			contracts[funcObj] = contract
+		}
+	}
 	expected := Map{
 		getFuncObj(pass, "Plain"): {{Field: &ArgField{ParamIndex: 0, FieldIndex: 0}}},
 		getFuncObj(pass, "MultipleFields"): {
@@ -168,8 +174,10 @@ func TestInferArgField(t *testing.T) { //nolint:paralleltest // toggles the shar
 		getFuncObj(pass, "MultipleParams"): {{Field: &ArgField{ParamIndex: 1, FieldIndex: 0}}},
 		getFuncObj(pass, "Reversed"):       {{Field: &ArgField{ParamIndex: 0, FieldIndex: 0}}},
 		getFuncObj(pass, "Msg.Method"):     {{Field: &ArgField{ParamIndex: 0, FieldIndex: 1}}},
+		getFuncObj(pass, "ErrorsNew"):      {{Field: &ArgField{ParamIndex: 0, FieldIndex: 2}}},
+		getFuncObj(pass, "FmtErrorf"):      {{Field: &ArgField{ParamIndex: 0, FieldIndex: 2}}},
 	}
-	for _, name := range []string{"LoopFixpoint", "PassFieldToCall", "UnrelatedStore", "LoopStore"} {
+	for _, name := range []string{"LoopFixpoint", "PassFieldToCall", "UnrelatedStore", "LoopStore", "CustomErrorConstructor"} {
 		require.NotContains(t, contracts, getFuncObj(pass, name))
 	}
 	if diff := cmp.Diff(expected, contracts); diff != "" {

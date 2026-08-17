@@ -851,6 +851,17 @@ func isBuiltinAppendCall(v *ssa.Call) bool {
 	return bi.Name() == "append"
 }
 
+// isKnownNonNilErrorConstructor reports if the call is to a standard library error constructor
+// that always returns a non-nil error.
+func isKnownNonNilErrorConstructor(v *ssa.Call) bool {
+	callee := v.Call.StaticCallee()
+	if callee == nil || callee.Pkg == nil || callee.Pkg.Pkg == nil {
+		return false
+	}
+	return (callee.Pkg.Pkg.Path() == "errors" && callee.Name() == "New") ||
+		(callee.Pkg.Pkg.Path() == "fmt" && callee.Name() == "Errorf")
+}
+
 type nilness int
 
 func (n nilness) negate() nilness { return -n }
@@ -913,15 +924,17 @@ func (t nilnessTable) nilnessOf(v ssa.Value) nilness {
 			return nn
 		}
 	case *ssa.Call:
-		if !isBuiltinAppendCall(v) {
-			break
+		if isBuiltinAppendCall(v) {
+			// append(s, x) always returns a nonnil.
+			if len(v.Call.Args) > 1 {
+				return isnonnil
+			}
+			// append(s) depends on the nilability of s.
+			return t.nilnessOf(v.Call.Args[0])
 		}
-		// append(s, x) always returns a nonnil.
-		if len(v.Call.Args) > 1 {
+		if isKnownNonNilErrorConstructor(v) {
 			return isnonnil
 		}
-		// append(s) depends on the nilability of s.
-		return t.nilnessOf(v.Call.Args[0])
 	}
 
 	// Is value intrinsically nil or non-nil?

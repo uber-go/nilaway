@@ -1,5 +1,10 @@
 package inferargfield
 
+import (
+	"errors"
+	"fmt"
+)
+
 type Error struct{}
 
 func (*Error) Error() string { return "error" }
@@ -135,6 +140,29 @@ func (s *svc) ValidateQPos(msg *Msg) error {
 func (s *svc) UnsoundValidator(msg *Msg) error {
 	if msg.UserID == nil {
 		return s.logAndHandleError(ctx, errNil, "missing")
+	}
+	return nil
+}
+
+func ErrorsNew(msg *Msg) error { //want ErrorsNew:"field"
+	if msg.UserID == nil {
+		return errors.New("missing")
+	}
+	return nil
+}
+
+func FmtErrorf(msg *Msg) error { //want FmtErrorf:"field"
+	if msg.UserID == nil {
+		return fmt.Errorf("missing")
+	}
+	return nil
+}
+
+func customError() error { return nil }
+
+func CustomErrorConstructor(msg *Msg) error {
+	if msg.UserID == nil {
+		return customError()
 	}
 	return nil
 }
