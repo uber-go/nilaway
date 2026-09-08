@@ -73,10 +73,11 @@ func copyValueField(src *Outer) *Outer { // expect_effects: return_param_source:
 	return &Outer{Value: src.Value}
 }
 
-// A result that sometimes constructs and sometimes forwards its parameter carries no sound source;
-// the whole-result source is dropped in close(). (The construct branch's concrete effects remain —
-// their interaction with mixed results is owned by a later fix revision.)
-func mixedConstructOrForward(y *Outer, pick bool) *Outer { // expect_effects: return_effects:0:Mid return_effects:0:Value.Child
+// A result that sometimes constructs and sometimes forwards its parameter carries no sound
+// source and no sound construction shape: the whole-result source AND the construct branch's
+// concrete effects are both dropped after the closures (see dropMixedResultParamSources) —
+// recording either side would mis-attribute the other branch's values.
+func mixedConstructOrForward(y *Outer, pick bool) *Outer { // expect_effects:
 	if pick {
 		return &Outer{}
 	}

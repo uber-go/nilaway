@@ -153,6 +153,14 @@ func useForwardParamProjectionShallowSafe() {
 	print(lib.ForwardParamProjection(t).Child.Ptr)
 }
 
+func useForwardParamProjectionInlineNil() {
+	print(lib.ForwardParamProjection(&lib.Wrap{}).Child.Ptr) //want "uninitialized field `In`"
+}
+
+func useForwardParamProjectionInlineSafe() {
+	print(lib.ForwardParamProjection(&lib.Wrap{In: &lib.Inner{Child: &lib.Leaf{}}}).Child.Ptr)
+}
+
 // Receiver field projections use the same shallow result binding.
 func useReceiverProjectionNil() {
 	t := &lib.Wrap{}
@@ -162,6 +170,14 @@ func useReceiverProjectionNil() {
 func useReceiverProjectionSafe() {
 	t := &lib.Wrap{In: &lib.Inner{Child: &lib.Leaf{}}}
 	print(t.ReceiverProjection().Child.Ptr)
+}
+
+func useReceiverProjectionInlineNil() {
+	print((&lib.Wrap{}).ReceiverProjection().Child.Ptr) //want "uninitialized field `In`"
+}
+
+func useReceiverProjectionInlineSafe() {
+	print((&lib.Wrap{In: &lib.Inner{Child: &lib.Leaf{}}}).ReceiverProjection().Child.Ptr)
 }
 
 // Calls at different locations use distinct sites even when otherwise identical.
@@ -183,6 +199,14 @@ func useForwardProjectionTransitiveNil() {
 func useForwardProjectionTransitiveSafe() {
 	t := &lib.Wrap{In: &lib.Inner{Child: &lib.Leaf{}}}
 	print(lib.ForwardProjectionTransitive(t).Child.Ptr)
+}
+
+func useForwardProjectionTransitiveInlineNil() {
+	print(lib.ForwardProjectionTransitive(&lib.Wrap{}).Child.Ptr) //want "uninitialized field `In`"
+}
+
+func useForwardProjectionTransitiveInlineSafe() {
+	print(lib.ForwardProjectionTransitive(&lib.Wrap{In: &lib.Inner{Child: &lib.Leaf{}}}).Child.Ptr)
 }
 
 // The shallow projection source also survives a cross-package forwarding hop.

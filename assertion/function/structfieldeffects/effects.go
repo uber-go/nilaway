@@ -99,8 +99,8 @@ func (c *collectedFieldEffects) close() *BoundaryFieldEffects {
 	closeParamFieldSets(c.summary.paramWrites, c.paramForwardingEdges)
 	closeParamFieldSets(c.summary.paramReads, c.paramForwardingEdges)
 	closeReturnEffects(c.summary.returnEffects, c.returnForwardingEdges)
-	c.dropMixedResultParamSources()
 	closeReturnParamSources(c.summary.returnParamSources, c.returnForwardingEdges)
+	c.dropMixedResultParamSources()
 	return c.summary
 }
 

@@ -325,10 +325,78 @@ func (r *RootAssertionNode) bindExprNilabilityToContext(expr ast.Expr, site anno
 		r.AddConsumption(consumer)
 		return
 	}
+	if producer, ok := r.inlineAllocationFieldProducer(expr); ok {
+		r.AddNewTriggers(annotation.FullTrigger{
+			Producer: &annotation.ProduceTrigger{Annotation: producer, Expr: expr},
+			Consumer: consumer,
+		})
+		return
+	}
 	r.AddNewTriggers(annotation.FullTrigger{
 		Producer: &annotation.ProduceTrigger{Annotation: r.getShallowExprNilabilityProducer(expr), Expr: expr},
 		Consumer: consumer,
 	})
+}
+
+// inlineAllocationFieldProducer resolves an inline allocation's selected field initializer.
+func (r *RootAssertionNode) inlineAllocationFieldProducer(expr ast.Expr) (annotation.ProducingAnnotationTrigger, bool) {
+	var fields []*types.Var
+	base := ast.Unparen(expr)
+	for {
+		sel, ok := ast.Unparen(base).(*ast.SelectorExpr)
+		if !ok {
+			break
+		}
+		field, ok := r.ObjectOf(sel.Sel).(*types.Var)
+		if !ok {
+			return nil, false
+		}
+		fields = append(fields, field)
+		base = sel.X
+	}
+	if len(fields) == 0 {
+		return nil, false
+	}
+	slices.Reverse(fields)
+
+	structType, fieldInits, ok := r.asStructAllocation(base)
+	if !ok {
+		return nil, false
+	}
+	for i, field := range fields {
+		fieldIdx := -1
+		for j := range structType.NumFields() {
+			if structType.Field(j) == field {
+				fieldIdx = j
+				break
+			}
+		}
+		if fieldIdx < 0 {
+			return nil, false
+		}
+		fieldVal := asthelper.GetFieldVal(fieldInits, field.Name(), structType.NumFields(), fieldIdx)
+		if fieldVal == nil {
+			if !typeshelper.TypeBarsNilness(field.Type()) {
+				return &annotation.StructFieldNil{
+					ProduceTriggerTautology: &annotation.ProduceTriggerTautology{},
+					FieldName:               field.Name(),
+				}, true
+			}
+			structType = typeshelper.AsDeeplyStruct(field.Type())
+			fieldInits = nil
+		} else if i == len(fields)-1 {
+			return r.getShallowExprNilabilityProducer(fieldVal), true
+		} else {
+			structType, fieldInits, ok = r.asStructAllocation(fieldVal)
+			if !ok {
+				return nil, false
+			}
+		}
+		if structType == nil && i != len(fields)-1 {
+			return nil, false
+		}
+	}
+	return &annotation.ProduceTriggerNever{}, true
 }
 
 // getShallowExprNilabilityProducer returns the producer encoding the nilability of the value of expr: an
@@ -566,7 +634,7 @@ func (r *RootAssertionNode) boundaryReadPaths(funcObj *types.Func, kind annotati
 	case annotation.StructFieldParamContext:
 		return r.functionContext.boundaryFieldEffects.ParamReadPaths(funcObj, index)
 	case annotation.StructFieldReturnContext:
-		return r.functionContext.boundaryFieldEffects.ReturnReadPaths(funcObj, index)
+		return r.contextDemandedReturnPaths(funcObj, index)
 	}
 	return nil
 }
@@ -627,6 +695,33 @@ func (r *RootAssertionNode) bindCallResultFieldsToContext(call *ast.CallExpr, va
 			},
 		})
 	}
+}
+
+// contextDemandedReturnPaths returns the field paths to bind when a value flows into funcObj's
+// index-th return context: the paths same-package callers dereference (ReturnReads) unioned with
+// the function's own supply-side return summary — the concrete return-effect paths and the finite
+// result paths of its field-level param sources. The supply-side paths make the binding exist even
+// when no same-package caller reads the path (cross-package demand cannot travel backwards); an
+// unread path only produces an inert return site, so the union adds no false positive.
+func (r *RootAssertionNode) contextDemandedReturnPaths(funcObj *types.Func, index int) []annotation.FieldPath {
+	demanded := r.functionContext.boundaryFieldEffects.ReturnReadPaths(funcObj, index)
+	demandedSet := make(map[annotation.FieldPath]bool, len(demanded))
+	for _, path := range demanded {
+		demandedSet[path] = true
+	}
+	for _, path := range r.functionContext.boundaryFieldEffects.ReturnEffectPaths(funcObj, index) {
+		if !demandedSet[path] {
+			demandedSet[path] = true
+			demanded = append(demanded, path)
+		}
+	}
+	for _, src := range r.functionContext.boundaryFieldEffects.ReturnParamSources(funcObj) {
+		if src.Result.Idx == index && !src.Result.Path.IsRoot() && !demandedSet[src.Result.Path] {
+			demandedSet[src.Result.Path] = true
+			demanded = append(demanded, src.Result.Path)
+		}
+	}
+	return demanded
 }
 
 // bindAllocationFieldsToContext binds the per-field nilability of an inline struct allocation to
