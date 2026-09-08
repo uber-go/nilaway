@@ -125,3 +125,17 @@ func testd() {
 
 	return
 }
+
+func testBlankIdentifier() {
+	i := 1
+	a := &i
+	func() { // expect_closure: a
+		_, b := mayReturnTwo()
+		print(*a)
+		print(b)
+	}()
+}
+
+func mayReturnTwo() (int, *int) {
+	return 0, nil
+}

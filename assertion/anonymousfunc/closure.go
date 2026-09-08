@@ -21,6 +21,7 @@ import (
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/asthelper"
 )
 
 // collectClosure collects a set of variables in closure for the given function literal and updates
@@ -66,6 +67,14 @@ func collectClosure(funcLit *ast.FuncLit, pass *analysishelper.EnhancedPass, clo
 			return false
 
 		case *ast.Ident:
+			// Skip the blank identifier. The type checker creates a *types.Var for `_` in `:=`
+			// assignments but never registers it in any scope, so the scope check below would
+			// incorrectly treat it as a captured variable. Blank identifiers are write-only
+			// discard targets and cannot be closure variables.
+			if asthelper.IsEmptyExpr(node) {
+				return false
+			}
+
 			// Skip if node is not a variable
 			if node.Obj == nil || node.Obj.Kind != ast.Var {
 				return false
