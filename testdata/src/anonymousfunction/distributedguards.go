@@ -44,3 +44,22 @@ func funcLitCapture() {
 		}
 	}()
 }
+
+// nilable(result 0)
+func nilableInt() *int {
+	return nil
+}
+
+func funcLitLocals() {
+	func() int {
+		x := nilableInt()
+		y := nilableInt()
+		if x == nil && y == nil {
+			return 0
+		}
+		if x == nil && y != nil {
+			return 2
+		}
+		return *x
+	}()
+}

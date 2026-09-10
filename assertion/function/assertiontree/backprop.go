@@ -62,6 +62,8 @@ func backpropAcrossBlock(rootNode *RootAssertionNode, block *cfg.Block) error {
 // different types. For some complicated cases, it further delegates the handling to other
 // finer-grained backpropX functions for better code clarity.
 func backpropAcrossNode(rootNode *RootAssertionNode, node ast.Node) error {
+	// Runs before the type switch so that no early return below can skip it.
+	rootNode.functionContext.nilAssumptions.stripOnWrite(rootNode, node)
 	switch n := node.(type) {
 	case *ast.ParenExpr:
 		return backpropAcrossNode(rootNode, n.X)
