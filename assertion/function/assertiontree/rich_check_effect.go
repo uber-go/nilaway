@@ -584,7 +584,7 @@ func guardExpr(rootNode *RootAssertionNode, expr TrackableExpr, nonce guard.Nonc
 func genInitialRichCheckEffects(graph *cfg.CFG, functionContext FunctionContext) (
 	[][]RichCheckEffect, guard.ExprNonceMap) {
 	richCheckBlocks := make([][]RichCheckEffect, len(graph.Blocks))
-	nonceGenerator := guard.NewNonceGenerator()
+	nonceGenerator := functionContext.nonceGenerator
 
 	// There is no canonical instance of RootAssertionNode until backpropAcrossFunc returns.
 	// We use a temporary root here as a means to pass contextual information like the function
