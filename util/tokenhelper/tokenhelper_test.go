@@ -69,6 +69,8 @@ func TestConverse(t *testing.T) {
 }
 
 func TestConversePanicsForInvalidToken(t *testing.T) {
+	t.Parallel()
+
 	require.Panics(t, func() {
 		Converse(token.ADD)
 	})
@@ -98,6 +100,8 @@ func TestInverse(t *testing.T) {
 }
 
 func TestInversePanicsForInvalidToken(t *testing.T) {
+	t.Parallel()
+
 	require.Panics(t, func() {
 		Inverse(token.ADD)
 	})
