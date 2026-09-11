@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/nilaway/nilawaytest"
 )
@@ -88,4 +89,45 @@ func TestProducingAnnotationTriggerEqualsSuite(t *testing.T) {
 		initStructsProducingAnnotationTrigger(),
 		func(p1, p2 ProducingAnnotationTrigger) bool { return p1.equals(p2) },
 	))
+}
+
+func TestProducingAnnotationTriggerRepr(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		trigger ProducingAnnotationTrigger
+		want    string
+	}{
+		{name: "nilable", trigger: &TriggerIfNilable{}, want: "nilable value"},
+		{name: "deep nilable", trigger: &TriggerIfDeepNilable{}, want: "deeply nilable value"},
+		{name: "tautology", trigger: &ProduceTriggerTautology{}, want: "nilable value"},
+		{name: "never", trigger: &ProduceTriggerNever{}, want: "is not nilable"},
+		{name: "positive nil check", trigger: &PositiveNilCheck{ProduceTriggerTautology: &ProduceTriggerTautology{}}, want: "determined nil via conditional check"},
+		{name: "negative nil check", trigger: &NegativeNilCheck{ProduceTriggerNever: &ProduceTriggerNever{}}, want: "determined nonnil via conditional check"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, tt.trigger.Repr().String())
+		})
+	}
+}
+
+func TestProducingAnnotationTriggerNeedsGuard(t *testing.T) {
+	t.Parallel()
+
+	tests := []ProducingAnnotationTrigger{
+		&TriggerIfNilable{},
+		&TriggerIfDeepNilable{},
+		&ProduceTriggerTautology{},
+		&ProduceTriggerNever{},
+	}
+	for _, trigger := range tests {
+		trigger.SetNeedsGuard(true)
+		require.True(t, trigger.NeedsGuardMatch())
+
+		trigger.SetNeedsGuard(false)
+		require.False(t, trigger.NeedsGuardMatch())
+	}
 }
