@@ -136,7 +136,7 @@ func GetObjInfo(obj any) map[string]ObjInfo {
 	for i := 0; i < val.NumField(); i++ {
 		field := val.Field(i)
 		key := fmt.Sprintf("fld_%s.%s", val.Type().Name(), val.Type().Field(i).Name)
-		if field.Kind() == reflect.Ptr {
+		if field.Kind() == reflect.Pointer {
 			if !field.IsZero() {
 				ptr[key] = ObjInfo{
 					Addr:      fmt.Sprintf("%p", field.Interface()),
