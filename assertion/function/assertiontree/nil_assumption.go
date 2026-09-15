@@ -18,6 +18,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"slices"
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/guard"
@@ -34,7 +35,12 @@ import (
 //
 // Every stable variable gets one nonce. The nil edge of a check on that variable tags every pending
 // consumer in the assertion tree with the nonce. The non-nil edge of any check on the same variable
-// deletes every consumer carrying it.
+// deletes every consumer carrying it. Crossing a write to the variable strips the nonce again, so a
+// tag picked up after the write never reaches a check before it.
+//
+// A variable is stable when every write to it is an assignment or declaration visible in the
+// function's own CFG: the receiver, the parameters, and the locals declared in the body, minus
+// variables that are address-taken, ranged into, or assigned inside a nested function literal.
 type nilAssumptions struct {
 	nonceGenerator *guard.NonceGenerator
 	stableVars     map[*types.Var]struct{}
@@ -65,11 +71,12 @@ func newNilAssumptions(
 		body = funcDecl.Body
 	}
 
-	stableVars := make(map[*types.Var]struct{})
+	stableVars, unstable := classifyVars(body, pass.TypesInfo)
 	for _, fieldList := range fieldLists {
 		if fieldList == nil {
 			continue
 		}
+
 		for _, field := range fieldList.List {
 			for _, name := range field.Names {
 				if variable, ok := pass.TypesInfo.Defs[name].(*types.Var); ok {
@@ -78,7 +85,7 @@ func newNilAssumptions(
 			}
 		}
 	}
-	for variable := range writtenVars(body, pass.TypesInfo) {
+	for variable := range unstable {
 		delete(stableVars, variable)
 	}
 
@@ -89,39 +96,62 @@ func newNilAssumptions(
 	}
 }
 
-// writtenVars returns the variables whose value may change somewhere in body, including inside
-// nested function literals.
-func writtenVars(body *ast.BlockStmt, info *types.Info) map[*types.Var]struct{} {
-	written := make(map[*types.Var]struct{})
-	record := func(expr ast.Expr) {
+// classifyVars returns the variables declared in body and the variables whose value may change
+// somewhere backpropagation cannot see: through their address, through a range clause, or inside a
+// nested function literal.
+func classifyVars(body *ast.BlockStmt, info *types.Info) (declared, unstable map[*types.Var]struct{}) {
+	declared = make(map[*types.Var]struct{})
+	unstable = make(map[*types.Var]struct{})
+	record := func(set map[*types.Var]struct{}, expr ast.Expr) {
 		if ident, ok := ast.Unparen(expr).(*ast.Ident); ok {
 			if variable, ok := info.ObjectOf(ident).(*types.Var); ok {
-				written[variable] = struct{}{}
+				set[variable] = struct{}{}
 			}
 		}
 	}
 
-	ast.Inspect(body, func(node ast.Node) bool {
-		switch node := node.(type) {
-		case *ast.AssignStmt:
-			for _, lhs := range node.Lhs {
-				record(lhs)
+	var walk func(subtree ast.Node, insideClosure bool)
+	walk = func(subtree ast.Node, insideClosure bool) {
+		ast.Inspect(subtree, func(node ast.Node) bool {
+			switch node := node.(type) {
+			case *ast.FuncLit:
+				walk(node.Body, true)
+				return false
+			case *ast.AssignStmt:
+				for _, lhs := range node.Lhs {
+					if insideClosure {
+						record(unstable, lhs)
+					} else if node.Tok == token.DEFINE {
+						record(declared, lhs)
+					}
+				}
+			case *ast.ValueSpec:
+				if insideClosure {
+					break
+				}
+				for _, name := range node.Names {
+					record(declared, name)
+				}
+			case *ast.RangeStmt:
+				// The preprocessor rewrites range clauses into assignments that stripOnWrite sees,
+				// but it gives up silently when the CFG has an unexpected shape, so ranged
+				// variables are excluded outright rather than trusting that rewrite.
+				record(unstable, node.Key)
+				record(unstable, node.Value)
+			case *ast.UnaryExpr:
+				if node.Op == token.AND {
+					record(unstable, node.X)
+				}
+			case *ast.SelectorExpr:
+				if takesAddressImplicitly(node, info) {
+					record(unstable, node.X)
+				}
 			}
-		case *ast.RangeStmt:
-			record(node.Key)
-			record(node.Value)
-		case *ast.UnaryExpr:
-			if node.Op == token.AND {
-				record(node.X)
-			}
-		case *ast.SelectorExpr:
-			if takesAddressImplicitly(node, info) {
-				record(node.X)
-			}
-		}
-		return true
-	})
-	return written
+			return true
+		})
+	}
+	walk(body, false)
+	return declared, unstable
 }
 
 // takesAddressImplicitly reports whether sel is a pointer-receiver method selected on a value that
@@ -187,6 +217,69 @@ func (assumptions *nilAssumptions) edgeFuncs(
 	}
 
 	return onNil, onNonNil, true
+}
+
+// stripOnWrite removes the nonces of the stable variables that node assigns or declares from
+// every pending consumer. Only *ast.AssignStmt and *ast.ValueSpec nodes write stable variables.
+func (assumptions *nilAssumptions) stripOnWrite(root *RootAssertionNode, node ast.Node) {
+	if len(assumptions.nonces) == 0 {
+		return
+	}
+
+	var targets []ast.Expr
+	switch node := node.(type) {
+	case *ast.AssignStmt:
+		targets = node.Lhs
+	case *ast.ValueSpec:
+		targets = toExprSlice(node.Names)
+	default:
+		return
+	}
+
+	var stale []guard.Nonce
+	for _, target := range targets {
+		ident, isIdent := ast.Unparen(target).(*ast.Ident)
+		if !isIdent {
+			continue
+		}
+		variable, isVar := root.Pass().TypesInfo.ObjectOf(ident).(*types.Var)
+		if !isVar {
+			continue
+		}
+		if nonce, checked := assumptions.nonces[variable]; checked {
+			stale = append(stale, nonce)
+		}
+	}
+	if len(stale) == 0 {
+		return
+	}
+
+	carriesStale := func(consumer *annotation.ConsumeTrigger) bool {
+		for _, nonce := range stale {
+			if consumer.Guards.Contains(nonce) {
+				return true
+			}
+		}
+		return false
+	}
+	mapConsumers(root, func(consumers []*annotation.ConsumeTrigger) []*annotation.ConsumeTrigger {
+		if !slices.ContainsFunc(consumers, carriesStale) {
+			// Most writes find nothing tagged, so keep the shared slice instead of copying it.
+			return consumers
+		}
+		out := make([]*annotation.ConsumeTrigger, 0, len(consumers))
+		for _, consumer := range consumers {
+			if !carriesStale(consumer) {
+				out = append(out, consumer)
+				continue
+			}
+			// Copy before mutating: the same trigger may be shared with other blocks' trees.
+			stripped := consumer.Copy()
+			stripped.Guards.Remove(stale...)
+			out = append(out, stripped)
+		}
+		return out
+	})
 }
 
 // mapConsumers replaces the consume triggers of every node below root with the result of applying
