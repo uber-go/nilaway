@@ -33,3 +33,31 @@ func EntryPoint(cb Callback) *int {
 	}
 	return v
 }
+
+type NonNilResult struct {
+	V int
+}
+
+type nonNilResultError struct{}
+
+func (*nonNilResultError) Error() string {
+	return "error"
+}
+
+func NewNonNilResult(i int) (*NonNilResult, error) {
+	result := &NonNilResult{}
+
+	if i > 0 {
+		return result, &nonNilResultError{}
+	}
+
+	return result, nil
+}
+
+func NewPossiblyNilResult(i int) (*NonNilResult, error) {
+	if i > 0 {
+		return nil, &nonNilResultError{}
+	}
+
+	return &NonNilResult{}, nil
+}
