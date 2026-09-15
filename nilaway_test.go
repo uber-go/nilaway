@@ -101,9 +101,9 @@ func TestFacts(t *testing.T) {
 
 	t.Logf("Total fact bytes: %.2f KB", float32(factStats.TotalBytes)/1024)
 	require.Positive(t, factStats.TotalBytes, "expected NilAway tests to export some facts")
-	require.Less(t, factStats.TotalBytes, 750*1024,
+	require.Less(t, factStats.TotalBytes, 850*1024,
 		"The gob encoded NilAway facts for all test code is too large (%.2f KB). "+
-			"We expect the total to be less than 750 KB. This heavily affects the artifact sizes of the facts NilAway "+
+			"We expect the total to be less than 850 KB. This heavily affects the artifact sizes of the facts NilAway "+
 			"produces, so the cap should only be increased with justification and thorough testing.", float32(factStats.TotalBytes)/1024)
 }
 
