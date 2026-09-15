@@ -77,7 +77,7 @@ lint-fix: format-lint tidy-lint golangci-lint nilaway-lint
 install-golangci-lint:
     ifneq ($(GOLANGCI_LINT_VERSION),$(REQUIRED_GOLANGCI_LINT_VERSION))
 		@echo "[lint] installing golangci-lint v$(REQUIRED_GOLANGCI_LINT_VERSION) since current version is \"$(GOLANGCI_LINT_VERSION)\""
-		@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOBIN) v$(REQUIRED_GOLANGCI_LINT_VERSION)
+		@curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $(GOBIN) v$(REQUIRED_GOLANGCI_LINT_VERSION)
     endif
 	@echo "[lint] $(shell $(GOBIN)/golangci-lint version)"
 
