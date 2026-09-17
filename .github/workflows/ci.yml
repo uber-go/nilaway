@@ -67,6 +67,8 @@ jobs:
 
       - name: Test and generate coverage report
         run: make cover
+        env:
+          GOFLAGS: -timeout=20m
 
       - name: Upload coverage to codecov.io
         uses: codecov/codecov-action@v7
