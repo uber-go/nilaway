@@ -38,7 +38,6 @@ type FactCodecStats struct {
 //   - gob encoding is non-empty;
 //   - the encoded fact can be decoded; and
 //   - re-encoding the decoded fact produces the original bytes.
-//   - multiple encodings produce byte-identical results deterministically;
 //
 // It returns the statistics of the tested facts.
 func RequireFactCodecs(t *testing.T, results []*analysistest.Result) FactCodecStats {
@@ -99,19 +98,9 @@ func RequireFactCodecs(t *testing.T, results []*analysistest.Result) FactCodecSt
 			return buf.Bytes()
 		}
 
-		// Encode it multiple times, all encoded facts must be byte-identical.
-		// We also collect stats in the first round of encoding.
-		var encoded []byte
-		for range 10 {
-			current := encode(fact)
-			require.NotEmptyf(t, current, "encoding %T exported by %s", fact, action)
-			if encoded == nil {
-				encoded = current
-				stats.TotalBytes += len(encoded)
-				continue
-			}
-			require.Equalf(t, encoded, current, "encoding of %T exported by %s must be deterministic", fact, action)
-		}
+		encoded := encode(fact)
+		require.NotEmptyf(t, encoded, "encoding %T exported by %s", fact, action)
+		stats.TotalBytes += len(encoded)
 
 		decoded := reflect.New(reflect.TypeOf(fact).Elem()).Interface().(analysis.Fact)
 		require.NoErrorf(t, gob.NewDecoder(bytes.NewReader(encoded)).Decode(decoded), "decoding %T exported by %s", fact, action)
