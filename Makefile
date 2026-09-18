@@ -31,7 +31,7 @@ cover:
 		&& go tool cover -html=cover.out -o cover.html) &&) true
 
 .PHONY: upgrade-deps
-upgrade-deps: MODULE_DIRS := $(MODULE_DIRS) ./testdata/integration
+upgrade-deps: MODULE_DIRS := $(MODULE_DIRS)
 upgrade-deps:
 	@echo "[upgrade-deps] Upgrading dependencies and tools"
 	@echo "[upgrade-deps] Checking for latest golangci-lint version"
@@ -77,7 +77,7 @@ lint-fix: format-lint tidy-lint golangci-lint nilaway-lint
 install-golangci-lint:
     ifneq ($(GOLANGCI_LINT_VERSION),$(REQUIRED_GOLANGCI_LINT_VERSION))
 		@echo "[lint] installing golangci-lint v$(REQUIRED_GOLANGCI_LINT_VERSION) since current version is \"$(GOLANGCI_LINT_VERSION)\""
-		@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOBIN) v$(REQUIRED_GOLANGCI_LINT_VERSION)
+		@curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $(GOBIN) v$(REQUIRED_GOLANGCI_LINT_VERSION)
     endif
 	@echo "[lint] $(shell $(GOBIN)/golangci-lint version)"
 

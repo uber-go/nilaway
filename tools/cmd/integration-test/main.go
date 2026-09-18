@@ -24,7 +24,6 @@ import (
 	"go/token"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -32,6 +31,8 @@ import (
 	"strconv"
 	"strings"
 	"text/scanner"
+
+	"go.uber.org/nilaway/tools/internal/pathutil"
 )
 
 // Position represents a line position in a file.
@@ -172,16 +173,18 @@ func CompareDiagnostics(truth map[Position][]*regexp.Regexp, collected map[Posit
 // Run runs the integration test.
 func Run() (err error) {
 	// Make sure we are at the root of the git repository.
-	out, err := exec.Command("git", "rev-parse", "--show-toplevel").CombinedOutput()
+	wd, err := pathutil.WorkingDirectory()
 	if err != nil {
-		return fmt.Errorf("get root of git repository: %w", err)
+		return err
 	}
-	wd, err := os.Getwd()
+
+	gitRoot, err := pathutil.GitRoot()
 	if err != nil {
-		return fmt.Errorf("get working directory: %w", err)
+		return err
 	}
-	if dir := strings.TrimSpace(string(out)); dir != wd {
-		return fmt.Errorf("not at the root of the git repository: %q != %q", dir, wd)
+
+	if gitRoot != wd {
+		return fmt.Errorf("not at the root of the git repository: %q != %q", gitRoot, wd)
 	}
 
 	sourceDir := filepath.Join(wd, "testdata", "src", "go.uber.org")

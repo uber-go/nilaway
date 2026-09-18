@@ -34,6 +34,7 @@ import (
 
 	"github.com/fatih/color"
 	"go.uber.org/nilaway/config"
+	"go.uber.org/nilaway/tools/internal/pathutil"
 )
 
 // Diagnostic is the diagnostic reported by NilAway.
@@ -73,16 +74,18 @@ func Run(writer io.Writer, baseBranch, testBranch string) error {
 	}
 
 	// Then verify that we are at the root of the git project.
-	out, err = exec.Command("git", "rev-parse", "--show-toplevel").CombinedOutput()
+	gitRoot, err := pathutil.GitRoot()
 	if err != nil {
-		return fmt.Errorf("get root of git repository: %w", err)
+		return err
 	}
-	wd, err := os.Getwd()
+
+	wd, err := pathutil.WorkingDirectory()
 	if err != nil {
-		return fmt.Errorf("get working directory: %w", err)
+		return err
 	}
-	if dir := strings.TrimSpace(string(out)); dir != wd {
-		return fmt.Errorf("not at the root of the git repository: %q != %q", dir, wd)
+
+	if gitRoot != wd {
+		return fmt.Errorf("not at the root of the git repository: %q != %q", gitRoot, wd)
 	}
 
 	// Get the current branch name and switch back to it after the golden test.
