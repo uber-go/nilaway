@@ -17,6 +17,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -141,6 +142,63 @@ func TestCheckInternalPanics(t *testing.T) {
 	err := CheckInternalPanics(branches)
 	require.ErrorContains(t, err, config.InternalPanicPrefix+" diagnostic(s)")
 	require.ErrorContains(t, err, "test (456789): 1")
+}
+
+func TestPartitionPackages(t *testing.T) {
+	t.Parallel()
+
+	packages := []string{
+		"crypto", "crypto/aes", "crypto/cipher", "crypto/tls",
+		"go/ast", "go/parser", "go/token", "go/types",
+		"internal/abi", "internal/bytealg",
+		"net", "net/http", "net/http/httptest", "net/url",
+		"os", "os/exec",
+		"unsafe",
+	}
+
+	// Empty input always yields a single (empty) group.
+	empty := partitionPackages(nil, 3)
+	require.Len(t, empty, 1)
+	require.Empty(t, empty[0])
+
+	// Sharding disabled yields a single group equal to the input.
+	require.Equal(t, [][]string{packages}, partitionPackages(packages, 1))
+
+	// With sharding enabled, every package must appear exactly once and the number of groups
+	// must not exceed the requested shard count.
+	groups := partitionPackages(packages, 3)
+	require.GreaterOrEqual(t, len(groups), 1)
+	require.LessOrEqual(t, len(groups), 3)
+
+	var flattened []string
+	for _, group := range groups {
+		flattened = append(flattened, group...)
+	}
+	slices.Sort(flattened)
+	sorted := slices.Clone(packages)
+	slices.Sort(sorted)
+	require.Equal(t, sorted, flattened)
+
+	// Partitioning must be deterministic.
+	require.Equal(t, groups, partitionPackages(packages, 3))
+
+	// Requesting more shards than there are groups must not produce empty groups.
+	for _, group := range partitionPackages(packages, len(packages)+5) {
+		require.NotEmpty(t, group)
+	}
+
+	// Packages sharing the first two import path components must land in the same group so
+	// that each group stays a connected subtree of the dependency graph.
+	groupOf := func(pkg string) int {
+		for i, group := range groups {
+			if slices.Contains(group, pkg) {
+				return i
+			}
+		}
+		return -1
+	}
+	require.Equal(t, groupOf("crypto/aes"), groupOf("crypto/tls"))
+	require.Equal(t, groupOf("net/http"), groupOf("net/http/httptest"))
 }
 
 func TestMustFprint(t *testing.T) {
