@@ -40,11 +40,13 @@ jobs:
       # Our Golden tests run NilAway on the entire standard library, which is very resource-intensive.
       # GitHub Actions terminates the job if it hits the resource limits (both in CPU and memory).
       # For CPU limit we set GOMAXPROCS to be one less than the number of available CPUs.
-      # For memory limit we set GOMEMLIMIT to 8G.
+      # For memory limit we set GOMEMLIMIT to 8G. The standard library analysis is further split
+      # into independent shards (`-shards`) so that each NilAway process stays well below the
+      # memory limit instead of continuously garbage collecting against it.
       - name: Golden Test
         id: golden_test
         run: |
-          make golden-test GOMAXPROCS=$(( $(nproc) - 1 )) GOMEMLIMIT=8192MiB ARGS="-base-branch ${{ github.event.pull_request.base.ref }} -result-file ${{ runner.temp }}/golden-test-comment.md"
+          make golden-test GOMAXPROCS=$(( $(nproc) - 1 )) GOMEMLIMIT=8192MiB ARGS="-base-branch ${{ github.event.pull_request.base.ref }} -shards 6 -result-file ${{ runner.temp }}/golden-test-comment.md"
 
       - uses: actions/upload-artifact@v7
         with:
