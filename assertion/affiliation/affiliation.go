@@ -90,6 +90,9 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysishelper.Enhanc
 	var appendCompositeElementTriggers func(types.Type, []ast.Expr)
 	appendCompositeElementTriggers = func(elementType types.Type, elements []ast.Expr) {
 		for _, element := range elements {
+			if keyed, ok := element.(*ast.KeyValueExpr); ok {
+				element = keyed.Value
+			}
 			appendTypeToTypeTriggers(elementType, pass.TypesInfo.TypeOf(element))
 
 			nested, ok := element.(*ast.CompositeLit)

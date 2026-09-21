@@ -216,6 +216,38 @@ func m122_5() {
 	_ = *array[0][0].foo(nil) //want "returned as result"
 }
 
+// Similar cases with keyed nested composite literals.
+
+type I122_6 interface {
+	foo(x *int) *int
+}
+
+type A122_6 struct{}
+
+func (A122_6) foo(x *int) *int {
+	return x
+}
+
+func m122_6() {
+	slice := [][]I122_6{0: {0: &A122_6{}}}
+	_ = *slice[0][0].foo(nil) //want "returned as result"
+}
+
+type I122_7 interface {
+	foo(x *int) *int
+}
+
+type A122_7 struct{}
+
+func (A122_7) foo(x *int) *int {
+	return x
+}
+
+func m122_7() {
+	array := [1][1]I122_7{0: {0: &A122_7{}}}
+	_ = *array[0][0].foo(nil) //want "returned as result"
+}
+
 // 3) If map is declared to be of interface type, but struct is added to it. The test cases check if Nilaway
 // treats the struct as it implements the corresponding interface.
 
