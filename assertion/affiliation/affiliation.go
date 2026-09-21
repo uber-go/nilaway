@@ -87,6 +87,27 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysishelper.Enhanc
 	appendTypeToTypeTriggers := func(lhsType, rhsType types.Type) {
 		a.triggers = append(a.triggers, a.computeTriggersForTypes(lhsType, rhsType, upstreamCache, currentCache)...)
 	}
+	var appendCompositeElementTriggers func(types.Type, []ast.Expr)
+	appendCompositeElementTriggers = func(elementType types.Type, elements []ast.Expr) {
+		for _, element := range elements {
+			appendTypeToTypeTriggers(elementType, pass.TypesInfo.TypeOf(element))
+
+			nested, ok := element.(*ast.CompositeLit)
+			if !ok {
+				continue
+			}
+			var nestedElementType types.Type
+			switch container := elementType.Underlying().(type) {
+			case *types.Array:
+				nestedElementType = container.Elem()
+			case *types.Slice:
+				nestedElementType = container.Elem()
+			}
+			if nestedElementType != nil {
+				appendCompositeElementTriggers(nestedElementType, nested.Elts)
+			}
+		}
+	}
 
 	for _, file := range pass.Files {
 		if !a.conf.IsFileInScope(file) {
@@ -179,12 +200,8 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysishelper.Enhanc
 					case *ast.ArrayType:
 						// A slice (or array) declared of type interface, and initialized with a struct
 						// e.g., _ = []I{&S{}}
-						// TODO: currently, nested composite literal for ArrayType is not supported (e.g., _ = [][]I{{&A1{}}}).
-						//  Tracked in issue #46.
 						lhsType := pass.TypesInfo.TypeOf(nodeType.Elt)
-						for _, elt := range node.Elts {
-							appendTypeToTypeTriggers(lhsType, pass.TypesInfo.TypeOf(elt))
-						}
+						appendCompositeElementTriggers(lhsType, node.Elts)
 					case *ast.MapType:
 						// Key, value, or both of a map declared of type interface, and initialized with a struct
 						// e.g., _ = map[int]I{0: &S{}}
