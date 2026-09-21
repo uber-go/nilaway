@@ -1106,3 +1106,105 @@ func testShadowAppend() {
 	var append = func(s []*int, x ...*int) []*int { return s }
 	a = append(a, nil) // Safe here because the shadowed append does not touch the elements.
 }
+
+// Test that a length check through a local variable holding the result of `len(a)` is treated
+// the same as checking `len(a)` directly (see issue #94).
+func lengthCheckViaLocalVarTest(mp map[string][]*int) *int {
+	var a []int
+
+	switch 0 {
+	case 1:
+		n := len(a)
+		if n == 0 {
+			return nil
+		}
+		_ = a[0]
+	case 2:
+		n := len(a)
+		if n > 0 {
+			_ = a[0]
+		}
+	case 3:
+		n := len(a)
+		if 0 != n {
+			_ = a[0]
+		}
+	case 4:
+		var n = len(a)
+		if n >= 1 {
+			_ = a[0]
+		}
+	case 5:
+		if n := len(a); n != 0 {
+			_ = a[0]
+		}
+	case 6:
+		if !(len(a) == 0) {
+			_ = a[0]
+		}
+	case 7:
+		n := len(a)
+		if !(n == 0) {
+			_ = a[0]
+		}
+	case 8:
+		// `i >= 0` with `i := len(a) - 1` implies `len(a) >= 1`.
+		if i := len(a) - 1; i >= 0 {
+			_ = a[i]
+		}
+	case 9:
+		// The example from issue #94.
+		sl := mp["foo"]
+		slLen := len(sl)
+		if slLen == 0 {
+			return nil
+		}
+		return sl[0]
+	case 10:
+		n := len(a)
+		if n == 0 {
+			_ = a[0] //want "sliced into"
+		}
+	case 11:
+		n := len(a)
+		if n >= 0 {
+			_ = a[0] //want "sliced into"
+		}
+	case 12:
+		// `n` is reassigned, so it no longer reflects `len(a)`.
+		n := len(a)
+		n = 1
+		if n > 0 {
+			_ = a[0] //want "sliced into"
+		}
+	case 13:
+		// `n` is incremented, so it no longer reflects `len(a)`.
+		n := len(a)
+		n++
+		if n > 0 {
+			_ = a[0] //want "sliced into"
+		}
+	case 14:
+		// `a` is reassigned after its length was taken.
+		n := len(a)
+		a = nil
+		if n > 0 {
+			_ = a[0] //want "sliced into"
+		}
+	case 15:
+		// `n` may or may not hold `len(a)` depending on the path taken.
+		n := len(a)
+		if mp == nil {
+			n = 1
+		}
+		if n > 0 {
+			_ = a[0] //want "sliced into"
+		}
+	case 16:
+		// `i >= 0` with `i := len(a) + 1` tells us nothing.
+		if i := len(a) + 1; i >= 0 {
+			_ = a[0] //want "sliced into"
+		}
+	}
+	return nil
+}

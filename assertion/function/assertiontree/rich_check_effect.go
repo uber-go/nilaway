@@ -228,6 +228,76 @@ type FuncOkReturn struct {
 	okRead
 }
 
+// A LenLocalVar is a RichCheckEffect for a local variable that holds a length expression, e.g., the
+// `n` in `n := len(s)` or `i := len(s) - 1`. A later conditional on the variable (e.g., `n == 0`) is
+// treated as if the length expression had been written in its place (e.g., `len(s) == 0`), so that
+// it can act as a nil check on `s` in the same way. An assignment to (or increment/decrement of)
+// the variable, or an assignment to `s`, invalidates the effect.
+//
+// Unlike other RichCheckEffects, the effect of a LenLocalVar depends on the triggering conditional,
+// so it is applied via `nilChecksFor` instead of `isTriggeredBy` / `effectIfTrue` / `effectIfFalse`.
+type LenLocalVar struct {
+	root   *RootAssertionNode // an associated root node
+	lhs    TrackableExpr      // the variable holding the length expression, e.g., `n`
+	lenArg TrackableExpr      // the argument of the `len` call, e.g., `s`
+	rhs    ast.Expr           // the length expression assigned to the variable, e.g., `len(s)`
+}
+
+func (*LenLocalVar) isTriggeredBy(ast.Expr) bool { return false }
+
+func (l *LenLocalVar) isInvalidatedBy(node ast.Node) bool {
+	if incDec, ok := node.(*ast.IncDecStmt); ok {
+		return exprMatchesTrackableExpr(l.root, incDec.X, l.lhs)
+	}
+	return nodeAssignsAny(l.root, node, l.lhs, l.lenArg)
+}
+
+func (*LenLocalVar) effectIfTrue(*RootAssertionNode) {}
+
+func (*LenLocalVar) effectIfFalse(*RootAssertionNode) {}
+
+func (*LenLocalVar) isNoop() bool { return false }
+
+func (l *LenLocalVar) equals(effect RichCheckEffect) bool {
+	other, ok := effect.(*LenLocalVar)
+	if !ok {
+		return false
+	}
+	return l.root.Equal(l.lhs, other.lhs) && l.root.Equal(l.lenArg, other.lenArg) && l.rhs == other.rhs
+}
+
+// nilChecksFor returns the nil checks implied by the conditional `cond` once the variable is
+// replaced by its length expression, following the same conventions as `AddNilCheck`.
+func (l *LenLocalVar) nilChecksFor(cond ast.Expr) (trueCheck, falseCheck RootFunc, isNoop bool) {
+	substituted := l.substitute(cond)
+	if substituted == nil {
+		return nil, nil, true
+	}
+	return AddNilCheck(l.root.Pass(), substituted)
+}
+
+// substitute returns a copy of the conditional `cond` with the variable operand replaced by its
+// length expression, or nil if `cond` is not a (possibly negated) comparison on the variable.
+func (l *LenLocalVar) substitute(cond ast.Expr) ast.Expr {
+	switch e := ast.Unparen(cond).(type) {
+	case *ast.UnaryExpr:
+		if e.Op != token.NOT {
+			return nil
+		}
+		if x := l.substitute(e.X); x != nil {
+			return &ast.UnaryExpr{OpPos: e.OpPos, Op: e.Op, X: x}
+		}
+	case *ast.BinaryExpr:
+		if exprMatchesTrackableExpr(l.root, ast.Unparen(e.X), l.lhs) {
+			return &ast.BinaryExpr{X: l.rhs, OpPos: e.OpPos, Op: e.Op, Y: e.Y}
+		}
+		if exprMatchesTrackableExpr(l.root, ast.Unparen(e.Y), l.lhs) {
+			return &ast.BinaryExpr{X: e.X, OpPos: e.OpPos, Op: e.Op, Y: l.rhs}
+		}
+	}
+	return nil
+}
+
 // A RichCheckNoop is a placeholder instance of RichCheckEffect that functions as a total noop.
 // It is used to allow in place modification of collections of RichCheckEffects.
 type RichCheckNoop struct{}
@@ -258,6 +328,9 @@ func RichCheckFromNode(rootNode *RootAssertionNode, nonceGenerator *guard.NonceG
 	}
 	if funcEffects, ok := NodeTriggersFuncErrRet(rootNode, nonceGenerator, node); ok {
 		effects, someEffects = append(effects, funcEffects...), true
+	}
+	if lenEffect := NodeTriggersLenLocalVar(rootNode, node); lenEffect != nil {
+		effects, someEffects = append(effects, lenEffect), true
 	}
 	return effects, someEffects
 }
@@ -496,6 +569,38 @@ func NodeTriggersFuncErrRet(rootNode *RootAssertionNode, nonceGenerator *guard.N
 	}
 
 	return effects, someEffect
+}
+
+// NodeTriggersLenLocalVar is a case of a node creating a rich check effect. It matches on
+// assignments of a length expression to a single variable, e.g., `n := len(s)` or
+// `i := len(s) - 1`, and returns nil if the node is not of this form.
+func NodeTriggersLenLocalVar(rootNode *RootAssertionNode, node ast.Node) *LenLocalVar {
+	if assign, ok := node.(*ast.AssignStmt); ok && assign.Tok != token.DEFINE && assign.Tok != token.ASSIGN {
+		// Compound assignments such as `n += len(s)` do not make `n` equal to the length expression.
+		return nil
+	}
+	lhs, rhs := asthelper.ExtractLHSRHS(node)
+	if len(lhs) != 1 || len(rhs) != 1 {
+		return nil
+	}
+	lenArgs := extractLenArgs(rhs[0], true /* allowNested */)
+	if len(lenArgs) != 1 {
+		return nil
+	}
+	lhsParsed := parseExpr(rootNode, lhs[0])
+	if lhsParsed == nil {
+		return nil
+	}
+	lenArgParsed := parseExpr(rootNode, lenArgs[0])
+	if lenArgParsed == nil {
+		return nil
+	}
+	return &LenLocalVar{
+		root:   rootNode,
+		lhs:    lhsParsed,
+		lenArg: lenArgParsed,
+		rhs:    rhs[0],
+	}
 }
 
 // nodeIsAssignmentTo(pass, node, one, other) returns true if `node` is an assignment to the variable
