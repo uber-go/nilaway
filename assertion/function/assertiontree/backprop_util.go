@@ -739,17 +739,24 @@ func blocksAndPreprocessingFromCFG(pass *analysishelper.EnhancedPass, graph *cfg
 
 			// now check for RichCheckEffects triggered by this conditional
 			for _, effect := range richCheckBlocks[i] {
-				if effect.isTriggeredBy(cond) {
+				trueCheck, falseCheck, triggered := effect.effectIfTrue, effect.effectIfFalse, effect.isTriggeredBy(cond)
+				if lenEffect, ok := effect.(*LenLocalVar); ok {
+					// The effect of a LenLocalVar depends on the conditional itself.
+					var isNoop bool
+					trueCheck, falseCheck, isNoop = lenEffect.nilChecksFor(cond)
+					triggered = !isNoop
+				}
+				if triggered {
 					if preprocessing[i] == nil {
 						preprocessing[i] = &preprocessPair{
-							trueBranchFunc:  effect.effectIfTrue,
-							falseBranchFunc: effect.effectIfFalse,
+							trueBranchFunc:  trueCheck,
+							falseBranchFunc: falseCheck,
 						}
 					} else {
 						preprocessing[i].trueBranchFunc = composeRootFuncs(
-							preprocessing[i].trueBranchFunc, effect.effectIfTrue)
+							preprocessing[i].trueBranchFunc, trueCheck)
 						preprocessing[i].falseBranchFunc = composeRootFuncs(
-							preprocessing[i].falseBranchFunc, effect.effectIfFalse)
+							preprocessing[i].falseBranchFunc, falseCheck)
 					}
 				}
 			}
