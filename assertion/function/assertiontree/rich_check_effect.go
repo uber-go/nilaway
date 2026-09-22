@@ -23,6 +23,7 @@ import (
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/guard"
 	"go.uber.org/nilaway/hook"
+	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/asthelper"
 	"go.uber.org/nilaway/util/typeshelper"
 	"golang.org/x/tools/go/cfg"
@@ -572,8 +573,8 @@ func NodeTriggersFuncErrRet(rootNode *RootAssertionNode, nonceGenerator *guard.N
 }
 
 // NodeTriggersLenLocalVar is a case of a node creating a rich check effect. It matches on
-// assignments of a length expression to a single variable, e.g., `n := len(s)` or
-// `i := len(s) - 1`, and returns nil if the node is not of this form.
+// assignments of a length expression to a single local variable, i.e., `n := len(s)` or
+// `i := len(s) ± c` for an integer constant `c`, and returns nil if the node is not of this form.
 func NodeTriggersLenLocalVar(rootNode *RootAssertionNode, node ast.Node) *LenLocalVar {
 	if assign, ok := node.(*ast.AssignStmt); ok && assign.Tok != token.DEFINE && assign.Tok != token.ASSIGN {
 		// Compound assignments such as `n += len(s)` do not make `n` equal to the length expression.
@@ -583,15 +584,24 @@ func NodeTriggersLenLocalVar(rootNode *RootAssertionNode, node ast.Node) *LenLoc
 	if len(lhs) != 1 || len(rhs) != 1 {
 		return nil
 	}
-	lenArgs := extractLenArgs(rhs[0], true /* allowNested */)
-	if len(lenArgs) != 1 {
+	// Only local variables are tracked: fields and globals can be modified by function calls,
+	// which do not invalidate the effect.
+	ident, ok := lhs[0].(*ast.Ident)
+	if !ok {
 		return nil
 	}
-	lhsParsed := parseExpr(rootNode, lhs[0])
+	if v, ok := rootNode.ObjectOf(ident).(*types.Var); !ok || annotation.VarIsGlobal(v) {
+		return nil
+	}
+	lenArg := lenOffsetArg(rootNode.Pass(), rhs[0])
+	if lenArg == nil {
+		return nil
+	}
+	lhsParsed := parseExpr(rootNode, ident)
 	if lhsParsed == nil {
 		return nil
 	}
-	lenArgParsed := parseExpr(rootNode, lenArgs[0])
+	lenArgParsed := parseExpr(rootNode, lenArg)
 	if lenArgParsed == nil {
 		return nil
 	}
@@ -601,6 +611,25 @@ func NodeTriggersLenLocalVar(rootNode *RootAssertionNode, node ast.Node) *LenLoc
 		lenArg: lenArgParsed,
 		rhs:    rhs[0],
 	}
+}
+
+// lenOffsetArg returns the argument `s` if `expr` is `len(s)`, `len(s) + c` or `len(s) - c` for an
+// integer constant `c`, and nil otherwise.
+func lenOffsetArg(pass *analysishelper.EnhancedPass, expr ast.Expr) ast.Expr {
+	expr = ast.Unparen(expr)
+	if bin, ok := expr.(*ast.BinaryExpr); ok {
+		if bin.Op != token.ADD && bin.Op != token.SUB {
+			return nil
+		}
+		if _, ok := pass.ConstInt(bin.Y); !ok {
+			return nil
+		}
+		expr = ast.Unparen(bin.X)
+	}
+	if lenArgs := extractLenArgs(expr, false /* allowNested */); len(lenArgs) == 1 {
+		return lenArgs[0]
+	}
+	return nil
 }
 
 // nodeIsAssignmentTo(pass, node, one, other) returns true if `node` is an assignment to the variable
@@ -828,6 +857,12 @@ func propagateRichChecks(graph *cfg.CFG, richCheckBlocks [][]RichCheckEffect) []
 					for effect := range reachingEffects {
 						if blocksEffectReaches, ok := effectReaches[effect]; ok &&
 							blocksEffectReaches[predIndex] {
+							maskingEffects[effect] = true
+						}
+						// Unlike the other effects, a LenLocalVar is not protected by a guard nonce, so
+						// it must hold on every incoming path, including the ones that do not pass
+						// through the block where it was created.
+						if _, ok := effect.(*LenLocalVar); ok {
 							maskingEffects[effect] = true
 						}
 					}

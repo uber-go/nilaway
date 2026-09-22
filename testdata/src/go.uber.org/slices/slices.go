@@ -1205,6 +1205,75 @@ func lengthCheckViaLocalVarTest(mp map[string][]*int) *int {
 		if i := len(a) + 1; i >= 0 {
 			_ = a[0] //want "sliced into"
 		}
+	case 17:
+		// `n` holds `len(b)` on one path but `len(a)` on the other.
+		var b []int
+		n := len(a)
+		if mp == nil {
+			n = len(b)
+		}
+		if n > 0 {
+			_ = b[0] //want "sliced into"
+		}
+	case 18:
+		// `n` holds `len(a)` or `len(b)` depending on the branch taken.
+		var b []int
+		var n int
+		if mp == nil {
+			n = len(a)
+		} else {
+			n = len(b)
+		}
+		if n > 0 {
+			_ = a[0] //want "sliced into"
+			_ = b[0] //want "sliced into"
+		}
+	case 19:
+		// `n` is not the length of `a` itself, so `n > 0` tells us nothing about `a`.
+		n := max(len(a), 1)
+		if n > 0 {
+			_ = a[0] //want "sliced into"
+		}
+	case 20:
+		// `n` is not the length of `a` itself, so `n > 0` tells us nothing about `a`.
+		n := lenLocalVarOffset(len(a))
+		if n > 0 {
+			_ = a[0] //want "sliced into"
+		}
+	case 21:
+		// A field can be modified by a call, so it is not tracked.
+		h := &lenLocalVarHolder{}
+		h.n = len(a)
+		h.reset()
+		if h.n > 0 {
+			_ = a[0] //want "sliced into"
+		}
+	case 22:
+		// A global variable can be modified by a call, so it is not tracked.
+		lenLocalVarGlobal = len(a)
+		lenLocalVarResetGlobal()
+		if lenLocalVarGlobal > 0 {
+			_ = a[0] //want "sliced into"
+		}
+	case 23:
+		// `n` holds `len(a)` on every path into the conditional.
+		n := len(a)
+		if mp == nil {
+			dummyConsume(nil)
+		}
+		if n > 0 {
+			_ = a[0]
+		}
 	}
 	return nil
 }
+
+func lenLocalVarOffset(n int) int { return n + 1 }
+
+type lenLocalVarHolder struct{ n int }
+
+func (h *lenLocalVarHolder) reset() { h.n = 1 }
+
+var lenLocalVarGlobal int
+
+func lenLocalVarResetGlobal() { lenLocalVarGlobal = 1 }
