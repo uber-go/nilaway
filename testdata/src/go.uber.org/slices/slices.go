@@ -1264,6 +1264,75 @@ func lengthCheckViaLocalVarTest(mp map[string][]*int) *int {
 		if n > 0 {
 			_ = a[0]
 		}
+	case 24:
+		// `n > 0` with `n := len(a) + 1` holds even when `a` is nil.
+		n := len(a) + 1
+		if n > 0 {
+			_ = a[0] //want "sliced into"
+		}
+	case 25:
+		// `len(a) - -1` is `len(a) + 1`.
+		n := len(a) - -1
+		if n > 0 {
+			_ = a[0] //want "sliced into"
+		}
+	case 26:
+		n := len(a) + 1
+		if n >= 1 {
+			_ = a[0] //want "sliced into"
+		}
+	case 27:
+		n := len(a) + 1
+		if n == 1 {
+			_ = a[0] //want "sliced into"
+		}
+	case 28:
+		// `n > 0` with `n := len(a) - 1` implies `len(a) > 1`.
+		n := len(a) - 1
+		if n > 0 {
+			_ = a[0]
+		}
+	case 29:
+		// A zero offset is the same as no offset.
+		n := len(a) + 0
+		if n > 0 {
+			_ = a[0]
+		}
+	case 30:
+		// `len(a) + -1` is `len(a) - 1`.
+		n := len(a) + -1
+		if n >= 0 {
+			_ = a[0]
+		}
+	case 31:
+		// `n` is reassigned on one path, but to the same length expression.
+		n := len(a)
+		if mp == nil {
+			n = len(a)
+		}
+		if n > 0 {
+			_ = a[0]
+		}
+	case 32:
+		// `n` is assigned the same length expression on both branches.
+		var n int
+		if mp == nil {
+			n = len(a)
+		} else {
+			n = len(a)
+		}
+		if n > 0 {
+			_ = a[0]
+		}
+	case 33:
+		// `n` is reassigned on one path to a different offset of the same length.
+		n := len(a)
+		if mp == nil {
+			n = len(a) - 1
+		}
+		if n >= 0 {
+			_ = a[0] //want "sliced into"
+		}
 	}
 	return nil
 }

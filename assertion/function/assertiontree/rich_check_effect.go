@@ -242,6 +242,7 @@ type LenLocalVar struct {
 	lhs    TrackableExpr      // the variable holding the length expression, e.g., `n`
 	lenArg TrackableExpr      // the argument of the `len` call, e.g., `s`
 	rhs    ast.Expr           // the length expression assigned to the variable, e.g., `len(s)`
+	offset int64              // the `k` such that `rhs` equals `len(s) - k`
 }
 
 func (*LenLocalVar) isTriggeredBy(ast.Expr) bool { return false }
@@ -264,7 +265,7 @@ func (l *LenLocalVar) equals(effect RichCheckEffect) bool {
 	if !ok {
 		return false
 	}
-	return l.root.Equal(l.lhs, other.lhs) && l.root.Equal(l.lenArg, other.lenArg) && l.rhs == other.rhs
+	return l.root.Equal(l.lhs, other.lhs) && l.root.Equal(l.lenArg, other.lenArg) && l.offset == other.offset
 }
 
 // nilChecksFor returns the nil checks implied by the conditional `cond` once the variable is
@@ -593,7 +594,7 @@ func NodeTriggersLenLocalVar(rootNode *RootAssertionNode, node ast.Node) *LenLoc
 	if v, ok := rootNode.ObjectOf(ident).(*types.Var); !ok || annotation.VarIsGlobal(v) {
 		return nil
 	}
-	lenArg := lenOffsetArg(rootNode.Pass(), rhs[0])
+	lenArg, offset := lenOffsetArg(rootNode.Pass(), rhs[0])
 	if lenArg == nil {
 		return nil
 	}
@@ -610,26 +611,39 @@ func NodeTriggersLenLocalVar(rootNode *RootAssertionNode, node ast.Node) *LenLoc
 		lhs:    lhsParsed,
 		lenArg: lenArgParsed,
 		rhs:    rhs[0],
+		offset: offset,
 	}
 }
 
-// lenOffsetArg returns the argument `s` if `expr` is `len(s)`, `len(s) + c` or `len(s) - c` for an
-// integer constant `c`, and nil otherwise.
-func lenOffsetArg(pass *analysishelper.EnhancedPass, expr ast.Expr) ast.Expr {
+// lenOffsetArg returns the argument `s` and the offset `k` if `expr` is `len(s)`, `len(s) + c` or
+// `len(s) - c` for an integer constant `c`, where `expr` equals `len(s) - k`, and nil otherwise.
+// Positive offsets (`k < 0`, e.g., `len(s) + 1`) are rejected: `len(s) + 1 > 0` holds even when `s`
+// is nil, but `AddNilCheck` would still treat it as a nil check on `s`.
+func lenOffsetArg(pass *analysishelper.EnhancedPass, expr ast.Expr) (ast.Expr, int64) {
+	var k int64
 	expr = ast.Unparen(expr)
 	if bin, ok := expr.(*ast.BinaryExpr); ok {
-		if bin.Op != token.ADD && bin.Op != token.SUB {
-			return nil
+		c, ok := pass.ConstInt(bin.Y)
+		if !ok {
+			return nil, 0
 		}
-		if _, ok := pass.ConstInt(bin.Y); !ok {
-			return nil
+		switch bin.Op {
+		case token.SUB: // `len(s) - c`
+			k = c
+		case token.ADD: // `len(s) + c`
+			k = -c
+		default:
+			return nil, 0
+		}
+		if k < 0 {
+			return nil, 0
 		}
 		expr = ast.Unparen(bin.X)
 	}
 	if lenArgs := extractLenArgs(expr, false /* allowNested */); len(lenArgs) == 1 {
-		return lenArgs[0]
+		return lenArgs[0], k
 	}
-	return nil
+	return nil, 0
 }
 
 // nodeIsAssignmentTo(pass, node, one, other) returns true if `node` is an assignment to the variable
@@ -869,6 +883,16 @@ func propagateRichChecks(graph *cfg.CFG, richCheckBlocks [][]RichCheckEffect) []
 					for _, effect := range currBlocks[predIndex] {
 						if maskingEffects[effect] {
 							maskingEffects[effect] = false
+						}
+						// A LenLocalVar created by a reassignment on one path (e.g., `n = len(s)` in
+						// a branch) is a distinct effect from an equal one created earlier, so the
+						// predecessor also covers any masked effect equal to it.
+						if lenEffect, ok := effect.(*LenLocalVar); ok {
+							for masked, present := range maskingEffects {
+								if present && lenEffect.equals(masked) {
+									maskingEffects[masked] = false
+								}
+							}
 						}
 					}
 					for effect, present := range maskingEffects {
