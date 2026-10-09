@@ -8,7 +8,7 @@ on:
 jobs:
   lint:
     name: Lint
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
@@ -41,7 +41,7 @@ jobs:
 
   test:
     name: Test
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       # Do not cancel the sibling matrix leg when one leg fails, so that a failure on one Go
@@ -57,9 +57,7 @@ jobs:
         with:
           go-version: ${{ matrix.go }}
           cache: true
-          cache-dependency-path: |
-            go.sum
-            tools/go.sum
+          cache-dependency-path: "**/go.sum"
 
       - name: Download dependencies
         run: go mod download
@@ -81,7 +79,7 @@ jobs:
 
   integration-test:
     name: Integration Test
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -95,9 +93,7 @@ jobs:
         with:
           go-version: ${{ matrix.go }}
           cache: true
-          cache-dependency-path: |
-            go.sum
-            tools/go.sum
+          cache-dependency-path: "**/go.sum"
 
       - name: Download dependencies
         run: go mod download

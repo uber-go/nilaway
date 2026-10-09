@@ -15,7 +15,7 @@ permissions:
 jobs:
   comment:
     name: Comment
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     if: >
       github.event.workflow_run.event == 'pull_request' &&
       github.event.workflow_run.conclusion == 'success'
