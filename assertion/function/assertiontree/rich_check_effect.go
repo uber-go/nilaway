@@ -23,6 +23,7 @@ import (
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/guard"
 	"go.uber.org/nilaway/hook"
+	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/asthelper"
 	"go.uber.org/nilaway/util/typeshelper"
 	"golang.org/x/tools/go/cfg"
@@ -228,6 +229,77 @@ type FuncOkReturn struct {
 	okRead
 }
 
+// A LenLocalVar is a RichCheckEffect for a local variable that holds a length expression, e.g., the
+// `n` in `n := len(s)` or `i := len(s) - 1`. A later conditional on the variable (e.g., `n == 0`) is
+// treated as if the length expression had been written in its place (e.g., `len(s) == 0`), so that
+// it can act as a nil check on `s` in the same way. An assignment to (or increment/decrement of)
+// the variable, or an assignment to `s`, invalidates the effect.
+//
+// Unlike other RichCheckEffects, the effect of a LenLocalVar depends on the triggering conditional,
+// so it is applied via `nilChecksFor` instead of `isTriggeredBy` / `effectIfTrue` / `effectIfFalse`.
+type LenLocalVar struct {
+	root   *RootAssertionNode // an associated root node
+	lhs    TrackableExpr      // the variable holding the length expression, e.g., `n`
+	lenArg TrackableExpr      // the argument of the `len` call, e.g., `s`
+	rhs    ast.Expr           // the length expression assigned to the variable, e.g., `len(s)`
+	offset int64              // the `k` such that `rhs` equals `len(s) - k`
+}
+
+func (*LenLocalVar) isTriggeredBy(ast.Expr) bool { return false }
+
+func (l *LenLocalVar) isInvalidatedBy(node ast.Node) bool {
+	if incDec, ok := node.(*ast.IncDecStmt); ok {
+		return exprMatchesTrackableExpr(l.root, incDec.X, l.lhs)
+	}
+	return nodeAssignsAny(l.root, node, l.lhs, l.lenArg)
+}
+
+func (*LenLocalVar) effectIfTrue(*RootAssertionNode) {}
+
+func (*LenLocalVar) effectIfFalse(*RootAssertionNode) {}
+
+func (*LenLocalVar) isNoop() bool { return false }
+
+func (l *LenLocalVar) equals(effect RichCheckEffect) bool {
+	other, ok := effect.(*LenLocalVar)
+	if !ok {
+		return false
+	}
+	return l.root.Equal(l.lhs, other.lhs) && l.root.Equal(l.lenArg, other.lenArg) && l.offset == other.offset
+}
+
+// nilChecksFor returns the nil checks implied by the conditional `cond` once the variable is
+// replaced by its length expression, following the same conventions as `AddNilCheck`.
+func (l *LenLocalVar) nilChecksFor(cond ast.Expr) (trueCheck, falseCheck RootFunc, isNoop bool) {
+	substituted := l.substitute(cond)
+	if substituted == nil {
+		return nil, nil, true
+	}
+	return AddNilCheck(l.root.Pass(), substituted)
+}
+
+// substitute returns a copy of the conditional `cond` with the variable operand replaced by its
+// length expression, or nil if `cond` is not a (possibly negated) comparison on the variable.
+func (l *LenLocalVar) substitute(cond ast.Expr) ast.Expr {
+	switch e := ast.Unparen(cond).(type) {
+	case *ast.UnaryExpr:
+		if e.Op != token.NOT {
+			return nil
+		}
+		if x := l.substitute(e.X); x != nil {
+			return &ast.UnaryExpr{OpPos: e.OpPos, Op: e.Op, X: x}
+		}
+	case *ast.BinaryExpr:
+		if exprMatchesTrackableExpr(l.root, ast.Unparen(e.X), l.lhs) {
+			return &ast.BinaryExpr{X: l.rhs, OpPos: e.OpPos, Op: e.Op, Y: e.Y}
+		}
+		if exprMatchesTrackableExpr(l.root, ast.Unparen(e.Y), l.lhs) {
+			return &ast.BinaryExpr{X: e.X, OpPos: e.OpPos, Op: e.Op, Y: l.rhs}
+		}
+	}
+	return nil
+}
+
 // A RichCheckNoop is a placeholder instance of RichCheckEffect that functions as a total noop.
 // It is used to allow in place modification of collections of RichCheckEffects.
 type RichCheckNoop struct{}
@@ -258,6 +330,9 @@ func RichCheckFromNode(rootNode *RootAssertionNode, nonceGenerator *guard.NonceG
 	}
 	if funcEffects, ok := NodeTriggersFuncErrRet(rootNode, nonceGenerator, node); ok {
 		effects, someEffects = append(effects, funcEffects...), true
+	}
+	if lenEffect := NodeTriggersLenLocalVar(rootNode, node); lenEffect != nil {
+		effects, someEffects = append(effects, lenEffect), true
 	}
 	return effects, someEffects
 }
@@ -498,6 +573,140 @@ func NodeTriggersFuncErrRet(rootNode *RootAssertionNode, nonceGenerator *guard.N
 	return effects, someEffect
 }
 
+// NodeTriggersLenLocalVar is a case of a node creating a rich check effect. It matches on
+// assignments of a length expression to a single local variable, i.e., `n := len(s)` or
+// `i := len(s) ± c` for an integer constant `c`, and returns nil if the node is not of this form.
+func NodeTriggersLenLocalVar(rootNode *RootAssertionNode, node ast.Node) *LenLocalVar {
+	if assign, ok := node.(*ast.AssignStmt); ok && assign.Tok != token.DEFINE && assign.Tok != token.ASSIGN {
+		// Compound assignments such as `n += len(s)` do not make `n` equal to the length expression.
+		return nil
+	}
+	lhs, rhs := asthelper.ExtractLHSRHS(node)
+	if len(lhs) != 1 || len(rhs) != 1 {
+		return nil
+	}
+	// Only local variables are tracked, both for the variable holding the length and for the
+	// argument of `len`: fields, globals and other aliased variables can be modified by function
+	// calls, which do not invalidate the effect.
+	ident, ok := lhs[0].(*ast.Ident)
+	if !ok || !isUnaliasedLocalVar(rootNode, ident) {
+		return nil
+	}
+	lenArg, offset := lenOffsetArg(rootNode.Pass(), rhs[0])
+	if lenArg == nil {
+		return nil
+	}
+	if lenArgIdent, ok := ast.Unparen(lenArg).(*ast.Ident); !ok || !isUnaliasedLocalVar(rootNode, lenArgIdent) {
+		return nil
+	}
+	lhsParsed := parseExpr(rootNode, ident)
+	if lhsParsed == nil {
+		return nil
+	}
+	lenArgParsed := parseExpr(rootNode, lenArg)
+	if lenArgParsed == nil {
+		return nil
+	}
+	return &LenLocalVar{
+		root:   rootNode,
+		lhs:    lhsParsed,
+		lenArg: lenArgParsed,
+		rhs:    rhs[0],
+		offset: offset,
+	}
+}
+
+// isUnaliasedLocalVar returns true if `ident` refers to a variable declared in the function being
+// analyzed (including its parameters) whose value can only change through the statements of that
+// function. Package-level variables, variables captured from an enclosing function, variables
+// captured by a function literal, and variables whose address is taken (explicitly via `&v`, or
+// implicitly via a pointer receiver method call) can all be modified by a call, which does not
+// invalidate a LenLocalVar effect, so they are not tracked.
+func isUnaliasedLocalVar(rootNode *RootAssertionNode, ident *ast.Ident) bool {
+	v, ok := rootNode.ObjectOf(ident).(*types.Var)
+	if !ok {
+		return false
+	}
+	pass := rootNode.Pass()
+	funcType := rootNode.FuncDecl().Type
+	if funcLit := rootNode.functionContext.funcLit; funcLit != nil {
+		funcType = funcLit.Type
+	}
+	funcScope := pass.TypesInfo.Scopes[funcType]
+	isLocal := false
+	for scope := v.Parent(); scope != nil; scope = scope.Parent() {
+		if scope == funcScope {
+			isLocal = true
+			break
+		}
+	}
+	if !isLocal {
+		return false
+	}
+	isV := func(expr ast.Expr) bool {
+		id, ok := ast.Unparen(expr).(*ast.Ident)
+		return ok && pass.TypesInfo.ObjectOf(id) == v
+	}
+	aliased := false
+	ast.Inspect(rootNode.FuncDecl().Body, func(n ast.Node) bool {
+		switch n := n.(type) {
+		case *ast.FuncLit:
+			ast.Inspect(n.Body, func(m ast.Node) bool {
+				if id, ok := m.(*ast.Ident); ok && pass.TypesInfo.ObjectOf(id) == v {
+					aliased = true
+				}
+				return !aliased
+			})
+			return false
+		case *ast.UnaryExpr:
+			if n.Op == token.AND && isV(n.X) {
+				aliased = true
+			}
+		case *ast.SelectorExpr:
+			if sel, ok := pass.TypesInfo.Selections[n]; ok && sel.Kind() == types.MethodVal && isV(n.X) {
+				if sig, ok := sel.Obj().Type().(*types.Signature); ok && sig.Recv() != nil {
+					if _, isPtr := sig.Recv().Type().(*types.Pointer); isPtr {
+						aliased = true
+					}
+				}
+			}
+		}
+		return !aliased
+	})
+	return !aliased
+}
+
+// lenOffsetArg returns the argument `s` and the offset `k` if `expr` is `len(s)`, `len(s) + c` or
+// `len(s) - c` for an integer constant `c`, where `expr` equals `len(s) - k`, and nil otherwise.
+// Positive offsets (`k < 0`, e.g., `len(s) + 1`) are rejected: `len(s) + 1 > 0` holds even when `s`
+// is nil, but `AddNilCheck` would still treat it as a nil check on `s`.
+func lenOffsetArg(pass *analysishelper.EnhancedPass, expr ast.Expr) (ast.Expr, int64) {
+	var k int64
+	expr = ast.Unparen(expr)
+	if bin, ok := expr.(*ast.BinaryExpr); ok {
+		c, ok := pass.ConstInt(bin.Y)
+		if !ok {
+			return nil, 0
+		}
+		switch bin.Op {
+		case token.SUB: // `len(s) - c`
+			k = c
+		case token.ADD: // `len(s) + c`
+			k = -c
+		default:
+			return nil, 0
+		}
+		if k < 0 {
+			return nil, 0
+		}
+		expr = ast.Unparen(bin.X)
+	}
+	if lenArgs := extractLenArgs(expr, false /* allowNested */); len(lenArgs) == 1 {
+		return lenArgs[0], k
+	}
+	return nil, 0
+}
+
 // nodeIsAssignmentTo(pass, node, one, other) returns true if `node` is an assignment to the variable
 // `one` but not an assignment to the variable `other`
 func nodeAssignsOneWithoutOther(rootNode *RootAssertionNode, node ast.Node, one, other TrackableExpr) bool {
@@ -725,10 +934,26 @@ func propagateRichChecks(graph *cfg.CFG, richCheckBlocks [][]RichCheckEffect) []
 							blocksEffectReaches[predIndex] {
 							maskingEffects[effect] = true
 						}
+						// Unlike the other effects, a LenLocalVar is not protected by a guard nonce, so
+						// it must hold on every incoming path, including the ones that do not pass
+						// through the block where it was created.
+						if _, ok := effect.(*LenLocalVar); ok {
+							maskingEffects[effect] = true
+						}
 					}
 					for _, effect := range currBlocks[predIndex] {
 						if maskingEffects[effect] {
 							maskingEffects[effect] = false
+						}
+						// A LenLocalVar created by a reassignment on one path (e.g., `n = len(s)` in
+						// a branch) is a distinct effect from an equal one created earlier, so the
+						// predecessor also covers any masked effect equal to it.
+						if lenEffect, ok := effect.(*LenLocalVar); ok {
+							for masked, present := range maskingEffects {
+								if present && lenEffect.equals(masked) {
+									maskingEffects[masked] = false
+								}
+							}
 						}
 					}
 					for effect, present := range maskingEffects {
