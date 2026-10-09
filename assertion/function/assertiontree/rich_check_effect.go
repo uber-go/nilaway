@@ -585,17 +585,18 @@ func NodeTriggersLenLocalVar(rootNode *RootAssertionNode, node ast.Node) *LenLoc
 	if len(lhs) != 1 || len(rhs) != 1 {
 		return nil
 	}
-	// Only local variables are tracked: fields and globals can be modified by function calls,
-	// which do not invalidate the effect.
+	// Only local variables are tracked, both for the variable holding the length and for the
+	// argument of `len`: fields, globals and other aliased variables can be modified by function
+	// calls, which do not invalidate the effect.
 	ident, ok := lhs[0].(*ast.Ident)
-	if !ok {
-		return nil
-	}
-	if v, ok := rootNode.ObjectOf(ident).(*types.Var); !ok || annotation.VarIsGlobal(v) {
+	if !ok || !isUnaliasedLocalVar(rootNode, ident) {
 		return nil
 	}
 	lenArg, offset := lenOffsetArg(rootNode.Pass(), rhs[0])
 	if lenArg == nil {
+		return nil
+	}
+	if lenArgIdent, ok := ast.Unparen(lenArg).(*ast.Ident); !ok || !isUnaliasedLocalVar(rootNode, lenArgIdent) {
 		return nil
 	}
 	lhsParsed := parseExpr(rootNode, ident)
@@ -613,6 +614,66 @@ func NodeTriggersLenLocalVar(rootNode *RootAssertionNode, node ast.Node) *LenLoc
 		rhs:    rhs[0],
 		offset: offset,
 	}
+}
+
+// isUnaliasedLocalVar returns true if `ident` refers to a variable declared in the function being
+// analyzed (including its parameters) whose value can only change through the statements of that
+// function. Package-level variables, variables captured from an enclosing function, variables
+// captured by a function literal, and variables whose address is taken (explicitly via `&v`, or
+// implicitly via a pointer receiver method call) can all be modified by a call, which does not
+// invalidate a LenLocalVar effect, so they are not tracked.
+func isUnaliasedLocalVar(rootNode *RootAssertionNode, ident *ast.Ident) bool {
+	v, ok := rootNode.ObjectOf(ident).(*types.Var)
+	if !ok {
+		return false
+	}
+	pass := rootNode.Pass()
+	funcType := rootNode.FuncDecl().Type
+	if funcLit := rootNode.functionContext.funcLit; funcLit != nil {
+		funcType = funcLit.Type
+	}
+	funcScope := pass.TypesInfo.Scopes[funcType]
+	isLocal := false
+	for scope := v.Parent(); scope != nil; scope = scope.Parent() {
+		if scope == funcScope {
+			isLocal = true
+			break
+		}
+	}
+	if !isLocal {
+		return false
+	}
+	isV := func(expr ast.Expr) bool {
+		id, ok := ast.Unparen(expr).(*ast.Ident)
+		return ok && pass.TypesInfo.ObjectOf(id) == v
+	}
+	aliased := false
+	ast.Inspect(rootNode.FuncDecl().Body, func(n ast.Node) bool {
+		switch n := n.(type) {
+		case *ast.FuncLit:
+			ast.Inspect(n.Body, func(m ast.Node) bool {
+				if id, ok := m.(*ast.Ident); ok && pass.TypesInfo.ObjectOf(id) == v {
+					aliased = true
+				}
+				return !aliased
+			})
+			return false
+		case *ast.UnaryExpr:
+			if n.Op == token.AND && isV(n.X) {
+				aliased = true
+			}
+		case *ast.SelectorExpr:
+			if sel, ok := pass.TypesInfo.Selections[n]; ok && sel.Kind() == types.MethodVal && isV(n.X) {
+				if sig, ok := sel.Obj().Type().(*types.Signature); ok && sig.Recv() != nil {
+					if _, isPtr := sig.Recv().Type().(*types.Pointer); isPtr {
+						aliased = true
+					}
+				}
+			}
+		}
+		return !aliased
+	})
+	return !aliased
 }
 
 // lenOffsetArg returns the argument `s` and the offset `k` if `expr` is `len(s)`, `len(s) + c` or
