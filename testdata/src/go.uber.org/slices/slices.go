@@ -1333,8 +1333,115 @@ func lengthCheckViaLocalVarTest(mp map[string][]*int) *int {
 		if n >= 0 {
 			_ = a[0] //want "sliced into"
 		}
+	case 34:
+		// A field can be modified by a call, so its length is not tracked.
+		h := &lenLocalVarSliceHolder{s: []int{1}}
+		n := len(h.s)
+		h.clear()
+		if n > 0 {
+			_ = h.s[0] //want "sliced into"
+		}
+	case 35:
+		// A map entry can be modified by a call, so it is not tracked.
+		n := len(mp["foo"])
+		lenLocalVarClearMapEntry(mp)
+		if n > 0 {
+			_ = mp["foo"][0] //want "sliced into"
+		}
+	case 36:
+		// `b` is captured by a function literal that can modify it.
+		var b []int
+		n := len(b)
+		clearB := func() { b = nil }
+		clearB()
+		if n > 0 {
+			_ = b[0] //want "sliced into"
+		}
+	case 37:
+		// `n` is captured by a function literal that can modify it.
+		var b []int
+		n := len(b)
+		bump := func() { n = 1 }
+		bump()
+		if n > 0 {
+			_ = b[0] //want "sliced into"
+		}
+	case 38:
+		// `b` is captured by a function literal, so it is not tracked even though the literal
+		// only reads it.
+		var b []int
+		n := len(b)
+		_ = func() int { return len(b) }
+		if n > 0 {
+			_ = b[0] //want "sliced into"
+		}
+	case 39:
+		// The address of `b` is taken, so it can be modified by a call.
+		var b []int
+		n := len(b)
+		lenLocalVarClearSlice(&b)
+		if n > 0 {
+			_ = b[0] //want "sliced into"
+		}
+	case 40:
+		// The address of `n` is taken, so it can be modified by a call.
+		var b []int
+		n := len(b)
+		lenLocalVarSetInt(&n)
+		if n > 0 {
+			_ = b[0] //want "sliced into"
+		}
+	case 41:
+		// A pointer receiver method takes the address of `s` implicitly.
+		var s lenLocalVarSlice
+		n := len(s)
+		s.clear()
+		if n > 0 {
+			_ = s[0] //want "sliced into"
+		}
+	case 42:
+		// A value receiver method cannot modify `s`.
+		var s lenLocalVarSlice
+		n := len(s)
+		s.first()
+		if n > 0 {
+			_ = s[0]
+		}
+	case 43:
+		// A copy of `a` can be modified without affecting `a`.
+		b := a
+		n := len(a)
+		b = nil
+		_ = b
+		if n > 0 {
+			_ = a[0]
+		}
 	}
 	return nil
+}
+
+var lenLocalVarGlobalSlice = []int{1, 2, 3, 4, 5}
+
+func lenLocalVarClearGlobalSlice() { lenLocalVarGlobalSlice = nil }
+
+// A package-level variable can be modified by a call, so its length is not tracked.
+func lengthCheckViaLocalVarGlobalSliceTest() {
+	n := len(lenLocalVarGlobalSlice)
+	lenLocalVarClearGlobalSlice()
+	if n > 0 {
+		_ = lenLocalVarGlobalSlice[0] //want "sliced into"
+	}
+}
+
+// A parameter is a local copy that the caller cannot modify, so its length is tracked.
+//
+// nilable(a)
+func lengthCheckViaLocalVarParamTest(a []int) {
+	n := len(a)
+	dummyConsume(nil)
+	if n > 0 {
+		_ = a[0]
+	}
 }
 
 func lenLocalVarOffset(n int) int { return n + 1 }
@@ -1346,3 +1453,29 @@ func (h *lenLocalVarHolder) reset() { h.n = 1 }
 var lenLocalVarGlobal int
 
 func lenLocalVarResetGlobal() { lenLocalVarGlobal = 1 }
+
+// nilable(s)
+type lenLocalVarSliceHolder struct{ s []int }
+
+func (h *lenLocalVarSliceHolder) clear() { h.s = nil }
+
+func lenLocalVarClearMapEntry(mp map[string][]*int) { mp["foo"] = nil }
+
+func lenLocalVarClearSlice(p *[]int) { *p = nil }
+
+func lenLocalVarSetInt(p *int) { *p = 1 }
+
+type lenLocalVarSlice []int
+
+func (s *lenLocalVarSlice) clear() {
+	if s != nil {
+		*s = nil
+	}
+}
+
+func (s lenLocalVarSlice) first() int {
+	if len(s) == 0 {
+		return 0
+	}
+	return s[0]
+}
