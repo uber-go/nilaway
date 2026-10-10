@@ -110,7 +110,7 @@ func retsAndTakes() {
 // Below test checks the working of inference in the presence of annotations
 // nonnil(x) nilable(result 0)
 func foo(x *int) *int { //want "NONNIL because it is annotated as so"
-	print(*x)
+	print(*x) //want "dereferenced"
 	return nil
 }
 
@@ -144,4 +144,50 @@ func f3() {
 
 	s2 := f2()
 	print(*s2.Field) // safe
+}
+
+// Declaration order must not drop either dereference of the same parameter.
+// Grouping is disabled for this package, so each consumer location is its own diagnostic.
+
+// calleeDerefTwiceBeforeCaller is declared before the caller that passes nil.
+func calleeDerefTwiceBeforeCaller(p *int) {
+	_ = *p //want "(?s)calleeDerefTwiceBeforeCaller.*dereferenced"
+	_ = *p //want "(?s)calleeDerefTwiceBeforeCaller.*dereferenced"
+}
+
+func callerDerefTwiceBeforeCaller() {
+	calleeDerefTwiceBeforeCaller(nil)
+}
+
+// callerDerefTwiceAfterCaller is declared before the callee that dereferences its parameter.
+func callerDerefTwiceAfterCaller() {
+	calleeDerefTwiceAfterCaller(nil)
+}
+
+func calleeDerefTwiceAfterCaller(p *int) {
+	_ = *p //want "(?s)calleeDerefTwiceAfterCaller.*dereferenced"
+	_ = *p //want "(?s)calleeDerefTwiceAfterCaller.*dereferenced"
+}
+
+// A parameter only ever passed a nonnil value is not an error at either dereference.
+func calleeDerefNonnil(p *int) {
+	_ = *p
+	_ = *p
+}
+
+func callerDerefNonnil() {
+	v := 0
+	calleeDerefNonnil(&v)
+}
+
+// A nil check guards both dereferences, so passing nil is safe.
+func calleeDerefGuarded(p *int) {
+	if p != nil {
+		_ = *p
+		_ = *p
+	}
+}
+
+func callerDerefGuarded() {
+	calleeDerefGuarded(nil)
 }
