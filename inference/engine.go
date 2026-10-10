@@ -63,8 +63,8 @@ type Engine struct {
 // siteReport is the per-site bookkeeping for overconstraint diagnostics.
 // nilable holds the canonical nil explanation and every nil explanation that conflicted with a
 // nonnil site. Agreeing nil explanations are left out so they are not paired with every consumer.
-// nonnil holds each distinct terminal consumer, including consumers that agree with the canonical
-// nonnil value and would otherwise be dropped.
+// nonnil holds each distinct terminal consumer, except agreeing reads of globals, fields, and
+// function results whose conflicts are already represented by the canonical explanation.
 type siteReport struct {
 	nilable    []ExplainedBool
 	nonnil     []ExplainedBool
@@ -408,10 +408,10 @@ func (e *Engine) buildFromSingleFullTrigger(trigger annotation.FullTrigger) {
 // fixed the value of this site. If the site is already mapped to an DeterminedVal, then we check
 // if that ExplainedBool agrees with the passed one. If it does, inference is unchanged: the
 // canonical DeterminedVal is kept, this explanation is not propagated, and controlled triggers are
-// not activated. A new nonnil consumer is still remembered, and if a nil conflict was already
-// reported for the site, that consumer is reported too. If it does not agree, then we have
-// discovered a site that is overconstrained to be both true and false by the program being
-// analyzed. A nil explanation is reported against every retained nonnil consumer, and a nonnil
+// not activated. A new nonnil consumer, except an agreeing read of a global, field, or function
+// result, is still remembered and reported if a nil conflict was already reported for the site.
+// If it does not agree, then we have discovered a site that is overconstrained to be both true
+// and false by the program being analyzed. A nil explanation is reported against every retained nonnil consumer, and a nonnil
 // consumer is reported against the canonical nil plus any nil explanation that itself conflicted.
 // Finally, if we discover that the site targeted by this call is currently mapped to an
 // UndeterminedVal then we update the mapping to a definite DeterminedVal in accordance with the
@@ -421,11 +421,25 @@ func (e *Engine) buildFromSingleFullTrigger(trigger annotation.FullTrigger) {
 // call in the context of the current implication graph. Only that canonical explanation is
 // propagated; alternate explanations stay local to the site that observed them.
 func (e *Engine) observeSiteExplanation(site primitiveSite, siteExplained ExplainedBool) {
-	// Record before reading the map so a conflict can see this explanation, including when a new
+	val, ok := e.inferredMap.Load(site)
+	// An agreeing read of a global, field, or function result adds no new panic site: the
+	// diagnostic engine already groups those consumers under their shared nil source, and the
+	// canonical explanation already carries the conflict. Leave such reads out of the bookkeeping.
+	if v, determined := val.(*DeterminedVal); determined && !v.Bool.Val() && !siteExplained.Val() {
+		producer, _ := siteExplained.TriggerReprs()
+		if located, isLocated := producer.(annotation.LocatedRepr); isLocated {
+			producer = located.Contained
+		}
+		switch producer.(type) {
+		case annotation.GlobalVarReadRepr, annotation.FldReadRepr,
+			annotation.FuncReturnRepr, annotation.MethodReturnRepr:
+			return
+		}
+	}
+	// Record before handling a conflict so it can see this explanation, including when a new
 	// consumer arrives after the site is already overconstrained.
 	isNew := e.trackSiteExplanation(site, siteExplained)
 
-	val, ok := e.inferredMap.Load(site)
 	if !ok {
 		if siteExplained.Val() {
 			e.retainNil(site, siteExplained)
