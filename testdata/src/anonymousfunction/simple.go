@@ -100,3 +100,31 @@ var a = func() {
 	var t *int
 	print(*t) //want "unassigned variable `t`"
 }
+
+// nestedLocalInFuncLit checks that a variable declared in a nested scope of a function literal is
+// analyzed as a local variable of the function literal, not as a closure variable.
+func nestedLocalInFuncLit() {
+	func() {
+		if dummy {
+			var p *int
+			print(*p) //want "unassigned variable `p` dereferenced"
+		}
+	}()
+}
+
+// variadicFuncLitWithNestedLocal checks the same for a variadic function literal, where the loop
+// variable `i` must not be added as an extra parameter after the variadic one.
+func variadicFuncLitWithNestedLocal() int {
+	f := func(xs ...string) int {
+		n := 0
+		for i := range xs {
+			n += i
+		}
+		var p *int
+		if n > 0 {
+			print(*p) //want "unassigned variable `p` dereferenced"
+		}
+		return n
+	}
+	return f("a")
+}
