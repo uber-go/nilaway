@@ -21,6 +21,7 @@ import (
 	"go/token"
 	"go/types"
 	"io"
+	"slices"
 	"strings"
 )
 
@@ -196,9 +197,7 @@ func SplitFieldChain(expr ast.Expr) (*ast.Ident, []string) {
 	for {
 		switch e := expr.(type) {
 		case *ast.Ident:
-			for i, j := 0, len(parts)-1; i < j; i, j = i+1, j-1 {
-				parts[i], parts[j] = parts[j], parts[i]
-			}
+			slices.Reverse(parts)
 			return e, parts
 		case *ast.SelectorExpr:
 			parts = append(parts, e.Sel.Name)

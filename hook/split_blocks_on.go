@@ -238,7 +238,7 @@ var requireComparators splitBlockOnAction = func(pass *analysishelper.EnhancedPa
 	}
 
 	// likely represents a case that we don't support.
-	if expectedExprValue == _unknown {
+	if expectedExprValue == _unknown || actualExpr == nil {
 		return nil
 	}
 
