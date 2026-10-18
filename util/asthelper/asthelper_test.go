@@ -134,6 +134,7 @@ func TestSplitFieldChain(t *testing.T) {
 			if tt.wantBase == "" {
 				require.Nil(t, gotBase)
 			} else {
+				require.NotNil(t, gotBase)
 				require.Equal(t, tt.wantBase, gotBase.Name)
 			}
 			require.Equal(t, tt.wantSegs, gotSegs)
