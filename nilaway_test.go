@@ -331,6 +331,57 @@ func Use() {
 	print(*OtherCaller(new(int)))
 }
 `},
+		{name: "Loops", source: `package determinism
+
+type node struct {
+	children                []*node
+	extra, a, b, c, d, e, f *node
+}
+
+func Clone(v *node) *node {
+	if v == nil {
+		return nil
+	}
+	result := &node{}
+	for _, child := range v.children {
+		if child == nil {
+			continue
+		}
+		for _, nested := range child.children {
+			if nested != nil {
+				result.children = append(result.children, nested)
+			}
+		}
+	}
+	if x := v.extra; x != nil {
+		result.extra = x
+	}
+	for _, child := range v.children {
+		if child != nil {
+			result.children = append(result.children, child)
+		}
+	}
+	if v.a != nil {
+		result.a = v.a
+	}
+	if v.b != nil {
+		result.b = v.b
+	}
+	if v.c != nil {
+		result.c = v.c
+	}
+	if v.d != nil {
+		result.d = v.d
+	}
+	if v.e != nil {
+		result.e = v.e
+	}
+	if v.f != nil {
+		result.f = v.f
+	}
+	return result
+}
+`},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
