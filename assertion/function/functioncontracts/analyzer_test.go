@@ -105,6 +105,9 @@ func TestInfer(t *testing.T) {
 	}
 
 	expected := Map{
+		getFuncObj(pass, "propagateNewState"): {
+			Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
+		},
 		getFuncObj(pass, "onlyLocalVar"): {
 			Contract{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 		},
