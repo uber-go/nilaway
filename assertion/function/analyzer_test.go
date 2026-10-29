@@ -18,6 +18,8 @@ import (
 	"context"
 	"fmt"
 	"go/ast"
+	"go/parser"
+	"go/token"
 	"go/types"
 	"strconv"
 	"sync"
@@ -286,4 +288,52 @@ func TestFunctionSizeLimit(t *testing.T) {
 
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
+}
+
+// TestContractTriggerOrder checks that callee declaration order, rather than call
+// order or map iteration order, determines the triggers appended to a caller.
+func TestContractTriggerOrder(t *testing.T) {
+	t.Parallel()
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "order.go", `package order
+func zFirst(x *int) *int { return x }
+func aSecond(x *int) *int { return x }
+func external(x *int) *int
+func caller(x *int) { aSecond(x); external(x); zFirst(x); aSecond(x) }
+`, 0)
+	require.NoError(t, err)
+	info := &types.Info{Defs: make(map[*ast.Ident]types.Object), Uses: make(map[*ast.Ident]types.Object)}
+	_, err = new(types.Config).Check("order", fset, []*ast.File{file}, info)
+	require.NoError(t, err)
+	pass := analysishelper.NewEnhancedPass(&analysis.Pass{
+		Fset: fset, TypesInfo: info,
+		ResultOf: map[*analysis.Analyzer]any{config.Analyzer: &config.Config{}},
+	})
+	results := make(map[*types.Func]*functionResult)
+	contracts := make(functioncontracts.Map)
+	for index, decl := range file.Decls {
+		fn := decl.(*ast.FuncDecl)
+		obj := info.Defs[fn.Name].(*types.Func)
+		contracts[obj] = functioncontracts.Contracts{{Ins: []functioncontracts.ContractVal{functioncontracts.NonNil}, Outs: []functioncontracts.ContractVal{functioncontracts.NonNil}}}
+		if fn.Body == nil {
+			continue // Imported/bodyless callees have no local result.
+		}
+		results[obj] = &functionResult{index: index, funcDecl: fn, triggers: []annotation.FullTrigger{{
+			Producer: &annotation.ProduceTrigger{Annotation: &annotation.FuncParam{
+				TriggerIfNilable: &annotation.TriggerIfNilable{Ann: annotation.ParamKeyFromArgNum(obj, 0)},
+			}},
+			Consumer: &annotation.ConsumeTrigger{},
+		}}}
+	}
+	for range 32 {
+		triggers := make([][]annotation.FullTrigger, len(file.Decls))
+		duplicateFullTriggersFromContractedFunctionsToCallers(pass, contracts, triggers, results)
+		var callees []string
+		for _, trigger := range triggers[3] {
+			producer := trigger.Producer.Annotation.(*annotation.FuncParam)
+			key := producer.Ann.(*annotation.CallSiteParamAnnotationKey)
+			callees = append(callees, key.FuncDecl.Name())
+		}
+		require.Equal(t, []string{"zFirst", "aSecond", "aSecond"}, callees)
+	}
 }
