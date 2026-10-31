@@ -238,7 +238,14 @@ var requireComparators splitBlockOnAction = func(pass *analysishelper.EnhancedPa
 	}
 
 	// likely represents a case that we don't support.
-	if expectedExprValue == _unknown || actualExpr == nil {
+	if expectedExprValue == _unknown {
+		return nil
+	}
+
+	// This check is not functional: every branch above that sets expectedExprValue also sets
+	// actualExpr. It is only here for NilAway's self-check (`make nilaway-lint`), which does not
+	// relate the two variables and would otherwise report actualExpr as possibly nil.
+	if actualExpr == nil {
 		return nil
 	}
 
