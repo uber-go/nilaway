@@ -16,6 +16,7 @@ package inference
 
 import (
 	"fmt"
+	"slices"
 
 	"go.uber.org/nilaway/util/orderedmap"
 )
@@ -75,11 +76,12 @@ type UndeterminedVal struct {
 
 func (e *UndeterminedVal) copy() InferredVal {
 	copySitesWithAssertions := func(s *orderedmap.OrderedMap[primitiveSite, primitiveFullTrigger]) *orderedmap.OrderedMap[primitiveSite, primitiveFullTrigger] {
+		// This snapshot is used only by inferredValDiff for edge-key membership.
+		// Store never changes a Pair key or removes/reorders Pairs. Keep a
+		// fixed-length pointer vector; later appends must not enter the old key set.
+		// Values may change, but inferredValDiff does not inspect old payloads.
 		out := orderedmap.New[primitiveSite, primitiveFullTrigger]()
-		for _, p := range s.Pairs {
-			site, trigger := p.Key, p.Value
-			out.Store(site, trigger)
-		}
+		out.Pairs = slices.Clone(s.Pairs)
 		return out
 	}
 
