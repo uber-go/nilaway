@@ -16,6 +16,7 @@ make build                    # Build the nilaway binary to <project root>/bin/
 make test                     # Run unit tests for all modules
 make cover                    # Run tests with coverage reports
 make integration-test         # Run integration tests (using real drivers)
+make bench                    # Run benchmarks
 ```
 
 Test packages under `testdata/src/go.uber.org` must use the default configuration and should be

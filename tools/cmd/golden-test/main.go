@@ -62,8 +62,10 @@ type BranchResult struct {
 }
 
 // Run runs the golden tests on the base branch and the test branch and writes the summary and
-// diff to the writer.
-func Run(writer io.Writer, baseBranch, testBranch string) error {
+// diff to the writer. The standard library analysis is split into at most `shards` groups, each
+// analyzed by a separate NilAway process to bound peak memory usage (a value <= 1 disables
+// sharding and analyzes the whole standard library in a single process).
+func Run(writer io.Writer, baseBranch, testBranch string, shards int) error {
 	// First verify that the git repository is clean.
 	out, err := exec.Command("git", "status", "--porcelain=v1").CombinedOutput()
 	if err != nil {
@@ -130,6 +132,15 @@ func Run(writer io.Writer, baseBranch, testBranch string) error {
 		branches[0].Name, branches[0].ShortSHA, branches[1].Name, branches[1].ShortSHA,
 	)
 
+	// Compute the package groups once so that both branches analyze the exact same set of packages.
+	groups, err := packageGroups(shards)
+	if err != nil {
+		return err
+	}
+	if len(groups) > 1 {
+		log.Printf("splitting the standard library analysis into %d shards", len(groups))
+	}
+
 	for _, branch := range branches {
 		commands := [][]string{
 			{"git", "checkout", branch.ShortSHA},
@@ -143,27 +154,146 @@ func Run(writer io.Writer, baseBranch, testBranch string) error {
 		}
 
 		// Run the built NilAway binary on the stdlib and parse the diagnostics.
-		var buf bytes.Buffer
 		start := time.Now()
-		cmd := exec.Command("bin/nilaway", "-include-errors-in-files", "/", "-json", "-pretty-print=false", "-group-error-messages=true", "std")
-		cmd.Stdout = &buf
-		// Inherit env vars such that users can control the resource usages via GOMEMLIMIT, GOGC
-		// etc. env vars.
-		cmd.Env = os.Environ()
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("run NilAway: %w", err)
+		diagnostics, err := runNilAwaySharded(groups)
+		if err != nil {
+			return fmt.Errorf("branch %q: %w", branch.Name, err)
 		}
 		elapsed := time.Since(start)
 		log.Printf("NilAway execution time for branch \"%s\": %s", branch.Name, elapsed)
-		diagnostics, err := ParseDiagnostics(&buf)
-		if err != nil {
-			return fmt.Errorf("parse diagnostics: %w", err)
-		}
 		branch.Result = diagnostics
 	}
 
 	WriteDiff(writer, branches)
 	return CheckInternalPanics(branches)
+}
+
+// packageGroups returns the groups of packages that NilAway should be run on. When shards <= 1 it
+// returns a single group with the `std` pattern (analyzing the whole standard library in one
+// process). Otherwise it enumerates the standard library packages and deterministically partitions
+// them into at most `shards` groups.
+func packageGroups(shards int) ([][]string, error) {
+	if shards <= 1 {
+		return [][]string{{"std"}}, nil
+	}
+	packages, err := listStdPackages()
+	if err != nil {
+		return nil, err
+	}
+	return partitionPackages(packages, shards), nil
+}
+
+// listStdPackages returns the import paths of all standard library packages for the current Go
+// toolchain, as reported by `go list std`.
+func listStdPackages() ([]string, error) {
+	out, err := exec.Command("go", "list", "std").Output()
+	if err != nil {
+		return nil, fmt.Errorf("list standard library packages: %w", err)
+	}
+	var packages []string
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			packages = append(packages, line)
+		}
+	}
+	return packages, nil
+}
+
+// partitionPackages deterministically partitions the given package import paths into at most
+// `shards` groups. Packages that share the same first two import path components (e.g. `net/http`,
+// `crypto/tls`) are kept in the same group so that each group forms a connected subtree of the
+// dependency graph, which keeps the per-process memory footprint small. Groups are assigned to the
+// currently smallest shard (largest first) to balance the number of packages per shard.
+func partitionPackages(packages []string, shards int) [][]string {
+	if shards <= 1 || len(packages) == 0 {
+		return [][]string{packages}
+	}
+
+	grouped := make(map[string][]string)
+	for _, pkg := range packages {
+		key := pkg
+		if parts := strings.SplitN(pkg, "/", 3); len(parts) >= 2 {
+			key = parts[0] + "/" + parts[1]
+		}
+		grouped[key] = append(grouped[key], pkg)
+	}
+
+	keys := make([]string, 0, len(grouped))
+	for key := range grouped {
+		keys = append(keys, key)
+	}
+	slices.SortFunc(keys, func(a, b string) int {
+		if n := cmp.Compare(len(grouped[b]), len(grouped[a])); n != 0 {
+			return n
+		}
+		return cmp.Compare(a, b)
+	})
+
+	buckets := make([][]string, shards)
+	for _, key := range keys {
+		target := 0
+		for i := range buckets {
+			if len(buckets[i]) < len(buckets[target]) {
+				target = i
+			}
+		}
+		buckets[target] = append(buckets[target], grouped[key]...)
+	}
+
+	var result [][]string
+	for _, bucket := range buckets {
+		if len(bucket) == 0 {
+			continue
+		}
+		slices.Sort(bucket)
+		result = append(result, bucket)
+	}
+	return result
+}
+
+// runNilAwaySharded runs NilAway on each of the given package groups and merges the diagnostics
+// reported across all groups. The diagnostics are keyed by their position and message, so merging
+// the per-shard sets yields the same result as a single run over all packages.
+func runNilAwaySharded(groups [][]string) (map[Diagnostic]bool, error) {
+	if len(groups) == 1 {
+		return runNilAway(groups[0])
+	}
+
+	merged := make(map[Diagnostic]bool)
+	for i, group := range groups {
+		start := time.Now()
+		diagnostics, err := runNilAway(group)
+		if err != nil {
+			return nil, fmt.Errorf("shard %d/%d: %w", i+1, len(groups), err)
+		}
+		log.Printf("shard %d/%d: %d packages, %d diagnostics, %s",
+			i+1, len(groups), len(group), len(diagnostics), time.Since(start))
+		for diagnostic := range diagnostics {
+			merged[diagnostic] = true
+		}
+	}
+	log.Printf("finished running %d shards: %d unique diagnostics", len(groups), len(merged))
+	return merged, nil
+}
+
+// runNilAway runs the built NilAway binary on the given packages and parses the reported
+// diagnostics.
+func runNilAway(packages []string) (map[Diagnostic]bool, error) {
+	args := []string{"-include-errors-in-files", "/", "-json", "-pretty-print=false", "-group-error-messages=true"}
+	args = append(args, packages...)
+
+	var buf bytes.Buffer
+	cmd := exec.Command("bin/nilaway", args...)
+	cmd.Stdout = &buf
+	// Inherit env vars such that users can control the resource usages via GOMEMLIMIT, GOGC
+	// etc. env vars. Route stderr to the tool's stderr so that GODEBUG output (e.g. gctrace)
+	// and analyzer errors remain visible in CI logs.
+	cmd.Env = os.Environ()
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("run NilAway on %d packages: %w", len(packages), err)
+	}
+	return ParseDiagnostics(&buf)
 }
 
 // ParseDiagnostics parses the diagnostics from the raw JSON output of NilAway and returns the
@@ -322,6 +452,7 @@ func main() {
 	baseBranch := fset.String("base-branch", "main", "the base branch to compare against")
 	testBranch := fset.String("test-branch", "", "the test branch to run golden tests (default current branch)")
 	resultFile := fset.String("result-file", "", "the file to write the diff to, default stdout")
+	shards := fset.Int("shards", 1, "number of shards to split the standard library analysis into (<= 1 disables sharding)")
 	if err := fset.Parse(os.Args[1:]); err != nil {
 		log.Printf("failed to parse flags: %v\n", err)
 		flag.PrintDefaults()
@@ -337,7 +468,7 @@ func main() {
 		writer = w
 	}
 
-	if err := Run(writer, *baseBranch, *testBranch); err != nil {
+	if err := Run(writer, *baseBranch, *testBranch, *shards); err != nil {
 		log.Printf("failed to run golden test: %v", err)
 		var e *exec.ExitError
 		if errors.As(err, &e) {
