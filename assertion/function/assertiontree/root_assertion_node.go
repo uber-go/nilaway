@@ -201,12 +201,20 @@ func (r *RootAssertionNode) funcArgsFromCallExpr(expr *ast.CallExpr) []ast.Expr 
 			return expr.Args[1:]
 		}
 	case *ast.FuncLit:
-		args := expr.Args
 		if info, ok := r.functionContext.funcLitMap[fun]; ok {
+			// The closure variables are passed at the position of their fake parameters (see
+			// anonymousfunc.createFakeFuncDecl): after the regular arguments, so before the
+			// variadic arguments if the function literal is variadic.
+			pos := len(expr.Args)
+			if sig := r.Pass().TypesInfo.TypeOf(fun).(*types.Signature); sig.Variadic() {
+				pos = min(pos, sig.Params().Len()-1)
+			}
+			args := make([]ast.Expr, 0, len(expr.Args)+len(info.ClosureVars))
+			args = append(args, expr.Args[:pos]...)
 			for _, closure := range info.ClosureVars {
 				args = append(args, closure.Ident)
 			}
-			return args
+			return append(args, expr.Args[pos:]...)
 		}
 	}
 
@@ -691,7 +699,9 @@ func (r *RootAssertionNode) AddComputation(expr ast.Expr) {
 				}
 			}
 			return func(i int, arg ast.Expr) {
-				if expr.Ellipsis != token.NoPos && i == len(expr.Args)-1 {
+				// Compare the argument itself rather than its index, since the closure variables
+				// passed to a variadic function literal come before the variadic arguments.
+				if expr.Ellipsis != token.NoPos && arg == expr.Args[len(expr.Args)-1] {
 					// this is an unpacking of a variadic argument: i.e. the call `foo(_, _, a...)`
 					r.AddNewTriggers(annotation.FullTrigger{
 						Producer: &annotation.ProduceTrigger{
