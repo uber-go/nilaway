@@ -1106,3 +1106,376 @@ func testShadowAppend() {
 	var append = func(s []*int, x ...*int) []*int { return s }
 	a = append(a, nil) // Safe here because the shadowed append does not touch the elements.
 }
+
+// Test that a length check through a local variable holding the result of `len(a)` is treated
+// the same as checking `len(a)` directly (see issue #94).
+func lengthCheckViaLocalVarTest(mp map[string][]*int) *int {
+	var a []int
+
+	switch 0 {
+	case 1:
+		n := len(a)
+		if n == 0 {
+			return nil
+		}
+		_ = a[0]
+	case 2:
+		n := len(a)
+		if n > 0 {
+			_ = a[0]
+		}
+	case 3:
+		n := len(a)
+		if 0 != n {
+			_ = a[0]
+		}
+	case 4:
+		var n = len(a)
+		if n >= 1 {
+			_ = a[0]
+		}
+	case 5:
+		if n := len(a); n != 0 {
+			_ = a[0]
+		}
+	case 6:
+		if !(len(a) == 0) {
+			_ = a[0]
+		}
+	case 7:
+		n := len(a)
+		if !(n == 0) {
+			_ = a[0]
+		}
+	case 8:
+		// `i >= 0` with `i := len(a) - 1` implies `len(a) >= 1`.
+		if i := len(a) - 1; i >= 0 {
+			_ = a[i]
+		}
+	case 9:
+		// The example from issue #94.
+		sl := mp["foo"]
+		slLen := len(sl)
+		if slLen == 0 {
+			return nil
+		}
+		return sl[0]
+	case 10:
+		n := len(a)
+		if n == 0 {
+			_ = a[0] //want "sliced into"
+		}
+	case 11:
+		n := len(a)
+		if n >= 0 {
+			_ = a[0] //want "sliced into"
+		}
+	case 12:
+		// `n` is reassigned, so it no longer reflects `len(a)`.
+		n := len(a)
+		n = 1
+		if n > 0 {
+			_ = a[0] //want "sliced into"
+		}
+	case 13:
+		// `n` is incremented, so it no longer reflects `len(a)`.
+		n := len(a)
+		n++
+		if n > 0 {
+			_ = a[0] //want "sliced into"
+		}
+	case 14:
+		// `a` is reassigned after its length was taken.
+		n := len(a)
+		a = nil
+		if n > 0 {
+			_ = a[0] //want "sliced into"
+		}
+	case 15:
+		// `n` may or may not hold `len(a)` depending on the path taken.
+		n := len(a)
+		if mp == nil {
+			n = 1
+		}
+		if n > 0 {
+			_ = a[0] //want "sliced into"
+		}
+	case 16:
+		// `i >= 0` with `i := len(a) + 1` tells us nothing.
+		if i := len(a) + 1; i >= 0 {
+			_ = a[0] //want "sliced into"
+		}
+	case 17:
+		// `n` holds `len(b)` on one path but `len(a)` on the other.
+		var b []int
+		n := len(a)
+		if mp == nil {
+			n = len(b)
+		}
+		if n > 0 {
+			_ = b[0] //want "sliced into"
+		}
+	case 18:
+		// `n` holds `len(a)` or `len(b)` depending on the branch taken.
+		var b []int
+		var n int
+		if mp == nil {
+			n = len(a)
+		} else {
+			n = len(b)
+		}
+		if n > 0 {
+			_ = a[0] //want "sliced into"
+			_ = b[0] //want "sliced into"
+		}
+	case 19:
+		// `n` is not the length of `a` itself, so `n > 0` tells us nothing about `a`.
+		n := max(len(a), 1)
+		if n > 0 {
+			_ = a[0] //want "sliced into"
+		}
+	case 20:
+		// `n` is not the length of `a` itself, so `n > 0` tells us nothing about `a`.
+		n := lenLocalVarOffset(len(a))
+		if n > 0 {
+			_ = a[0] //want "sliced into"
+		}
+	case 21:
+		// A field can be modified by a call, so it is not tracked.
+		h := &lenLocalVarHolder{}
+		h.n = len(a)
+		h.reset()
+		if h.n > 0 {
+			_ = a[0] //want "sliced into"
+		}
+	case 22:
+		// A global variable can be modified by a call, so it is not tracked.
+		lenLocalVarGlobal = len(a)
+		lenLocalVarResetGlobal()
+		if lenLocalVarGlobal > 0 {
+			_ = a[0] //want "sliced into"
+		}
+	case 23:
+		// `n` holds `len(a)` on every path into the conditional.
+		n := len(a)
+		if mp == nil {
+			dummyConsume(nil)
+		}
+		if n > 0 {
+			_ = a[0]
+		}
+	case 24:
+		// `n > 0` with `n := len(a) + 1` holds even when `a` is nil.
+		n := len(a) + 1
+		if n > 0 {
+			_ = a[0] //want "sliced into"
+		}
+	case 25:
+		// `len(a) - -1` is `len(a) + 1`.
+		n := len(a) - -1
+		if n > 0 {
+			_ = a[0] //want "sliced into"
+		}
+	case 26:
+		n := len(a) + 1
+		if n >= 1 {
+			_ = a[0] //want "sliced into"
+		}
+	case 27:
+		n := len(a) + 1
+		if n == 1 {
+			_ = a[0] //want "sliced into"
+		}
+	case 28:
+		// `n > 0` with `n := len(a) - 1` implies `len(a) > 1`.
+		n := len(a) - 1
+		if n > 0 {
+			_ = a[0]
+		}
+	case 29:
+		// A zero offset is the same as no offset.
+		n := len(a) + 0
+		if n > 0 {
+			_ = a[0]
+		}
+	case 30:
+		// `len(a) + -1` is `len(a) - 1`.
+		n := len(a) + -1
+		if n >= 0 {
+			_ = a[0]
+		}
+	case 31:
+		// `n` is reassigned on one path, but to the same length expression.
+		n := len(a)
+		if mp == nil {
+			n = len(a)
+		}
+		if n > 0 {
+			_ = a[0]
+		}
+	case 32:
+		// `n` is assigned the same length expression on both branches.
+		var n int
+		if mp == nil {
+			n = len(a)
+		} else {
+			n = len(a)
+		}
+		if n > 0 {
+			_ = a[0]
+		}
+	case 33:
+		// `n` is reassigned on one path to a different offset of the same length.
+		n := len(a)
+		if mp == nil {
+			n = len(a) - 1
+		}
+		if n >= 0 {
+			_ = a[0] //want "sliced into"
+		}
+	case 34:
+		// A field can be modified by a call, so its length is not tracked.
+		h := &lenLocalVarSliceHolder{s: []int{1}}
+		n := len(h.s)
+		h.clear()
+		if n > 0 {
+			_ = h.s[0] //want "sliced into"
+		}
+	case 35:
+		// A map entry can be modified by a call, so it is not tracked.
+		n := len(mp["foo"])
+		lenLocalVarClearMapEntry(mp)
+		if n > 0 {
+			_ = mp["foo"][0] //want "sliced into"
+		}
+	case 36:
+		// `b` is captured by a function literal that can modify it.
+		var b []int
+		n := len(b)
+		clearB := func() { b = nil }
+		clearB()
+		if n > 0 {
+			_ = b[0] //want "sliced into"
+		}
+	case 37:
+		// `n` is captured by a function literal that can modify it.
+		var b []int
+		n := len(b)
+		bump := func() { n = 1 }
+		bump()
+		if n > 0 {
+			_ = b[0] //want "sliced into"
+		}
+	case 38:
+		// `b` is captured by a function literal, so it is not tracked even though the literal
+		// only reads it.
+		var b []int
+		n := len(b)
+		_ = func() int { return len(b) }
+		if n > 0 {
+			_ = b[0] //want "sliced into"
+		}
+	case 39:
+		// The address of `b` is taken, so it can be modified by a call.
+		var b []int
+		n := len(b)
+		lenLocalVarClearSlice(&b)
+		if n > 0 {
+			_ = b[0] //want "sliced into"
+		}
+	case 40:
+		// The address of `n` is taken, so it can be modified by a call.
+		var b []int
+		n := len(b)
+		lenLocalVarSetInt(&n)
+		if n > 0 {
+			_ = b[0] //want "sliced into"
+		}
+	case 41:
+		// A pointer receiver method takes the address of `s` implicitly.
+		var s lenLocalVarSlice
+		n := len(s)
+		s.clear()
+		if n > 0 {
+			_ = s[0] //want "sliced into"
+		}
+	case 42:
+		// A value receiver method cannot modify `s`.
+		var s lenLocalVarSlice
+		n := len(s)
+		s.first()
+		if n > 0 {
+			_ = s[0]
+		}
+	case 43:
+		// A copy of `a` can be modified without affecting `a`.
+		b := a
+		n := len(a)
+		b = nil
+		_ = b
+		if n > 0 {
+			_ = a[0]
+		}
+	}
+	return nil
+}
+
+var lenLocalVarGlobalSlice = []int{1, 2, 3, 4, 5}
+
+func lenLocalVarClearGlobalSlice() { lenLocalVarGlobalSlice = nil }
+
+// A package-level variable can be modified by a call, so its length is not tracked.
+func lengthCheckViaLocalVarGlobalSliceTest() {
+	n := len(lenLocalVarGlobalSlice)
+	lenLocalVarClearGlobalSlice()
+	if n > 0 {
+		_ = lenLocalVarGlobalSlice[0] //want "sliced into"
+	}
+}
+
+// A parameter is a local copy that the caller cannot modify, so its length is tracked.
+//
+// nilable(a)
+func lengthCheckViaLocalVarParamTest(a []int) {
+	n := len(a)
+	dummyConsume(nil)
+	if n > 0 {
+		_ = a[0]
+	}
+}
+
+func lenLocalVarOffset(n int) int { return n + 1 }
+
+type lenLocalVarHolder struct{ n int }
+
+func (h *lenLocalVarHolder) reset() { h.n = 1 }
+
+var lenLocalVarGlobal int
+
+func lenLocalVarResetGlobal() { lenLocalVarGlobal = 1 }
+
+// nilable(s)
+type lenLocalVarSliceHolder struct{ s []int }
+
+func (h *lenLocalVarSliceHolder) clear() { h.s = nil }
+
+func lenLocalVarClearMapEntry(mp map[string][]*int) { mp["foo"] = nil }
+
+func lenLocalVarClearSlice(p *[]int) { *p = nil }
+
+func lenLocalVarSetInt(p *int) { *p = 1 }
+
+type lenLocalVarSlice []int
+
+func (s *lenLocalVarSlice) clear() {
+	if s != nil {
+		*s = nil
+	}
+}
+
+func (s lenLocalVarSlice) first() int {
+	if len(s) == 0 {
+		return 0
+	}
+	return s[0]
+}
