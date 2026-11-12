@@ -1,6 +1,6 @@
 # NilAway
 
-[![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov] [![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://app.codspeed.io/uber-go/nilaway?utm_source=badge)
+[![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov]
 
 > [!WARNING]  
 > NilAway is currently under active development: false positives and breaking changes can happen.
