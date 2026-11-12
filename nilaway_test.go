@@ -22,8 +22,11 @@
 package nilaway
 
 import (
+	"bytes"
+	"encoding/gob"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -31,7 +34,10 @@ import (
 	"go.uber.org/goleak"
 	"go.uber.org/nilaway/config"
 	"go.uber.org/nilaway/nilawaytest"
+	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
+	"golang.org/x/tools/go/analysis/checker"
+	"golang.org/x/tools/go/packages"
 )
 
 func TestNilAway(t *testing.T) {
@@ -274,4 +280,165 @@ func TestMain(m *testing.M) {
 	}
 
 	goleak.VerifyTestMain(m)
+}
+
+// TestAnalysisDeterminism compares externally visible outputs from fresh analyses,
+// not repeated encodings of a single result or any particular internal ordering.
+func TestAnalysisDeterminism(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct{ name, source string }{
+		{name: "ContractCalls", source: `package determinism
+
+func Fallback() *int
+
+var choose bool
+
+// The nil-input paths can return either an unknown value or nil. Both callees
+// and their fallback are exported so their inferred facts reach downstream users.
+func ZFirst(v *int) *int {
+	if v != nil {
+		return v
+	}
+	if choose {
+		return Fallback()
+	}
+	return nil
+}
+
+func ASecond(v *int) *int {
+	if v != nil {
+		return v
+	}
+	if choose {
+		return Fallback()
+	}
+	return nil
+}
+
+func Caller(v *int) *int {
+	a := ASecond(v)
+	b := ZFirst(v)
+	if a != nil {
+		return b
+	}
+	return ZFirst(v)
+}
+
+func OtherCaller(v *int) *int { return ASecond(ZFirst(v)) }
+
+func Use() {
+	print(*Caller(nil))
+	print(*OtherCaller(new(int)))
+}
+`},
+		{name: "Loops", source: `package determinism
+
+type node struct {
+	children                []*node
+	extra, a, b, c, d, e, f *node
+}
+
+func Clone(v *node) *node {
+	if v == nil {
+		return nil
+	}
+	result := &node{}
+	for _, child := range v.children {
+		if child == nil {
+			continue
+		}
+		for _, nested := range child.children {
+			if nested != nil {
+				result.children = append(result.children, nested)
+			}
+		}
+	}
+	if x := v.extra; x != nil {
+		result.extra = x
+	}
+	for _, child := range v.children {
+		if child != nil {
+			result.children = append(result.children, child)
+		}
+	}
+	if v.a != nil {
+		result.a = v.a
+	}
+	if v.b != nil {
+		result.b = v.b
+	}
+	if v.c != nil {
+		result.c = v.c
+	}
+	if v.d != nil {
+		result.d = v.d
+	}
+	if v.e != nil {
+		result.e = v.e
+	}
+	if v.f != nil {
+		result.f = v.f
+	}
+	return result
+}
+`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			dir, cleanup, err := analysistest.WriteFiles(map[string]string{"go.uber.org/determinism/p.go": test.source})
+			require.NoError(t, err)
+			defer cleanup()
+			pkgs, err := packages.Load(&packages.Config{
+				Mode: packages.LoadAllSyntax, Dir: dir,
+				Env: append(os.Environ(), "GOPATH="+dir, "GO111MODULE=off", "GOWORK=off"),
+			}, "go.uber.org/determinism")
+			require.NoError(t, err)
+			require.Len(t, pkgs, 1)
+			require.Empty(t, pkgs[0].Errors)
+			var firstFacts map[string][]byte
+			var firstDiagnostics []string
+			for iteration := range 32 {
+				graph, err := checker.Analyze([]*analysis.Analyzer{Analyzer}, pkgs, nil)
+				require.NoError(t, err)
+				facts := make(map[string][]byte)
+				var diagnostics []string
+				for action := range graph.All() {
+					require.NoError(t, action.Err)
+					for _, diagnostic := range action.Diagnostics {
+						require.NotContains(t, diagnostic.Message, config.InternalPanicPrefix)
+						diagnostics = append(diagnostics, fmt.Sprintf("%s:%s", action.Package.Fset.Position(diagnostic.Pos), diagnostic.Message))
+					}
+					encode := func(key string, fact analysis.Fact) {
+						var buf bytes.Buffer
+						require.NoError(t, gob.NewEncoder(&buf).Encode(fact))
+						key = fmt.Sprintf("%s/%s/%s/%T", action.Package.PkgPath, action.Analyzer.Name, key, fact)
+						require.NotContains(t, facts, key)
+						facts[key] = buf.Bytes()
+					}
+					for _, fact := range action.AllPackageFacts() {
+						if fact.Package == action.Package.Types {
+							encode("package", fact.Fact)
+						}
+					}
+					for _, fact := range action.AllObjectFacts() {
+						if fact.Object.Pkg() == action.Package.Types {
+							encode(fact.Object.String(), fact.Fact)
+						}
+					}
+				}
+				require.NotEmpty(t, facts, "the fixture must exercise fact export")
+				if test.name == "ContractCalls" {
+					require.NotEmpty(t, diagnostics, "the fixture must exercise nil-dereference diagnostics")
+				}
+				// Diagnostic enumeration order is not part of the analyzer's contract.
+				slices.Sort(diagnostics)
+				if iteration == 0 {
+					firstFacts, firstDiagnostics = facts, diagnostics
+					continue
+				}
+				require.Equal(t, firstFacts, facts, "exported facts changed on analysis %d", iteration)
+				require.Equal(t, firstDiagnostics, diagnostics, "diagnostics changed on analysis %d", iteration)
+			}
+		})
+	}
 }

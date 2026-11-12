@@ -121,13 +121,16 @@ func inferContracts(fn *ssa.Function) Contracts {
 
 		// Update nilnessTableSetByBB for this block.
 		var isUpdated bool
-		for _, tables := range nilnessTablesUnderPred {
-			for _, table := range tables {
+		for _, pred := range b.Preds {
+			for _, table := range nilnessTablesUnderPred[pred] {
 				if len(table) == 0 {
 					continue
 				}
 				// Only save the table if it is not empty.
-				nilnessTableSetByBB[b], isUpdated = add(nilnessTableSetByBB[b], table)
+				var added bool
+				nilnessTableSetByBB[b], added = add(nilnessTableSetByBB[b], table)
+				// A later duplicate must not hide an earlier new table.
+				isUpdated = isUpdated || added
 			}
 		}
 
