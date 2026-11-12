@@ -235,3 +235,26 @@ func (FalseBecauseAnnotation) TriggerReprs() (fmt.Stringer, fmt.Stringer) {
 func (f FalseBecauseAnnotation) DeeperReason() ExplainedBool {
 	return nil
 }
+
+// FalseBecauseAlwaysSafeReturn is used when all observed values flowing into
+// a function return site are definitely nonnil.
+type FalseBecauseAlwaysSafeReturn struct {
+	ExplainedFalse
+	ReturnPos token.Position
+}
+
+func (FalseBecauseAlwaysSafeReturn) String() string {
+	return "NONNIL because all values returned at this site are NONNIL"
+}
+
+func (f FalseBecauseAlwaysSafeReturn) Position() token.Position {
+	return f.ReturnPos
+}
+
+func (FalseBecauseAlwaysSafeReturn) TriggerReprs() (fmt.Stringer, fmt.Stringer) {
+	return nil, nil
+}
+
+func (FalseBecauseAlwaysSafeReturn) DeeperReason() ExplainedBool {
+	return nil
+}

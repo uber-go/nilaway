@@ -37,3 +37,12 @@ func foo() {
 
 	_ = *upstream.EntryPoint(&dummyCallback{}) // error should be reported here
 }
+func testAlwaysNonNilResultWithErrorFromOtherPackage() {
+	x, _ := upstream.NewNonNilResult(1)
+	print(x.V)
+}
+
+func testPossiblyNilResultWithErrorFromOtherPackage() {
+	x, _ := upstream.NewPossiblyNilResult(1)
+	print(x.V) //want "result 0 of `NewPossiblyNilResult\\(\\)` lacking guarding"
+}
