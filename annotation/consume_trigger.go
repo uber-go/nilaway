@@ -2008,8 +2008,8 @@ func (u *UseAsErrorRetWithNilabilityUnknown) customPos() (token.Pos, bool) {
 // on a given ConsumeTrigger - see MergeConsumeTriggerSlices. Beyond RichCheckEffects,
 // Guards consume triggers can be introduced by other sites that are known to
 // obey compatible semantics - such as passing the results of one error-returning function
-// directly to a return of another, or crossing the "v is nil" edge of a check on a variable that
-// is never written in the function (see assertiontree.nilAssumptions).
+// directly to a return of another, or crossing the "v is nil" edge of a check on a stable
+// variable (see assertiontree.nilAssumptions).
 //
 // ConsumeTriggers arise at consumption sites that may guarded by a meaningful conditional check,
 // adding that guard as a unique nonce to the set Guards of the trigger. The guard is added when the

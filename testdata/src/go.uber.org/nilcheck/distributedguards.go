@@ -14,7 +14,8 @@
 
 /*
 These tests cover nil checks on the same variable spread across separate statements (issue 378).
-Variables that are written, ranged into, address-taken, or assigned inside a closure stay reported.
+Variables that are written between the checks, ranged into, address-taken, or assigned inside a
+closure stay reported.
 */
 package nilcheck
 
