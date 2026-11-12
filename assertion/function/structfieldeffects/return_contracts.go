@@ -385,7 +385,7 @@ func (fc *functionCollector) collectUnstableParamVars() map[*types.Var]bool {
 		}
 		out[v] = true
 	}
-	ast.Inspect(fc.fd.Body, func(n ast.Node) bool {
+	for n := range ast.Preorder(fc.fd.Body) {
 		switch n := n.(type) {
 		case *ast.AssignStmt:
 			// Only assignment targets destabilize; `:=` defines fresh variables whose objects
@@ -403,7 +403,6 @@ func (fc *functionCollector) collectUnstableParamVars() map[*types.Var]bool {
 				markUnstable(n.Value)
 			}
 		}
-		return true
-	})
+	}
 	return out
 }

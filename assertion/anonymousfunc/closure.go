@@ -32,7 +32,7 @@ import (
 // collected closure variables will also be appended to those of the enclosing function literals,
 // modulo the ones defined in the scope of the enclosing function literals.
 // (2) If the node is an ident node that represents a variable which is not global, it updates the
-// closure set if the node doesn't exist in the current scope.
+// closure set if the variable is not declared in the function literal or any of its nested scopes.
 func collectClosure(funcLit *ast.FuncLit, pass *analysishelper.EnhancedPass, closureMap map[*ast.FuncLit][]*VarInfo) {
 	// Retrieve the scope of the given function literal
 	scope := pass.TypesInfo.Scopes[funcLit.Type]
@@ -55,8 +55,8 @@ func collectClosure(funcLit *ast.FuncLit, pass *analysishelper.EnhancedPass, clo
 					panic(fmt.Sprintf("identifier %s passed as a variable could not be looked up as one", closureVar.Ident))
 				}
 
-				// Update varsFromClosure with ident if it does not exist in the current scope
-				if scope.Lookup(obj.Name()) != obj {
+				// Update varsFromClosure with ident if it is not declared in this function literal
+				if !isDeclaredIn(obj, scope) {
 					varsFromClosure = append(varsFromClosure, closureVar)
 					visited[obj] = true
 				}
@@ -80,6 +80,15 @@ func collectClosure(funcLit *ast.FuncLit, pass *analysishelper.EnhancedPass, clo
 				return false
 			}
 
+			// Skip the symbolic variable in a type switch header, e.g., `n` in
+			// `switch n := v.(type)`. It does not denote a variable by itself: the type checker
+			// records a nil object for it in Defs and declares a separate implicit variable in
+			// each case clause instead (see types.Info.Implicits). The uses of `n` in the case
+			// clauses refer to those implicit variables and are handled below.
+			if obj, ok := pass.TypesInfo.Defs[node]; ok && obj == nil {
+				return false
+			}
+
 			// Get the underlying object for the identifier
 			obj, ok := pass.TypesInfo.ObjectOf(node).(*types.Var)
 			if !ok {
@@ -91,8 +100,8 @@ func collectClosure(funcLit *ast.FuncLit, pass *analysishelper.EnhancedPass, clo
 				return false
 			}
 
-			// Skip if node is in the scope
-			if scope.Lookup(obj.Name()) == obj {
+			// Skip if node is declared in this function literal
+			if isDeclaredIn(obj, scope) {
 				return false
 			}
 
@@ -102,7 +111,7 @@ func collectClosure(funcLit *ast.FuncLit, pass *analysishelper.EnhancedPass, clo
 				return false
 			}
 
-			// If it's not in the current scope, then the variable is from closure.
+			// Otherwise, the variable is a closure variable.
 			closureVar := &VarInfo{Ident: node, Obj: obj}
 
 			varsFromClosure = append(varsFromClosure, closureVar)
@@ -113,4 +122,17 @@ func collectClosure(funcLit *ast.FuncLit, pass *analysishelper.EnhancedPass, clo
 	})
 
 	closureMap[funcLit] = varsFromClosure
+}
+
+// isDeclaredIn returns true if the variable is declared in the given scope or in any scope nested
+// in it, e.g., the scope of an `if` or `for` statement or of a case clause in a type switch. Note
+// that looking the variable up in the given scope alone is not enough, since it only finds the
+// variables declared directly in that scope.
+func isDeclaredIn(obj *types.Var, scope *types.Scope) bool {
+	for s := obj.Parent(); s != nil; s = s.Parent() {
+		if s == scope {
+			return true
+		}
+	}
+	return false
 }

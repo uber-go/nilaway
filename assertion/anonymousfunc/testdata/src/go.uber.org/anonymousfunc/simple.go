@@ -139,3 +139,69 @@ func testBlankIdentifier() {
 func mayReturnTwo() (int, *int) {
 	return 0, nil
 }
+
+func testTypeSwitch(v any) {
+	i := 1
+	a := &i
+
+	// The binding `n` of a type switch inside the function literal is local to it, so only `v`
+	// and `a` are closure variables.
+	func() { // expect_closure: v a
+		switch n := v.(type) {
+		case *int:
+			print(*n)
+			print(*a)
+		case string:
+			print(len(n))
+		default:
+			print(n)
+		}
+	}()
+
+	// The binding shadows `v` in the case clauses, but the switched-on `v` is still a closure
+	// variable.
+	func() { // expect_closure: v
+		switch v := v.(type) {
+		case *int:
+			print(*v)
+		}
+	}()
+
+	// The binding `n` is a closure variable of the nested function literal, but it is local to
+	// the enclosing one.
+	func() { // expect_closure: v
+		switch n := v.(type) {
+		case *int:
+			func() { // expect_closure: n
+				print(*n)
+			}()
+		}
+	}()
+
+	// The binding `n` is declared outside the function literal, so it is a closure variable.
+	switch n := v.(type) {
+	case *int:
+		func() { // expect_closure: n a
+			print(*n)
+			print(*a)
+		}()
+	}
+}
+
+func testNestedScopes() {
+	i := 1
+	a := &i
+	func() { // expect_closure: a
+		// Variables declared in the nested scopes of a function literal are local to it.
+		for j := 0; j < 1; j++ {
+			print(j)
+		}
+		if p := a; p != nil {
+			print(*p)
+		}
+		{
+			k := 2
+			print(k)
+		}
+	}()
+}
