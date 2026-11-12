@@ -588,15 +588,18 @@ func NodeTriggersLenLocalVar(rootNode *RootAssertionNode, node ast.Node) *LenLoc
 	// Only local variables are tracked, both for the variable holding the length and for the
 	// argument of `len`: fields, globals and other aliased variables can be modified by function
 	// calls, which do not invalidate the effect.
+	// The cheap syntactic checks come first: most assignments are not of this form, and
+	// isUnaliasedLocalVar walks the whole function body.
 	ident, ok := lhs[0].(*ast.Ident)
-	if !ok || !isUnaliasedLocalVar(rootNode, ident) {
+	if !ok {
 		return nil
 	}
 	lenArg, offset := lenOffsetArg(rootNode.Pass(), rhs[0])
 	if lenArg == nil {
 		return nil
 	}
-	if lenArgIdent, ok := ast.Unparen(lenArg).(*ast.Ident); !ok || !isUnaliasedLocalVar(rootNode, lenArgIdent) {
+	lenArgIdent, ok := ast.Unparen(lenArg).(*ast.Ident)
+	if !ok || !isUnaliasedLocalVar(rootNode, ident) || !isUnaliasedLocalVar(rootNode, lenArgIdent) {
 		return nil
 	}
 	lhsParsed := parseExpr(rootNode, ident)
