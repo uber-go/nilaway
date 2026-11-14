@@ -599,7 +599,10 @@ func NodeTriggersLenLocalVar(rootNode *RootAssertionNode, node ast.Node) *LenLoc
 		return nil
 	}
 	lenArgIdent, ok := ast.Unparen(lenArg).(*ast.Ident)
-	if !ok || !isUnaliasedLocalVar(rootNode, ident) || !isUnaliasedLocalVar(rootNode, lenArgIdent) {
+	// Only slices are tracked: `len` of a pointer to an array does not dereference the pointer, so
+	// a positive length says nothing about the pointer being non-nil.
+	if !ok || !typeshelper.IsDeeplyType[*types.Slice](rootNode.Pass().TypesInfo.TypeOf(lenArg)) ||
+		!isUnaliasedLocalVar(rootNode, ident) || !isUnaliasedLocalVar(rootNode, lenArgIdent) {
 		return nil
 	}
 	lhsParsed := parseExpr(rootNode, ident)

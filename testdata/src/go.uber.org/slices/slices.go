@@ -1444,6 +1444,16 @@ func lengthCheckViaLocalVarParamTest(a []int) {
 	}
 }
 
+// `len` of a pointer to an array does not evaluate the pointer, so `n > 0` does not make `p` non-nil.
+func lengthCheckViaLocalVarArrayPtrTest() int {
+	var p *[1]int
+	n := len(p)
+	if n > 0 {
+		return p[0] //want "unassigned variable `p` dereferenced"
+	}
+	return 0
+}
+
 func lenLocalVarOffset(n int) int { return n + 1 }
 
 type lenLocalVarHolder struct{ n int }
