@@ -15,13 +15,16 @@
 package inference
 
 import (
+	"cmp"
 	"fmt"
 	"go/token"
 	"go/types"
+	"slices"
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/tokenhelper"
+	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/types/objectpath"
 )
 
@@ -138,7 +141,13 @@ func newPrimitivizer(pass *analysishelper.EnhancedPass) *primitivizer {
 
 	// Create a cache for upstream object positions.
 	upstreamObjPositions := make(map[string]token.Position)
-	for _, pkgFact := range pass.AllPackageFacts() {
+	// Conflicting positions can occur with nogo. Visit facts in package order so the
+	// selected position does not depend on AllPackageFacts' unspecified ordering.
+	facts := pass.AllPackageFacts()
+	slices.SortFunc(facts, func(a, b analysis.PackageFact) int {
+		return cmp.Compare(a.Package.Path(), b.Package.Path())
+	})
+	for _, pkgFact := range facts {
 		importedMap, ok := pkgFact.Fact.(*InferredMap)
 		if !ok {
 			continue
