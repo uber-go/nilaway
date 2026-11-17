@@ -14,6 +14,18 @@ For big features, please open an issue so that we can agree on the direction, an
 
 Small pull requests for things like typos, bug fixes, etc. are always welcome.
 
+Filing issues
+-------------
+
+Please use the bug report, feature request, or question form when possible. For bugs, include
+your Go and NilAway versions, driver and invocation (including relevant flags), expected versus
+actual behavior, and a minimal reproducer or an explanation of why one cannot be shared.
+Remove private code and credentials before posting. Blank issues remain available.
+
+Forms use the existing broad labels `bug`, `enhancement`, and `question`. Maintainers decide
+technical classification, priority, and assignment; choosing a report category is not a request
+to automatically assign a technical label.
+
 DOs and DON'Ts
 --------------
 
