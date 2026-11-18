@@ -15,7 +15,7 @@ permissions:
 jobs:
   benchmarks:
     name: Run benchmarks
-    runs-on: ubuntu-latest
+    runs-on: codspeed-macro-arm64-graviton-ubuntu-22-04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
