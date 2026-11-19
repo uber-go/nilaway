@@ -15,7 +15,10 @@ permissions:
 jobs:
   benchmarks:
     name: Run benchmarks
-    runs-on: ubuntu-latest
+    # Walltime measurements need dedicated bare-metal machines to stay stable.
+    runs-on: codspeed-macro
+    env:
+      CODSPEED_PERF_UNWINDING_MODE: fp
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
@@ -34,4 +37,4 @@ jobs:
         uses: CodSpeedHQ/action@v5
         with:
           mode: walltime
-          run: go test -bench=. ./...
+          run: go test -run='^$' -bench=. ./...
