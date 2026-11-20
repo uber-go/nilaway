@@ -377,3 +377,15 @@ back:
 exit:
 	return y
 }
+
+// A later loop iteration can introduce a counterexample after a return block has
+// already been visited. No contract should be inferred from the earlier states.
+func lateCounterexample(x *int) *int {
+	y := x
+	for repeat {
+		if x != nil {
+			y = nil
+		}
+	}
+	return y
+}
