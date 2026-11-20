@@ -25,7 +25,7 @@ import (
 // returning the deep nilability annotation of that typedef if found. Otherwise, it returns
 // ProduceTriggerNever to indicate that we assume in the default case the type is NOT deeply nilable
 func DeepNilabilityAsNamedType(typ types.Type) ProducingAnnotationTrigger {
-	t, ok := typ.(*types.Named)
+	t, ok := types.Unalias(typ).(*types.Named)
 	if !ok {
 		return &ProduceTriggerNever{}
 	}
@@ -57,11 +57,24 @@ func DeepNilabilityAsNamedType(typ types.Type) ProducingAnnotationTrigger {
 	return &ProduceTriggerNever{}
 }
 
+// DeepNilabilityIsLocal reports whether the deep nilability of an expression of type `typ` is
+// owned by the expression's location — i.e., its param/return/field/variable annotation site.
+// Named deep types instead own their deep nilability at their type declaration (see
+// DeepNilabilityAsNamedType), so expressions of such types must not additionally receive
+// location deep sites. Aliases are resolved since they are not distinct types and have no
+// annotation sites of their own.
+func DeepNilabilityIsLocal(typ types.Type) bool {
+	if _, ok := types.Unalias(typ).(*types.Named); ok {
+		return false
+	}
+	return typeshelper.IsDeep(typ)
+}
+
 // DeepNilabilityOfFuncRet inspects a function return for deep nilability annotation
 func DeepNilabilityOfFuncRet(fn *types.Func, retNum int) ProducingAnnotationTrigger {
 	fsig := fn.Type().(*types.Signature)
 	retType := fsig.Results().At(retNum).Type()
-	if typeshelper.IsDeep(retType) {
+	if DeepNilabilityIsLocal(retType) {
 		return &FuncReturnDeep{
 			TriggerIfDeepNilable: &TriggerIfDeepNilable{
 				Ann:        RetKeyFromRetNum(fn, retNum),
@@ -73,7 +86,7 @@ func DeepNilabilityOfFuncRet(fn *types.Func, retNum int) ProducingAnnotationTrig
 
 // DeepNilabilityOfFld inspects a struct field for deep nilability annotation
 func DeepNilabilityOfFld(fld *types.Var) ProducingAnnotationTrigger {
-	if typeshelper.IsDeep(fld.Type()) {
+	if DeepNilabilityIsLocal(fld.Type()) {
 		// in this case, the deep nilability of the field comes from its declaring annotations
 		return &FldReadDeep{
 			TriggerIfDeepNilable: &TriggerIfDeepNilable{
@@ -87,7 +100,7 @@ func DeepNilabilityOfFld(fld *types.Var) ProducingAnnotationTrigger {
 
 // DeepNilabilityOfVar inspects a variable for deep nilability annotation
 func DeepNilabilityOfVar(fdecl *types.Func, v *types.Var) ProducingAnnotationTrigger {
-	if typeshelper.IsDeep(v.Type()) {
+	if DeepNilabilityIsLocal(v.Type()) {
 		// in each of the following cases, the deep nilability of the variable comes from its
 		// declaring annotations
 		if VarIsGlobal(v) {

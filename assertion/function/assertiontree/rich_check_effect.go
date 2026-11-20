@@ -437,6 +437,11 @@ func NodeTriggersFuncErrRet(rootNode *RootAssertionNode, nonceGenerator *guard.N
 		return nil, false
 	}
 
+	if rootNode.Pass().TypesInfo.Types[callExpr.Fun].IsType() {
+		// rhs is a conversion to a function type (e.g., `f := MyFuncType(g)`), not a call.
+		return nil, false
+	}
+
 	// Get signature of the function call (normal and anonymous both)
 	sig := typeshelper.GetFuncSignature(rootNode.Pass().TypesInfo.TypeOf(callExpr.Fun))
 
