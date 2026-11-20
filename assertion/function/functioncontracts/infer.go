@@ -31,8 +31,22 @@ const _maxNumTablesPerBlock = 1024
 // returns a list of inferred contracts, which may be empty if no contract is inferred but is never
 // nil.
 func inferContracts(fn *ssa.Function) Contracts {
-	nilnessTableSetByBB := make(map[*ssa.BasicBlock]nilnessTableSet)
 	retInstrs := getReturnInstrs(fn) // TODO: Consider *ssa.Panic
+	// If every return is intrinsically nonnil, deriveContracts would suppress the
+	// redundant nonnil->nonnil contract. Skip dataflow analysis in that case.
+	emptyTable := nilnessTable{}
+	allReturnsNonnil := true
+	for _, ret := range retInstrs {
+		if emptyTable.nilnessOf(ret.Results[0]) != isnonnil {
+			allReturnsNonnil = false
+			break
+		}
+	}
+	if allReturnsNonnil {
+		return nil
+	}
+
+	nilnessTableSetByBB := make(map[*ssa.BasicBlock]nilnessTableSet)
 	// No need of an expensive dataflow analysis if we can derive contracts from the return
 	// instructions directly.
 	if ctrs := deriveContracts(retInstrs, fn, nilnessTableSetByBB); len(ctrs) != 0 {
