@@ -231,6 +231,22 @@ func TestExcludeTestFiles(t *testing.T) { //nolint:paralleltest
 	}()
 }
 
+func TestTestMain(t *testing.T) { //nolint:paralleltest
+	// Restrict analysis to the test package only, since the _test.go file pulls in the testing
+	// infrastructure and its transitive dependencies, which would otherwise produce unrelated
+	// diagnostics from stdlib.
+	testdata := analysistest.TestData()
+
+	err := config.Analyzer.Flags.Set(config.IncludePkgsFlag, "testmain")
+	require.NoError(t, err)
+	defer func() {
+		err := config.Analyzer.Flags.Set(config.IncludePkgsFlag, "")
+		require.NoError(t, err)
+	}()
+
+	analysistest.Run(t, testdata, Analyzer, "testmain")
+}
+
 func TestPrintFullFilePath(t *testing.T) { //nolint:paralleltest
 	// We specifically do not set this test to be parallel such that this test is run separately
 	// from the parallel tests. This makes it possible to set the print-full-file-path flag to true for
