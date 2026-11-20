@@ -183,28 +183,57 @@ func (e *Engine) ObservePackage(pkgFullTriggers []annotation.FullTrigger) {
 	// to that function site are non-nil. If so, we can safely delete all the guard-missing triggers for this function site.
 	triggersToBeDeleted := make(map[int]bool)
 	mapSiteGuardMissing, mapSiteReturn := e.mapGuardMissingAndReturnToFuncSite(pkgFullTriggers)
-	for site, guardMissingIndices := range mapSiteGuardMissing {
-		if returnIndices, ok := mapSiteReturn[site]; ok {
-			// Check if all the return triggers to this function site are non-nil.
-			nonnilCnt := 0
-			for _, index := range returnIndices {
-				returnTrigger := pkgFullTriggers[index]
-				if returnTrigger.Producer.Annotation.Kind() != annotation.Never {
-					// break early if we find a potentially nilable trigger
-					break
-				}
-				nonnilCnt++
-			}
-
-			if nonnilCnt == len(returnIndices) {
-				// If all return triggers are non-nil, then we can safely delete all the guard-missing triggers
-				// for this function site.
-				for _, index := range guardMissingIndices {
-					triggersToBeDeleted[index] = true
-				}
+	for site, returnIndices := range mapSiteReturn {
+		// Check if all return triggers to this function site are non-nil.
+		allNonNil := len(returnIndices) > 0
+		for _, index := range returnIndices {
+			returnTrigger := pkgFullTriggers[index]
+			if returnTrigger.Producer.Annotation.Kind() != annotation.Never {
+				allNonNil = false
+				break
 			}
 		}
+
+		if !allNonNil {
+			continue
+		}
+
+		// Record the return site itself as nonnil so that this information can
+		// propagate across package boundaries through inference facts.
+		e.observeSiteExplanation(
+			site,
+			FalseBecauseAlwaysSafeReturn{ReturnPos: site.Position},
+		)
+
+		// Existing behavior: if the return is always safe, corresponding
+		// guard-missing triggers cannot produce a nil panic.
+		for _, index := range mapSiteGuardMissing[site] {
+			triggersToBeDeleted[index] = true
+		}
 	}
+
+	// Remove guard-missing triggers for return sites proven always nonnil
+	// by inference facts imported from upstream packages.
+	for site, guardMissingIndices := range mapSiteGuardMissing {
+		val, ok := e.inferredMap.Load(site)
+		if !ok {
+			continue
+		}
+
+		determined, ok := val.(*DeterminedVal)
+		if !ok || determined.Bool.Val() {
+			continue
+		}
+
+		if _, ok := determined.Bool.(FalseBecauseAlwaysSafeReturn); !ok {
+			continue
+		}
+
+		for _, index := range guardMissingIndices {
+			triggersToBeDeleted[index] = true
+		}
+	}
+
 	// Add all placeholder UseAsReturnForAlwaysSafePath triggers to triggersToBeDeleted
 	for _, indices := range mapSiteReturn {
 		for _, index := range indices {
@@ -639,6 +668,8 @@ var gobRegisteredTypes = []any{
 	annotation.ConsumeTriggerTautologyRepr{},
 	annotation.TriggerIfNonNilRepr{},
 	annotation.TriggerIfDeepNonNilRepr{},
+
+	FalseBecauseAlwaysSafeReturn{},
 }
 
 // GobRegister must be called in an `init` function before attempting to run any procedure that can
