@@ -1,0 +1,16 @@
+name: Question
+description: Ask about using or configuring NilAway.
+labels: ["question"]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What are you trying to do, and what have you tried?
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment and configuration
+      description: If relevant, include Go/NilAway versions, the driver, invocation, and flags.
