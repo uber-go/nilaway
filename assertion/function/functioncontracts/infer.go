@@ -53,6 +53,9 @@ func inferContracts(fn *ssa.Function) Contracts {
 		return ctrs
 	}
 
+	// Skip the receiver, if present, to select the first declared parameter.
+	param := fn.Params[len(fn.Params)-fn.Signature.Params().Len()]
+
 	// Add the entry block to the queue.
 	// TODO: visit fn.Recover.
 	var queue []*ssa.BasicBlock
@@ -153,6 +156,12 @@ func inferContracts(fn *ssa.Function) Contracts {
 			continue
 		}
 		seen[b.Index] = true
+
+		// Saved tables are never removed or modified. A counterexample at a return
+		// therefore cannot be repaired by propagating more states through the graph.
+		if blockHasContractCounterexample(b, param, nilnessTableSetByBB[b]) {
+			return nil
+		}
 
 		// TODO: nicely handle exponential explosion of tables.
 		if len(nilnessTableSetByBB[b]) >= _maxNumTablesPerBlock {
@@ -276,13 +285,9 @@ func deriveContracts(
 			}
 			// pNil == isnonnil or unknown, rNil can be anything, i.e. isnonnil, unknown, isnil.
 			nonnilOrUnknownParamChoices++
-			if rNil == isnonnil || // Absolutely OK if rNil == isnonnil
-				(pNil == unknown && rNil == unknown && param == ret) { // The only OK case otherwise
-				// Those cases are not counterexamples to contract(nonnil->nonnil)
-				continue
+			if isContractCounterexample(param, ret, pNil, rNil) {
+				return nil
 			}
-			// All the remaining cases are counterexamples to contract(nonnil->nonnil)
-			return nil
 		}
 	}
 
@@ -308,6 +313,36 @@ func deriveContracts(
 	return Contracts{
 		{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 	}
+}
+
+// blockHasContractCounterexample reports whether a return block contains a state
+// that rules out nonnil->nonnil.
+func blockHasContractCounterexample(b *ssa.BasicBlock, param ssa.Value, tables nilnessTableSet) bool {
+	if len(b.Instrs) == 0 {
+		return false
+	}
+
+	ret, ok := b.Instrs[len(b.Instrs)-1].(*ssa.Return)
+	if !ok {
+		return false
+	}
+
+	result := ret.Results[0]
+	for _, table := range tables {
+		paramNilness := table.nilnessOf(param)
+		resultNilness := table.nilnessOf(result)
+		if isContractCounterexample(param, result, paramNilness, resultNilness) {
+			return true
+		}
+	}
+	return false
+}
+
+// isContractCounterexample reports whether a state rules out nonnil->nonnil.
+// Unknown nilness also prevents inference, except when the parameter itself is returned.
+func isContractCounterexample(param, ret ssa.Value, pNil, rNil nilness) bool {
+	return pNil != isnil && rNil != isnonnil &&
+		!(pNil == unknown && rNil == unknown && param == ret)
 }
 
 func getReturnInstrs(fn *ssa.Function) []*ssa.Return {
