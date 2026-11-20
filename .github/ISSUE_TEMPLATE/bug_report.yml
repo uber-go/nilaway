@@ -1,0 +1,51 @@
+name: Bug report
+description: Report incorrect diagnostics, missed nil panics, crashes, or performance problems.
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: category
+    attributes:
+      label: Report category
+      options:
+        - False positive
+        - False negative
+        - Analyzer panic
+        - Performance
+        - Other bug
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Go and NilAway versions
+      description: Include the Go version and the NilAway version or commit.
+    validations:
+      required: true
+  - type: textarea
+    id: invocation
+    attributes:
+      label: Invocation and configuration
+      description: Include the driver, command, relevant flags, and configuration.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include diagnostics or stack traces, with private information removed.
+    validations:
+      required: true
+  - type: textarea
+    id: reproducer
+    attributes:
+      label: Minimal reproducer
+      description: Share a small Go example and reproduction steps, or explain why a reproducer cannot be shared. Do not include private code or credentials.
+    validations:
+      required: true
