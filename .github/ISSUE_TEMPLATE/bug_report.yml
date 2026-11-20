@@ -18,7 +18,7 @@ body:
     id: versions
     attributes:
       label: Go and NilAway versions
-      description: Include the output of go version and the NilAway version or commit.
+      description: Include the Go version and the NilAway version or commit.
     validations:
       required: true
   - type: textarea

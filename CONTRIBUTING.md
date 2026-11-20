@@ -20,11 +20,11 @@ Filing issues
 Please use the bug report, feature request, or question form when possible. For bugs, include
 your Go and NilAway versions, driver and invocation (including relevant flags), expected versus
 actual behavior, and a minimal reproducer or an explanation of why one cannot be shared.
-Remove private code and credentials before posting. Blank issues remain available.
+Remove private code and credentials before posting.
 
 Forms use the existing broad labels `bug`, `enhancement`, and `question`. Maintainers decide
-technical classification, priority, and assignment; choosing a report category is not a request
-to automatically assign a technical label.
+technical classification, priority, and assignment. Selecting a report category does not
+automatically apply a technical label.
 
 DOs and DON'Ts
 --------------
