@@ -18,10 +18,9 @@ import "go/types"
 
 // upstreamAPISurface returns the set of upstream objects (i.e., objects owned by packages other
 // than the one being analyzed) that a package importing us -- but not our own dependencies --
-// could still reach through our exported API. Objects are keyed by "<pkg path>.<object path>",
-// which is exactly how primitive sites identify the object they annotate (see
-// primitiveSite.ObjectPath), so the returned set can be matched against sites imported from
-// upstream packages.
+// could still reach through our exported API. Objects are keyed by upstreamObjKey, the same key
+// derived from the sites imported from upstream packages (see primitiveSite.ObjectPath), so the
+// returned set can be matched against those sites.
 //
 // This is the relevance criterion for _forwarding_ upstream inference facts (see
 // InferredMap.Export). An importer can only make an assertion about an upstream object if it can
@@ -44,11 +43,12 @@ import "go/types"
 // through one that is not.
 func (p *primitivizer) upstreamAPISurface(pkgPaths map[string]bool) map[string]bool {
 	w := &apiSurfaceWalker{
-		primitive: p,
-		local:     p.pass.Pkg,
-		pkgPaths:  pkgPaths,
-		objects:   make(map[string]bool),
-		seen:      make(map[seenEntry]bool),
+		primitive:   p,
+		local:       p.pass.Pkg,
+		pkgPaths:    pkgPaths,
+		objectPaths: make(map[string]bool),
+		seenOut:     make(map[types.Type]bool),
+		seenIn:      make(map[types.Type]bool),
 	}
 
 	// The exported package-level objects are the entry points of the exported API: everything an
@@ -61,14 +61,14 @@ func (p *primitivizer) upstreamAPISurface(pkgPaths map[string]bool) map[string]b
 		}
 		// The objects themselves belong to this package, so there is nothing to record for them:
 		// facts about them are exported by this package in the first place.
-		w.visitType(obj.Type(), true /* out */)
+		w.visitType(obj.Type(), true /* isOut */)
 	}
 
-	return w.objects
+	return w.objectPaths
 }
 
 // apiSurfaceWalker traverses the types and objects reachable from a package's exported API,
-// recording the upstream objects it encounters. Traversal is guarded by a seen set, making it
+// recording the upstream objects it encounters. Traversal is guarded by seen sets, making it
 // terminate on recursive types.
 type apiSurfaceWalker struct {
 	primitive *primitivizer
@@ -76,15 +76,12 @@ type apiSurfaceWalker struct {
 	local *types.Package
 	// pkgPaths is the set of upstream package paths worth recording objects for.
 	pkgPaths map[string]bool
-	// objects is the result set, keyed by "<pkg path>.<object path>".
-	objects map[string]bool
-	seen    map[seenEntry]bool
-}
-
-// seenEntry marks a type as visited at a given polarity (see visitType).
-type seenEntry struct {
-	typ types.Type
-	out bool
+	// objectPaths is the result set, keyed by upstreamObjKey.
+	objectPaths map[string]bool
+	// seenOut and seenIn are the types already visited in output and input polarity, respectively
+	// (see visitType).
+	seenOut map[types.Type]bool
+	seenIn  map[types.Type]bool
 }
 
 // recordObject records obj if it is an upstream object of interest. All annotation sites of the
@@ -99,104 +96,107 @@ func (w *apiSurfaceWalker) recordObject(obj types.Object) {
 	// is the case here, by construction). Sites of objects without one cannot be matched across
 	// packages in the first place.
 	if path := w.primitive.objectPath(obj); path != "" {
-		w.objects[pkg.Path()+"."+string(path)] = true
+		w.objectPaths[upstreamObjKey(pkg.Path(), path)] = true
 	}
 }
 
 // visitType continues the traversal through the given type, recording the objects (methods,
-// fields, type names) that an importer could reach from a value of that type. out reports whether
-// values of this type flow out of our API (and can hence be inspected by the importer) rather
-// than into it.
-func (w *apiSurfaceWalker) visitType(t types.Type, out bool) {
-	t = types.Unalias(t)
-	if t == nil {
+// fields, type names) that an importer could reach from a value of that type. isOut reports
+// whether values of this type flow out of our API (and can hence be inspected by the importer)
+// rather than into it.
+func (w *apiSurfaceWalker) visitType(t types.Type, isOut bool) {
+	unaliased := types.Unalias(t)
+	if unaliased == nil {
 		return
 	}
-	entry := seenEntry{typ: t, out: out}
-	if w.seen[entry] {
+	seen := w.seenIn
+	if isOut {
+		seen = w.seenOut
+	}
+	if seen[unaliased] {
 		return
 	}
-	w.seen[entry] = true
+	seen[unaliased] = true
 
-	switch t := t.(type) {
+	switch typ := unaliased.(type) {
 	case *types.Pointer:
-		w.visitType(t.Elem(), out)
+		w.visitType(typ.Elem(), isOut)
 	case *types.Slice:
-		w.visitType(t.Elem(), out)
+		w.visitType(typ.Elem(), isOut)
 	case *types.Array:
-		w.visitType(t.Elem(), out)
+		w.visitType(typ.Elem(), isOut)
 	case *types.Chan:
-		w.visitType(t.Elem(), out)
+		w.visitType(typ.Elem(), isOut)
 	case *types.Map:
-		w.visitType(t.Key(), out)
-		w.visitType(t.Elem(), out)
+		w.visitType(typ.Key(), isOut)
+		w.visitType(typ.Elem(), isOut)
 	case *types.Struct:
-		for i := range t.NumFields() {
-			field := t.Field(i)
+		for i := range typ.NumFields() {
+			field := typ.Field(i)
 			// Unexported fields cannot be named by an importer. Embedded ones are still traversed,
 			// since the methods and fields they promote _are_ reachable through them.
 			if !field.Exported() {
 				if field.Embedded() {
-					w.visitType(field.Type(), out)
+					w.visitType(field.Type(), isOut)
 				}
 				continue
 			}
-			if out {
+			if isOut {
 				w.recordObject(field)
 			}
-			w.visitType(field.Type(), out)
+			w.visitType(field.Type(), isOut)
 		}
 	case *types.Signature:
-		w.visitSignature(t, out)
+		w.visitSignature(typ, isOut)
 	case *types.Interface:
 		// Interfaces are reachable in both polarities: values handed out can be inspected, and
 		// interfaces asked for can be implemented by the importer, whose implementations are
 		// related to the interface methods by NilAway's affiliation analysis. Note that an
 		// unexported method makes the whole interface unimplementable outside its own package.
-		w.visitMethods(t.NumMethods(), t.Method, out)
+		w.visitMethods(typ.NumMethods(), typ.Method, isOut)
 	case *types.Named:
-		if out {
-			w.recordObject(t.Obj())
-			w.visitMethods(t.NumMethods(), t.Method, out)
+		if isOut {
+			w.recordObject(typ.Obj())
+			w.visitMethods(typ.NumMethods(), typ.Method, isOut)
 		}
-		for i := range t.TypeArgs().Len() {
-			w.visitType(t.TypeArgs().At(i), out)
+		for i := range typ.TypeArgs().Len() {
+			w.visitType(typ.TypeArgs().At(i), isOut)
 		}
-		if origin := t.Origin(); origin != nil && origin != t {
-			w.visitType(origin, out)
+		if origin := typ.Origin(); origin != nil && origin != typ {
+			w.visitType(origin, isOut)
 		}
 		// Promoted methods and accessible fields are reached through the underlying type.
-		w.visitType(t.Underlying(), out)
+		w.visitType(typ.Underlying(), isOut)
 	case *types.TypeParam:
-		w.visitType(t.Constraint(), out)
+		w.visitType(typ.Constraint(), isOut)
 	}
 }
 
 // visitMethods records and traverses the exported methods of an interface or named type, given its
 // method count and accessor. Unexported methods can neither be called nor implemented from another
 // package, so they are skipped.
-func (w *apiSurfaceWalker) visitMethods(numMethods int, methodAt func(int) *types.Func, out bool) {
+func (w *apiSurfaceWalker) visitMethods(numMethods int, methodAt func(int) *types.Func, isOut bool) {
 	for i := range numMethods {
 		method := methodAt(i)
 		if !method.Exported() {
 			continue
 		}
 		w.recordObject(method)
-		w.visitSignature(method.Signature(), out)
+		w.visitSignature(method.Signature(), isOut)
 	}
 }
 
 // visitSignature traverses a function signature. Results keep the polarity of the signature,
 // while parameters flip it: for a function the importer calls, results flow out and arguments
 // flow in, and for one it implements or supplies, the reverse holds.
-func (w *apiSurfaceWalker) visitSignature(sig *types.Signature, out bool) {
+func (w *apiSurfaceWalker) visitSignature(sig *types.Signature, isOut bool) {
 	for i := range sig.Results().Len() {
-		w.visitType(sig.Results().At(i).Type(), out)
+		w.visitType(sig.Results().At(i).Type(), isOut)
 	}
 	for i := range sig.Params().Len() {
-		w.visitType(sig.Params().At(i).Type(), !out)
+		w.visitType(sig.Params().At(i).Type(), !isOut)
 	}
 	for i := range sig.TypeParams().Len() {
-		w.visitType(sig.TypeParams().At(i), out)
+		w.visitType(sig.TypeParams().At(i), isOut)
 	}
 }

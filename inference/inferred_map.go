@@ -211,7 +211,7 @@ func (i *InferredMap) chooseSitesToForward() map[primitiveSite]bool {
 	reachable := i.primitive.upstreamAPISurface(pkgPaths)
 	toForward := make(map[primitiveSite]bool)
 	for site := range i.upstreamMapping {
-		if site.ObjectPath != "" && reachable[site.PkgPath+"."+string(site.ObjectPath)] {
+		if site.ObjectPath != "" && reachable[upstreamObjKey(site.PkgPath, site.ObjectPath)] {
 			toForward[site] = true
 		}
 	}
