@@ -21,6 +21,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"slices"
+	"strings"
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/assertion/function/assertiontree"
@@ -54,6 +55,26 @@ type Engine struct {
 	// controls any triggers. This field is for internal use in the struct only and should not be
 	// accessed elsewhere.
 	controlledTriggersBySite map[primitiveSite]map[annotation.FullTrigger]bool
+	// siteReports is reporting-only bookkeeping. inferredMap still stores one canonical
+	// DeterminedVal, and alternate explanations are not propagated.
+	siteReports map[primitiveSite]*siteReport
+}
+
+// siteReport is the per-site bookkeeping for overconstraint diagnostics.
+// nilable holds the canonical nil explanation and every nil explanation that conflicted with a
+// nonnil site. Agreeing nil explanations are left out so they are not paired with every consumer.
+// nonnil holds each distinct terminal consumer, except agreeing reads of globals, fields, and
+// function results whose conflicts are already represented by the canonical explanation.
+type siteReport struct {
+	nilable    []ExplainedBool
+	nonnil     []ExplainedBool
+	seenNil    map[string]bool
+	seenNonnil map[string]bool
+	// reported marks nil-source/consumer pairs already passed to the conflict handler.
+	reported map[string]bool
+	// overconstrained is set once a nil explanation and a nonnil consumer have both been
+	// observed, so a consumer that arrives later is still reported.
+	overconstrained bool
 }
 
 // NewEngine constructs an inference engine that is ready to run inference.
@@ -385,18 +406,44 @@ func (e *Engine) buildFromSingleFullTrigger(trigger annotation.FullTrigger) {
 // call is made. If the site is not already mapped to an InferredVal of any kind, then a mapping to
 // an DeterminedVal for the passed ExplainedBool is simply added - indicating that we now we have
 // fixed the value of this site. If the site is already mapped to an DeterminedVal, then we check
-// if that ExplainedBool agrees with the passed one. If it does, then the call is a no-op. If it
-// does not, then we have discovered a site that is overconstrained to be both true and false by
-// the program being analyzed, so we generate an overconstrainedConflict and append it to the
-// internal failure list. Finally, if we discover that the site targeted by this call is currently
-// mapped to an UndeterminedVal then we update the mapping to a definite DeterminedVal in accordance
-// with the passed ExplainedBool, _and_ we walk the graph (forward if determining the site to be
-// true (nilable), backwards if determining the site to be false (nonnil)), recursively calling
+// if that ExplainedBool agrees with the passed one. If it does, inference is unchanged: the
+// canonical DeterminedVal is kept, this explanation is not propagated, and controlled triggers are
+// not activated. A new nonnil consumer, except an agreeing read of a global, field, or function
+// result, is still remembered and reported if a nil conflict was already reported for the site.
+// If it does not agree, then we have discovered a site that is overconstrained to be both true
+// and false by the program being analyzed. A nil explanation is reported against every retained nonnil consumer, and a nonnil
+// consumer is reported against the canonical nil plus any nil explanation that itself conflicted.
+// Finally, if we discover that the site targeted by this call is currently mapped to an
+// UndeterminedVal then we update the mapping to a definite DeterminedVal in accordance with the
+// passed ExplainedBool, _and_ we walk the graph (forward if determining the site to be true
+// (nilable), backwards if determining the site to be false (nonnil)), recursively calling
 // observeSiteExplanation to determine all sites that must be determined from our knowledge of this
-// call in the context of the current implication graph.
+// call in the context of the current implication graph. Only that canonical explanation is
+// propagated; alternate explanations stay local to the site that observed them.
 func (e *Engine) observeSiteExplanation(site primitiveSite, siteExplained ExplainedBool) {
 	val, ok := e.inferredMap.Load(site)
+	// An agreeing read of a global, field, or function result adds no new panic site: the
+	// diagnostic engine already groups those consumers under their shared nil source, and the
+	// canonical explanation already carries the conflict. Leave such reads out of the bookkeeping.
+	if v, determined := val.(*DeterminedVal); determined && !v.Bool.Val() && !siteExplained.Val() {
+		producer, _ := siteExplained.TriggerReprs()
+		if located, isLocated := producer.(annotation.LocatedRepr); isLocated {
+			producer = located.Contained
+		}
+		switch producer.(type) {
+		case annotation.GlobalVarReadRepr, annotation.FldReadRepr,
+			annotation.FuncReturnRepr, annotation.MethodReturnRepr:
+			return
+		}
+	}
+	// Record before handling a conflict so it can see this explanation, including when a new
+	// consumer arrives after the site is already overconstrained.
+	isNew := e.trackSiteExplanation(site, siteExplained)
+
 	if !ok {
+		if siteExplained.Val() {
+			e.retainNil(site, siteExplained)
+		}
 		e.storeDeterminedAndActivateControlledTriggers(site, siteExplained)
 		return
 	}
@@ -406,35 +453,49 @@ func (e *Engine) observeSiteExplanation(site primitiveSite, siteExplained Explai
 
 	// If the site exists in the inferred map, there are two cases:
 	// (1) a determined value (*DeterminedVal) exists: we check if the new value agrees with the
-	//     existing value and create failure if not.
+	//     existing value and create failures if not. Agreeing values do not replace the canonical
+	//     explanation and are not propagated.
 	// (2) an undetermined value (*UndeterminedVal) exists: this site is now determined, and
 	//     we should propagate this value to its implicates and implicants.
 	switch v := val.(type) {
 	case *DeterminedVal:
+		report := e.siteReports[site]
 		if v.Bool.Val() == siteExplained.Val() {
-			// No-op if the site is already mapped to an DeterminedVal that agrees with the
-			// passed new value.
+			// A dereference discovered after the nil conflict still names its own panic site.
+			if isNew && !siteExplained.Val() && report.overconstrained {
+				e.emitConflicts(site, report.nilable, []ExplainedBool{siteExplained})
+			}
 			return
 		}
 
-		// Otherwise, this site is overconstrained to be both nilable and nonnil. We create an
-		// overconstrainedConflict and add it to the conflict list.
-		trueExplanation, falseExplanation := v.Bool, siteExplained
-		if !v.Bool.Val() {
-			trueExplanation, falseExplanation = falseExplanation, trueExplanation
+		report.overconstrained = true
+		if siteExplained.Val() {
+			if isNew {
+				e.retainNil(site, siteExplained)
+			}
+			// This nil flow conflicts with the nonnil site, so pair it with every consumer.
+			e.emitConflicts(site, []ExplainedBool{siteExplained}, report.nonnil)
+		} else {
+			// This consumer conflicts with the nilable site. Pair it with the nil explanations
+			// already retained, which are the canonical nil and any nil that itself conflicted.
+			e.emitConflicts(site, report.nilable, []ExplainedBool{siteExplained})
 		}
-		e.diagnosticEngine.AddOverconstraintConflict(trueExplanation, falseExplanation)
 
 		// Even though we have a conflict, we still need to make sure to activate any controlled
 		// triggers that are waiting on this site, so that we would not miss processing any
-		// triggers.
+		// triggers. Activation follows the same rules as before this bookkeeping existed, including
+		// when the conflicting explanation was already reported.
 		e.activateControlledTriggers(site, siteExplained)
 
 	case *UndeterminedVal:
+		if siteExplained.Val() && isNew {
+			e.retainNil(site, siteExplained)
+		}
 		e.storeDeterminedAndActivateControlledTriggers(site, siteExplained)
 
 		// Propagate the nilability of this site to its downstream constraints (for nilable value)
-		// or its upstream constraints (for nonnil value).
+		// or its upstream constraints (for nonnil value). Alternate explanations recorded above
+		// are intentionally not propagated.
 		if siteExplained.Val() {
 			for _, p := range v.Implicates.Pairs {
 				implicateSite, assertion := p.Key, p.Value
@@ -453,6 +514,105 @@ func (e *Engine) observeSiteExplanation(site primitiveSite, siteExplained Explai
 			}
 		}
 	}
+}
+
+// trackSiteExplanation stores a newly observed explanation for diagnostic reporting.
+// Repeated observations of the same nil source or the same terminal nonnil consumer return false.
+// Nil explanations are only appended to the reportable list by retainNil; agreeing nils stay out
+// of that list. Identity is derived from explanation text and positions, never by comparing
+// ExplainedBool or fmt.Stringer values, whose dynamic types may be uncomparable.
+func (e *Engine) trackSiteExplanation(site primitiveSite, exp ExplainedBool) bool {
+	if e.siteReports == nil {
+		e.siteReports = make(map[primitiveSite]*siteReport)
+	}
+	report := e.siteReports[site]
+	if report == nil {
+		report = &siteReport{
+			seenNil:    make(map[string]bool),
+			seenNonnil: make(map[string]bool),
+			reported:   make(map[string]bool),
+		}
+		e.siteReports[site] = report
+	}
+
+	if exp.Val() {
+		id := nilSourceID(exp)
+		if report.seenNil[id] {
+			return false
+		}
+		report.seenNil[id] = true
+		return true
+	}
+	id := nonnilConsumerID(exp)
+	if report.seenNonnil[id] {
+		return false
+	}
+	report.seenNonnil[id] = true
+	report.nonnil = append(report.nonnil, exp)
+	return true
+}
+
+// retainNil records a nil explanation that diagnostics may cite: the canonical nil, or a nil that
+// conflicted with a nonnil site.
+func (e *Engine) retainNil(site primitiveSite, exp ExplainedBool) {
+	e.siteReports[site].nilable = append(e.siteReports[site].nilable, exp)
+}
+
+// emitConflicts reports each pairing of the given nil sources and nonnil consumers that has not
+// already been reported. Re-observation cannot duplicate a diagnostic.
+func (e *Engine) emitConflicts(site primitiveSite, nils, nonnils []ExplainedBool) {
+	report := e.siteReports[site]
+	if report == nil {
+		return
+	}
+	for _, nilExp := range nils {
+		nilID := nilSourceID(nilExp)
+		for _, nonnilExp := range nonnils {
+			key := nilID + "\x00" + nonnilConsumerID(nonnilExp)
+			if report.reported[key] {
+				continue
+			}
+			report.reported[key] = true
+			e.diagnosticEngine.AddOverconstraintConflict(nilExp, nonnilExp)
+		}
+	}
+}
+
+// nilSourceID identifies a nil explanation, including every node of a deep chain.
+// Paths that share an upstream annotation still differ when their own triggers differ, so
+// distinct flows are not collapsed. Repeated observation of the same chain compares equal.
+func nilSourceID(exp ExplainedBool) string {
+	var b strings.Builder
+	for exp != nil {
+		b.WriteString(explainedNodeID(exp))
+		b.WriteByte('|')
+		exp = exp.DeeperReason()
+	}
+	return b.String()
+}
+
+// nonnilConsumerID identifies the dereferencing end of an explanation chain.
+// Chains that reach the same consumer location are one panic site.
+func nonnilConsumerID(exp ExplainedBool) string {
+	return explainedNodeID(deepestExplanation(exp))
+}
+
+// deepestExplanation walks to the end of a deep-constraint chain. Shallow constraints and
+// annotations are their own deepest node.
+func deepestExplanation(exp ExplainedBool) ExplainedBool {
+	for {
+		next := exp.DeeperReason()
+		if next == nil {
+			return exp
+		}
+		exp = next
+	}
+}
+
+// explainedNodeID is a stable textual identity for one explanation node.
+func explainedNodeID(exp ExplainedBool) string {
+	pos := exp.Position()
+	return fmt.Sprintf("%s\x00%s\x00%d\x00%d\x00%d", exp.String(), pos.Filename, pos.Line, pos.Column, pos.Offset)
 }
 
 // storeDeterminedAndActivateControlledTriggers stores the determined value for a site in the
