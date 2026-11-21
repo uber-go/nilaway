@@ -149,7 +149,7 @@ func newPrimitivizer(pass *analysishelper.EnhancedPass) *primitivizer {
 				return true
 			}
 
-			objRepr := site.PkgPath + "." + string(site.ObjectPath)
+			objRepr := upstreamObjKey(site.PkgPath, site.ObjectPath)
 			// TODO: This check seems to be triggered only for bazel/nogo driver (and usually for
 			//  generated files like protobuf). For now, we disable such panics to avoid breaking
 			//  the analysis, since it would only result in degraded performance (we will not
@@ -206,7 +206,7 @@ func (p *primitivizer) site(key annotation.Key, isDeep bool) primitiveSite {
 	if key.Object().Pkg() != p.pass.Pkg {
 		// Correct upstream information may not always be in the cache: we may not even have it
 		// since we skipped analysis for standard and 3rd party libraries.
-		if p, ok := p.upstreamObjPositions[pkgRepr+"."+string(objPath)]; ok {
+		if p, ok := p.upstreamObjPositions[upstreamObjKey(pkgRepr, objPath)]; ok {
 			position = p
 		}
 	}
@@ -226,6 +226,13 @@ func (p *primitivizer) site(key annotation.Key, isDeep bool) primitiveSite {
 		ObjectPath: objPath,
 		Position:   position,
 	}
+}
+
+// upstreamObjKey returns the key identifying an object across packages, namely
+// "<pkg path>.<object path>". All caches and sets of upstream objects must be keyed by it, since
+// they are matched against each other.
+func upstreamObjKey(pkgPath string, path objectpath.Path) string {
+	return pkgPath + "." + string(path)
 }
 
 // objectPath returns the objectpath.Path for the given object, using fast paths where possible
