@@ -53,6 +53,8 @@ func TestClosureCollection(t *testing.T) {
 
 	pass, result := r[0].Pass, r[0].Result
 	require.IsType(t, &analysishelper.Result[map[*ast.FuncLit]*FuncLitInfo]{}, result)
+	// Panics are recovered and returned as errors in the result, so make sure there are none.
+	require.NoError(t, result.(*analysishelper.Result[map[*ast.FuncLit]*FuncLitInfo]).Err)
 
 	// Iterate over the result of the anonymous function analyzer to see if there
 	// is a missmatch between the expected result written in the test file with the
