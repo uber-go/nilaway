@@ -17,6 +17,7 @@ package anonymousfunc
 import (
 	"go/ast"
 	"go/token"
+	"go/types"
 	"log"
 	"strings"
 	"testing"
@@ -102,22 +103,31 @@ func TestClosureCollection(t *testing.T) {
 		// The func lit body and the fake func decl body should be shared.
 		require.Equal(t, funcLit.Body, info.FakeFuncDecl.Body)
 
-		// The parameter list should be extended to include closure variables.
+		// The parameter list should be extended to include closure variables. They follow the
+		// regular parameters, so they come before the variadic parameter of a variadic func lit,
+		// which must remain the last one.
 		require.NotNil(t, info.FakeFuncDecl.Type)
 		require.NotNil(t, info.FakeFuncDecl.Type.Params)
 		funcLitParams, funcDeclParams := funcLit.Type.Params.List, info.FakeFuncDecl.Type.Params.List
 		require.Len(t, funcDeclParams, len(funcLitParams)+len(info.ClosureVars))
+		sig, ok := pass.TypesInfo.TypeOf(funcLit).(*types.Signature)
+		require.True(t, ok)
+		regularParams := funcLitParams
+		if sig.Variadic() {
+			regularParams = funcLitParams[:len(funcLitParams)-1]
+			require.Equal(t, funcLitParams[len(funcLitParams)-1], funcDeclParams[len(funcDeclParams)-1])
+		}
 		// We only need to check regular parameters when the func lit has regular parameters. Note
-		// that directly checking `funcLitParams == funcDeclParams[:len(funcLitParams)]` does not
+		// that directly checking `regularParams == funcDeclParams[:len(regularParams)]` does not
 		// work since `require.Equal` distinguishes nil slices and empty slices by design. When
-		// `len(funcLitParams) == 0`, LHS == nil and RHS == empty slice. In case there are
+		// `len(regularParams) == 0`, LHS == nil and RHS == empty slice. In case there are
 		// unexpected parameters in front of fake parameters, the error will be captured when we
 		// strictly check the list of closure variables.
-		if len(funcLitParams) != 0 {
-			require.Equal(t, funcLitParams, funcDeclParams[:len(funcLitParams)])
+		if len(regularParams) != 0 {
+			require.Equal(t, regularParams, funcDeclParams[:len(regularParams)])
 		}
-		// The rest of the param list should be closure variables.
-		for i, v := range funcDeclParams[len(funcLitParams):] {
+		// The params after the regular ones should be closure variables.
+		for i, v := range funcDeclParams[len(regularParams) : len(regularParams)+len(info.ClosureVars)] {
 			// The fake params are all separate, i.e., we do not generate `(a, b any)`, but rather
 			// `(a any, b any)`.
 			require.Len(t, v.Names, 1)
@@ -127,6 +137,24 @@ func TestClosureCollection(t *testing.T) {
 		// The fake type should be properly populated.
 		require.False(t, info.FakeFuncObj.Exported())
 		require.Equal(t, info.FakeFuncObj.Name(), info.FakeFuncDecl.Name.Name)
+		// Its params should be in the same order as in the fake func decl, and it should be
+		// variadic if and only if the func lit is.
+		fakeSig := info.FakeFuncObj.Signature()
+		require.Equal(t, sig.Variadic(), fakeSig.Variadic())
+		paramIdx := 0
+		for _, field := range funcDeclParams {
+			if len(field.Names) == 0 {
+				// Unnamed parameter.
+				paramIdx++
+				continue
+			}
+			for _, name := range field.Names {
+				require.Less(t, paramIdx, fakeSig.Params().Len())
+				require.Same(t, pass.TypesInfo.ObjectOf(name), fakeSig.Params().At(paramIdx))
+				paramIdx++
+			}
+		}
+		require.Equal(t, fakeSig.Params().Len(), paramIdx)
 	}
 }
 

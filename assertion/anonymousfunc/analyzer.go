@@ -20,6 +20,7 @@ import (
 	"go/ast"
 	"go/types"
 	"reflect"
+	"slices"
 	"strconv"
 
 	"go.uber.org/nilaway/config"
@@ -135,15 +136,6 @@ func createFakeFuncDecl(pass *analysishelper.EnhancedPass, funcLit *ast.FuncLit,
 			},
 		}
 	}
-	funcDecl := &ast.FuncDecl{
-		Name: ident,
-		Type: &ast.FuncType{
-			Params: &ast.FieldList{
-				List: append(funcLit.Type.Params.List, fakeFields...),
-			},
-		},
-		Body: funcLit.Body,
-	}
 
 	// Then, create the fake func type for the fake decl for type resolution.
 	// Create fake func signature type from func lit signature.
@@ -155,12 +147,35 @@ func createFakeFuncDecl(pass *analysishelper.EnhancedPass, funcLit *ast.FuncLit,
 	}
 
 	// Extend the parameter list for the types as well.
-	paramTypes := make([]*types.Var, sig.Params().Len()+len(fakeParams))
+	paramTypes := make([]*types.Var, sig.Params().Len())
 	for i := 0; i < sig.Params().Len(); i++ {
 		paramTypes[i] = sig.Params().At(i)
 	}
-	for i := 0; i < len(fakeParams); i++ {
-		paramTypes[sig.Params().Len()+i] = fakeParams[i].Obj
+	fakeParamTypes := make([]*types.Var, len(fakeParams))
+	for i, p := range fakeParams {
+		fakeParamTypes[i] = p.Obj
+	}
+
+	// The fake parameters are added after the regular parameters of the func lit. If the func lit
+	// is variadic, the variadic parameter must remain the last one (the fake func is variadic as
+	// well), so the fake parameters are inserted right before it. The call sites pass the closure
+	// variables at the same position (see RootAssertionNode.funcArgsFromCallExpr).
+	fields := slices.Clone(funcLit.Type.Params.List)
+	fieldPos, paramPos := len(fields), len(paramTypes)
+	if sig.Variadic() {
+		fieldPos, paramPos = fieldPos-1, paramPos-1
+	}
+	fields = slices.Insert(fields, fieldPos, fakeFields...)
+	paramTypes = slices.Insert(paramTypes, paramPos, fakeParamTypes...)
+
+	funcDecl := &ast.FuncDecl{
+		Name: ident,
+		Type: &ast.FuncType{
+			Params: &ast.FieldList{
+				List: fields,
+			},
+		},
+		Body: funcLit.Body,
 	}
 
 	fakeSig := types.NewSignatureType(nil /* recv */, nil /* recvTypeParams */, nil, /* typeParams */
