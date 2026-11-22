@@ -84,10 +84,6 @@ func (a *Affiliation) extractAffiliations(pass *analysishelper.EnhancedPass) {
 // computeTriggersForCastingSites analyzes all explicit and implicit sites of casts in the AST. For example, explicit casts,
 // variable assignments, variable declaration and initialization, method returns, and method parameters.
 func (a *Affiliation) computeTriggersForCastingSites(pass *analysishelper.EnhancedPass, upstreamCache, currentCache *orderedmap.OrderedMap[Pair, bool]) {
-	appendTypeToTypeTriggers := func(lhsType, rhsType types.Type) {
-		a.triggers = append(a.triggers, a.computeTriggersForTypes(lhsType, rhsType, upstreamCache, currentCache)...)
-	}
-
 	for _, file := range pass.Files {
 		if !a.conf.IsFileInScope(file) {
 			continue
@@ -111,7 +107,7 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysishelper.Enhanc
 							for i := range node.Lhs {
 								lhsType := pass.TypesInfo.TypeOf(node.Lhs[i])
 								rhsType := rhsSig.At(i).Type()
-								appendTypeToTypeTriggers(lhsType, rhsType)
+								a.appendTypeToTypeTriggers(lhsType, rhsType, upstreamCache, currentCache)
 							}
 							return true
 						}
@@ -120,14 +116,14 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysishelper.Enhanc
 					for i := 0; i < len(node.Lhs) && i < len(node.Rhs); i++ {
 						lhsType := pass.TypesInfo.TypeOf(node.Lhs[i])
 						rhsType := pass.TypesInfo.TypeOf(node.Rhs[i])
-						appendTypeToTypeTriggers(lhsType, rhsType)
+						a.appendTypeToTypeTriggers(lhsType, rhsType, upstreamCache, currentCache)
 					}
 				case *ast.ValueSpec:
 					// e.g., var i I = &S{}
 					for i := 0; i < len(node.Values); i++ {
 						lhsType := pass.TypesInfo.TypeOf(node.Type)
 						rhsType := pass.TypesInfo.TypeOf(node.Values[i])
-						appendTypeToTypeTriggers(lhsType, rhsType)
+						a.appendTypeToTypeTriggers(lhsType, rhsType, upstreamCache, currentCache)
 					}
 				case *ast.CallExpr:
 					// e.g., func foo(i I), foo(&S{})
@@ -138,7 +134,7 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysishelper.Enhanc
 								for i := 0; i < fsig.Params().Len() && i < len(node.Args); i++ {
 									lhsType := fsig.Params().At(i).Type()          // receiver param of method declaration
 									rhsType := pass.TypesInfo.TypeOf(node.Args[i]) // caller param
-									appendTypeToTypeTriggers(lhsType, rhsType)
+									a.appendTypeToTypeTriggers(lhsType, rhsType, upstreamCache, currentCache)
 								}
 							}
 						}
@@ -149,7 +145,7 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysishelper.Enhanc
 						for i := 1; i < len(node.Args); i++ {
 							lhsType := sliceType.Elem()
 							rhsType := pass.TypesInfo.TypeOf(node.Args[i])
-							appendTypeToTypeTriggers(lhsType, rhsType)
+							a.appendTypeToTypeTriggers(lhsType, rhsType, upstreamCache, currentCache)
 						}
 					}
 
@@ -157,7 +153,7 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysishelper.Enhanc
 					// e.g., v, ok := i.(*S)
 					lhsType := pass.TypesInfo.TypeOf(node.X)
 					rhsType := pass.TypesInfo.TypeOf(node.Type)
-					appendTypeToTypeTriggers(lhsType, rhsType)
+					a.appendTypeToTypeTriggers(lhsType, rhsType, upstreamCache, currentCache)
 
 				case *ast.ReturnStmt:
 					// function signature states interface return, but the actual return is a struct
@@ -169,7 +165,7 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysishelper.Enhanc
 							if i < len(funcSigResultsList) {
 								lhsType := pass.TypesInfo.TypeOf(funcSigResultsList[i].Type)
 								rhsType := pass.TypesInfo.TypeOf(node.Results[i])
-								appendTypeToTypeTriggers(lhsType, rhsType)
+								a.appendTypeToTypeTriggers(lhsType, rhsType, upstreamCache, currentCache)
 							}
 						}
 					}
@@ -183,7 +179,7 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysishelper.Enhanc
 						//  Tracked in issue #46.
 						lhsType := pass.TypesInfo.TypeOf(nodeType.Elt)
 						for _, elt := range node.Elts {
-							appendTypeToTypeTriggers(lhsType, pass.TypesInfo.TypeOf(elt))
+							a.appendTypeToTypeTriggers(lhsType, pass.TypesInfo.TypeOf(elt), upstreamCache, currentCache)
 						}
 					case *ast.MapType:
 						// Key, value, or both of a map declared of type interface, and initialized with a struct
@@ -192,8 +188,8 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysishelper.Enhanc
 						valueType := pass.TypesInfo.TypeOf(nodeType.Value)
 						for _, elt := range node.Elts {
 							if kv, ok := elt.(*ast.KeyValueExpr); ok {
-								appendTypeToTypeTriggers(keyType, pass.TypesInfo.TypeOf(kv.Key))
-								appendTypeToTypeTriggers(valueType, pass.TypesInfo.TypeOf(kv.Value))
+								a.appendTypeToTypeTriggers(keyType, pass.TypesInfo.TypeOf(kv.Key), upstreamCache, currentCache)
+								a.appendTypeToTypeTriggers(valueType, pass.TypesInfo.TypeOf(kv.Value), upstreamCache, currentCache)
 							}
 						}
 					case *ast.Ident:
@@ -215,7 +211,7 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysishelper.Enhanc
 								}
 							}
 							if lhsType != nil && rhsType != nil {
-								appendTypeToTypeTriggers(lhsType, rhsType)
+								a.appendTypeToTypeTriggers(lhsType, rhsType, upstreamCache, currentCache)
 							}
 						}
 					}
@@ -229,6 +225,11 @@ func (a *Affiliation) computeTriggersForCastingSites(pass *analysishelper.Enhanc
 			})
 		}
 	}
+}
+
+// appendTypeToTypeTriggers adds to a.triggers the triggers for a cast from rhsType to lhsType.
+func (a *Affiliation) appendTypeToTypeTriggers(lhsType, rhsType types.Type, upstreamCache, currentCache *orderedmap.OrderedMap[Pair, bool]) {
+	a.triggers = append(a.triggers, a.computeTriggersForTypes(lhsType, rhsType, upstreamCache, currentCache)...)
 }
 
 // computeTriggersForTypes finds corresponding concrete implementation and their declared methods and populates them in a map

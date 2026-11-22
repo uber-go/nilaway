@@ -338,53 +338,56 @@ type structResultSource struct {
 // cross-package callee is skipped (under-report).
 func collectStructResultVars(pass *analysishelper.EnhancedPass, body *ast.BlockStmt) map[*types.Var]structResultSource {
 	out := make(map[*types.Var]structResultSource)
-	record := func(lhs, rhs []ast.Expr) {
-		if len(rhs) != 1 {
-			return
-		}
-		call, ok := ast.Unparen(rhs[0]).(*ast.CallExpr)
-		if !ok {
-			return
-		}
-		target, ok := typeshelper.ResolveStaticCallTarget(pass.TypesInfo, call)
-		if !ok {
-			return
-		}
-		if target.Signature.Results().Len() != len(lhs) {
-			return
-		}
-		for i, l := range lhs {
-			ident, ok := l.(*ast.Ident)
-			if !ok {
-				continue
-			}
-			v, ok := pass.TypesInfo.ObjectOf(ident).(*types.Var)
-			if !ok {
-				continue
-			}
-			if typeshelper.AsDeeplyStruct(target.Signature.Results().At(i).Type()) == nil {
-				continue
-			}
-			if _, seen := out[v]; !seen {
-				out[v] = structResultSource{callee: target, idx: i}
-			}
-		}
-	}
 	ast.Inspect(body, func(n ast.Node) bool {
 		switch n := n.(type) {
 		case *ast.AssignStmt:
-			record(n.Lhs, n.Rhs)
+			recordStructResultVars(pass, out, n.Lhs, n.Rhs)
 		case *ast.ValueSpec:
 			// `var b = callee()` / `var b1, b2 = callee()`: the names are the LHS.
 			idents := make([]ast.Expr, len(n.Names))
 			for i, nm := range n.Names {
 				idents[i] = nm
 			}
-			record(idents, n.Values)
+			recordStructResultVars(pass, out, idents, n.Values)
 		}
 		return true
 	})
 	return out
+}
+
+// recordStructResultVars records in out the variables in lhs that are bound directly from a static
+// struct-returning call in rhs; see collectStructResultVars.
+func recordStructResultVars(pass *analysishelper.EnhancedPass, out map[*types.Var]structResultSource, lhs, rhs []ast.Expr) {
+	if len(rhs) != 1 {
+		return
+	}
+	call, ok := ast.Unparen(rhs[0]).(*ast.CallExpr)
+	if !ok {
+		return
+	}
+	target, ok := typeshelper.ResolveStaticCallTarget(pass.TypesInfo, call)
+	if !ok {
+		return
+	}
+	if target.Signature.Results().Len() != len(lhs) {
+		return
+	}
+	for i, l := range lhs {
+		ident, ok := l.(*ast.Ident)
+		if !ok {
+			continue
+		}
+		v, ok := pass.TypesInfo.ObjectOf(ident).(*types.Var)
+		if !ok {
+			continue
+		}
+		if typeshelper.AsDeeplyStruct(target.Signature.Results().At(i).Type()) == nil {
+			continue
+		}
+		if _, seen := out[v]; !seen {
+			out[v] = structResultSource{callee: target, idx: i}
+		}
+	}
 }
 
 type structAllocationSource struct {

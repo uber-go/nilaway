@@ -368,42 +368,46 @@ func (fc *functionCollector) resolveReturnParamSource(expr ast.Expr) (IndexedFie
 // other value to the caller's argument, so collection skips it (a sound under-report).
 func (fc *functionCollector) collectUnstableParamVars() map[*types.Var]bool {
 	var out map[*types.Var]bool
-	markUnstable := func(expr ast.Expr) {
-		ident, ok := ast.Unparen(expr).(*ast.Ident)
-		if !ok {
-			return
-		}
-		v, ok := fc.pass.TypesInfo.ObjectOf(ident).(*types.Var)
-		if !ok {
-			return
-		}
-		if _, isParam := fc.paramIdx[v]; !isParam {
-			return
-		}
-		if out == nil {
-			out = make(map[*types.Var]bool)
-		}
-		out[v] = true
-	}
 	ast.Inspect(fc.fd.Body, func(n ast.Node) bool {
 		switch n := n.(type) {
 		case *ast.AssignStmt:
 			// Only assignment targets destabilize; `:=` defines fresh variables whose objects
 			// differ from the parameters, so they never resolve to a parameter here.
 			for _, lhs := range n.Lhs {
-				markUnstable(lhs)
+				out = fc.markUnstable(out, lhs)
 			}
 		case *ast.UnaryExpr:
 			if n.Op == token.AND {
-				markUnstable(n.X)
+				out = fc.markUnstable(out, n.X)
 			}
 		case *ast.RangeStmt:
 			if n.Tok == token.ASSIGN {
-				markUnstable(n.Key)
-				markUnstable(n.Value)
+				out = fc.markUnstable(out, n.Key)
+				out = fc.markUnstable(out, n.Value)
 			}
 		}
 		return true
 	})
+	return out
+}
+
+// markUnstable records expr in out if it is a bare identifier of a parameter (or the receiver) of
+// the function, allocating out on first use, and returns out.
+func (fc *functionCollector) markUnstable(out map[*types.Var]bool, expr ast.Expr) map[*types.Var]bool {
+	ident, ok := ast.Unparen(expr).(*ast.Ident)
+	if !ok {
+		return out
+	}
+	v, ok := fc.pass.TypesInfo.ObjectOf(ident).(*types.Var)
+	if !ok {
+		return out
+	}
+	if _, isParam := fc.paramIdx[v]; !isParam {
+		return out
+	}
+	if out == nil {
+		out = make(map[*types.Var]bool)
+	}
+	out[v] = true
 	return out
 }

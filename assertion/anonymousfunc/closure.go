@@ -55,8 +55,9 @@ func collectClosure(funcLit *ast.FuncLit, pass *analysishelper.EnhancedPass, clo
 					panic(fmt.Sprintf("identifier %s passed as a variable could not be looked up as one", closureVar.Ident))
 				}
 
-				// Update varsFromClosure with ident if it does not exist in the current scope
-				if scope.Lookup(obj.Name()) != obj {
+				// Update varsFromClosure with ident if it is not declared in the current function
+				// literal
+				if !declaredWithin(obj, scope) {
 					varsFromClosure = append(varsFromClosure, closureVar)
 					visited[obj] = true
 				}
@@ -80,8 +81,17 @@ func collectClosure(funcLit *ast.FuncLit, pass *analysishelper.EnhancedPass, clo
 				return false
 			}
 
+			// The identifier declared in a type switch guard, such as `n` in `switch n := x.(type)`,
+			// has no object of its own: go/types records nil for it in Defs and creates an implicit
+			// object for each case clause instead. It is declared inside the function literal, so it
+			// is never a closure variable.
+			lookedUp := pass.TypesInfo.ObjectOf(node)
+			if lookedUp == nil {
+				return false
+			}
+
 			// Get the underlying object for the identifier
-			obj, ok := pass.TypesInfo.ObjectOf(node).(*types.Var)
+			obj, ok := lookedUp.(*types.Var)
 			if !ok {
 				panic(fmt.Sprintf("identifier %s passed as a variable could not be looked up as one", node))
 			}
@@ -91,8 +101,9 @@ func collectClosure(funcLit *ast.FuncLit, pass *analysishelper.EnhancedPass, clo
 				return false
 			}
 
-			// Skip if node is in the scope
-			if scope.Lookup(obj.Name()) == obj {
+			// Skip if node is declared in the function literal, including its nested blocks and case
+			// clauses
+			if declaredWithin(obj, scope) {
 				return false
 			}
 
@@ -113,4 +124,14 @@ func collectClosure(funcLit *ast.FuncLit, pass *analysishelper.EnhancedPass, clo
 	})
 
 	closureMap[funcLit] = varsFromClosure
+}
+
+// declaredWithin returns true if obj is declared in scope or in one of its nested scopes.
+func declaredWithin(obj types.Object, scope *types.Scope) bool {
+	for s := obj.Parent(); s != nil; s = s.Parent() {
+		if s == scope {
+			return true
+		}
+	}
+	return false
 }

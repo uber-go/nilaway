@@ -139,3 +139,29 @@ func testBlankIdentifier() {
 func mayReturnTwo() (int, *int) {
 	return 0, nil
 }
+
+// typeSwitchBinding tests a type switch guard with a binding inside a function literal. go/types
+// records no object for the guard identifier `n`, and the uses of `n` inside the clauses resolve to
+// per-clause implicit objects. Neither is a closure variable.
+func typeSwitchBinding(v any) {
+	func() { // expect_closure: v
+		switch n := v.(type) {
+		case *int:
+			print(*n)
+		}
+	}()
+}
+
+// nestedBlockLocal tests that variables declared in nested blocks of a function literal are not
+// collected as closure variables.
+func nestedBlockLocal(v *int) {
+	func() { // expect_closure: v
+		if v != nil {
+			x := 1
+			print(x)
+		}
+		for i := 0; i < 2; i++ {
+			print(i)
+		}
+	}()
+}
