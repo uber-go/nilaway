@@ -30,7 +30,7 @@ import (
 	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/typeshelper"
 	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/analysis/passes/buildssa"
+	"golang.org/x/tools/go/analysis/passes/ctrlflow"
 	"golang.org/x/tools/go/ssa"
 )
 
@@ -44,7 +44,7 @@ var Analyzer = &analysis.Analyzer{
 	Run:        analysishelper.WrapRun(run),
 	ResultType: reflect.TypeOf((*analysishelper.Result[Map])(nil)),
 	FactTypes:  []analysis.Fact{new(Contracts)},
-	Requires:   []*analysis.Analyzer{config.Analyzer, buildssa.Analyzer},
+	Requires:   []*analysis.Analyzer{config.Analyzer, ctrlflow.Analyzer},
 }
 
 // Contracts represents the list of contracts for a function.
@@ -126,24 +126,7 @@ type functionResult struct {
 func collectFunctionContracts(pass *analysishelper.EnhancedPass) (Map, error) {
 	conf := pass.ResultOf[config.Analyzer].(*config.Config)
 
-	// Collect ssa for every function.
-	ssaInput := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
-	ssaOfFunc := make(map[*types.Func]*ssa.Function, len(ssaInput.SrcFuncs))
-	for _, fnssa := range ssaInput.SrcFuncs {
-		if fnssa == nil {
-			// should be guaranteed to be non-nil; otherwise it would have paniced in the library
-			// https://cs.opensource.google/go/x/tools/+/refs/tags/v0.12.0:go/analysis/passes/buildssa/buildssa.go;l=99
-			continue
-		}
-		if funcObj, ok := fnssa.Object().(*types.Func); ok {
-			ssaOfFunc[funcObj] = fnssa
-		}
-	}
-
-	// Set up variables for synchronization and communication.
-	var wg sync.WaitGroup
-	funcChan := make(chan functionResult)
-
+	var candidates []*types.Func
 	m := Map{}
 	for _, file := range pass.Files {
 		if !conf.IsFileInScope(file) {
@@ -163,6 +146,12 @@ func collectFunctionContracts(pass *analysishelper.EnhancedPass) (Map, error) {
 			// If there are any, we do not need to infer contracts for this function.
 			if parsedContracts := parseContracts(funcDecl.Doc); len(parsedContracts) != 0 {
 				m[funcObj] = parsedContracts
+				continue
+			}
+
+			if funcDecl.Body == nil {
+				// External functions (e.g., assembly) can have handwritten contracts but
+				// have no Go body to infer from.
 				continue
 			}
 
@@ -186,37 +175,49 @@ func collectFunctionContracts(pass *analysishelper.EnhancedPass) (Map, error) {
 				//  already.
 				continue
 			}
-			fnssa, ok := ssaOfFunc[funcObj]
-			if !ok {
-				// For some reason, we cannot find the ssa for this function. We ignore this
-				// function.
-				continue
-			}
-			if len(fnssa.Blocks) == 0 {
-				// For external functions whose function bodies are defined outside Go (e.g.,
-				// assembly), we do not actually have Go source code for them, and there will be no
-				// blocks (see the documentation of the ssa package). Therefore, we ignore such functions.
-				continue
-			}
 
-			// Infer contracts for a function that does not have any contracts specified.
-			wg.Go(func() {
-				// As a last resort, convert the panics into errors and return.
-				defer func() {
-					if r := recover(); r != nil {
-						e := fmt.Errorf("%s: %s\n%s", config.InternalPanicPrefix, r, string(debug.Stack()))
-						funcChan <- functionResult{err: e, funcObj: funcObj}
-					}
-				}()
-
-				if contracts := inferContracts(fnssa); len(contracts) != 0 {
-					funcChan <- functionResult{
-						funcObj:   funcObj,
-						contracts: contracts,
-					}
-				}
-			})
+			candidates = append(candidates, funcObj)
 		}
+	}
+
+	if len(candidates) == 0 {
+		return m, nil
+	}
+
+	// Keep the builder mode, import registration, and NoReturn handling in sync with buildssa.
+	cfgs := pass.ResultOf[ctrlflow.Analyzer].(*ctrlflow.CFGs)
+	prog := ssa.NewProgram(pass.Fset, 0)
+	prog.SetNoReturn(cfgs.NoReturn)
+	for _, imported := range pass.Pkg.Imports() {
+		prog.CreatePackage(imported, nil, nil, true)
+	}
+
+	prog.CreatePackage(pass.Pkg, pass.Files, pass.TypesInfo, false).Build()
+
+	var wg sync.WaitGroup
+	funcChan := make(chan functionResult)
+	for _, funcObj := range candidates {
+		fnssa := prog.FuncValue(funcObj)
+		if fnssa == nil || len(fnssa.Blocks) == 0 {
+			continue
+		}
+
+		wg.Go(func() {
+			// As a last resort, convert the panics into errors and return.
+			defer func() {
+				if r := recover(); r != nil {
+					e := fmt.Errorf("%s: %s\n%s", config.InternalPanicPrefix, r, string(debug.Stack()))
+					funcChan <- functionResult{err: e, funcObj: funcObj}
+				}
+			}()
+
+			if contracts := inferContracts(fnssa); len(contracts) != 0 {
+				funcChan <- functionResult{
+					funcObj:   funcObj,
+					contracts: contracts,
+				}
+			}
+		})
 	}
 
 	// Spawn another goroutine that will close the channel when all analyses are done. This makes

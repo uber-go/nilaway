@@ -17,6 +17,7 @@ package functioncontracts
 import (
 	"fmt"
 	"go/types"
+	"maps"
 	"strings"
 	"testing"
 
@@ -27,6 +28,8 @@ import (
 	"go.uber.org/nilaway/util/analysishelper"
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
+	"golang.org/x/tools/go/analysis/passes/buildssa"
+	"golang.org/x/tools/go/analysis/passes/ctrlflow"
 )
 
 func TestAnalyzer(t *testing.T) {
@@ -182,6 +185,58 @@ func TestFactImport(t *testing.T) {
 	}
 	if diff := cmp.Diff(expected, actual); diff != "" {
 		require.Fail(t, fmt.Sprintf("inferred contracts mismatch (-want +got):\n%s", diff))
+	}
+}
+
+func TestLazySSA(t *testing.T) { //nolint:paralleltest // Changes the shared scope flags.
+	const prefix = "lazyssa/"
+	for name, value := range map[string]string{
+		config.ExcludePkgsFlag:           prefix + "excluded",
+		config.ExcludeFileDocStringsFlag: "lazyssa-ignore",
+	} {
+		prev := config.Analyzer.Flags.Lookup(name).Value.String()
+		require.NoError(t, config.Analyzer.Flags.Set(name, value))
+		t.Cleanup(func() {
+			require.NoError(t, config.Analyzer.Flags.Set(name, prev))
+		})
+	}
+
+	// An eager buildssa prerequisite would run regardless of the package or its candidates.
+	require.NotContains(t, Analyzer.Requires, buildssa.Analyzer)
+
+	// Withhold the ctrlflow result from packages that should skip SSA, without bypassing
+	// the driver's fact handling.
+	lazyAnalyzer := *Analyzer
+	lazyAnalyzer.Run = func(pass *analysis.Pass) (any, error) {
+		if pass.Pkg.Path() != prefix+"inferred" {
+			passCopy := *pass
+			passCopy.ResultOf = maps.Clone(pass.ResultOf)
+			delete(passCopy.ResultOf, ctrlflow.Analyzer)
+			pass = &passCopy
+		}
+
+		return Analyzer.Run(pass)
+	}
+
+	results := analysistest.Run(t, analysistest.TestData(), &lazyAnalyzer, prefix+"...")
+	want := map[string][]string{
+		prefix + "excluded":      nil,
+		prefix + "handwritten":   {"Identity", "External"},
+		prefix + "inferred":      {"Identity"},
+		prefix + "candidatefree": {"handwritten.Identity", "handwritten.External", "inferred.Identity"},
+	}
+	require.Len(t, results, len(want))
+	for _, r := range results {
+		result := r.Result.(*analysishelper.Result[Map])
+		pkgPath := r.Pass.Pkg.Path()
+		require.NoError(t, result.Err, pkgPath)
+		names, ok := want[pkgPath]
+		require.True(t, ok, "unexpected package %s", pkgPath)
+		require.Len(t, result.Res, len(names), pkgPath)
+		for _, name := range names {
+			require.Equal(t, Contracts{{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}}},
+				result.Res[getFuncObj(r.Pass, name)], "%s: %s", pkgPath, name)
+		}
 	}
 }
 
