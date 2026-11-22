@@ -15,13 +15,16 @@
 package inference
 
 import (
+	"cmp"
 	"fmt"
 	"go/token"
 	"go/types"
+	"slices"
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/tokenhelper"
+	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/types/objectpath"
 )
 
@@ -138,7 +141,13 @@ func newPrimitivizer(pass *analysishelper.EnhancedPass) *primitivizer {
 
 	// Create a cache for upstream object positions.
 	upstreamObjPositions := make(map[string]token.Position)
-	for _, pkgFact := range pass.AllPackageFacts() {
+	// Conflicting positions can occur with nogo. Visit facts in package order so the
+	// selected position does not depend on AllPackageFacts' unspecified ordering.
+	facts := pass.AllPackageFacts()
+	slices.SortFunc(facts, func(a, b analysis.PackageFact) int {
+		return cmp.Compare(a.Package.Path(), b.Package.Path())
+	})
+	for _, pkgFact := range facts {
 		importedMap, ok := pkgFact.Fact.(*InferredMap)
 		if !ok {
 			continue
@@ -149,7 +158,7 @@ func newPrimitivizer(pass *analysishelper.EnhancedPass) *primitivizer {
 				return true
 			}
 
-			objRepr := site.PkgPath + "." + string(site.ObjectPath)
+			objRepr := upstreamObjKey(site.PkgPath, site.ObjectPath)
 			// TODO: This check seems to be triggered only for bazel/nogo driver (and usually for
 			//  generated files like protobuf). For now, we disable such panics to avoid breaking
 			//  the analysis, since it would only result in degraded performance (we will not
@@ -206,7 +215,7 @@ func (p *primitivizer) site(key annotation.Key, isDeep bool) primitiveSite {
 	if key.Object().Pkg() != p.pass.Pkg {
 		// Correct upstream information may not always be in the cache: we may not even have it
 		// since we skipped analysis for standard and 3rd party libraries.
-		if p, ok := p.upstreamObjPositions[pkgRepr+"."+string(objPath)]; ok {
+		if p, ok := p.upstreamObjPositions[upstreamObjKey(pkgRepr, objPath)]; ok {
 			position = p
 		}
 	}
@@ -226,6 +235,13 @@ func (p *primitivizer) site(key annotation.Key, isDeep bool) primitiveSite {
 		ObjectPath: objPath,
 		Position:   position,
 	}
+}
+
+// upstreamObjKey returns the key identifying an object across packages, namely
+// "<pkg path>.<object path>". All caches and sets of upstream objects must be keyed by it, since
+// they are matched against each other.
+func upstreamObjKey(pkgPath string, path objectpath.Path) string {
+	return pkgPath + "." + string(path)
 }
 
 // objectPath returns the objectpath.Path for the given object, using fast paths where possible
