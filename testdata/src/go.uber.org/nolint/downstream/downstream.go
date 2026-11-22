@@ -24,7 +24,8 @@ func exerciseCrossPackageNoLint() {
 	upstream.DerefNoLintFile(nil)
 }
 
-// The diagnostics are reported while analyzing this package, but their positions are upstream.
+// This package has no local suppression directives. The diagnostics are reported while analyzing
+// this package, but their positions and the suppression ranges are upstream.
 //line ../upstream/upstream.go:18
 // want "function parameter `v` dereferenced"
 //line ../upstream/upstream.go:26

@@ -61,9 +61,16 @@ func run(p *analysis.Pass) ([]Range, error) {
 	pass := analysishelper.NewEnhancedPass(p)
 	var ranges []Range
 	for _, f := range pass.Files {
-		// CommentMap will correctly associate comments to the largest node group
-		// applicable. This handles inline comments that might trail a large
-		// assignment and will apply the comment to the entire assignment.
+		if !slices.ContainsFunc(f.Comments, func(group *ast.CommentGroup) bool {
+			return slices.ContainsFunc(group.List, func(comment *ast.Comment) bool {
+				return nolintContainsNilAway(comment.Text)
+			})
+		}) {
+			continue
+		}
+
+		// Keep all comments in the map to preserve attachment to AST nodes, including
+		// trailing directives that apply to an entire multiline statement.
 		commentMap := ast.NewCommentMap(pass.Fset, f, f.Comments)
 		for node, groups := range commentMap {
 			for _, group := range groups {
