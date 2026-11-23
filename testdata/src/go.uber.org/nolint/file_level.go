@@ -30,3 +30,14 @@ func localNoLintFunc() {
 	print(*p)
 	print(*p)
 }
+
+func localNoLintTrailingStatement() {
+	var p, q *int
+	print(
+		*p, // First argument.
+		*q,
+	) //nolint:nilaway
+
+	var after *int
+	print(*after) //want "unassigned variable `after` dereferenced"
+}
