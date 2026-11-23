@@ -68,20 +68,19 @@ func (f *funcAssertionNode) DefaultTrigger() annotation.ProducingAnnotationTrigg
 
 // BuildExpr for a function node adds that function to `expr` as a method call
 func (f *funcAssertionNode) BuildExpr(expr ast.Expr) ast.Expr {
-	if f.Root() == nil {
+	root := f.Root()
+	if root == nil {
 		panic("f.BuildExpr should only be called on nodes present in a valid assertion tree")
 	}
-	genFunc := func() ast.Expr {
-		if expr == nil {
-			return f.Root().GetDeclaringIdent(f.decl)
-		}
-		return &ast.SelectorExpr{
+	var fun ast.Expr = root.GetDeclaringIdent(f.decl)
+	if expr != nil {
+		fun = &ast.SelectorExpr{
 			X:   expr,
-			Sel: f.Root().GetDeclaringIdent(f.decl),
+			Sel: root.GetDeclaringIdent(f.decl),
 		}
 	}
 	return &ast.CallExpr{
-		Fun:      genFunc(),
+		Fun:      fun,
 		Lparen:   0,
 		Args:     f.args,
 		Ellipsis: 0,

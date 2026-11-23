@@ -161,10 +161,16 @@ func (r *RootAssertionNode) ParseExprAsProducer(expr ast.Expr, doNotTrack bool) 
 				"passed to a deep read such as an index - a case that should result in a type error")
 		}
 
+		// A deep parsed producer may carry no deep producer (e.g., the one for a struct composite
+		// literal), in which case there is nothing to lift and the read is handled as not deep below.
+		var deep *annotation.ProduceTrigger
 		if rproducers != nil && rproducers[0].IsDeep() {
+			deep = rproducers[0].GetDeep()
+		}
+		if deep != nil {
 			return []producer.ParsedProducer{producer.DeepParsedProducer{
 				ShallowProducer: &annotation.ProduceTrigger{
-					Annotation: rproducers[0].GetDeep().Annotation,
+					Annotation: deep.Annotation,
 					Expr:       expr,
 				},
 				// there is no possible source for a doubly deep nilability annotation except

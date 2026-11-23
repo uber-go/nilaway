@@ -481,7 +481,9 @@ func newObservedMap(pass *analysishelper.EnhancedPass, files []*ast.File) *Obser
 			if len(decl.Recv.List) > 1 {
 				pass.Panic(fmt.Sprintf("Multiple receivers found for method %s", decl.Name), decl.Pos())
 			}
-			return accFromFieldList(set, decl.Recv, false, false)[0]
+			if vals := accFromFieldList(set, decl.Recv, false, false); len(vals) > 0 {
+				return vals[0]
+			}
 		}
 		return EmptyVal
 	}
