@@ -388,42 +388,42 @@ func (r *RootAssertionNode) triggerProductions(node AssertionNode, producer *ann
 			}
 		}
 	}
-	matchConsumeTriggers := func(
-		node AssertionNode,
-		producer *annotation.ProduceTrigger) {
-		for _, consumer := range node.ConsumeTriggers() {
-			r.AddNewTriggers(annotation.FullTrigger{
-				Producer: producer,
-				Consumer: consumer,
-			})
-		}
-
-		node.SetConsumeTriggers(nil)
-	}
-
 	// for any consumeTriggers as the indexed expr, directly match them with this produceTrigger
-	matchConsumeTriggers(node, producer)
+	r.matchConsumeTriggers(node, producer)
 
 	// 	now we search for any deeper consumeTriggers in our indexed subtree, trying to match them
 	// with default producers as we go. These default producers are constructed using the methods
 	// BuildExpr and DefaultTrigger of assertion nodes. The former allows us to build up an expression
 	// to use to symbolize the production, and the latter allows us to point out the particular
 	// annotation that will yield the production of the found consumeTrigger
+	r.matchSubtreeConsumeTriggers(producer.Expr, node)
+}
 
-	var processChildren func(ast.Expr, AssertionNode)
-	processChildren = func(producingSubexpr ast.Expr, node AssertionNode) {
-		for _, child := range node.Children() {
-			producingExpr := child.BuildExpr(producingSubexpr)
-
-			matchConsumeTriggers(child, &annotation.ProduceTrigger{
-				Annotation: child.DefaultTrigger(),
-				Expr:       producingExpr,
-			})
-			processChildren(producingExpr, child)
-		}
+// matchConsumeTriggers matches the consumeTriggers of the node with the given produceTrigger and
+// clears them from the node.
+func (r *RootAssertionNode) matchConsumeTriggers(node AssertionNode, producer *annotation.ProduceTrigger) {
+	for _, consumer := range node.ConsumeTriggers() {
+		r.AddNewTriggers(annotation.FullTrigger{
+			Producer: producer,
+			Consumer: consumer,
+		})
 	}
 
-	processChildren(producer.Expr, node)
+	node.SetConsumeTriggers(nil)
+}
+
+// matchSubtreeConsumeTriggers matches the consumeTriggers of all descendants of the node with their
+// default produceTriggers, building up the producing expression from producingSubexpr.
+func (r *RootAssertionNode) matchSubtreeConsumeTriggers(producingSubexpr ast.Expr, node AssertionNode) {
+	for _, child := range node.Children() {
+		producingExpr := child.BuildExpr(producingSubexpr)
+
+		r.matchConsumeTriggers(child, &annotation.ProduceTrigger{
+			Annotation: child.DefaultTrigger(),
+			Expr:       producingExpr,
+		})
+		r.matchSubtreeConsumeTriggers(producingExpr, child)
+	}
 }
 
 // GuardMatchBehavior as a type represents the set of possible effects of obtaining a guard match.

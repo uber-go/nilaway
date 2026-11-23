@@ -162,10 +162,10 @@ func (r *RootAssertionNode) addSharedCallResultFieldProducer(
 		},
 		Expr: dst,
 	})
-	if !definiteNil {
+	segments := resultPath.Segments()
+	if !definiteNil || len(segments) == 0 {
 		return
 	}
-	segments := resultPath.Segments()
 	r.AddNewTriggers(annotation.FullTrigger{
 		Producer: &annotation.ProduceTrigger{
 			Annotation: &annotation.StructFieldNil{
