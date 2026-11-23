@@ -144,7 +144,14 @@ func (r *RootAssertionNode) GetDeclaringIdent(obj types.Object) *ast.Ident {
 func (r *RootAssertionNode) computeDeclaringIdent(obj types.Object) *ast.Ident {
 	if path, ok := GetDeclaringPath(r.Pass(), obj.Pos(), obj.Pos()); ok && len(path) > 0 {
 		if ident, ok := path[0].(*ast.Ident); ok && ident.Name == obj.Name() {
-			return ident
+			// The implicit variable of a case clause in a type switch, e.g., `n` in
+			// `switch n := v.(type) { case T: ... }`, is declared at the position of the symbolic
+			// variable in the switch header. That identifier does not denote the implicit
+			// variable (the type checker records a nil object for it in Defs), so it cannot serve
+			// as the declaring identifier. We fall back to a fake identifier below instead.
+			if def, ok := r.Pass().TypesInfo.Defs[ident]; !ok || def != nil {
+				return ident
+			}
 		}
 		// In case the declaration is package.ident
 		if sel, ok := path[1].(*ast.SelectorExpr); ok {
@@ -388,42 +395,42 @@ func (r *RootAssertionNode) triggerProductions(node AssertionNode, producer *ann
 			}
 		}
 	}
-	matchConsumeTriggers := func(
-		node AssertionNode,
-		producer *annotation.ProduceTrigger) {
-		for _, consumer := range node.ConsumeTriggers() {
-			r.AddNewTriggers(annotation.FullTrigger{
-				Producer: producer,
-				Consumer: consumer,
-			})
-		}
-
-		node.SetConsumeTriggers(nil)
-	}
-
 	// for any consumeTriggers as the indexed expr, directly match them with this produceTrigger
-	matchConsumeTriggers(node, producer)
+	r.matchConsumeTriggers(node, producer)
 
 	// 	now we search for any deeper consumeTriggers in our indexed subtree, trying to match them
 	// with default producers as we go. These default producers are constructed using the methods
 	// BuildExpr and DefaultTrigger of assertion nodes. The former allows us to build up an expression
 	// to use to symbolize the production, and the latter allows us to point out the particular
 	// annotation that will yield the production of the found consumeTrigger
+	r.matchSubtreeConsumeTriggers(producer.Expr, node)
+}
 
-	var processChildren func(ast.Expr, AssertionNode)
-	processChildren = func(producingSubexpr ast.Expr, node AssertionNode) {
-		for _, child := range node.Children() {
-			producingExpr := child.BuildExpr(producingSubexpr)
-
-			matchConsumeTriggers(child, &annotation.ProduceTrigger{
-				Annotation: child.DefaultTrigger(),
-				Expr:       producingExpr,
-			})
-			processChildren(producingExpr, child)
-		}
+// matchConsumeTriggers matches the consumeTriggers of the node with the given produceTrigger and
+// clears them from the node.
+func (r *RootAssertionNode) matchConsumeTriggers(node AssertionNode, producer *annotation.ProduceTrigger) {
+	for _, consumer := range node.ConsumeTriggers() {
+		r.AddNewTriggers(annotation.FullTrigger{
+			Producer: producer,
+			Consumer: consumer,
+		})
 	}
 
-	processChildren(producer.Expr, node)
+	node.SetConsumeTriggers(nil)
+}
+
+// matchSubtreeConsumeTriggers matches the consumeTriggers of all descendants of the node with their
+// default produceTriggers, building up the producing expression from producingSubexpr.
+func (r *RootAssertionNode) matchSubtreeConsumeTriggers(producingSubexpr ast.Expr, node AssertionNode) {
+	for _, child := range node.Children() {
+		producingExpr := child.BuildExpr(producingSubexpr)
+
+		r.matchConsumeTriggers(child, &annotation.ProduceTrigger{
+			Annotation: child.DefaultTrigger(),
+			Expr:       producingExpr,
+		})
+		r.matchSubtreeConsumeTriggers(producingExpr, child)
+	}
 }
 
 // GuardMatchBehavior as a type represents the set of possible effects of obtaining a guard match.

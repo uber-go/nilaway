@@ -419,69 +419,14 @@ func newObservedMap(pass *analysishelper.EnhancedPass, files []*ast.File) *Obser
 		return pass.TypesInfo.Types[expr].Type
 	}
 
-	// for a function declaration, accumulate its parameters from an *ast.Fieldlist object
-	// listing them, look them up in the docstring, and return an equally long list of
-	// annotationVals
-	accFromFieldList := func(set nilabilitySet, fieldList *ast.FieldList, isParamList bool,
-		isCallSiteAnnotation bool) []Val {
-		if fieldList == nil {
-			// this is included for nil-safety
-			return nil
-		}
-
-		var annVals []Val
-		var lookupKey string
-		for _, field := range fieldList.List {
-			if len(field.Names) == 0 {
-				// case of anonymous field - on which we do not permit annotations
-				// non-named fields
-
-				if isParamList {
-					lookupKey = paramStr(len(annVals))
-				} else {
-					lookupKey = resultStr(len(annVals))
-				}
-
-				annVals = append(annVals, set.checkNilability(lookupKey, typeOf(field.Type)))
-			} else {
-				for _, name := range field.Names {
-					declFld := pass.TypesInfo.ObjectOf(name).(*types.Var)
-
-					// for each named field, check the docstring for its Annotation and append that
-					paramIndexMap[declFld] = len(annVals)
-
-					var fieldType types.Type
-					if t, ok := field.Type.(*ast.Ellipsis); ok {
-						// in the case that our argument is variadic (hence has a type expression
-						// of the form `...T`, we treat the arguments as having type `T` not type
-						// `T[]`
-						fieldType = typeOf(t.Elt)
-					} else {
-						fieldType = typeOf(field.Type)
-					}
-
-					if isCallSiteAnnotation {
-						if isParamList {
-							lookupKey = paramStr(len(annVals))
-						} else {
-							lookupKey = resultStr(len(annVals))
-						}
-					} else {
-						lookupKey = name.Name
-					}
-					annVals = append(annVals, set.checkNilability(lookupKey, fieldType))
-				}
-			}
-		}
-		return annVals
-	}
-
 	readRecvAnnotations := func(decl *ast.FuncDecl, set nilabilitySet) Val {
 		if decl.Recv != nil {
 			if len(decl.Recv.List) > 1 {
 				pass.Panic(fmt.Sprintf("Multiple receivers found for method %s", decl.Name), decl.Pos())
 			}
-			return accFromFieldList(set, decl.Recv, false, false)[0]
+			if vals := accFromFieldList(pass, paramIndexMap, set, decl.Recv, false, false); len(vals) > 0 {
+				return vals[0]
+			}
 		}
 		return EmptyVal
 	}
@@ -493,8 +438,8 @@ func newObservedMap(pass *analysishelper.EnhancedPass, files []*ast.File) *Obser
 				case *ast.FuncDecl:
 					funcObj := pass.TypesInfo.ObjectOf(decl.Name).(*types.Func)
 					set := nilabilityFromCommentGroup(decl.Doc)
-					funcParamAnnMap[funcObj] = accFromFieldList(set, decl.Type.Params, true, false)
-					funcRetAnnMap[funcObj] = accFromFieldList(set, decl.Type.Results, false, false)
+					funcParamAnnMap[funcObj] = accFromFieldList(pass, paramIndexMap, set, decl.Type.Params, true, false)
+					funcRetAnnMap[funcObj] = accFromFieldList(pass, paramIndexMap, set, decl.Type.Results, false, false)
 					funcRecvAnnMap[funcObj] = readRecvAnnotations(decl, set)
 					// store the mapping from the function object to the ast node.
 					funcObjToFuncDecl[funcObj] = decl
@@ -533,13 +478,6 @@ func newObservedMap(pass *analysishelper.EnhancedPass, files []*ast.File) *Obser
 
 							docNilabilitySet := readDocNilabilitySet(spec.Doc)
 
-							// readDeepNilability is called on type declarations of maps, slices, and
-							// pointers to see if their contained values are nilable
-							readDeepNilability := func() {
-								typeName := pass.TypesInfo.ObjectOf(spec.Name).(*types.TypeName)
-								deepTypeAnnMap[typeName] =
-									docNilabilitySet.checkNilability(spec.Name.Name, typeOf(spec.Type))
-							}
 							var handleTypeVal func(expr ast.Expr)
 							handleTypeVal = func(expr ast.Expr) {
 								switch typeVal := expr.(type) {
@@ -558,8 +496,8 @@ func newObservedMap(pass *analysishelper.EnhancedPass, files []*ast.File) *Obser
 											// this is the common case - a simply declared method
 											set := nilabilityFromCommentGroup(method.Doc)
 											funcObj := pass.TypesInfo.ObjectOf(method.Names[0]).(*types.Func)
-											funcParamAnnMap[funcObj] = accFromFieldList(set, method.Type.(*ast.FuncType).Params, true, false)
-											funcRetAnnMap[funcObj] = accFromFieldList(set, method.Type.(*ast.FuncType).Results, false, false)
+											funcParamAnnMap[funcObj] = accFromFieldList(pass, paramIndexMap, set, method.Type.(*ast.FuncType).Params, true, false)
+											funcRetAnnMap[funcObj] = accFromFieldList(pass, paramIndexMap, set, method.Type.(*ast.FuncType).Results, false, false)
 										case 0:
 										// this is the case of inheritance - i.e. a method with another
 										// method named within it, in this case the identifiers will
@@ -570,12 +508,12 @@ func newObservedMap(pass *analysishelper.EnhancedPass, files []*ast.File) *Obser
 											panic("unrecognized case - method with > 1 names")
 										}
 									}
-								case *ast.StarExpr:
-									readDeepNilability()
-								case *ast.MapType:
-									readDeepNilability()
-								case *ast.ArrayType:
-									readDeepNilability()
+								case *ast.StarExpr, *ast.MapType, *ast.ArrayType:
+									// type declarations of pointers, maps, and slices are checked
+									// for whether their contained values are nilable
+									typeName := pass.TypesInfo.ObjectOf(spec.Name).(*types.TypeName)
+									deepTypeAnnMap[typeName] =
+										docNilabilitySet.checkNilability(spec.Name.Name, typeOf(spec.Type))
 								case *ast.Ident: // type alias - do nothing
 								case *ast.SelectorExpr: // type alias - do nothing
 								case *ast.FuncType: // function type - do nothing (for now)
@@ -654,12 +592,12 @@ func newObservedMap(pass *analysishelper.EnhancedPass, files []*ast.File) *Obser
 					"mappings should have been set up.")
 			}
 			callSite := CallSite{Fun: funcObj, Location: pass.PosToLocation(expr.Pos())}
-			for i, val := range accFromFieldList(set, funcDecl.Type.Params, true, true) {
+			for i, val := range accFromFieldList(pass, paramIndexMap, set, funcDecl.Type.Params, true, true) {
 				argLoc := pass.PosToLocation(expr.Args[i].Pos())
 				funcCallSiteParamAnnMap[callSite] = append(funcCallSiteParamAnnMap[callSite],
 					ArgLocAndVal{Location: argLoc, Val: val})
 			}
-			funcCallSiteRetAnnMap[callSite] = accFromFieldList(set, funcDecl.Type.Results, false, true)
+			funcCallSiteRetAnnMap[callSite] = accFromFieldList(pass, paramIndexMap, set, funcDecl.Type.Results, false, true)
 			// keep searching for nested CallExpr nodes.
 			return true
 		})
@@ -674,6 +612,63 @@ func newObservedMap(pass *analysishelper.EnhancedPass, files []*ast.File) *Obser
 		funcCallSiteParamAnnMap: funcCallSiteParamAnnMap,
 		funcCallSiteRetAnnMap:   funcCallSiteRetAnnMap,
 	}
+}
+
+// accFromFieldList accumulates the parameters of a function declaration from an *ast.Fieldlist
+// object listing them, looks them up in the docstring, and returns an equally long list of
+// annotationVals. The index of each named parameter is recorded in paramIndexMap.
+func accFromFieldList(pass *analysishelper.EnhancedPass, paramIndexMap map[*types.Var]int,
+	set nilabilitySet, fieldList *ast.FieldList, isParamList bool, isCallSiteAnnotation bool) []Val {
+	if fieldList == nil {
+		// this is included for nil-safety
+		return nil
+	}
+
+	var annVals []Val
+	var lookupKey string
+	for _, field := range fieldList.List {
+		if len(field.Names) == 0 {
+			// case of anonymous field - on which we do not permit annotations
+			// non-named fields
+
+			if isParamList {
+				lookupKey = paramStr(len(annVals))
+			} else {
+				lookupKey = resultStr(len(annVals))
+			}
+
+			annVals = append(annVals, set.checkNilability(lookupKey, pass.TypesInfo.Types[field.Type].Type))
+		} else {
+			for _, name := range field.Names {
+				declFld := pass.TypesInfo.ObjectOf(name).(*types.Var)
+
+				// for each named field, check the docstring for its Annotation and append that
+				paramIndexMap[declFld] = len(annVals)
+
+				var fieldType types.Type
+				if t, ok := field.Type.(*ast.Ellipsis); ok {
+					// in the case that our argument is variadic (hence has a type expression
+					// of the form `...T`, we treat the arguments as having type `T` not type
+					// `T[]`
+					fieldType = pass.TypesInfo.Types[t.Elt].Type
+				} else {
+					fieldType = pass.TypesInfo.Types[field.Type].Type
+				}
+
+				if isCallSiteAnnotation {
+					if isParamList {
+						lookupKey = paramStr(len(annVals))
+					} else {
+						lookupKey = resultStr(len(annVals))
+					}
+				} else {
+					lookupKey = name.Name
+				}
+				annVals = append(annVals, set.checkNilability(lookupKey, fieldType))
+			}
+		}
+	}
+	return annVals
 }
 
 func getLineFromPos(pos token.Pos, pass *analysishelper.EnhancedPass) int {

@@ -64,3 +64,22 @@ func typeSwitchNilFlowFromClosure(v any) {
 		}
 	}()
 }
+
+// typeSwitchCaseBindingCapturedByFuncLit checks a function literal inside a case clause that
+// captures the binding of that clause. The implicit variable of the clause is declared at the
+// position of the binding in the switch header, which has no object of its own. Looking up the
+// declaring identifier of the closure variable used to return that header identifier and panic.
+func typeSwitchCaseBindingCapturedByFuncLit(v any) {
+	var t *int
+	switch n := v.(type) {
+	case string:
+		func() {
+			_ = len(n)
+			print(*t) //want "unassigned variable `t`"
+		}()
+	case *int:
+		func() {
+			print(*n)
+		}()
+	}
+}
