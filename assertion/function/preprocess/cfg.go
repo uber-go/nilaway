@@ -292,9 +292,6 @@ func (p *Preprocessor) canonicalizeConditional(graph *cfg.CFG, thisBlock *cfg.Bl
 
 	// A few helper functions to make the code more readable.
 	replaceCond := func(node ast.Node) { thisBlock.Nodes[len(thisBlock.Nodes)-1] = node } // The conditional expr is the last node in the block.
-	replaceTrueBranch := func(block *cfg.Block) { thisBlock.Succs[0] = block }
-	replaceFalseBranch := func(block *cfg.Block) { thisBlock.Succs[1] = block }
-	swapTrueFalseBranches := func() { replaceTrueBranch(falseBranch); replaceFalseBranch(trueBranch) }
 
 	cond, ok := thisBlock.Nodes[len(thisBlock.Nodes)-1].(ast.Expr)
 	if !ok {
@@ -309,7 +306,7 @@ func (p *Preprocessor) canonicalizeConditional(graph *cfg.CFG, thisBlock *cfg.Bl
 	case *ast.UnaryExpr:
 		if cond.Op == token.NOT {
 			// swap successors - i.e. swap true and false branches
-			swapTrueFalseBranches()
+			thisBlock.Succs[0], thisBlock.Succs[1] = falseBranch, trueBranch
 			replaceCond(cond.X)
 			p.canonicalizeConditional(graph, thisBlock) // recur within NOT
 		}
@@ -327,9 +324,9 @@ func (p *Preprocessor) canonicalizeConditional(graph *cfg.CFG, thisBlock *cfg.Bl
 				Live:  true,
 			}
 			if replaceWhichBranch {
-				replaceTrueBranch(newBlock)
+				thisBlock.Succs[0] = newBlock
 			} else {
-				replaceFalseBranch(newBlock)
+				thisBlock.Succs[1] = newBlock
 			}
 			graph.Blocks = append(graph.Blocks, newBlock)
 			p.canonicalizeConditional(graph, thisBlock)
@@ -381,7 +378,7 @@ func (p *Preprocessor) canonicalizeConditional(graph *cfg.CFG, thisBlock *cfg.Bl
 				// Replace the condition, and swap the branches since we modified a NEQ conditional
 				// to a EQL one.
 				replaceCond(newCond)
-				swapTrueFalseBranches()
+				thisBlock.Succs[0], thisBlock.Succs[1] = falseBranch, trueBranch
 				break
 			}
 
