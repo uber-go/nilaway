@@ -144,7 +144,14 @@ func (r *RootAssertionNode) GetDeclaringIdent(obj types.Object) *ast.Ident {
 func (r *RootAssertionNode) computeDeclaringIdent(obj types.Object) *ast.Ident {
 	if path, ok := GetDeclaringPath(r.Pass(), obj.Pos(), obj.Pos()); ok && len(path) > 0 {
 		if ident, ok := path[0].(*ast.Ident); ok && ident.Name == obj.Name() {
-			return ident
+			// The implicit variable of a case clause in a type switch, e.g., `n` in
+			// `switch n := v.(type) { case T: ... }`, is declared at the position of the symbolic
+			// variable in the switch header. That identifier does not denote the implicit
+			// variable (the type checker records a nil object for it in Defs), so it cannot serve
+			// as the declaring identifier. We fall back to a fake identifier below instead.
+			if def, ok := r.Pass().TypesInfo.Defs[ident]; !ok || def != nil {
+				return ident
+			}
 		}
 		// In case the declaration is package.ident
 		if sel, ok := path[1].(*ast.SelectorExpr); ok {
