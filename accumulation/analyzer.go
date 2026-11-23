@@ -20,6 +20,7 @@ package accumulation
 import (
 	"errors"
 	"fmt"
+	"go/token"
 	"reflect"
 	"runtime/debug"
 
@@ -72,9 +73,8 @@ func run(p *analysis.Pass) (result interface{}, _ error) {
 		if r := recover(); r != nil {
 			// Deferred functions are executed after a result is generated, so here we modify the
 			// return value `result` in-place.
-			// Diagnostics with invalid positions (<= 0) will be silently suppressed, so here we use 1.
 			d := analysis.Diagnostic{
-				Pos:     1,
+				Pos:     internalErrorPos(p),
 				Message: fmt.Sprintf("%s: %s\n%s", config.InternalPanicPrefix, r, string(debug.Stack())),
 			}
 			if diagnostics, ok := result.([]analysis.Diagnostic); ok {
@@ -97,8 +97,7 @@ func run(p *analysis.Pass) (result interface{}, _ error) {
 		// For now, if there are any errors in the sub-analyzers, we directly emit diagnostics on the
 		// errors. However, in the future we could implement error recovery and make use of the partial
 		// information to continue the analysis.
-		// Diagnostics with invalid positions (<= 0) will be silently suppressed, so here we use 1.
-		return []analysis.Diagnostic{{Pos: 1, Message: fmt.Sprintf("INTERNAL ERROR(s):\n%s", err)}}, nil
+		return []analysis.Diagnostic{{Pos: internalErrorPos(p), Message: fmt.Sprintf("INTERNAL ERROR(s):\n%s", err)}}, nil
 	}
 
 	diagnosticEngine := diagnostic.NewEngine(pass)
@@ -151,4 +150,17 @@ func run(p *analysis.Pass) (result interface{}, _ error) {
 // relevant interface implementations that could not be Gob encoded without this call
 func init() {
 	inference.GobRegister()
+}
+
+// internalErrorPos returns the position at which diagnostics for internal errors of the current
+// package are reported. Diagnostics with invalid positions (<= 0) will be silently suppressed, but
+// token.Pos(1) is not a safe fallback either: drivers such as the standalone nilaway driver share
+// one FileSet across all loaded packages, so position 1 is the first byte of whichever file was
+// parsed first (often a stdlib file), and file-based error filters may then drop the diagnostic.
+// Here we use the package clause of the first file in the current package instead.
+func internalErrorPos(pass *analysis.Pass) token.Pos {
+	if pass != nil && len(pass.Files) > 0 && pass.Files[0].Package.IsValid() {
+		return pass.Files[0].Package
+	}
+	return 1
 }
