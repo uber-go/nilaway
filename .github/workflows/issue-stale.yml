@@ -1,0 +1,67 @@
+name: Stale Issues and Pull Requests
+
+on:
+  schedule:
+    # Run daily at 17 minutes past 6 AM UTC.
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Preview without changing issues or pull requests
+        type: boolean
+        default: true
+
+permissions:
+  actions: write # Used by actions/stale to cache processing progress.
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: issue-stale
+  cancel-in-progress: false
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Read rollout switches
+        id: policy
+        uses: actions/github-script@v9
+        env:
+          WRITES_ENABLED: ${{ vars.ISSUE_LIFECYCLE_WRITES_ENABLED }}
+          AUTO_CLOSE_ENABLED: ${{ vars.ISSUE_AUTO_CLOSE_ENABLED }}
+        with:
+          script: |
+            const writes = process.env.WRITES_ENABLED === 'true';
+
+            core.setOutput('preview', !writes);
+            core.setOutput('close_days', writes && process.env.AUTO_CLOSE_ENABLED === 'true' ? 7 : -1);
+
+      - name: Process opted-in issues and pull requests
+        uses: actions/stale@v11
+        with:
+          debug-only: ${{ steps.policy.outputs.preview == 'true' || (github.event_name == 'workflow_dispatch' && inputs.dry_run) }}
+          only-labels: needs information
+          days-before-stale: 30
+          days-before-close: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 7 || steps.policy.outputs.close_days }}
+          stale-issue-label: information overdue
+          stale-pr-label: information overdue
+          ignore-updates: "false"
+          remove-stale-when-updated: "true"
+          close-issue-reason: not_planned
+          delete-branch: "false"
+          stale-issue-message: >-
+            This issue is waiting for requested information and has had no activity for 30 days.
+            Please provide the missing details. It may be closed after another seven inactive days.
+          stale-pr-message: >-
+            This pull request is waiting for requested information and has had no activity for 30 days.
+            Please provide the missing details. It may be closed after another seven inactive days.
+          close-issue-message: >-
+            Closing this issue after the inactivity warning while waiting for requested information.
+            This does not mean the problem is fixed. Please provide the missing details and ask a
+            maintainer to reopen it if needed.
+          close-pr-message: >-
+            Closing this pull request after the inactivity warning while waiting for requested
+            information. This is not a judgment on the proposed change. Please provide the missing
+            details and ask a maintainer to reopen it if needed.
