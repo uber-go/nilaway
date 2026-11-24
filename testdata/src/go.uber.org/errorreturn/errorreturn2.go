@@ -771,6 +771,13 @@ func callTypeAliasFunc(f MyErrRetFunc) {
 	_ = *x
 }
 
+// Converting to MyErrRetFunc yields one function value, not the two
+// results of calling it. NilAway should analyze the conversion without panicking.
+func convertToTypeAliasFunc() {
+	var fn any = MyErrRetFunc(func() (*int, error) { return nil, nil })
+	_ = fn
+}
+
 func namedRetPtrAndErr() (*int, error) {
 	if dummy2 {
 		return nil, &myErr2{}

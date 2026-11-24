@@ -512,6 +512,14 @@ func NodeTriggersFuncErrRet(rootNode *RootAssertionNode, nonceGenerator *guard.N
 		return nil, false
 	}
 
+	// A CallExpr can also be a type conversion (e.g. `MutateFunc(func()...)`
+	// where MutateFunc is an alias for a func type). A conversion produces a
+	// single value, not the results of the underlying signature, so it must not
+	// be treated as a multi-result function call.
+	if rootNode.Pass().TypesInfo.Types[callExpr.Fun].IsType() {
+		return nil, false
+	}
+
 	// Get signature of the function call (normal and anonymous both)
 	sig := typeshelper.GetFuncSignature(rootNode.Pass().TypesInfo.TypeOf(callExpr.Fun))
 

@@ -344,3 +344,48 @@ func (s *SI2) cloneLike(x *SI2) *SI2 {
 	}
 	return new(SI2)
 }
+
+var repeat bool
+
+// propagateNewState always returns x, so it must retain the nonnil -> nonnil
+// contract. The backedges make inference revisit a merge with a new state followed
+// by an existing state. That duplicate must not suppress propagation to successors.
+func propagateNewState(x *int) *int {
+	y := x
+	if repeat {
+		goto update
+	}
+	goto exit
+retry:
+	if repeat {
+		goto update
+	}
+check:
+	if x == nil {
+		goto back
+	}
+update:
+	y = x
+	if repeat {
+		goto check
+	}
+	goto exit
+back:
+	if x == nil {
+		goto retry
+	}
+exit:
+	return y
+}
+
+// A later loop iteration can introduce a counterexample after a return block has
+// already been visited. No contract should be inferred from the earlier states.
+func lateCounterexample(x *int) *int {
+	y := x
+	for repeat {
+		if x != nil {
+			y = nil
+		}
+	}
+	return y
+}

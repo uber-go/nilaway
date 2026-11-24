@@ -25,6 +25,7 @@ import (
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/assertion/function/assertiontree"
 	"go.uber.org/nilaway/util/analysishelper"
+	"go.uber.org/nilaway/util/orderedmap"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -50,10 +51,10 @@ type Engine struct {
 	// primitive is the primitivizer that is able to convert full triggers and annotation sites to
 	// their primitive forms (see primitive.go).
 	primitive *primitivizer
-	// controlledTriggersBySite stores the set of controlled triggers for each site if the site
-	// controls any triggers. This field is for internal use in the struct only and should not be
+	// controlledTriggersBySite stores controlled triggers in insertion order for each site if it
+	// controls any triggers. Inference depends on this order. This field should not be
 	// accessed elsewhere.
-	controlledTriggersBySite map[primitiveSite]map[annotation.FullTrigger]bool
+	controlledTriggersBySite map[primitiveSite]*orderedmap.OrderedMap[annotation.FullTrigger, bool]
 }
 
 // NewEngine constructs an inference engine that is ready to run inference.
@@ -301,7 +302,7 @@ func (e *Engine) ObservePackage(pkgFullTriggers []annotation.FullTrigger) {
 
 func (e *Engine) buildPkgInferenceMap(triggers []annotation.FullTrigger) {
 	// Map each site to all the triggers controlled by the site
-	controlledTgsBySite := map[primitiveSite]map[annotation.FullTrigger]bool{}
+	controlledTgsBySite := map[primitiveSite]*orderedmap.OrderedMap[annotation.FullTrigger, bool]{}
 	for _, trigger := range triggers {
 		if !trigger.Controlled() {
 			continue
@@ -312,10 +313,10 @@ func (e *Engine) buildPkgInferenceMap(triggers []annotation.FullTrigger) {
 		site := e.primitive.site(trigger.Controller, false)
 		ts, ok := controlledTgsBySite[site]
 		if !ok {
-			ts = map[annotation.FullTrigger]bool{}
+			ts = orderedmap.New[annotation.FullTrigger, bool]()
 			controlledTgsBySite[site] = ts
 		}
-		ts[trigger] = true
+		ts.Store(trigger, true)
 	}
 	e.controlledTriggersBySite = controlledTgsBySite
 
@@ -468,8 +469,8 @@ func (e *Engine) storeDeterminedAndActivateControlledTriggers(site primitiveSite
 // to be a new value.
 func (e *Engine) activateControlledTriggers(site primitiveSite, siteExplained ExplainedBool) {
 	if controlledTgs, ok := e.controlledTriggersBySite[site]; ok && siteExplained.Val() {
-		for tg := range controlledTgs {
-			e.buildFromSingleFullTrigger(tg)
+		for _, trigger := range controlledTgs.Pairs {
+			e.buildFromSingleFullTrigger(trigger.Key)
 		}
 	}
 }

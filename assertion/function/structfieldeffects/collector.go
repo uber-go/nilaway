@@ -370,7 +370,7 @@ func collectStructResultVars(pass *analysishelper.EnhancedPass, body *ast.BlockS
 			}
 		}
 	}
-	ast.Inspect(body, func(n ast.Node) bool {
+	for n := range ast.Preorder(body) {
 		switch n := n.(type) {
 		case *ast.AssignStmt:
 			record(n.Lhs, n.Rhs)
@@ -382,8 +382,7 @@ func collectStructResultVars(pass *analysishelper.EnhancedPass, body *ast.BlockS
 			}
 			record(idents, n.Values)
 		}
-		return true
-	})
+	}
 	return out
 }
 
