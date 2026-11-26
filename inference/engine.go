@@ -611,9 +611,27 @@ func deepestExplanation(exp ExplainedBool) ExplainedBool {
 }
 
 // explainedNodeID is a stable textual identity for one explanation node.
+// A deep constraint's String() renders its whole DeeperExplanation chain, so deep nodes are
+// identified by their own value, trigger representations, and position instead. nilSourceID walks
+// the chain itself, so the identity of a depth-d chain stays linear in d.
 func explainedNodeID(exp ExplainedBool) string {
 	pos := exp.Position()
-	return fmt.Sprintf("%s\x00%s\x00%d\x00%d\x00%d", exp.String(), pos.Filename, pos.Line, pos.Column, pos.Offset)
+	text := ""
+	if exp.DeeperReason() == nil {
+		text = exp.String()
+	} else {
+		producer, consumer := exp.TriggerReprs()
+		text = fmt.Sprintf("deep\x00%t\x00%s\x00%s", exp.Val(), stringerText(producer), stringerText(consumer))
+	}
+	return fmt.Sprintf("%s\x00%s\x00%d\x00%d\x00%d", text, pos.Filename, pos.Line, pos.Column, pos.Offset)
+}
+
+// stringerText renders s, or the empty string when s is nil.
+func stringerText(s fmt.Stringer) string {
+	if s == nil {
+		return ""
+	}
+	return s.String()
 }
 
 // storeDeterminedAndActivateControlledTriggers stores the determined value for a site in the

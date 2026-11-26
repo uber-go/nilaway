@@ -259,6 +259,38 @@ func TestSiteReportDoesNotPropagateAlternates(t *testing.T) {
 	require.True(t, cons.(*DeterminedVal).Bool.Val())
 }
 
+func TestNilSourceIDGrowsLinearlyWithChainDepth(t *testing.T) {
+	t.Parallel()
+
+	chain := func(depth int) ExplainedBool {
+		var exp ExplainedBool = shallowTrue(pos(1), "nil-a")
+		for i := 0; i < depth; i++ {
+			exp = deepTrue(pos(2), exp)
+		}
+		return exp
+	}
+
+	// Each deep node's identity must not embed the rendering of the nodes below it.
+	require.Equal(t, len(explainedNodeID(chain(1))), len(explainedNodeID(chain(500))))
+
+	// So each extra level adds a constant amount to the full chain identity.
+	step := len(nilSourceID(chain(2))) - len(nilSourceID(chain(1)))
+	require.Equal(t, len(nilSourceID(chain(1)))+499*step, len(nilSourceID(chain(500))))
+
+	// Chains with distinct nodes keep distinct identities.
+	other := TrueBecauseDeepConstraint{
+		InternalAssertion: primitiveFullTrigger{
+			Position:     pos(2),
+			ProducerRepr: sliceStringer{"other-upstream"},
+			ConsumerRepr: sliceStringer{"downstream"},
+		},
+		DeeperExplanation: chain(3),
+	}
+	require.NotEqual(t, nilSourceID(chain(4)), nilSourceID(other))
+	require.NotEqual(t, nilSourceID(deepTrue(pos(2), shallowTrue(pos(1), "nil-a"))),
+		nilSourceID(deepTrue(pos(2), shallowTrue(pos(1), "nil-b"))))
+}
+
 func TestPackagePhasesKeepReportsAndActivation(t *testing.T) {
 	t.Parallel()
 
