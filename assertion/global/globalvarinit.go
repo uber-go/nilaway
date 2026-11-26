@@ -20,9 +20,11 @@ import (
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/guard"
+	"go.uber.org/nilaway/hook"
 	"go.uber.org/nilaway/util/analysishelper"
 	"go.uber.org/nilaway/util/asthelper"
 	"go.uber.org/nilaway/util/typeshelper"
+	"golang.org/x/tools/go/types/typeutil"
 )
 
 // analyzeValueSpec returns full triggers corresponding to the declaration
@@ -70,7 +72,7 @@ func getGlobalConsumers(pass *analysishelper.EnhancedPass, valspec *ast.ValueSpe
 
 	for i, name := range valspec.Names {
 		// Types that are not nilable are eliminated here
-		if !asthelper.IsEmptyExpr(name) && !typeshelper.TypeBarsNilness(pass.TypesInfo.TypeOf(name)) && !hasGlobalVarAssignInInitFunc(valspec, initFuncDecls) {
+		if !asthelper.IsEmptyExpr(name) && !typeshelper.TypeBarsNilness(pass.TypesInfo.TypeOf(name)) && !hasGlobalVarAssignInInitFunc(pass, valspec, initFuncDecls) {
 			v := pass.TypesInfo.ObjectOf(name).(*types.Var)
 			consumers[i] = &annotation.ConsumeTrigger{
 				Annotation: &annotation.GlobalVarAssign{
@@ -87,10 +89,9 @@ func getGlobalConsumers(pass *analysishelper.EnhancedPass, valspec *ast.ValueSpe
 	return consumers
 }
 
-// Checks if all the global variables represented by spec are assigned values within the init function.
-// It returns true if all variables are assigned, false otherwise.
-// If initFuncDecl is nil, it returns false.
-func hasGlobalVarAssignInInitFunc(spec *ast.ValueSpec, initFuncDecls []*ast.FuncDecl) bool {
+// hasGlobalVarAssignInInitFunc reports whether all variables in spec are assigned within
+// the given init (or TestMain) function bodies, including inside sync.Once.Do closures.
+func hasGlobalVarAssignInInitFunc(pass *analysishelper.EnhancedPass, spec *ast.ValueSpec, initFuncDecls []*ast.FuncDecl) bool {
 	if len(initFuncDecls) == 0 {
 		return false
 	}
@@ -99,18 +100,7 @@ func hasGlobalVarAssignInInitFunc(spec *ast.ValueSpec, initFuncDecls []*ast.Func
 		assignedVars[name.Name] = false
 	}
 	for _, initFuncDecl := range initFuncDecls {
-		ast.Inspect(initFuncDecl.Body, func(node ast.Node) bool {
-			if assign, ok := node.(*ast.AssignStmt); ok {
-				for _, lhs := range assign.Lhs {
-					if ident, ok := lhs.(*ast.Ident); ok {
-						if _, exists := assignedVars[ident.Name]; exists {
-							assignedVars[ident.Name] = true
-						}
-					}
-				}
-			}
-			return true
-		})
+		collectAssignedVars(pass, initFuncDecl.Body, assignedVars)
 	}
 
 	for _, assigned := range assignedVars {
@@ -121,11 +111,48 @@ func hasGlobalVarAssignInInitFunc(spec *ast.ValueSpec, initFuncDecls []*ast.Func
 	return true
 }
 
+// collectAssignedVars records assignments to tracked variables in body, descending into
+// sync.Once.Do closures since Do guarantees the closure completes before it returns.
+func collectAssignedVars(pass *analysishelper.EnhancedPass, body *ast.BlockStmt, assignedVars map[string]bool) {
+	if body == nil {
+		return
+	}
+	ast.Inspect(body, func(node ast.Node) bool {
+		switch n := node.(type) {
+		case *ast.AssignStmt:
+			for _, lhs := range n.Lhs {
+				if ident, ok := lhs.(*ast.Ident); ok {
+					if _, exists := assignedVars[ident.Name]; exists {
+						assignedVars[ident.Name] = true
+					}
+				}
+			}
+		case *ast.CallExpr:
+			if isSyncOnceDo(pass, n) && len(n.Args) == 1 {
+				if lit, ok := n.Args[0].(*ast.FuncLit); ok {
+					collectAssignedVars(pass, lit.Body, assignedVars)
+					return false
+				}
+			}
+		}
+		return true
+	})
+}
+
+// isSyncOnceDo reports whether call is sync.Once.Do.
+func isSyncOnceDo(pass *analysishelper.EnhancedPass, call *ast.CallExpr) bool {
+	fn, ok := typeutil.Callee(pass.TypesInfo, call).(*types.Func)
+	return ok && fn.Pkg() != nil && fn.Pkg().Path() == "sync" && fn.Name() == "Do"
+}
+
 // Returns a producer in the cases: 1) func call 2) literal nil 3) another global var 4) struct field/method.
 // In all other cases, it returns nil.
 func getGlobalProducer(pass *analysishelper.EnhancedPass, valspec *ast.ValueSpec, lid int, rid int) *annotation.ProduceTrigger {
 	switch rhs := valspec.Values[rid].(type) {
 	case *ast.CallExpr:
+		if hook.AssumeReturn(pass, rhs) != nil && lid == rid {
+			return nil
+		}
 		if ident, ok := rhs.Fun.(*ast.Ident); ok {
 			// We assume builtin functions do not return nil.
 			if _, ok := pass.TypesInfo.ObjectOf(ident).(*types.Builtin); ok {

@@ -85,9 +85,10 @@ func isErrorWrapperFunc(pass *analysishelper.EnhancedPass, call *ast.CallExpr) b
 		// Check if the argument is a call expression.
 		if callExpr, ok := arg.(*ast.CallExpr); ok {
 			if matchTrustedFuncs(pass, callExpr) != nil {
-				// Check if the argument is a trusted error returning function call.
-				// Example: `wrapError(errors.New("new error"))`
-				return true
+				argType := pass.TypesInfo.TypeOf(callExpr)
+				if argType != nil && typeshelper.ImplementsError(argType) {
+					return true
+				}
 			}
 
 			// This is to cover the case `NewInternalError(err.Error())` where the argument is a method call on an error.
@@ -205,6 +206,14 @@ var _assumeReturns = map[trustedSig]assumeReturnAction{
 		kind:           _func,
 		enclosingRegex: regexp.MustCompile(`^(stubs/)?(google\.golang\.org/grpc|google\.golang\.org/grpc/status)$`),
 		nameRegex:      regexp.MustCompile(`^Errorf?$`),
+	}: nonnilProducer,
+
+	// `sync.OnceFunc`, `sync.OnceValue`, `sync.OnceValues`
+	// These return closures that are always non-nil.
+	{
+		kind:           _func,
+		enclosingRegex: regexp.MustCompile(`^sync$`),
+		nameRegex:      regexp.MustCompile(`^Once(Func|Values?)$`),
 	}: nonnilProducer,
 }
 
