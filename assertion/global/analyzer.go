@@ -19,6 +19,7 @@ import (
 	"go/ast"
 	"go/token"
 	"reflect"
+	"strings"
 
 	"go.uber.org/nilaway/annotation"
 	"go.uber.org/nilaway/config"
@@ -50,7 +51,7 @@ func run(p *analysis.Pass) ([]annotation.FullTrigger, error) {
 		if !conf.IsFileInScope(file) {
 			continue
 		}
-		initFuncDecls := getInitFuncDecls(file)
+		initFuncDecls := getInitFuncDecls(pass.Fset, file)
 
 		for _, decl := range file.Decls {
 			genDecl, ok := decl.(*ast.GenDecl)
@@ -66,11 +67,11 @@ func run(p *analysis.Pass) ([]annotation.FullTrigger, error) {
 	return fullTriggers, nil
 }
 
-// getInitFuncDecls searches for the init function declarations and all related functions in the given *ast.File.
-// It returns a slice of *ast.FuncDecl representing the init functions and all functions called directly or indirectly from them.
-// The function handles multiple init functions if present, and avoids infinite recursion in case of cyclic function calls.
-// If the file is nil, it returns nil.
-func getInitFuncDecls(file *ast.File) []*ast.FuncDecl {
+// getInitFuncDecls searches for init (and TestMain in _test.go files) declarations and all
+// related functions in the given *ast.File.
+// It returns a slice of *ast.FuncDecl representing these functions and all functions called
+// directly or indirectly from them, avoiding infinite recursion in case of cyclic calls.
+func getInitFuncDecls(fset *token.FileSet, file *ast.File) []*ast.FuncDecl {
 	if file == nil {
 		return nil
 	}
@@ -109,10 +110,14 @@ func getInitFuncDecls(file *ast.File) []*ast.FuncDecl {
 		})
 	}
 
+	isTestFile := strings.HasSuffix(fset.Position(file.Pos()).Filename, "_test.go")
 	for _, decl := range file.Decls {
-		if funcDecl, ok := decl.(*ast.FuncDecl); ok && funcDecl.Name.Name == "init" {
+		funcDecl, ok := decl.(*ast.FuncDecl)
+		if !ok {
+			continue
+		}
+		if funcDecl.Name.Name == "init" || (isTestFile && funcDecl.Name.Name == "TestMain" && funcDecl.Recv == nil) {
 			findRelatedFuncs(funcDecl)
-			// Reset visitedFuncs for each init function to ensure all related functions are processed
 			visitedFuncs = make(map[string]struct{})
 		}
 	}
