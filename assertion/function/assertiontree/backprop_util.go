@@ -696,8 +696,9 @@ func composeRootFuncs(f1, f2 RootFunc) RootFunc {
 // the end of that block
 //
 // postcondition - length of two return slices is equal
-func blocksAndPreprocessingFromCFG(pass *analysishelper.EnhancedPass, graph *cfg.CFG, richCheckBlocks [][]RichCheckEffect) (
+func blocksAndPreprocessingFromCFG(functionContext FunctionContext, graph *cfg.CFG, richCheckBlocks [][]RichCheckEffect) (
 	[]*cfg.Block, []*preprocessPair) {
+	pass := functionContext.pass
 
 	numBlocks := len(graph.Blocks)
 	// add an empty "return" block
@@ -735,6 +736,14 @@ func blocksAndPreprocessingFromCFG(pass *analysishelper.EnhancedPass, graph *cfg
 					trueBranchFunc:  trueNilCheck,
 					falseBranchFunc: falseNilCheck,
 				}
+			}
+
+			// prune consumers behind contradictory nil checks on stable variables (see nilAssumptions).
+			// AddNilCheck already produced a pair for every comparison edgeFuncs accepts, so compose
+			// onto it.
+			if onNil, onNonNil, ok := functionContext.nilAssumptions.edgeFuncs(pass, cond); ok {
+				preprocessing[i].trueBranchFunc = composeRootFuncs(preprocessing[i].trueBranchFunc, onNil)
+				preprocessing[i].falseBranchFunc = composeRootFuncs(preprocessing[i].falseBranchFunc, onNonNil)
 			}
 
 			// now check for RichCheckEffects triggered by this conditional

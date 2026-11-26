@@ -21,6 +21,7 @@ import (
 	"go.uber.org/nilaway/assertion/anonymousfunc"
 	"go.uber.org/nilaway/assertion/function/functioncontracts"
 	"go.uber.org/nilaway/assertion/function/structfieldeffects"
+	"go.uber.org/nilaway/guard"
 	"go.uber.org/nilaway/util/analysishelper"
 )
 
@@ -73,6 +74,13 @@ type FunctionContext struct {
 
 	// declaringIdentCache stores declaring identifiers by object.
 	declaringIdentCache map[types.Object]*ast.Ident
+
+	// nonceGenerator is shared by the rich check effects and the nil assumptions so that their
+	// guard nonces never collide.
+	nonceGenerator *guard.NonceGenerator
+
+	// nilAssumptions prunes consumers behind contradictory nil checks on stable variables.
+	nilAssumptions *nilAssumptions
 }
 
 // FunctionConfig is meant to hold all the user set configuration for analyzing a function
@@ -101,6 +109,7 @@ func NewFunctionContext(
 	if effects == nil {
 		effects = &structfieldeffects.BoundaryFieldEffects{}
 	}
+	nonceGenerator := guard.NewNonceGenerator()
 	return FunctionContext{
 		pass:                    pass,
 		funcDecl:                decl,
@@ -113,6 +122,8 @@ func NewFunctionContext(
 		funcContracts:           funcContracts,
 		boundaryFieldEffects:    effects,
 		declaringIdentCache:     make(map[types.Object]*ast.Ident),
+		nonceGenerator:          nonceGenerator,
+		nilAssumptions:          newNilAssumptions(pass, decl, funcLit, nonceGenerator),
 	}
 }
 

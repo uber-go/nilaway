@@ -982,7 +982,7 @@ func BackpropAcrossFunc(
 	// Generate rick check effects.
 	richCheckBlocks, exprNonceMap := genInitialRichCheckEffects(graph, functionContext)
 	richCheckBlocks = propagateRichChecks(graph, richCheckBlocks)
-	blocks, preprocessing := blocksAndPreprocessingFromCFG(pass, graph, richCheckBlocks)
+	blocks, preprocessing := blocksAndPreprocessingFromCFG(functionContext, graph, richCheckBlocks)
 
 	// The assertion nodes for each block and an array of bools to indicate whether each block is
 	// updated in this round or not.
