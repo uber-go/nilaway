@@ -31,13 +31,30 @@ const _maxNumTablesPerBlock = 1024
 // returns a list of inferred contracts, which may be empty if no contract is inferred but is never
 // nil.
 func inferContracts(fn *ssa.Function) Contracts {
-	nilnessTableSetByBB := make(map[*ssa.BasicBlock]nilnessTableSet)
 	retInstrs := getReturnInstrs(fn) // TODO: Consider *ssa.Panic
+	// If every return is intrinsically nonnil, deriveContracts would suppress the
+	// redundant nonnil->nonnil contract. Skip dataflow analysis in that case.
+	emptyTable := nilnessTable{}
+	allReturnsNonnil := true
+	for _, ret := range retInstrs {
+		if emptyTable.nilnessOf(ret.Results[0]) != isnonnil {
+			allReturnsNonnil = false
+			break
+		}
+	}
+	if allReturnsNonnil {
+		return nil
+	}
+
+	nilnessTableSetByBB := make(map[*ssa.BasicBlock]nilnessTableSet)
 	// No need of an expensive dataflow analysis if we can derive contracts from the return
 	// instructions directly.
 	if ctrs := deriveContracts(retInstrs, fn, nilnessTableSetByBB); len(ctrs) != 0 {
 		return ctrs
 	}
+
+	// Skip the receiver, if present, to select the first declared parameter.
+	param := fn.Params[len(fn.Params)-fn.Signature.Params().Len()]
 
 	// Add the entry block to the queue.
 	// TODO: visit fn.Recover.
@@ -121,13 +138,16 @@ func inferContracts(fn *ssa.Function) Contracts {
 
 		// Update nilnessTableSetByBB for this block.
 		var isUpdated bool
-		for _, tables := range nilnessTablesUnderPred {
-			for _, table := range tables {
+		for _, pred := range b.Preds {
+			for _, table := range nilnessTablesUnderPred[pred] {
 				if len(table) == 0 {
 					continue
 				}
 				// Only save the table if it is not empty.
-				nilnessTableSetByBB[b], isUpdated = add(nilnessTableSetByBB[b], table)
+				var added bool
+				nilnessTableSetByBB[b], added = add(nilnessTableSetByBB[b], table)
+				// A later duplicate must not hide an earlier new table.
+				isUpdated = isUpdated || added
 			}
 		}
 
@@ -136,6 +156,12 @@ func inferContracts(fn *ssa.Function) Contracts {
 			continue
 		}
 		seen[b.Index] = true
+
+		// Saved tables are never removed or modified. A counterexample at a return
+		// therefore cannot be repaired by propagating more states through the graph.
+		if blockHasContractCounterexample(b, param, nilnessTableSetByBB[b]) {
+			return nil
+		}
 
 		// TODO: nicely handle exponential explosion of tables.
 		if len(nilnessTableSetByBB[b]) >= _maxNumTablesPerBlock {
@@ -259,13 +285,9 @@ func deriveContracts(
 			}
 			// pNil == isnonnil or unknown, rNil can be anything, i.e. isnonnil, unknown, isnil.
 			nonnilOrUnknownParamChoices++
-			if rNil == isnonnil || // Absolutely OK if rNil == isnonnil
-				(pNil == unknown && rNil == unknown && param == ret) { // The only OK case otherwise
-				// Those cases are not counterexamples to contract(nonnil->nonnil)
-				continue
+			if isContractCounterexample(param, ret, pNil, rNil) {
+				return nil
 			}
-			// All the remaining cases are counterexamples to contract(nonnil->nonnil)
-			return nil
 		}
 	}
 
@@ -291,6 +313,36 @@ func deriveContracts(
 	return Contracts{
 		{Ins: []ContractVal{NonNil}, Outs: []ContractVal{NonNil}},
 	}
+}
+
+// blockHasContractCounterexample reports whether a return block contains a state
+// that rules out nonnil->nonnil.
+func blockHasContractCounterexample(b *ssa.BasicBlock, param ssa.Value, tables nilnessTableSet) bool {
+	if len(b.Instrs) == 0 {
+		return false
+	}
+
+	ret, ok := b.Instrs[len(b.Instrs)-1].(*ssa.Return)
+	if !ok {
+		return false
+	}
+
+	result := ret.Results[0]
+	for _, table := range tables {
+		paramNilness := table.nilnessOf(param)
+		resultNilness := table.nilnessOf(result)
+		if isContractCounterexample(param, result, paramNilness, resultNilness) {
+			return true
+		}
+	}
+	return false
+}
+
+// isContractCounterexample reports whether a state rules out nonnil->nonnil.
+// Unknown nilness also prevents inference, except when the parameter itself is returned.
+func isContractCounterexample(param, ret ssa.Value, pNil, rNil nilness) bool {
+	return pNil != isnil && rNil != isnonnil &&
+		!(pNil == unknown && rNil == unknown && param == ret)
 }
 
 func getReturnInstrs(fn *ssa.Function) []*ssa.Return {

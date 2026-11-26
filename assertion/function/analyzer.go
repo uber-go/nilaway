@@ -298,16 +298,28 @@ func duplicateFullTriggersFromContractedFunctionsToCallers(
 		}
 	}
 
-	// For every contracted function, duplicate some of its full triggers (that involves param or
-	// return) into all the callers
-	dupTriggers := map[*types.Func][]annotation.FullTrigger{}
-	for ctrtFunc, calls := range callsByCtrtFunc {
-		r := funcResults[ctrtFunc]
+	// Inference depends on trigger evaluation order. Preserve declaration order when
+	// appending triggers from different contracted functions into the same caller.
+	callees := make([]*types.Func, len(funcTriggers))
+	for callee := range callsByCtrtFunc {
+		r := funcResults[callee]
 		if r == nil {
 			// The contracted function is imported from upstream, and the local package analysis
 			// does not involve it.
 			continue
 		}
+		callees[r.index] = callee
+	}
+
+	// For every contracted function, duplicate some of its full triggers (that involves param or
+	// return) into all the callers
+	dupTriggers := map[*types.Func][]annotation.FullTrigger{}
+	for _, ctrtFunc := range callees {
+		r := funcResults[ctrtFunc]
+		if r == nil {
+			continue
+		}
+		calls := callsByCtrtFunc[ctrtFunc]
 		for _, trigger := range r.triggers {
 			// If the full trigger has a FuncParam producer or a UseAsReturn consumer, then create
 			// a duplicated (possibly controlled) full trigger from it and add the created full

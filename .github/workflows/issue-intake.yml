@@ -1,0 +1,27 @@
+name: Issue Intake
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Add triage label
+        uses: actions/github-script@v9
+        with:
+          script: |
+            if (context.payload.issue.pull_request) {
+              return;
+            }
+
+            await github.rest.issues.addLabels({
+              ...context.repo,
+              issue_number: context.issue.number,
+              labels: ['needs triaging'],
+            });
