@@ -84,3 +84,24 @@ func testInference11() {
 	mp := make(map[int]*int)
 	_ = *mp[0] //want "dereferenced"
 }
+
+// Grouped reporting must name both dereferences of the same parameter, in either declaration order.
+// The primary diagnostic is the first dereference; the parenthetical names the second.
+
+func groupCalleeFirst(p *int) {
+	_ = *p //want `(?s)dereferenced.*other place\(s\): "errormessage/errormessage-with-inference\.go:93:7"`
+	_ = *p
+}
+
+func callGroupCalleeFirst() {
+	groupCalleeFirst(nil)
+}
+
+func callGroupCalleeAfter() {
+	groupCalleeAfter(nil)
+}
+
+func groupCalleeAfter(p *int) {
+	_ = *p //want `(?s)dereferenced.*other place\(s\): "errormessage/errormessage-with-inference\.go:106:7"`
+	_ = *p
+}
