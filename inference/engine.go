@@ -439,11 +439,11 @@ func (e *Engine) observeSiteExplanation(site primitiveSite, siteExplained Explai
 	}
 	// Record before handling a conflict so it can see this explanation, including when a new
 	// consumer arrives after the site is already overconstrained.
-	isNew := e.trackSiteExplanation(site, siteExplained)
+	report, isNew := e.trackSiteExplanation(site, siteExplained)
 
 	if !ok {
 		if siteExplained.Val() {
-			e.retainNil(site, siteExplained)
+			report.retainNil(siteExplained)
 		}
 		e.storeDeterminedAndActivateControlledTriggers(site, siteExplained)
 		return
@@ -460,7 +460,6 @@ func (e *Engine) observeSiteExplanation(site primitiveSite, siteExplained Explai
 	//     we should propagate this value to its implicates and implicants.
 	switch v := val.(type) {
 	case *DeterminedVal:
-		report := e.siteReports[site]
 		if v.Bool.Val() == siteExplained.Val() {
 			// A dereference discovered after the nil conflict still names its own panic site.
 			if isNew && !siteExplained.Val() && report.overconstrained {
@@ -472,7 +471,7 @@ func (e *Engine) observeSiteExplanation(site primitiveSite, siteExplained Explai
 		report.overconstrained = true
 		if siteExplained.Val() {
 			if isNew {
-				e.retainNil(site, siteExplained)
+				report.retainNil(siteExplained)
 			}
 			// This nil flow conflicts with the nonnil site, so pair it with every consumer.
 			e.emitConflicts(site, []ExplainedBool{siteExplained}, report.nonnil)
@@ -490,7 +489,7 @@ func (e *Engine) observeSiteExplanation(site primitiveSite, siteExplained Explai
 
 	case *UndeterminedVal:
 		if siteExplained.Val() && isNew {
-			e.retainNil(site, siteExplained)
+			report.retainNil(siteExplained)
 		}
 		e.storeDeterminedAndActivateControlledTriggers(site, siteExplained)
 
@@ -518,11 +517,12 @@ func (e *Engine) observeSiteExplanation(site primitiveSite, siteExplained Explai
 }
 
 // trackSiteExplanation stores a newly observed explanation for diagnostic reporting.
-// Repeated observations of the same nil source or the same terminal nonnil consumer return false.
+// It returns the site's report and whether the explanation is new. Repeated observations of the
+// same nil source or the same terminal nonnil consumer are not new.
 // Nil explanations are only appended to the reportable list by retainNil; agreeing nils stay out
 // of that list. Identity is derived from explanation text and positions, never by comparing
 // ExplainedBool or fmt.Stringer values, whose dynamic types may be uncomparable.
-func (e *Engine) trackSiteExplanation(site primitiveSite, exp ExplainedBool) bool {
+func (e *Engine) trackSiteExplanation(site primitiveSite, exp ExplainedBool) (*siteReport, bool) {
 	if e.siteReports == nil {
 		e.siteReports = make(map[primitiveSite]*siteReport)
 	}
@@ -539,24 +539,24 @@ func (e *Engine) trackSiteExplanation(site primitiveSite, exp ExplainedBool) boo
 	if exp.Val() {
 		id := nilSourceID(exp)
 		if report.seenNil[id] {
-			return false
+			return report, false
 		}
 		report.seenNil[id] = true
-		return true
+		return report, true
 	}
 	id := nonnilConsumerID(exp)
 	if report.seenNonnil[id] {
-		return false
+		return report, false
 	}
 	report.seenNonnil[id] = true
 	report.nonnil = append(report.nonnil, exp)
-	return true
+	return report, true
 }
 
 // retainNil records a nil explanation that diagnostics may cite: the canonical nil, or a nil that
 // conflicted with a nonnil site.
-func (e *Engine) retainNil(site primitiveSite, exp ExplainedBool) {
-	e.siteReports[site].nilable = append(e.siteReports[site].nilable, exp)
+func (r *siteReport) retainNil(exp ExplainedBool) {
+	r.nilable = append(r.nilable, exp)
 }
 
 // emitConflicts reports each pairing of the given nil sources and nonnil consumers that has not
